@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AirstepStudio</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        #status {
+            color: #888;
+            margin-bottom: 20px;
+        }
+        #midi-display {
+            font-size: 3em;
+            font-weight: bold;
+            text-align: center;
+            padding: 20px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            background-color: #1e1e1e;
+            width: 80%;
+            max-width: 600px;
+        }
+        .connected { color: #4caf50; }
+        .disconnected { color: #f44336; }
+    </style>
+</head>
+<body>
+    <h1>AirstepStudio</h1>
+    <div id="status">En attente de connexion...</div>
+    <div id="midi-display">--</div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const midiDisplayEl = document.getElementById('midi-display');
+
+        let socket;
+
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                statusEl.textContent = 'Connecté';
+                statusEl.className = 'connected';
+            };
+
+            socket.onmessage = (event) => {
+                // Try to parse JSON or just display text
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.message) {
+                        midiDisplayEl.textContent = data.message;
+                    } else {
+                         midiDisplayEl.textContent = JSON.stringify(data);
+                    }
+                } catch (e) {
+                    midiDisplayEl.textContent = event.data;
+                }
+            };
+
+            socket.onclose = () => {
+                statusEl.textContent = 'Déconnecté - Reconnexion...';
+                statusEl.className = 'disconnected';
+                setTimeout(connect, 3000);
+            };
+
+            socket.onerror = (error) => {
+                console.error('WebSocket Error:', error);
+            };
+        }
+
+        connect();
+    </script>
+</body>
+</html>
