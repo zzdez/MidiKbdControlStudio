@@ -1,35 +1,60 @@
 import sys
+import os
 import threading
-import time
 import webbrowser
 import uvicorn
+import multiprocessing
 import json
-import os
 
-# Ensure src is in path if running from src directory (though usually run from root)
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# --- 1. CONFIGURATION DU PATH ---
+# Ajoute le dossier contenant ce script au Python Path.
+# Cela permet de trouver les modules voisins (server.py, midi_engine.py)
+# sans avoir besoin de préfixer par "src."
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
 
-from src.config_manager import ConfigManager
-from src.profile_manager import ProfileManager
-from src.midi_engine import MidiManager
-from src.action_handler import ActionHandler
-from src.server import app, broadcast_sync
+# --- 2. IMPORTS ROBUSTES (Try/Except) ---
+# Tente d'importer directement (Mode EXE / Flat)
+# Si échoue, tente d'importer depuis src (Mode Dev)
+try:
+    from server import app as fastapi_app, broadcast_sync
+    from config_manager import ConfigManager
+    from midi_engine import MidiManager
+    from action_handler import ActionHandler
+    from profile_manager import ProfileManager
+except ImportError:
+    # Fallback pour IDE/Dev si le path n'a pas suffi
+    # Note: Si sys.path est bien configuré ci-dessus, le "try" devrait réussir même en dev
+    # Mais gardons ceci comme sécurité.
+    from src.server import app as fastapi_app, broadcast_sync
+    from src.config_manager import ConfigManager
+    from src.midi_engine import MidiManager
+    from src.action_handler import ActionHandler
+    from src.profile_manager import ProfileManager
+
+# Variable globale pour le thread serveur
+server_thread = None
+
+def start_uvicorn(host, port):
+    """Lance le serveur dans un thread bloquant"""
+    uvicorn.run(fastapi_app, host=host, port=port, log_level="info")
 
 def main():
-    print(">>> AirstepStudio Starting...")
+    print("--- Démarrage AirstepStudio ---")
 
-    # 1. Config
+    # 1. Chargement Config
     config = ConfigManager()
     midi_device = config.get("midi_device_name", "AIRSTEP")
     connection_mode = config.get("connection_mode", "BLE")
-    
-    print(f"Config: Device={midi_device}, Mode={connection_mode}")
+    # Utilisation d'un port configurable, defaut 8000
+    port = int(config.get("app_port", 8000))
+
+    print(f"Config: Device={midi_device}, Mode={connection_mode}, Port={port}")
 
     # 2. Profiles
     profile_mgr = ProfileManager()
-    # Migrate legacy config if needed
     profile_mgr.migrate_legacy_config()
-
     profiles = profile_mgr.load_all_profiles()
     print(f"Profiles loaded: {len(profiles)}")
 
@@ -38,12 +63,9 @@ def main():
 
     # 4. MIDI Callback
     def on_midi_message(msg):
-        # Broadcast to Web
         try:
-            # Simple string representation for now
+            # Simple string representation
             display_str = str(msg)
-
-            # Format nicely for UI
             if msg.type == 'control_change':
                 display_str = f"CC {msg.control} - {msg.value}"
             elif msg.type == 'note_on':
@@ -61,38 +83,36 @@ def main():
         except Exception as e:
             print(f"Callback Error: {e}")
 
-    # 5. Midi Manager
-    # Use existing MidiManager logic from src/midi_engine.py
+    # 5. Démarrage Moteur MIDI
     midi_mgr = MidiManager.create(connection_mode, midi_device, on_midi_message)
     midi_mgr.start()
 
-    # 6. Server Thread
-    def start_server():
-        # Run Uvicorn programmatically
-        # host="0.0.0.0" allows external access, "127.0.0.1" is local only
-        uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
-
-    server_thread = threading.Thread(target=start_server, daemon=True)
+    # 6. Démarrage Serveur Web
+    global server_thread
+    server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)
     server_thread.start()
     
-    # 7. Open Browser
-    # Give server a moment to start
+    # 7. Ouverture Navigateur
+    url = f"http://localhost:{port}"
+    print(f"Ouverture : {url}")
+
+    # Petit délai pour laisser Uvicorn se lancer
+    import time
     time.sleep(1.5)
-    url = "http://localhost:8000"
-    print(f"Opening {url}...")
     try:
         webbrowser.open(url)
     except:
         print(f"Could not open browser automatically. Please visit {url}")
-    
-    # 8. Keep Main Thread Alive
+
+    # 8. Boucle infinie pour garder le Main Thread en vie
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\nStopping...")
+        print("Arrêt.")
         midi_mgr.stop()
         sys.exit(0)
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     main()
