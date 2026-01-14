@@ -1,0 +1,84 @@
+{
+    "name": "Moises",
+    "app_context": "moises.exe",
+    "window_title_filter": "Moises - The Musician's App | Remove vocals and instruments from any song",
+    "mappings": [
+        {
+            "name": "Play/pause ",
+            "midi_cc": 54,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "space",
+            "action_scan_code": 57,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Retour au D\u00e9but",
+            "midi_cc": 55,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "\u00e0",
+            "action_scan_code": null,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": [],
+            "custom_icon": "\u21b6"
+        },
+        {
+            "name": "Acc\u00e9l\u00e9rer",
+            "midi_cc": 58,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "shift+.",
+            "action_scan_code": 51,
+            "action_modifiers": [
+                "shift"
+            ],
+            "action_modifier_scan_codes": [
+                54
+            ]
+        },
+        {
+            "name": "Ralentir",
+            "midi_cc": 50,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "shift+?",
+            "action_scan_code": 50,
+            "action_modifiers": [
+                "shift"
+            ],
+            "action_modifier_scan_codes": [
+                54
+            ]
+        },
+        {
+            "name": "Avance 10s",
+            "midi_cc": 56,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "droite",
+            "action_scan_code": 77,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": [],
+            "custom_icon": "\u23e9"
+        },
+        {
+            "name": "Retour 10s",
+            "midi_cc": 52,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "gauche",
+            "action_scan_code": 75,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": [],
+            "custom_icon": "\u23ea"
+        }
+    ]
+}

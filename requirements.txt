@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+websockets
+mido
+python-rtmidi
+bleak
+keyboard
+pygetwindow
+jinja2
+pyinstaller

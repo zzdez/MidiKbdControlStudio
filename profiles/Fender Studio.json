@@ -1,0 +1,169 @@
+{
+    "name": "Fender Studio",
+    "app_context": "Studio",
+    "window_title_filter": "",
+    "mappings": [
+        {
+            "name": "Play/pause ",
+            "midi_cc": 54,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "play/pause media",
+            "action_scan_code": -179,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Retour au D\u00e9but",
+            "midi_cc": 55,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": ",",
+            "action_scan_code": 50,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Acc\u00e9l\u00e9rer",
+            "midi_cc": 58,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "shift+.",
+            "action_scan_code": 51,
+            "action_modifiers": [
+                "shift"
+            ],
+            "action_modifier_scan_codes": [
+                54
+            ]
+        },
+        {
+            "name": "Ralentir",
+            "midi_cc": 50,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "shift+?",
+            "action_scan_code": 50,
+            "action_modifiers": [
+                "shift"
+            ],
+            "action_modifier_scan_codes": [
+                54
+            ]
+        },
+        {
+            "name": "Avance 10s",
+            "midi_cc": 56,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "+",
+            "action_scan_code": 78,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Retour 10s",
+            "midi_cc": 52,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "-",
+            "action_scan_code": 74,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Volume -",
+            "midi_cc": 80,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "volume down",
+            "action_scan_code": -174,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Volume +",
+            "midi_cc": 82,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "volume up",
+            "action_scan_code": -175,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Mute",
+            "midi_cc": 81,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "volume mute",
+            "action_scan_code": -173,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Pitch -",
+            "midi_cc": 51,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "",
+            "action_scan_code": null,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Pitch +",
+            "midi_cc": 59,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "",
+            "action_scan_code": null,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Boucle ON/OFF",
+            "midi_cc": 0,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "",
+            "action_scan_code": null,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Boucle A",
+            "midi_cc": 0,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "",
+            "action_scan_code": null,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Boucle B",
+            "midi_cc": 0,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "",
+            "action_scan_code": null,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        }
+    ]
+}

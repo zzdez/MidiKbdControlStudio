@@ -1,0 +1,6 @@
+{
+    "settings": {
+        "midi_device_name": "AIRSTEP",
+        "connection_mode": "BLE"
+    }
+}

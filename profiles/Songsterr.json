@@ -1,0 +1,86 @@
+{
+    "name": "Songsterr",
+    "app_context": "chrome.exe",
+    "window_title_filter": "Songsterr",
+    "mappings": [
+        {
+            "name": "Play/pause ",
+            "midi_cc": 54,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "space",
+            "action_scan_code": 57,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Retour au D\u00e9but",
+            "midi_cc": 55,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "backspace",
+            "action_scan_code": 14,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": [],
+            "custom_icon": null
+        },
+        {
+            "name": "Acc\u00e9l\u00e9rer",
+            "midi_cc": 58,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "alt+d",
+            "action_scan_code": 32,
+            "action_modifiers": [
+                "alt"
+            ],
+            "action_modifier_scan_codes": [
+                56
+            ],
+            "custom_icon": null
+        },
+        {
+            "name": "Ralentir",
+            "midi_cc": 50,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "alt+a",
+            "action_scan_code": 16,
+            "action_modifiers": [
+                "alt"
+            ],
+            "action_modifier_scan_codes": [
+                56
+            ],
+            "custom_icon": null
+        },
+        {
+            "name": "Avance 10s",
+            "midi_cc": 56,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "droite",
+            "action_scan_code": 77,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": [],
+            "custom_icon": null
+        },
+        {
+            "name": "Retour 10s",
+            "midi_cc": 52,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "gauche",
+            "action_scan_code": 75,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": [],
+            "custom_icon": null
+        }
+    ]
+}

@@ -1,0 +1,61 @@
+{
+    "name": "AIRSTEP",
+    "buttons": [
+        {
+            "cc": 50,
+            "label": "Bouton A (Gauche)"
+        },
+        {
+            "cc": 52,
+            "label": "Bouton B (Milieu G)"
+        },
+        {
+            "cc": 54,
+            "label": "Bouton C (Milieu)"
+        },
+        {
+            "cc": 56,
+            "label": "Bouton D (Milieu D)"
+        },
+        {
+            "cc": 58,
+            "label": "Bouton E (Droite)"
+        },
+        {
+            "cc": 51,
+            "label": "Long Press A"
+        },
+        {
+            "cc": 53,
+            "label": "Long Press B"
+        },
+        {
+            "cc": 55,
+            "label": "Long Press C"
+        },
+        {
+            "cc": 57,
+            "label": "Long Press D"
+        },
+        {
+            "cc": 59,
+            "label": "Long Press E"
+        },
+        {
+            "cc": 80,
+            "label": "Bouton 1 (Boss)"
+        },
+        {
+            "cc": 81,
+            "label": "Bouton 2 (Boss)"
+        },
+        {
+            "cc": 82,
+            "label": "Bouton 3 (Boss)"
+        },
+        {
+            "cc": 0,
+            "label": "N/A"
+        }
+    ]
+}

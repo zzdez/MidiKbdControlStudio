@@ -1,0 +1,38 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Environnements Virtuels (TRES IMPORTANT) ---
+# C'est ici qu'on ignore le dossier contenant toutes les libs installées
+venv/
+env/
+.venv/
+.env
+
+# --- Distribution / Build (Pour quand on fera l'EXE) ---
+build/
+dist/
+*.spec
+*.egg-info/
+*.manifest
+
+# --- IDE et Éditeurs ---
+.vscode/
+.idea/
+*.swp
+
+# --- OS Files (Windows/Mac) ---
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# --- Logs et Crashs ---
+*.log
+*.bak
+
+# --- Fichiers de données locales (Optionnel) ---
+# Si tu ne veux pas partager ta config perso sur GitHub, décommente la ligne suivante :
+# config.json
+#AGENTS.md
+AirstepStudio.exe

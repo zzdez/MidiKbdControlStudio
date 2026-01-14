@@ -1,0 +1,133 @@
+{
+    "name": "Airstep Control Player",
+    "app_context": "",
+    "window_title_filter": "",
+    "mappings": [
+        {
+            "name": "Play/pause ",
+            "midi_cc": 54,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_pause",
+            "custom_icon": "\u23ef"
+        },
+        {
+            "name": "Retour au D\u00e9but",
+            "midi_cc": 55,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_stop",
+            "custom_icon": "\u25a0"
+        },
+        {
+            "name": "Acc\u00e9l\u00e9rer",
+            "midi_cc": 58,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_speed_up",
+            "custom_icon": "\u23f1+"
+        },
+        {
+            "name": "Ralentir",
+            "midi_cc": 50,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_speed_down",
+            "custom_icon": "\u23f1-"
+        },
+        {
+            "name": "Avance 10s",
+            "midi_cc": 56,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_seek_forward",
+            "custom_icon": "\u23e9"
+        },
+        {
+            "name": "Retour 10s",
+            "midi_cc": 52,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_seek_backward",
+            "custom_icon": "\u23ea"
+        },
+        {
+            "name": "Volume -",
+            "midi_cc": 80,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_vol_down",
+            "custom_icon": "\ud83d\udd09"
+        },
+        {
+            "name": "Volume +",
+            "midi_cc": 82,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_vol_up",
+            "custom_icon": "\ud83d\udd0a"
+        },
+        {
+            "name": "Mute",
+            "midi_cc": 81,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_mute",
+            "custom_icon": "\ud83d\udd07"
+        },
+        {
+            "name": "Pitch -",
+            "midi_cc": 51,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_pitch_down",
+            "custom_icon": "\u266a-"
+        },
+        {
+            "name": "Pitch +",
+            "midi_cc": 59,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_pitch_up",
+            "custom_icon": "\u266a+"
+        },
+        {
+            "name": "Boucle ON/OFF",
+            "midi_cc": 0,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_clear_loop",
+            "custom_icon": "\u2715"
+        },
+        {
+            "name": "Boucle A",
+            "midi_cc": 0,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_loop_a",
+            "custom_icon": "A"
+        },
+        {
+            "name": "Boucle B",
+            "midi_cc": 0,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "internal",
+            "action_value": "media_loop_b",
+            "custom_icon": "B"
+        }
+    ]
+}
