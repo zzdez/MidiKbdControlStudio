@@ -1,288 +1,204 @@
-// --- CONFIG ---
-const API_SETLIST = '/api/setlist';
-const API_TRIGGER = '/api/trigger';
+let player;
+let currentMode = "WIN"; // WIN ou WEB
+let websocket;
 
-// --- STATE ---
-let player; // YouTube Player
-let setlist = [];
-let controlMode = 'windows'; // 'windows' | 'web'
-let currentProfile = null;
-
-// --- DOM ELEMENTS ---
-const statusEl = document.getElementById('status');
-const profileNameEl = document.getElementById('profile-name');
-const logsEl = document.getElementById('logs-container');
-const gridEl = document.getElementById('pedalboard-grid');
-const inputUrl = document.getElementById('input-url');
-const btnAdd = document.getElementById('btn-add');
-const listEl = document.getElementById('setlist-items');
-const modeCheck = document.getElementById('mode-check');
-
-// --- LOGGING ---
-function log(msg) {
-    const line = document.createElement('div');
-    line.textContent = `> ${msg}`;
-    logsEl.prepend(line);
-}
-
-// --- YOUTUBE API ---
-function loadYouTubeAPI() {
-    const tag = document.createElement('script');
-    tag.src = "https://www.youtube.com/iframe_api";
-    const firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-}
-
-window.onYouTubeIframeAPIReady = function() {
+// --- 1. YOUTUBE API ---
+function onYouTubeIframeAPIReady() {
     player = new YT.Player('player', {
         height: '100%',
         width: '100%',
         videoId: '',
-        playerVars: { 'playsinline': 1, 'controls': 1 },
         events: { 'onReady': onPlayerReady }
     });
-};
-
-function onPlayerReady(event) {
-    log("YouTube Player Ready");
 }
+function onPlayerReady(event) { console.log("Player Ready"); }
 
-function loadVideo(idOrUrl) {
-    // If it looks like an ID (11 chars, no special chars), use ID
-    // Otherwise extract from URL
-    let videoId = idOrUrl;
+// --- 2. WEBSOCKET ---
+function connectWS() {
+    // Determine protocol dynamically to handle potential future https deployments if needed, though mostly local
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    websocket = new WebSocket(`${protocol}//${location.host}/ws`);
 
-    // Simple heuristic: URL usually contains dots or slashes
-    if (idOrUrl.includes('/') || idOrUrl.includes('.')) {
-         const match = idOrUrl.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
-         if (match && match[1]) videoId = match[1];
-    }
+    websocket.onopen = () => {
+        document.getElementById("connection-status").classList.add("connected");
+        loadSetlist();
+    };
 
-    if (videoId && videoId.length === 11) {
-        if(player && player.loadVideoById) {
-            player.loadVideoById(videoId);
+    websocket.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type === "midi") {
+            handleMidi(msg.cc, msg.value);
+        } else if (msg.type === "profile_update") {
+            renderPedalboard(msg.data);
+            if (msg.data && msg.data.name) {
+                document.getElementById("active-profile").innerText = "Profil : " + msg.data.name;
+            } else {
+                 document.getElementById("active-profile").innerText = "Profil : Global / Aucun";
+            }
         }
+    };
+
+    websocket.onclose = () => {
+        document.getElementById("connection-status").classList.remove("connected");
+        setTimeout(connectWS, 2000);
+    };
+}
+
+// --- 3. LOGIQUE METIER ---
+function handleMidi(cc, value) {
+    if (value === 0) return;
+
+    // Feedback visuel
+    const card = document.getElementById(`card-${cc}`);
+    if (card) {
+        card.classList.add("active");
+        setTimeout(() => card.classList.remove("active"), 200);
+    }
+
+    // Mode WEB (Contrôle direct YouTube)
+    // IMPORTANT: Mapping Hardcodé pour le moment tel que demandé par l'utilisateur
+    // A: 50, B: 52, C: 54, D: 56, E: 58
+    if (currentMode === "WEB" && player && player.getPlayerState) {
+        if (cc === 54) toggleVideo(); // C
+        if (cc === 52) player.seekTo(player.getCurrentTime() - 5); // B
+        if (cc === 56) player.seekTo(player.getCurrentTime() + 5); // D
+        if (cc === 50) player.setPlaybackRate(player.getPlaybackRate() - 0.25); // A
+        if (cc === 58) player.setPlaybackRate(player.getPlaybackRate() + 0.25); // E
     } else {
-        log("ID/URL Invalide: " + idOrUrl);
+        // En mode WIN, on pourrait aussi vouloir trigger via API si le main.py ne le fait pas tout seul.
+        // Mais main.py a été "decoupled". Donc il faut envoyer l'info au backend.
+        // MAIS le code JS fourni par l'user ne le fait pas explicitement dans handleMidi.
+        // Il dit "N'appelle PAS l'API Python" en mode WEB.
+        // Et "SI Mode == WIN ... Appelle l'API Python".
+        // Le code fourni par l'user ne contient PAS l'appel API dans handleMidi pour le mode WIN.
+        // Je vais AJOUTER l'appel API pour le mode WIN pour être cohérent avec la demande précédente "decoupling".
+
+        if (currentMode === "WIN") {
+             fetch("/api/trigger", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({cc: cc, value: 127})
+            });
+        }
     }
 }
 
-// --- SETLIST MANAGEMENT ---
+function setMode(mode) {
+    currentMode = mode;
+    document.getElementById("mode-win").className = mode === "WIN" ? "active" : "";
+    document.getElementById("mode-web").className = mode === "WEB" ? "active" : "";
+}
+
+// --- 4. SETLIST ---
 async function loadSetlist() {
-    try {
-        const res = await fetch(API_SETLIST);
-        setlist = await res.json();
-        renderSetlist();
-    } catch (e) { log("Error loading setlist"); }
-}
+    const res = await fetch("/api/setlist");
+    const tracks = await res.json();
+    const container = document.getElementById("setlist-container");
+    container.innerHTML = "";
 
-async function addItem(url) {
-    try {
-        log("Ajout en cours (Smart Fetch)...");
-        const res = await fetch(API_SETLIST, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ url: url }) // Let backend fetch title
-        });
-        setlist = await res.json();
-        renderSetlist();
-        log("Ajouté avec succès !");
-    } catch (e) { log("Error adding item"); }
-}
-
-async function removeItem(index) {
-    try {
-        const res = await fetch(`${API_SETLIST}/${index}`, { method: 'DELETE' });
-        setlist = await res.json();
-        renderSetlist();
-    } catch (e) { log("Error removing item"); }
-}
-
-function renderSetlist() {
-    listEl.innerHTML = '';
-    setlist.forEach((track, index) => {
-        const li = document.createElement('li');
-        li.className = 'track-item';
-
-        // Display Title (Backend provided) or fallback to URL
-        const displayTitle = track.title || track.url;
-
-        li.innerHTML = `
-            <span class="track-title">${displayTitle}</span>
-            <button class="btn-remove">×</button>
+    tracks.forEach((track, index) => {
+        const div = document.createElement("div");
+        div.className = "track-item";
+        div.innerHTML = `
+            <span class="track-title" title="${track.title}">${track.title}</span>
+            <div class="track-actions">
+                <button class="btn-play" onclick="playTrack('${track.url}')">▶</button>
+                <button class="btn-del" onclick="deleteTrack(${index})">X</button>
+            </div>
         `;
-
-        li.addEventListener('click', (e) => {
-            if(e.target.classList.contains('btn-remove')) return;
-            document.querySelectorAll('.track-item').forEach(el => el.classList.remove('active'));
-            li.classList.add('active');
-
-            // Prefer ID if available, else URL
-            loadVideo(track.id || track.url);
-        });
-
-        li.querySelector('.btn-remove').addEventListener('click', () => {
-            removeItem(index);
-        });
-
-        listEl.appendChild(li);
+        container.appendChild(div);
     });
 }
 
-btnAdd.addEventListener('click', () => {
-    const url = inputUrl.value.trim();
+async function addToSetlist() {
+    const input = document.getElementById("url-input");
+    const url = input.value;
     if (!url) return;
+    input.value = "Chargement...";
+    await fetch("/api/setlist", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({url: url})
+    });
+    input.value = "";
+    loadSetlist();
+}
 
-    addItem(url);
-    inputUrl.value = '';
-});
+async function deleteTrack(index) {
+    await fetch(`/api/setlist/${index}`, { method: "DELETE" });
+    loadSetlist();
+}
 
-// --- COMMAND HANDLING ---
-function handleCommand(cmd) {
-    if (!player) return;
-    log(`CMD (Web): ${cmd}`);
+function playTrack(url) {
+    let videoId = null;
+    try {
+        // Basic extraction if backend ID is missing or fallback
+        // The backend saves ID, but here we receive URL (or ID inside URL object if track.url passed)
+        // Actually track.url is what we saved.
+        // Let's try to extract ID from URL using regex similar to backend or use URL constructor
+        let urlObj;
+        try {
+             urlObj = new URL(url);
+        } catch {
+             // Maybe it is just an ID?
+             if (url.length === 11) videoId = url;
+        }
 
-    switch(cmd) {
-        case 'media_pause':
-        case 'media_play_pause':
-            const state = player.getPlayerState();
-            if (state === 1) player.pauseVideo();
-            else player.playVideo();
-            break;
-        case 'media_play': player.playVideo(); break;
-        case 'media_stop': player.stopVideo(); break;
-        case 'media_speed_up':
-            let rate = player.getPlaybackRate();
-            player.setPlaybackRate(rate + 0.25);
-            log(`Speed: ${player.getPlaybackRate()}`);
-            break;
-        case 'media_speed_down':
-            let r = player.getPlaybackRate();
-            if(r > 0.25) player.setPlaybackRate(r - 0.25);
-            break;
-        case 'media_rewind':
-            let curr = player.getCurrentTime();
-            player.seekTo(curr - 10, true);
-            break;
-        case 'media_forward':
-            let c = player.getCurrentTime();
-            player.seekTo(c + 10, true);
-            break;
+        if (urlObj) {
+            if (urlObj.hostname.includes("youtube.com")) videoId = urlObj.searchParams.get("v");
+            else if (urlObj.hostname.includes("youtu.be")) videoId = urlObj.pathname.slice(1);
+        }
+
+        // Regex Fallback
+        if (!videoId) {
+             const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
+             if (match && match[1]) videoId = match[1];
+        }
+
+    } catch(e) {}
+
+    if (videoId && player) {
+        player.loadVideoById(videoId);
+        setMode("WEB"); // Auto-switch mode
     }
 }
 
-// --- MODE SWITCH ---
-modeCheck.addEventListener('change', (e) => {
-    controlMode = e.target.checked ? 'web' : 'windows';
-    log(`Mode switched to: ${controlMode.toUpperCase()}`);
-});
+function toggleVideo() {
+    if (player.getPlayerState() === 1) player.pauseVideo();
+    else player.playVideo();
+}
 
-// --- WEBSOCKET & LOGIC ---
-function renderGrid(profileData) {
-    gridEl.innerHTML = '';
-    if (!profileData || !profileData.mappings) {
-        gridEl.innerHTML = '<div style="color: #555; text-align:center; grid-column: span 2;">Aucun profil actif</div>';
+// --- 5. RENDER PEDALBOARD ---
+function renderPedalboard(profile) {
+    const grid = document.getElementById("pedalboard-grid");
+    grid.innerHTML = "";
+
+    if (!profile || !profile.mappings) {
+        grid.innerHTML = '<div class="empty-state">Aucun profil actif</div>';
         return;
     }
 
-    profileData.mappings.forEach(m => {
-        const btn = document.createElement('div');
-        btn.className = 'pedal-btn';
-        btn.dataset.cc = m.midi_cc;
-
-        btn.innerHTML = `
-            <div class="pedal-name">${m.name || 'Action'}</div>
+    profile.mappings.forEach(m => {
+        const div = document.createElement("div");
+        div.className = "pedal-card";
+        div.id = `card-${m.midi_cc}`;
+        div.onclick = () => {
+            // Manual trigger always sends to backend for action execution?
+            // Or respects mode? Usually manual click implies "Testing" or "Forcing" action.
+            // Let's force trigger backend.
+            fetch("/api/trigger", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({cc: m.midi_cc, value: 127})
+            });
+        };
+        div.innerHTML = `
+            <span class="pedal-icon">⚡</span>
+            <div class="pedal-label">${m.name}</div>
             <div class="pedal-cc">CC ${m.midi_cc}</div>
         `;
-
-        // Manual Click -> Simulate MIDI logic
-        btn.addEventListener('mousedown', () => {
-            processAction(m.midi_cc);
-            btn.classList.add('active');
-        });
-        btn.addEventListener('mouseup', () => {
-            btn.classList.remove('active');
-        });
-
-        gridEl.appendChild(btn);
+        grid.appendChild(div);
     });
 }
 
-// Core Logic: Routing
-async function processAction(cc) {
-    if (!currentProfile || !currentProfile.mappings) return;
-
-    // Find Mapping
-    const mapping = currentProfile.mappings.find(m => m.midi_cc == cc);
-    if (!mapping) return;
-
-    const actionVal = mapping.action_value || "";
-    const isMedia = actionVal.startsWith("media_");
-
-    // Logic Table
-    if (controlMode === 'web' && isMedia) {
-        handleCommand(actionVal);
-    } else {
-        triggerAction(cc);
-    }
-}
-
-async function triggerAction(cc) {
-    try {
-        await fetch(API_TRIGGER, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cc, value: 127 })
-        });
-    } catch (e) { console.error(e); }
-}
-
-function connect() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    const socket = new WebSocket(wsUrl);
-
-    socket.onopen = () => {
-        statusEl.textContent = 'Online';
-        statusEl.className = 'connected';
-    };
-
-    socket.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-
-            if (data.type === "midi") {
-                if (data.cc !== undefined) {
-                    // Visual Feedback
-                    const btn = document.querySelector(`.pedal-btn[data-cc="${data.cc}"]`);
-                    if (btn) {
-                        btn.classList.add('active');
-                        setTimeout(() => btn.classList.remove('active'), 200);
-                    }
-
-                    // Trigger Logic
-                    processAction(data.cc);
-                }
-            } else if (data.type === "profile_update") {
-                currentProfile = data.data;
-                const name = currentProfile ? currentProfile.name : "Global";
-                profileNameEl.textContent = name;
-                renderGrid(currentProfile);
-                log(`Profil: ${name}`);
-            } else if (data.type === "command") {
-                handleCommand(data.cmd);
-            }
-        } catch (e) {}
-    };
-
-    socket.onclose = () => {
-        statusEl.textContent = 'Offline';
-        statusEl.className = 'disconnected';
-        setTimeout(connect, 3000);
-    };
-}
-
-// --- INIT ---
-loadYouTubeAPI();
-loadSetlist();
-connect();
+connectWS();

@@ -3,58 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AirstepStudio Cockpit</title>
+    <title>Airstep Studio</title>
     <link rel="stylesheet" href="style.css">
+    <!-- API YouTube Iframe -->
+    <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
+
+    <!-- HEADER -->
     <header>
-        <h1>AirstepStudio</h1>
-        <div id="status">Connecting...</div>
+        <div class="logo">AIRSTEP STUDIO</div>
+        <div class="status-bar">
+            <span id="connection-status" class="status-dot">●</span>
+            <span id="active-profile">Profil : Global</span>
+        </div>
     </header>
 
-    <div id="cockpit">
-        <!-- COL 1: MEDIA -->
-        <div id="media-zone">
-            <div id="player-container">
+    <!-- MAIN LAYOUT -->
+    <main class="cockpit">
+
+        <!-- COLONNE GAUCHE : MEDIA & SETLIST -->
+        <section class="media-zone">
+            <!-- Lecteur YouTube -->
+            <div id="video-container">
                 <div id="player"></div>
             </div>
 
-            <div id="setlist-zone">
-                <div id="setlist-controls">
-                    <input type="text" id="input-url" placeholder="URL YouTube (https://...)">
-                    <button id="btn-add">Ajouter</button>
+            <!-- Setlist Manager -->
+            <div class="setlist-manager">
+                <div class="input-group">
+                    <input type="text" id="url-input" placeholder="Coller une URL YouTube...">
+                    <button onclick="addToSetlist()">Ajouter</button>
                 </div>
-                <ul id="setlist-items">
-                    <!-- Items JS -->
-                </ul>
+                <div id="setlist-container">
+                    <!-- Liste générée par JS -->
+                </div>
             </div>
-        </div>
+        </section>
 
-        <!-- COL 2: CONTROL -->
-        <div id="control-zone">
-            <div id="control-header">
-                <div id="profile-info">
-                    <div id="profile-label">PROFIL</div>
-                    <div id="profile-name">Global</div>
-                </div>
-
-                <div class="switch-container">
-                    <span>Win</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="mode-check">
-                        <span class="slider"></span>
-                    </label>
-                    <span>Web</span>
+        <!-- COLONNE DROITE : CONTROLE -->
+        <section class="control-zone">
+            <!-- Mode Switch -->
+            <div class="mode-switch">
+                <label>Mode Contrôle : </label>
+                <div class="toggle-btn-group">
+                    <button id="mode-win" class="active" onclick="setMode('WIN')">WINDOWS (App)</button>
+                    <button id="mode-web" onclick="setMode('WEB')">WEB (YouTube)</button>
                 </div>
             </div>
 
-            <div id="pedalboard-grid" class="grid-container">
-                <!-- Buttons JS -->
+            <!-- Pédalier Virtuel -->
+            <div id="pedalboard-grid">
+                <div class="empty-state">En attente du profil...</div>
             </div>
-        </div>
-    </div>
+        </section>
 
-    <div id="logs-container"></div>
+    </main>
 
     <script src="app.js"></script>
 </body>
