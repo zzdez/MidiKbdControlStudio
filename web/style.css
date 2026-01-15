@@ -1,0 +1,142 @@
+body {
+    background-color: #121212;
+    color: #ffffff;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    overflow: hidden;
+}
+
+header {
+    margin-top: 20px;
+    text-align: center;
+}
+
+h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #eee;
+}
+
+#status {
+    color: #888;
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+}
+
+#profile-card {
+    background-color: #292929;
+    padding: 10px 30px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid #444;
+    min-width: 200px;
+}
+
+#profile-label {
+    font-size: 0.7rem;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+}
+
+#profile-name {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #4facfe;
+}
+
+/* --- PEDALBOARD GRID --- */
+.grid-container {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 15px;
+    width: 90%;
+    max-width: 1000px;
+    padding: 20px;
+    flex-grow: 1;
+    align-content: center;
+}
+
+.pedal-btn {
+    background-color: #1e1e1e;
+    border: 2px solid #333;
+    border-radius: 12px;
+    height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    user-select: none;
+    position: relative;
+}
+
+.pedal-btn:hover {
+    background-color: #2a2a2a;
+    border-color: #555;
+}
+
+.pedal-btn:active {
+    transform: scale(0.98);
+}
+
+.pedal-btn.active {
+    background-color: #4facfe;
+    color: #000;
+    border-color: #fff;
+    box-shadow: 0 0 15px rgba(79, 172, 254, 0.5);
+    transform: translateY(2px);
+}
+
+.pedal-name {
+    font-weight: bold;
+    font-size: 1.1rem;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.pedal-cc {
+    font-size: 0.8rem;
+    color: #666;
+}
+
+.pedal-btn.active .pedal-cc {
+    color: #333;
+}
+
+.empty-slot {
+    border: 2px dashed #333;
+    background: transparent;
+    cursor: default;
+}
+
+.empty-slot:hover {
+    background: transparent;
+    border-color: #333;
+}
+
+/* --- FOOTER / LOGS --- */
+#logs-container {
+    width: 100%;
+    background: #000;
+    border-top: 1px solid #333;
+    height: 100px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 0.8rem;
+    padding: 5px 20px;
+    box-sizing: border-box;
+    color: #888;
+}
+
+.connected { color: #4caf50 !important; }
+.disconnected { color: #f44336 !important; }

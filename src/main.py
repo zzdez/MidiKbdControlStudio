@@ -35,6 +35,7 @@ try:
     from midi_engine import MidiManager
     from action_handler import ActionHandler
     from profile_manager import ProfileManager
+    from context_monitor import ContextMonitor
 except ImportError:
     # Fallback pour structure src/
     from src.server import app as fastapi_app, broadcast_sync
@@ -42,9 +43,15 @@ except ImportError:
     from src.midi_engine import MidiManager
     from src.action_handler import ActionHandler
     from src.profile_manager import ProfileManager
+    from src.context_monitor import ContextMonitor
 
-# Variable globale
+# Variables globales
 server_thread = None
+midi_mgr = None
+context_monitor = None
+config = None
+profile_mgr = None
+action_handler = None
 
 def find_free_port(start_port=8000, max_tries=10):
     """Cherche un port libre"""
@@ -66,72 +73,137 @@ def start_uvicorn(host, port):
                 f.write(str(e))
         except: pass
 
-def main():
-    # 1. Config & Port
-    config = ConfigManager()
-    base_port = int(config.get("app_port", 8000))
-    port = find_free_port(base_port)
+def start_background_services():
+    """
+    Lance les services backend (MIDI, Context) en arrière-plan.
+    """
+    global midi_mgr, context_monitor, profile_mgr, action_handler, config
 
-    # 2. Managers
+    print(">>> Initialisation des Services Backend (Async)...")
+    try:
+        # 2. Profiles (Rechargement/Validation)
+        # Note: Déjà chargés dans main, mais on peut rafraîchir
+
+        # 3. Context Monitor (Smart Logic)
+        print(">>> Démarrage Context Monitor...")
+
+        # Callback appelé quand le profil change (0.5s check)
+        def on_profile_change(profile_data):
+            try:
+                # A. Update ActionHandler State
+                action_handler.set_current_profile(profile_data)
+
+                # B. Broadcast to Web
+                msg = {
+                    "type": "profile_update",
+                    "data": profile_data # Peut être None
+                }
+                broadcast_sync(json.dumps(msg))
+            except Exception as e:
+                print(f"Profile Change Error: {e}")
+
+        context_monitor = ContextMonitor(profile_mgr, action_handler, callback=on_profile_change)
+        context_monitor.start()
+
+        # 4. MIDI Engine
+        midi_device = config.get("midi_device_name", "AIRSTEP")
+        connection_mode = config.get("connection_mode", "BLE")
+
+        print(f">>> Démarrage MIDI ({connection_mode}: {midi_device})...")
+
+        def on_midi_event(msg):
+            try:
+                # 1. Web Broadcast
+                data = {
+                    "type": "midi",
+                    "cc": msg.control if msg.type == 'control_change' else None,
+                    "value": msg.value if hasattr(msg, 'value') else None,
+                    "channel": msg.channel if hasattr(msg, 'channel') else None,
+                    "message": str(msg)
+                }
+                broadcast_sync(json.dumps(data))
+
+                # 2. Action Trigger (Using Smart Context in ActionHandler)
+                if msg.type == 'control_change':
+                    # Mapping 0-15 -> 1-16
+                    # Note: action_handler utilisera self.current_profile s'il existe
+                    profiles = profile_mgr.profiles
+                    action_handler.execute(msg.control, msg.value, msg.channel + 1, profiles)
+
+            except Exception as ex:
+                print(f"MIDI Callback Error: {ex}")
+
+        midi_mgr = MidiManager.create(connection_mode, midi_device, on_midi_event)
+        midi_mgr.start()
+        print(">>> Backend Opérationnel !")
+
+    except Exception as e:
+        print(f"!!! ERREUR CRITIQUE BACKEND : {e}")
+
+def wait_for_server(host, port, timeout=5.0):
+    """Attend que le port soit ouvert avant de continuer."""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            with socket.create_connection((host, port), timeout=1.0):
+                return True
+        except (OSError, ConnectionRefusedError):
+            time.sleep(0.2)
+    return False
+
+def main():
+    global server_thread, config, profile_mgr, action_handler
+
+    print("--- Démarrage AirstepStudio (Smart) ---")
+
+    # 1. Init Base
+    config = ConfigManager()
     profile_mgr = ProfileManager()
     profile_mgr.migrate_legacy_config()
-    profiles = profile_mgr.load_all_profiles()
+    profile_mgr.load_all_profiles()
 
     action_handler = ActionHandler()
 
-    # 3. Démarrage Serveur Web (Priorité 1)
-    global server_thread
-    server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)
+    # Injection dans FastAPI pour l'API /api/trigger
+    fastapi_app.state.action_handler = action_handler
+    fastapi_app.state.profiles = profile_mgr.profiles
+
+    # Choix du Port
+    requested_port = int(config.get("app_port", 8000))
+    port = find_free_port(requested_port)
+    host = "127.0.0.1"
+
+    # 2. Démarrage Serveur Web
+    print(">>> Démarrage Serveur Web...")
+    server_thread = threading.Thread(target=start_uvicorn, args=(host, port), daemon=True)
     server_thread.start()
 
-    # 4. Démarrage MIDI (Priorité 2 - Arrière plan)
-    # On isole le MIDI pour que s'il plante (Bluetooth), le Web reste accessible
-    def start_midi():
-        time.sleep(2) # Petit délai pour laisser le serveur respirer
+    # 3. Vérification de vie
+    print(">>> Attente disponibilité serveur...")
+    if wait_for_server(host, port):
+        url = f"http://{host}:{port}"
+        print(f">>> Serveur PRÊT. Ouverture : {url}")
         try:
-            target = config.get("midi_device_name", "AIRSTEP")
-            connection_mode = config.get("connection_mode", "BLE")
+            webbrowser.open(url)
+        except:
+            print("Impossible d'ouvrir le navigateur.")
+    else:
+        print("TIMEOUT: Le serveur n'a pas démarré.")
+        # On continue...
 
-            # Callback de pont MIDI -> Web + Action
-            def on_midi_event(msg):
-                try:
-                    # 1. Web Broadcast
-                    data = {
-                        "type": "midi",
-                        "cc": msg.control if msg.type == 'control_change' else None,
-                        "value": msg.value if hasattr(msg, 'value') else None,
-                        "channel": msg.channel if hasattr(msg, 'channel') else None,
-                        "message": str(msg)
-                    }
-                    broadcast_sync(json.dumps(data))
+    # 4. Démarrage Backend (Async)
+    backend_thread = threading.Thread(target=start_background_services, daemon=True)
+    backend_thread.start()
 
-                    # 2. Action Trigger
-                    if msg.type == 'control_change':
-                        # Mapping 0-15 -> 1-16
-                        action_handler.execute(msg.control, msg.value, msg.channel + 1, profiles)
-
-                except Exception as ex:
-                    print(f"MIDI Callback Error: {ex}")
-
-            midi = MidiManager.create(connection_mode, target, on_midi_event)
-            midi.start()
-        except Exception as e:
-            print(f"Erreur MIDI non bloquante: {e}")
-
-    midi_thread = threading.Thread(target=start_midi, daemon=True)
-    midi_thread.start()
-
-    # 5. Ouverture Navigateur
-    url = f"http://127.0.0.1:{port}"
-    time.sleep(1.0) # Attente démarrage Uvicorn
-    webbrowser.open(url)
-
-    # 6. Boucle de vie (Keep Alive)
+    # 5. Boucle de vie
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        pass
+        print("Arrêt demandé...")
+        if midi_mgr: midi_mgr.stop()
+        if context_monitor: context_monitor.stop()
+        sys.exit(0)
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()

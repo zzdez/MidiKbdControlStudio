@@ -1,197 +1,31 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AirstepStudio</title>
-    <style>
-        body {
-            background-color: #121212;
-            color: #ffffff;
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-        #status {
-            color: #888;
-            margin-bottom: 20px;
-        }
-        #profile-card {
-            background-color: #292929;
-            padding: 10px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            border: 1px solid #444;
-        }
-        #profile-label {
-            font-size: 0.8em;
-            color: #aaa;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 5px;
-        }
-        #profile-name {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #4facfe;
-        }
-        #midi-display {
-            font-size: 3em;
-            font-weight: bold;
-            text-align: center;
-            padding: 20px;
-            border: 2px solid #333;
-            border-radius: 10px;
-            background-color: #1e1e1e;
-            width: 80%;
-            max-width: 600px;
-            transition: border-color 0.2s;
-        }
-        .connected { color: #4caf50; }
-        .disconnected { color: #f44336; }
-
-        .midi-flash {
-            border-color: #4facfe !important;
-        }
-
-        #test-area {
-            margin-top: 30px;
-            text-align: center;
-        }
-        #btn-test {
-            padding: 10px 20px;
-            background-color: #444;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-        }
-        #btn-test:hover {
-            background-color: #555;
-        }
-        #logs {
-            margin-top: 10px;
-            font-family: monospace;
-            color: #888;
-            max-height: 100px;
-            overflow-y: auto;
-            width: 80%;
-            max-width: 600px;
-            background: #111;
-            padding: 10px;
-            border: 1px solid #333;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>AirstepStudio</h1>
-    <div id="status">En attente de connexion...</div>
+    <header>
+        <h1>AirstepStudio</h1>
+        <div id="status">Connexion...</div>
 
-    <div id="profile-card">
-        <div id="profile-label">PROFIL ACTIF</div>
-        <div id="profile-name">Global / Aucun</div>
+        <div id="profile-card">
+            <div id="profile-label">PROFIL ACTIF</div>
+            <div id="profile-name">Global / Aucun</div>
+        </div>
+    </header>
+
+    <!-- Dynamic Grid -->
+    <div id="pedalboard-grid" class="grid-container">
+        <!-- Buttons will be injected here via JS -->
     </div>
 
-    <div id="midi-display">--</div>
-
-    <div id="test-area">
-        <button id="btn-test">Test Action</button>
-        <div id="logs">Logs...</div>
+    <div id="logs-container">
+        <!-- Logs -->
     </div>
 
-    <script>
-        const statusEl = document.getElementById('status');
-        const midiDisplayEl = document.getElementById('midi-display');
-        const profileNameEl = document.getElementById('profile-name');
-        const logsEl = document.getElementById('logs');
-        const btnTest = document.getElementById('btn-test');
-
-        let socket;
-
-        function log(msg) {
-            const line = document.createElement('div');
-            line.textContent = `> ${msg}`;
-            logsEl.prepend(line);
-        }
-
-        // Test Button Logic
-        btnTest.addEventListener('click', () => {
-            log('Testing API Status...');
-            fetch('/api/status')
-                .then(res => res.json())
-                .then(data => log('API Response: ' + JSON.stringify(data)))
-                .catch(err => log('API Error: ' + err));
-        });
-
-        function connect() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
-
-            socket = new WebSocket(wsUrl);
-
-            socket.onopen = () => {
-                statusEl.textContent = 'Connecté';
-                statusEl.className = 'connected';
-                log('WebSocket Connected');
-            };
-
-            socket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-
-                    if (data.type === "midi") {
-                        // Display main message
-                        if (data.cc !== undefined) {
-                            midiDisplayEl.textContent = `CC ${data.cc} - ${data.value}`;
-                        } else {
-                            midiDisplayEl.textContent = data.message;
-                        }
-
-                        // Log detail
-                        log(`MIDI: ${data.message}`);
-
-                        // Visual Flash
-                        midiDisplayEl.classList.add('midi-flash');
-                        setTimeout(() => midiDisplayEl.classList.remove('midi-flash'), 100);
-
-                    } else if (data.type === "profile_change") {
-                        profileNameEl.textContent = data.profile;
-                        log(`Profile: ${data.profile}`);
-                    } else {
-                         log(`RX: ${JSON.stringify(data)}`);
-                    }
-
-                } catch (e) {
-                    // Fallback for raw text (legacy)
-                    if (!event.data.startsWith("{")) {
-                        midiDisplayEl.textContent = event.data;
-                        log(`Raw: ${event.data}`);
-                    }
-                }
-            };
-
-            socket.onclose = () => {
-                statusEl.textContent = 'Déconnecté - Reconnexion...';
-                statusEl.className = 'disconnected';
-                log('WS Closed. Reconnecting...');
-                setTimeout(connect, 3000);
-            };
-
-            socket.onerror = (error) => {
-                console.error('WebSocket Error:', error);
-                log('WS Error');
-            };
-        }
-
-        connect();
-    </script>
+    <script src="app.js"></script>
 </body>
 </html>

@@ -9,10 +9,11 @@ except ImportError:
     from src.server import broadcast_sync
 
 class ContextMonitor(threading.Thread):
-    def __init__(self, profile_manager, action_handler):
+    def __init__(self, profile_manager, action_handler, callback=None):
         super().__init__(daemon=True)
         self.profile_manager = profile_manager
         self.action_handler = action_handler
+        self.callback = callback
         self.running = False
         self.last_profile_name = None
         self.interval = 0.5 # 500ms check
@@ -38,12 +39,11 @@ class ContextMonitor(threading.Thread):
                     print(f"[ContextMonitor] Profile Changed: {self.last_profile_name} -> {current_name}")
                     self.last_profile_name = current_name
 
-                    # 5. Broadcast to Web
-                    msg = json.dumps({
-                        "type": "profile_change",
-                        "profile": current_name
-                    })
-                    broadcast_sync(msg)
+                    # 5. Callback Update
+                    if self.callback:
+                        self.callback(matched_profile) # Pass full object or None
+
+                    # Note: We let the callback handle the broadcast now, as per instructions.
 
             except Exception as e:
                 # Avoid spamming logs if something goes wrong repeatedly

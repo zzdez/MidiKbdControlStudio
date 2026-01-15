@@ -18,6 +18,13 @@ class ActionHandler:
         self.pending_execution = None
         self.debounce_delay = 0.15 
         self.has_primed = False
+        self.current_profile = None
+
+    def set_current_profile(self, profile):
+        """Définit le profil actif manuellement (ex: via ContextMonitor)"""
+        self.current_profile = profile
+        if profile:
+            self.log(f"Profil Actif défini sur : {profile.get('name')}")
 
     def set_debounce_delay(self, seconds):
         self.debounce_delay = seconds
@@ -229,12 +236,17 @@ class ActionHandler:
                  except: continue
             return
 
-        # --- CAS NORMAL (MIDI Auto-Detect) ---
-        active_process = self.get_active_process_name().lower() # Just for logging
-        best_profile = self.find_matching_profile(profiles)
+        # --- CAS NORMAL (MIDI Auto-Detect ou Profil Actif) ---
+        # Si un profil courant est défini (par ContextMonitor), on l'utilise en priorité
+        # pour éviter de scanner la fenêtre à chaque CC (performance + stabilité)
+        best_profile = self.current_profile
+
+        # Fallback : Si pas de profil défini, on scanne (Legacy behavior)
+        if not best_profile:
+            best_profile = self.find_matching_profile(profiles)
 
         if not best_profile:
-            # self.log(f"IGNORÉ : Aucun profil pour '{active_process}' (CC={cc})")
+            # self.log(f"IGNORÉ : Aucun profil trouvé (CC={cc})")
             return
 
         # 3. Trouver le Mapping dans le profil
