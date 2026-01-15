@@ -9,3 +9,5 @@ keyboard
 pygetwindow
 jinja2
 pyinstaller
+winsdk
+bleak-winrt
