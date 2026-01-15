@@ -164,6 +164,16 @@ def main():
 
     action_handler = ActionHandler()
 
+    # Callback pour commandes internes (media_*) -> WebSocket
+    def on_internal_command(cmd):
+        msg = {
+            "type": "command",
+            "cmd": cmd
+        }
+        broadcast_sync(json.dumps(msg))
+
+    action_handler.set_command_callback(on_internal_command)
+
     # Injection dans FastAPI pour l'API /api/trigger
     fastapi_app.state.action_handler = action_handler
     fastapi_app.state.profiles = profile_mgr.profiles

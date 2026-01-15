@@ -4,10 +4,11 @@ import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
+from typing import List, Dict
 import json
 
 app = FastAPI()
+SETLIST_FILE = "setlist.json"
 
 app.add_middleware(
     CORSMiddleware,
@@ -53,6 +54,25 @@ def broadcast_sync(message: str):
 @app.get("/api/status")
 async def get_status():
     return {"status": "ok"}
+
+@app.get("/api/setlist")
+async def get_setlist():
+    if os.path.exists(SETLIST_FILE):
+        try:
+            with open(SETLIST_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+@app.post("/api/setlist")
+async def save_setlist(items: List[Dict]):
+    try:
+        with open(SETLIST_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=4)
+        return {"status": "saved", "count": len(items)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/trigger")
 async def trigger_action(request: Request):

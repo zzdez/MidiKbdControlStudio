@@ -3,28 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AirstepStudio</title>
+    <title>AirstepStudio Cockpit</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
         <h1>AirstepStudio</h1>
-        <div id="status">Connexion...</div>
-
-        <div id="profile-card">
-            <div id="profile-label">PROFIL ACTIF</div>
-            <div id="profile-name">Global / Aucun</div>
-        </div>
+        <div id="status">Connecting...</div>
     </header>
 
-    <!-- Dynamic Grid -->
-    <div id="pedalboard-grid" class="grid-container">
-        <!-- Buttons will be injected here via JS -->
+    <div id="cockpit">
+        <!-- COL 1: MEDIA -->
+        <div id="media-zone">
+            <div id="player-container">
+                <div id="player"></div>
+            </div>
+
+            <div id="setlist-zone">
+                <div id="setlist-controls">
+                    <input type="text" id="input-url" placeholder="URL YouTube (https://...)">
+                    <button id="btn-add">+</button>
+                </div>
+                <ul id="setlist-items">
+                    <!-- Items JS -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- COL 2: CONTROL -->
+        <div id="control-zone">
+            <div id="control-header">
+                <div id="profile-info">
+                    <div id="profile-label">PROFIL</div>
+                    <div id="profile-name">Global</div>
+                </div>
+
+                <div class="switch-container">
+                    <span>Win</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="mode-check">
+                        <span class="slider"></span>
+                    </label>
+                    <span>Web</span>
+                </div>
+            </div>
+
+            <div id="pedalboard-grid" class="grid-container">
+                <!-- Buttons JS -->
+            </div>
+        </div>
     </div>
 
-    <div id="logs-container">
-        <!-- Logs -->
-    </div>
+    <div id="logs-container"></div>
 
     <script src="app.js"></script>
 </body>

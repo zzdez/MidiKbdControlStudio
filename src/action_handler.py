@@ -19,6 +19,11 @@ class ActionHandler:
         self.debounce_delay = 0.15 
         self.has_primed = False
         self.current_profile = None
+        self.command_callback = None
+
+    def set_command_callback(self, callback):
+        """Définit le callback pour les commandes internes (ex: media_pause) -> WebSocket"""
+        self.command_callback = callback
 
     def set_current_profile(self, profile):
         """Définit le profil actif manuellement (ex: via ContextMonitor)"""
@@ -282,6 +287,13 @@ class ActionHandler:
         
         # Données manuelles (Texte)
         text_value = mapping.get('action_value', '')
+
+        # --- CAS SPECIAL : COMMANDES INTERNES (MEDIA) ---
+        if text_value and text_value.startswith("media_"):
+            self.log(f" -> COMMANDE INTERNE : {text_value}")
+            if self.command_callback:
+                self.command_callback(text_value)
+            return
 
         # --- Shift Priming (Wake up Chrome/Windows Input Hook) ---
         if not self.has_primed:
