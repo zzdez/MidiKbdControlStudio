@@ -66,11 +66,37 @@ async def get_setlist():
     return []
 
 @app.post("/api/setlist")
-async def save_setlist(items: List[Dict]):
+async def add_to_setlist(item: Dict):
+    """Ajoute un item à la setlist"""
     try:
+        items = []
+        if os.path.exists(SETLIST_FILE):
+            with open(SETLIST_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+
+        items.append(item)
+
         with open(SETLIST_FILE, "w", encoding="utf-8") as f:
             json.dump(items, f, indent=4)
-        return {"status": "saved", "count": len(items)}
+        return items
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/setlist/{index}")
+async def remove_from_setlist(index: int):
+    """Supprime un item de la setlist par index"""
+    try:
+        items = []
+        if os.path.exists(SETLIST_FILE):
+            with open(SETLIST_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+
+        if 0 <= index < len(items):
+            items.pop(index)
+            with open(SETLIST_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+
+        return items
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

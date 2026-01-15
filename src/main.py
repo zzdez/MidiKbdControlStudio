@@ -124,11 +124,9 @@ def start_background_services():
                 broadcast_sync(json.dumps(data))
 
                 # 2. Action Trigger (Using Smart Context in ActionHandler)
-                if msg.type == 'control_change':
-                    # Mapping 0-15 -> 1-16
-                    # Note: action_handler utilisera self.current_profile s'il existe
-                    profiles = profile_mgr.profiles
-                    action_handler.execute(msg.control, msg.value, msg.channel + 1, profiles)
+                # DECOUPLED: Action Trigger is now handled by the Frontend (Win/Web Mode)
+                # The Frontend will call POST /api/trigger if needed.
+                pass
 
             except Exception as ex:
                 print(f"MIDI Callback Error: {ex}")

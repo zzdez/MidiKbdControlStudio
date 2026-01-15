@@ -5,20 +5,8 @@ const API_TRIGGER = '/api/trigger';
 // --- STATE ---
 let player; // YouTube Player
 let setlist = [];
-let controlMode = 'windows'; // 'windows' or 'web' (for switch) - Visual only for now or logical?
-// User asked for "Switch Mode : Web / Windows" to know if buttons control internal player or PC.
-// Since the backend handles the mapping, "Web Mode" implies triggering internal commands.
-// Actually, with the new "command_callback", backend sends "media_..." commands back to frontend.
-// So the switch might just be visual or to disable sending triggers?
-// The prompt says: "pour savoir si les boutons contrôlent le lecteur interne ou le PC".
-// Implementation:
-// - Windows Mode: Buttons send POST /trigger -> Backend -> Keystrokes.
-// - Web Mode: Buttons (if mapped to media) -> Backend -> WebSocket -> JS Player.
-// Actually, if the mapping is "media_pause", backend sends command back.
-// If mapping is "Space", backend presses Space (Windows).
-// So the mode switch in UI is likely just for user information OR to filter triggers?
-// Let's assume it's just a toggle for now, maybe we can use it to force focus on IFrame?
-// For now, I'll just implement the switch UI.
+let controlMode = 'windows'; // 'windows' | 'web'
+let currentProfile = null;
 
 // --- DOM ELEMENTS ---
 const statusEl = document.getElementById('status');
@@ -28,7 +16,7 @@ const gridEl = document.getElementById('pedalboard-grid');
 const inputUrl = document.getElementById('input-url');
 const btnAdd = document.getElementById('btn-add');
 const listEl = document.getElementById('setlist-items');
-const modeSwitch = document.getElementById('mode-check');
+const modeCheck = document.getElementById('mode-check');
 
 // --- LOGGING ---
 function log(msg) {
@@ -45,19 +33,13 @@ function loadYouTubeAPI() {
     firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 }
 
-// Global callback for YouTube API
 window.onYouTubeIframeAPIReady = function() {
     player = new YT.Player('player', {
         height: '100%',
         width: '100%',
-        videoId: '', // Start empty
-        playerVars: {
-            'playsinline': 1,
-            'controls': 1
-        },
-        events: {
-            'onReady': onPlayerReady
-        }
+        videoId: '',
+        playerVars: { 'playsinline': 1, 'controls': 1 },
+        events: { 'onReady': onPlayerReady }
     });
 };
 
@@ -66,7 +48,6 @@ function onPlayerReady(event) {
 }
 
 function loadVideo(url) {
-    // Extract ID (basic regex)
     const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
     if (match && match[1]) {
         if(player && player.loadVideoById) {
@@ -86,14 +67,24 @@ async function loadSetlist() {
     } catch (e) { log("Error loading setlist"); }
 }
 
-async function saveSetlist() {
+async function addItem(title, url) {
     try {
-        await fetch(API_SETLIST, {
+        const res = await fetch(API_SETLIST, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(setlist)
+            body: JSON.stringify({ title, url })
         });
-    } catch (e) { log("Error saving setlist"); }
+        setlist = await res.json();
+        renderSetlist();
+    } catch (e) { log("Error adding item"); }
+}
+
+async function removeItem(index) {
+    try {
+        const res = await fetch(`${API_SETLIST}/${index}`, { method: 'DELETE' });
+        setlist = await res.json();
+        renderSetlist();
+    } catch (e) { log("Error removing item"); }
 }
 
 function renderSetlist() {
@@ -107,58 +98,43 @@ function renderSetlist() {
             <button class="btn-remove">×</button>
         `;
 
-        // Play Click
         li.addEventListener('click', (e) => {
             if(e.target.classList.contains('btn-remove')) return;
-            // Highlight
             document.querySelectorAll('.track-item').forEach(el => el.classList.remove('active'));
             li.classList.add('active');
             loadVideo(track.url);
         });
 
-        // Remove Click
         li.querySelector('.btn-remove').addEventListener('click', () => {
-            setlist.splice(index, 1);
-            saveSetlist();
-            renderSetlist();
+            removeItem(index);
         });
 
         listEl.appendChild(li);
     });
 }
 
-// Add Handler
 btnAdd.addEventListener('click', () => {
     const url = inputUrl.value.trim();
     if (!url) return;
-
-    // Simple title extract (simulated)
     const title = `Track ${setlist.length + 1}`;
-
-    setlist.push({ title, url });
-    saveSetlist();
-    renderSetlist();
+    addItem(title, url);
     inputUrl.value = '';
 });
 
-// --- COMMAND HANDLING (INTERNAL) ---
+// --- COMMAND HANDLING ---
 function handleCommand(cmd) {
     if (!player) return;
-    log(`CMD: ${cmd}`);
+    log(`CMD (Web): ${cmd}`);
 
     switch(cmd) {
         case 'media_pause':
-        case 'media_play_pause': // Common mapping
+        case 'media_play_pause':
             const state = player.getPlayerState();
             if (state === 1) player.pauseVideo();
             else player.playVideo();
             break;
-        case 'media_play':
-            player.playVideo();
-            break;
-        case 'media_stop':
-            player.stopVideo();
-            break;
+        case 'media_play': player.playVideo(); break;
+        case 'media_stop': player.stopVideo(); break;
         case 'media_speed_up':
             let rate = player.getPlaybackRate();
             player.setPlaybackRate(rate + 0.25);
@@ -179,7 +155,13 @@ function handleCommand(cmd) {
     }
 }
 
-// --- WEBSOCKET & GRID ---
+// --- MODE SWITCH ---
+modeCheck.addEventListener('change', (e) => {
+    controlMode = e.target.checked ? 'web' : 'windows';
+    log(`Mode switched to: ${controlMode.toUpperCase()}`);
+});
+
+// --- WEBSOCKET & LOGIC ---
 function renderGrid(profileData) {
     gridEl.innerHTML = '';
     if (!profileData || !profileData.mappings) {
@@ -197,9 +179,9 @@ function renderGrid(profileData) {
             <div class="pedal-cc">CC ${m.midi_cc}</div>
         `;
 
-        // Manual Click -> Trigger API
+        // Manual Click -> Simulate MIDI logic
         btn.addEventListener('mousedown', () => {
-            triggerAction(m.midi_cc);
+            processAction(m.midi_cc);
             btn.classList.add('active');
         });
         btn.addEventListener('mouseup', () => {
@@ -208,6 +190,30 @@ function renderGrid(profileData) {
 
         gridEl.appendChild(btn);
     });
+}
+
+// Core Logic: Routing
+async function processAction(cc) {
+    if (!currentProfile || !currentProfile.mappings) return;
+
+    // Find Mapping
+    const mapping = currentProfile.mappings.find(m => m.midi_cc == cc);
+    if (!mapping) return;
+
+    const actionVal = mapping.action_value || "";
+    const isMedia = actionVal.startsWith("media_");
+
+    // Logic Table
+    // Mode WEB + Media Action -> Local JS
+    // Mode WIN + Media Action -> API (Win)
+    // Any Mode + Key Action -> API (Win)
+
+    if (controlMode === 'web' && isMedia) {
+        handleCommand(actionVal);
+    } else {
+        // Send to Backend
+        triggerAction(cc);
+    }
 }
 
 async function triggerAction(cc) {
@@ -235,19 +241,25 @@ function connect() {
             const data = JSON.parse(event.data);
 
             if (data.type === "midi") {
-                // Flash Button
                 if (data.cc !== undefined) {
+                    // Visual Feedback
                     const btn = document.querySelector(`.pedal-btn[data-cc="${data.cc}"]`);
                     if (btn) {
                         btn.classList.add('active');
                         setTimeout(() => btn.classList.remove('active'), 200);
                     }
+
+                    // Trigger Logic
+                    processAction(data.cc);
                 }
             } else if (data.type === "profile_update") {
-                profileNameEl.textContent = data.data ? data.data.name : "Aucun";
-                renderGrid(data.data);
+                currentProfile = data.data;
+                const name = currentProfile ? currentProfile.name : "Global";
+                profileNameEl.textContent = name;
+                renderGrid(currentProfile);
+                log(`Profil: ${name}`);
             } else if (data.type === "command") {
-                // INTERNAL COMMAND -> PLAYER CONTROL
+                // If Backend sends command (should not happen if Decoupled, but safety)
                 handleCommand(data.cmd);
             }
         } catch (e) {}
