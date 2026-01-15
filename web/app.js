@@ -47,14 +47,23 @@ function onPlayerReady(event) {
     log("YouTube Player Ready");
 }
 
-function loadVideo(url) {
-    const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
-    if (match && match[1]) {
+function loadVideo(idOrUrl) {
+    // If it looks like an ID (11 chars, no special chars), use ID
+    // Otherwise extract from URL
+    let videoId = idOrUrl;
+
+    // Simple heuristic: URL usually contains dots or slashes
+    if (idOrUrl.includes('/') || idOrUrl.includes('.')) {
+         const match = idOrUrl.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
+         if (match && match[1]) videoId = match[1];
+    }
+
+    if (videoId && videoId.length === 11) {
         if(player && player.loadVideoById) {
-            player.loadVideoById(match[1]);
+            player.loadVideoById(videoId);
         }
     } else {
-        log("URL Invalide");
+        log("ID/URL Invalide: " + idOrUrl);
     }
 }
 
@@ -67,15 +76,17 @@ async function loadSetlist() {
     } catch (e) { log("Error loading setlist"); }
 }
 
-async function addItem(title, url) {
+async function addItem(url) {
     try {
+        log("Ajout en cours (Smart Fetch)...");
         const res = await fetch(API_SETLIST, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ title, url })
+            body: JSON.stringify({ url: url }) // Let backend fetch title
         });
         setlist = await res.json();
         renderSetlist();
+        log("Ajouté avec succès !");
     } catch (e) { log("Error adding item"); }
 }
 
@@ -93,8 +104,11 @@ function renderSetlist() {
         const li = document.createElement('li');
         li.className = 'track-item';
 
+        // Display Title (Backend provided) or fallback to URL
+        const displayTitle = track.title || track.url;
+
         li.innerHTML = `
-            <span class="track-title">${track.title || track.url}</span>
+            <span class="track-title">${displayTitle}</span>
             <button class="btn-remove">×</button>
         `;
 
@@ -102,7 +116,9 @@ function renderSetlist() {
             if(e.target.classList.contains('btn-remove')) return;
             document.querySelectorAll('.track-item').forEach(el => el.classList.remove('active'));
             li.classList.add('active');
-            loadVideo(track.url);
+
+            // Prefer ID if available, else URL
+            loadVideo(track.id || track.url);
         });
 
         li.querySelector('.btn-remove').addEventListener('click', () => {
@@ -116,8 +132,8 @@ function renderSetlist() {
 btnAdd.addEventListener('click', () => {
     const url = inputUrl.value.trim();
     if (!url) return;
-    const title = `Track ${setlist.length + 1}`;
-    addItem(title, url);
+
+    addItem(url);
     inputUrl.value = '';
 });
 
@@ -204,14 +220,9 @@ async function processAction(cc) {
     const isMedia = actionVal.startsWith("media_");
 
     // Logic Table
-    // Mode WEB + Media Action -> Local JS
-    // Mode WIN + Media Action -> API (Win)
-    // Any Mode + Key Action -> API (Win)
-
     if (controlMode === 'web' && isMedia) {
         handleCommand(actionVal);
     } else {
-        // Send to Backend
         triggerAction(cc);
     }
 }
@@ -259,7 +270,6 @@ function connect() {
                 renderGrid(currentProfile);
                 log(`Profil: ${name}`);
             } else if (data.type === "command") {
-                // If Backend sends command (should not happen if Decoupled, but safety)
                 handleCommand(data.cmd);
             }
         } catch (e) {}
