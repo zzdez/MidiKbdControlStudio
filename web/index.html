@@ -20,6 +20,28 @@
             color: #888;
             margin-bottom: 20px;
         }
+        #profile-card {
+            background-color: #292929;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid #444;
+        }
+        #profile-label {
+            font-size: 0.8em;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+        #profile-name {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #4facfe;
+        }
         #midi-display {
             font-size: 3em;
             font-weight: bold;
@@ -30,19 +52,31 @@
             background-color: #1e1e1e;
             width: 80%;
             max-width: 600px;
+            transition: border-color 0.2s;
         }
         .connected { color: #4caf50; }
         .disconnected { color: #f44336; }
+
+        .midi-flash {
+            border-color: #4facfe !important;
+        }
     </style>
 </head>
 <body>
     <h1>AirstepStudio</h1>
     <div id="status">En attente de connexion...</div>
+
+    <div id="profile-card">
+        <div id="profile-label">PROFIL ACTIF</div>
+        <div id="profile-name">Global / Aucun</div>
+    </div>
+
     <div id="midi-display">--</div>
 
     <script>
         const statusEl = document.getElementById('status');
         const midiDisplayEl = document.getElementById('midi-display');
+        const profileNameEl = document.getElementById('profile-name');
 
         let socket;
 
@@ -58,16 +92,27 @@
             };
 
             socket.onmessage = (event) => {
-                // Try to parse JSON or just display text
                 try {
                     const data = JSON.parse(event.data);
-                    if (data.message) {
+
+                    if (data.type === "midi") {
                         midiDisplayEl.textContent = data.message;
-                    } else {
-                         midiDisplayEl.textContent = JSON.stringify(data);
+
+                        // Visual Flash
+                        midiDisplayEl.classList.add('midi-flash');
+                        setTimeout(() => midiDisplayEl.classList.remove('midi-flash'), 100);
+
+                    } else if (data.type === "profile_change") {
+                        profileNameEl.textContent = data.profile;
+                        // Flash effect for profile change if desired
                     }
+
                 } catch (e) {
-                    midiDisplayEl.textContent = event.data;
+                    // Fallback for raw text (legacy)
+                    console.log("Raw message:", event.data);
+                    if (!event.data.startsWith("{")) {
+                        midiDisplayEl.textContent = event.data;
+                    }
                 }
             };
 

@@ -23,6 +23,7 @@ try:
     from midi_engine import MidiManager
     from action_handler import ActionHandler
     from profile_manager import ProfileManager
+    from context_monitor import ContextMonitor
 except ImportError:
     # Fallback pour IDE/Dev si le path n'a pas suffi
     # Note: Si sys.path est bien configuré ci-dessus, le "try" devrait réussir même en dev
@@ -32,6 +33,7 @@ except ImportError:
     from src.midi_engine import MidiManager
     from src.action_handler import ActionHandler
     from src.profile_manager import ProfileManager
+    from src.context_monitor import ContextMonitor
 
 # Variable globale pour le thread serveur
 server_thread = None
@@ -83,16 +85,21 @@ def main():
         except Exception as e:
             print(f"Callback Error: {e}")
 
-    # 5. Démarrage Moteur MIDI
+    # 5. Démarrage Context Monitor
+    # Detecte automatiquement le profil en fonction de la fenêtre active
+    context_monitor = ContextMonitor(profile_mgr, action_handler)
+    context_monitor.start()
+
+    # 6. Démarrage Moteur MIDI
     midi_mgr = MidiManager.create(connection_mode, midi_device, on_midi_message)
     midi_mgr.start()
 
-    # 6. Démarrage Serveur Web
+    # 7. Démarrage Serveur Web
     global server_thread
     server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)
     server_thread.start()
     
-    # 7. Ouverture Navigateur
+    # 8. Ouverture Navigateur
     url = f"http://localhost:{port}"
     print(f"Ouverture : {url}")
 
@@ -104,13 +111,14 @@ def main():
     except:
         print(f"Could not open browser automatically. Please visit {url}")
 
-    # 8. Boucle infinie pour garder le Main Thread en vie
+    # 9. Boucle infinie pour garder le Main Thread en vie
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         print("Arrêt.")
         midi_mgr.stop()
+        context_monitor.stop()
         sys.exit(0)
 
 if __name__ == "__main__":
