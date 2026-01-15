@@ -6,6 +6,8 @@ import uvicorn
 import multiprocessing
 import json
 import time
+import socket
+import traceback
 
 # --- 1. CONFIGURATION DU PATH ---
 # Ajoute le dossier contenant ce script au Python Path.
@@ -30,7 +32,7 @@ except ImportError:
     from src.profile_manager import ProfileManager
     from src.context_monitor import ContextMonitor
 
-# Variables globales pour garder les références en vie
+# Variables globales
 server_thread = None
 midi_mgr = None
 context_monitor = None
@@ -38,30 +40,45 @@ config = None
 profile_mgr = None
 action_handler = None
 
+def find_free_port(start_port=8000, max_tries=10):
+    """Cherche un port libre à partir de start_port."""
+    for port in range(start_port, start_port + max_tries):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('127.0.0.1', port))
+                return port
+        except OSError:
+            continue
+    print(f"ATTENTION: Aucun port libre trouvé entre {start_port} et {start_port + max_tries}. Utilisation par défaut de {start_port}")
+    return start_port
+
 def start_uvicorn(host, port):
-    """Lance le serveur dans un thread bloquant"""
-    uvicorn.run(fastapi_app, host=host, port=port, log_level="info")
+    """Lance le serveur dans un thread bloquant avec logging d'erreur."""
+    try:
+        uvicorn.run(fastapi_app, host=host, port=port, log_level="info")
+    except Exception as e:
+        err_msg = f"CRITICAL Uvicorn Crash: {e}\n{traceback.format_exc()}"
+        print(err_msg)
+        try:
+            with open("server_crash.log", "w", encoding="utf-8") as f:
+                f.write(err_msg)
+        except: pass
 
 def start_background_services():
     """
     Lance les services backend (MIDI, Context) en arrière-plan.
-    Cette fonction est exécutée dans son propre thread pour ne pas bloquer le serveur Web.
     """
     global midi_mgr, context_monitor, profile_mgr, action_handler, config
 
     print(">>> Initialisation des Services Backend (Async)...")
     try:
-        # 1. Chargement de la Configuration Complète
-        # Note: ConfigManager est déjà chargé au début du main, mais on peut le relire ou utiliser l'objet passé si nécessaire.
-        # Ici on utilise les variables globales initialisées dans main() pour profile_mgr et action_handler
-
         # 2. Profiles
         print(">>> Chargement des profils...")
         profile_mgr.migrate_legacy_config()
         profiles = profile_mgr.load_all_profiles()
         print(f">>> {len(profiles)} profils chargés.")
 
-        # 3. Context Monitor (Détection Fenêtre)
+        # 3. Context Monitor
         print(">>> Démarrage Context Monitor...")
         context_monitor = ContextMonitor(profile_mgr, action_handler)
         context_monitor.start()
@@ -74,20 +91,16 @@ def start_background_services():
 
         def on_midi_message(msg):
             try:
-                # Formatage Message
                 display_str = str(msg)
                 if msg.type == 'control_change':
                     display_str = f"CC {msg.control} - {msg.value}"
                 elif msg.type == 'note_on':
                      display_str = f"Note {msg.note} - {msg.velocity}"
 
-                # Broadcast WebSocket
                 json_msg = json.dumps({"type": "midi", "message": display_str})
                 broadcast_sync(json_msg)
 
-                # Trigger Action
                 if msg.type == 'control_change':
-                    # Correction canal 0-15 -> 1-16
                     action_handler.execute(msg.control, msg.value, msg.channel + 1, profiles)
 
             except Exception as e:
@@ -99,42 +112,61 @@ def start_background_services():
 
     except Exception as e:
         print(f"!!! ERREUR CRITIQUE BACKEND : {e}")
-        # On pourrait envoyer un message d'erreur au frontend ici via broadcast_sync
+
+def wait_for_server(host, port, timeout=5.0):
+    """Attend que le port soit ouvert avant de continuer."""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            with socket.create_connection((host, port), timeout=1.0):
+                return True
+        except (OSError, ConnectionRefusedError):
+            time.sleep(0.2)
+    return False
 
 def main():
     global server_thread, config, profile_mgr, action_handler
 
-    print("--- Démarrage AirstepStudio (Priorité Web) ---")
+    print("--- Démarrage AirstepStudio (Robust) ---")
 
-    # 1. Initialisation de base (Rapide)
+    # 1. Init Base
     config = ConfigManager()
     profile_mgr = ProfileManager()
     action_handler = ActionHandler()
 
-    port = int(config.get("app_port", 8000))
+    # Choix du Port
+    requested_port = int(config.get("app_port", 8000))
+    port = find_free_port(requested_port)
+    host = "127.0.0.1"
 
-    # 2. Démarrage Serveur Web (PRIORITÉ 1)
+    print(f">>> Port sélectionné : {port}")
+
+    # 2. Démarrage Serveur Web (Thread)
     print(">>> Démarrage Serveur Web...")
-    server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)
+    server_thread = threading.Thread(target=start_uvicorn, args=(host, port), daemon=True)
     server_thread.start()
 
-    # Petit délai pour laisser le socket s'ouvrir
-    time.sleep(1.0)
+    # 3. Vérification de vie (Smart Start)
+    print(">>> Attente disponibilité serveur...")
+    if wait_for_server(host, port):
+        url = f"http://{host}:{port}"
+        print(f">>> Serveur PRÊT. Ouverture : {url}")
+        try:
+            webbrowser.open(url)
+        except:
+            print("Impossible d'ouvrir le navigateur.")
+    else:
+        err_msg = "TIMEOUT: Le serveur n'a pas démarré après 5 secondes."
+        print(err_msg)
+        with open("server_crash.log", "a", encoding="utf-8") as f:
+            f.write(f"\n{err_msg}")
+        # On continue quand même pour le backend, mais l'utilisateur saura qu'il y a un souci
 
-    # 3. Ouverture Navigateur
-    url = f"http://localhost:{port}"
-    print(f"Ouverture : {url}")
-    try:
-        webbrowser.open(url)
-    except:
-        print(f"Impossible d'ouvrir le navigateur automatiquement: {url}")
-
-    # 4. Démarrage Services Backend (PRIORITÉ 2 - Background)
-    # Lance dans un thread séparé pour que l'interface soit déjà affichée
+    # 4. Démarrage Services Backend (Background)
     backend_thread = threading.Thread(target=start_background_services, daemon=True)
     backend_thread.start()
 
-    # 5. Boucle de vie (Main Thread)
+    # 5. Boucle de vie
     try:
         while True:
             time.sleep(1)
