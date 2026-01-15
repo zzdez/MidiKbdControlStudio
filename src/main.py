@@ -6,6 +6,7 @@ import uvicorn
 import multiprocessing
 import socket
 import time
+import json
 
 # --- FIX CRITIQUE POUR PYINSTALLER (WINDOWED MODE) ---
 # Uvicorn plante s'il ne trouve pas de console (sys.stdout est None).
@@ -29,15 +30,18 @@ if current_dir not in sys.path:
 
 # --- IMPORTS ---
 try:
-    from server import app as fastapi_app
+    from server import app as fastapi_app, broadcast_sync
     from config_manager import ConfigManager
     from midi_engine import MidiManager
-    # from action_handler import ActionHandler # Sera utilisé par le serveur
+    from action_handler import ActionHandler
+    from profile_manager import ProfileManager
 except ImportError:
     # Fallback pour structure src/
-    from src.server import app as fastapi_app
+    from src.server import app as fastapi_app, broadcast_sync
     from src.config_manager import ConfigManager
     from src.midi_engine import MidiManager
+    from src.action_handler import ActionHandler
+    from src.profile_manager import ProfileManager
 
 # Variable globale
 server_thread = None
@@ -68,23 +72,48 @@ def main():
     base_port = int(config.get("app_port", 8000))
     port = find_free_port(base_port)
 
-    # 2. Démarrage Serveur Web (Priorité 1)
+    # 2. Managers
+    profile_mgr = ProfileManager()
+    profile_mgr.migrate_legacy_config()
+    profiles = profile_mgr.load_all_profiles()
+
+    action_handler = ActionHandler()
+
+    # 3. Démarrage Serveur Web (Priorité 1)
     global server_thread
     server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)
     server_thread.start()
 
-    # 3. Démarrage MIDI (Priorité 2 - Arrière plan)
+    # 4. Démarrage MIDI (Priorité 2 - Arrière plan)
     # On isole le MIDI pour que s'il plante (Bluetooth), le Web reste accessible
     def start_midi():
         time.sleep(2) # Petit délai pour laisser le serveur respirer
         try:
             target = config.get("midi_device_name", "AIRSTEP")
-            # Le callback MIDI sera géré via le serveur WebSocket plus tard
-            # Note pour Jules: Pour l'instant on met None car le code fourni par l'user met None
-            # Mais idéalement il faudrait remettre le vrai callback pour que ça marche.
-            # Cependant, l'instruction est "Remplace le fichier existant par cette version sécurisée".
-            # Je vais obéir strictement.
-            midi = MidiManager.create("BLE", target, None)
+            connection_mode = config.get("connection_mode", "BLE")
+
+            # Callback de pont MIDI -> Web + Action
+            def on_midi_event(msg):
+                try:
+                    # 1. Web Broadcast
+                    data = {
+                        "type": "midi",
+                        "cc": msg.control if msg.type == 'control_change' else None,
+                        "value": msg.value if hasattr(msg, 'value') else None,
+                        "channel": msg.channel if hasattr(msg, 'channel') else None,
+                        "message": str(msg)
+                    }
+                    broadcast_sync(json.dumps(data))
+
+                    # 2. Action Trigger
+                    if msg.type == 'control_change':
+                        # Mapping 0-15 -> 1-16
+                        action_handler.execute(msg.control, msg.value, msg.channel + 1, profiles)
+
+                except Exception as ex:
+                    print(f"MIDI Callback Error: {ex}")
+
+            midi = MidiManager.create(connection_mode, target, on_midi_event)
             midi.start()
         except Exception as e:
             print(f"Erreur MIDI non bloquante: {e}")
@@ -92,12 +121,12 @@ def main():
     midi_thread = threading.Thread(target=start_midi, daemon=True)
     midi_thread.start()
 
-    # 4. Ouverture Navigateur
+    # 5. Ouverture Navigateur
     url = f"http://127.0.0.1:{port}"
     time.sleep(1.0) # Attente démarrage Uvicorn
     webbrowser.open(url)
 
-    # 5. Boucle de vie (Keep Alive)
+    # 6. Boucle de vie (Keep Alive)
     try:
         while True:
             time.sleep(1)

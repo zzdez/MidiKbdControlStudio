@@ -60,6 +60,35 @@
         .midi-flash {
             border-color: #4facfe !important;
         }
+
+        #test-area {
+            margin-top: 30px;
+            text-align: center;
+        }
+        #btn-test {
+            padding: 10px 20px;
+            background-color: #444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        #btn-test:hover {
+            background-color: #555;
+        }
+        #logs {
+            margin-top: 10px;
+            font-family: monospace;
+            color: #888;
+            max-height: 100px;
+            overflow-y: auto;
+            width: 80%;
+            max-width: 600px;
+            background: #111;
+            padding: 10px;
+            border: 1px solid #333;
+        }
     </style>
 </head>
 <body>
@@ -73,12 +102,34 @@
 
     <div id="midi-display">--</div>
 
+    <div id="test-area">
+        <button id="btn-test">Test Action</button>
+        <div id="logs">Logs...</div>
+    </div>
+
     <script>
         const statusEl = document.getElementById('status');
         const midiDisplayEl = document.getElementById('midi-display');
         const profileNameEl = document.getElementById('profile-name');
+        const logsEl = document.getElementById('logs');
+        const btnTest = document.getElementById('btn-test');
 
         let socket;
+
+        function log(msg) {
+            const line = document.createElement('div');
+            line.textContent = `> ${msg}`;
+            logsEl.prepend(line);
+        }
+
+        // Test Button Logic
+        btnTest.addEventListener('click', () => {
+            log('Testing API Status...');
+            fetch('/api/status')
+                .then(res => res.json())
+                .then(data => log('API Response: ' + JSON.stringify(data)))
+                .catch(err => log('API Error: ' + err));
+        });
 
         function connect() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -89,6 +140,7 @@
             socket.onopen = () => {
                 statusEl.textContent = 'Connecté';
                 statusEl.className = 'connected';
+                log('WebSocket Connected');
             };
 
             socket.onmessage = (event) => {
@@ -96,7 +148,15 @@
                     const data = JSON.parse(event.data);
 
                     if (data.type === "midi") {
-                        midiDisplayEl.textContent = data.message;
+                        // Display main message
+                        if (data.cc !== undefined) {
+                            midiDisplayEl.textContent = `CC ${data.cc} - ${data.value}`;
+                        } else {
+                            midiDisplayEl.textContent = data.message;
+                        }
+
+                        // Log detail
+                        log(`MIDI: ${data.message}`);
 
                         // Visual Flash
                         midiDisplayEl.classList.add('midi-flash');
@@ -104,14 +164,16 @@
 
                     } else if (data.type === "profile_change") {
                         profileNameEl.textContent = data.profile;
-                        // Flash effect for profile change if desired
+                        log(`Profile: ${data.profile}`);
+                    } else {
+                         log(`RX: ${JSON.stringify(data)}`);
                     }
 
                 } catch (e) {
                     // Fallback for raw text (legacy)
-                    console.log("Raw message:", event.data);
                     if (!event.data.startsWith("{")) {
                         midiDisplayEl.textContent = event.data;
+                        log(`Raw: ${event.data}`);
                     }
                 }
             };
@@ -119,11 +181,13 @@
             socket.onclose = () => {
                 statusEl.textContent = 'Déconnecté - Reconnexion...';
                 statusEl.className = 'disconnected';
+                log('WS Closed. Reconnecting...');
                 setTimeout(connect, 3000);
             };
 
             socket.onerror = (error) => {
                 console.error('WebSocket Error:', error);
+                log('WS Error');
             };
         }
 
