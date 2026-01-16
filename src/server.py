@@ -99,27 +99,39 @@ async def add_to_setlist(item: Dict):
     """
     Smart Add to Setlist.
     Analyzes URL to determine mode and profile.
+    Accepts manual override for mode.
     """
     try:
         url = item.get("url", "")
+        manual_mode = item.get("manual_mode", "auto")
+
         if not url:
             raise HTTPException(status_code=400, detail="URL is required")
 
-        # 1. Determine Mode & Profile
-        open_mode = "external"
+        # 1. Determine Profile (Content Based)
         profile_name = "Web Generic"
-
         if "youtube.com" in url or "youtu.be" in url:
-            open_mode = "iframe"
             profile_name = "YouTube"
         elif "songsterr.com" in url:
-            open_mode = "external"
-            profile_name = "Songsterr" # Ensure this profile exists or defaults to Generic
+            profile_name = "Songsterr"
 
-        # 2. Extract ID (YouTube Only)
-        video_id = ""
-        if open_mode == "iframe":
-            video_id = extract_youtube_id(url)
+        # 2. Determine Open Mode
+        open_mode = "external" # Default safe
+
+        if manual_mode == "iframe":
+            open_mode = "iframe"
+        elif manual_mode == "external":
+            open_mode = "external"
+        else:
+            # AUTO Detect
+            if "youtube.com" in url or "youtu.be" in url:
+                open_mode = "iframe"
+            else:
+                open_mode = "external"
+
+        # 3. Extract ID (If YouTube)
+        # We always try to extract ID if it looks like YouTube, useful for metadata
+        video_id = extract_youtube_id(url)
 
         # 3. Get Title
         title = item.get("title")

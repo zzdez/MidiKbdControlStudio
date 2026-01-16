@@ -154,14 +154,20 @@ async function loadSetlist() {
 
 async function addToSetlist() {
     const input = document.getElementById("url-input");
+    const modeSelect = document.getElementById("mode-select");
+
     const url = input.value;
+    const mode = modeSelect.value;
+
     if (!url) return;
     input.value = "Chargement...";
+
     await fetch("/api/setlist", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({url: url})
+        body: JSON.stringify({url: url, manual_mode: mode})
     });
+
     input.value = "";
     loadSetlist();
 }
@@ -199,29 +205,22 @@ function playTrackAt(index) {
     const track = currentTrackList[index];
     if (!track) return;
 
-    // Cas 1 : YouTube Iframe
+    // Cas 1 : Iframe (YouTube ou Autre Embed)
     if (track.open_mode === "iframe") {
-        if (track.id) {
+        // Option A: YouTube ID
+        if (track.id && player && player.loadVideoById) {
             player.loadVideoById(track.id);
-            // Hide "External" message if implemented, show Player
-            document.getElementById("player").style.display = "block";
+        } else {
+            // Option B: Générique (Si supporté plus tard ou si non-YT détecté en mode Iframe)
+            console.log("Lecture Iframe générique non supportée via l'API YT. Tentative URL...");
+            // Pour l'instant on ne change rien car le player est "YT Player".
+            // Si on voulait supporter d'autres iframes, il faudrait changer le DOM.
         }
         setMode("WEB", track.profile_name);
     }
-    // Cas 2 : Externe (Songsterr etc)
+    // Cas 2 : Externe
     else {
         window.open(track.url, '_blank');
-
-        // Show message
-        // Maybe replace player div content temporary or overlay?
-        // Use console for now or alert? Requirement says: "Affiche un message dans la zone vidéo"
-        // Let's modify the DOM cleanly
-        // We can't overwrite the IFrame div easily without destroying it.
-        // Let's assume we just alert for now or set title?
-        // "Ouvert dans une fenêtre externe. Contrôle MIDI actif."
-        // Better: Overlay on top of player?
-        // Simpler: Just rely on Window switching.
-
         setMode("WIN", track.profile_name);
     }
 }
