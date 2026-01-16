@@ -1,6 +1,7 @@
 let player;
 let currentMode = "WIN"; // WIN ou WEB
 let websocket;
+let currentProfile = null;
 
 // --- 1. YOUTUBE API ---
 function onYouTubeIframeAPIReady() {
@@ -15,7 +16,6 @@ function onPlayerReady(event) { console.log("Player Ready"); }
 
 // --- 2. WEBSOCKET ---
 function connectWS() {
-    // Determine protocol dynamically to handle potential future https deployments if needed, though mostly local
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     websocket = new WebSocket(`${protocol}//${location.host}/ws`);
 
@@ -29,9 +29,12 @@ function connectWS() {
         if (msg.type === "midi") {
             handleMidi(msg.cc, msg.value);
         } else if (msg.type === "profile_update") {
-            renderPedalboard(msg.data);
-            if (msg.data && msg.data.name) {
-                document.getElementById("active-profile").innerText = "Profil : " + msg.data.name;
+            // STORE PROFILE
+            currentProfile = msg.data;
+            renderPedalboard(currentProfile);
+
+            if (currentProfile && currentProfile.name) {
+                document.getElementById("active-profile").innerText = "Profil : " + currentProfile.name;
             } else {
                  document.getElementById("active-profile").innerText = "Profil : Global / Aucun";
             }
@@ -44,7 +47,64 @@ function connectWS() {
     };
 }
 
-// --- 3. LOGIQUE METIER ---
+// --- 3. LOGIQUE METIER (WEB ACTIONS) ---
+function executeWebAction(actionValue) {
+    if (!player || !player.getPlayerState) return;
+    if (!actionValue) return;
+
+    const cmd = actionValue.toLowerCase();
+
+    // Play/Pause
+    if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd.includes(c))) {
+        toggleVideo();
+        return;
+    }
+
+    // Stop
+    if (cmd.includes('media_stop')) {
+        player.stopVideo();
+        return;
+    }
+
+    // Seek Relative
+    if (cmd.includes('media_rewind') || cmd.includes('left')) {
+        seekRelative(-5);
+        return;
+    }
+    if (cmd.includes('media_forward') || cmd.includes('right')) {
+        seekRelative(5);
+        return;
+    }
+
+    // Seek Absolute
+    if (cmd.includes('media_seek_start') || cmd === '0') {
+        player.seekTo(0);
+        return;
+    }
+
+    // Speed
+    if (cmd.includes('media_speed_up')) {
+        player.setPlaybackRate(player.getPlaybackRate() + 0.25);
+        return;
+    }
+    if (cmd.includes('media_speed_down')) {
+        const r = player.getPlaybackRate();
+        if (r > 0.25) player.setPlaybackRate(r - 0.25);
+        return;
+    }
+}
+
+function seekRelative(seconds) {
+    const curr = player.getCurrentTime();
+    player.seekTo(curr + seconds, true);
+}
+
+function toggleVideo() {
+    if (player.getPlayerState() === 1) player.pauseVideo();
+    else player.playVideo();
+}
+
+// --- 4. GESTIONNAIRE MIDI ---
 function handleMidi(cc, value) {
     if (value === 0) return;
 
@@ -55,31 +115,21 @@ function handleMidi(cc, value) {
         setTimeout(() => card.classList.remove("active"), 200);
     }
 
-    // Mode WEB (Contrôle direct YouTube)
-    // IMPORTANT: Mapping Hardcodé pour le moment tel que demandé par l'utilisateur
-    // A: 50, B: 52, C: 54, D: 56, E: 58
-    if (currentMode === "WEB" && player && player.getPlayerState) {
-        if (cc === 54) toggleVideo(); // C
-        if (cc === 52) player.seekTo(player.getCurrentTime() - 5); // B
-        if (cc === 56) player.seekTo(player.getCurrentTime() + 5); // D
-        if (cc === 50) player.setPlaybackRate(player.getPlaybackRate() - 0.25); // A
-        if (cc === 58) player.setPlaybackRate(player.getPlaybackRate() + 0.25); // E
-    } else {
-        // En mode WIN, on pourrait aussi vouloir trigger via API si le main.py ne le fait pas tout seul.
-        // Mais main.py a été "decoupled". Donc il faut envoyer l'info au backend.
-        // MAIS le code JS fourni par l'user ne le fait pas explicitement dans handleMidi.
-        // Il dit "N'appelle PAS l'API Python" en mode WEB.
-        // Et "SI Mode == WIN ... Appelle l'API Python".
-        // Le code fourni par l'user ne contient PAS l'appel API dans handleMidi pour le mode WIN.
-        // Je vais AJOUTER l'appel API pour le mode WIN pour être cohérent avec la demande précédente "decoupling".
+    // Lookup Mapping
+    if (!currentProfile || !currentProfile.mappings) return;
+    const mapping = currentProfile.mappings.find(m => m.midi_cc == cc);
+    if (!mapping) return;
 
-        if (currentMode === "WIN") {
-             fetch("/api/trigger", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({cc: cc, value: 127})
-            });
-        }
+    // Routing Logic
+    if (currentMode === "WEB") {
+        executeWebAction(mapping.action_value);
+    } else {
+        // WIN Mode -> Call Backend API
+        fetch("/api/trigger", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({cc: cc, value: 127})
+        });
     }
 }
 
@@ -89,7 +139,16 @@ function setMode(mode) {
     document.getElementById("mode-web").className = mode === "WEB" ? "active" : "";
 }
 
-// --- 4. SETLIST ---
+// --- 5. GESTIONNAIRE SOURIS & CLAVIER ---
+window.addEventListener('keydown', (e) => {
+    // Global Space -> Pause Video (si pas dans un input)
+    if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+        e.preventDefault();
+        toggleVideo();
+    }
+});
+
+// --- 6. SETLIST ---
 async function loadSetlist() {
     const res = await fetch("/api/setlist");
     const tracks = await res.json();
@@ -132,24 +191,15 @@ async function deleteTrack(index) {
 function playTrack(url) {
     let videoId = null;
     try {
-        // Basic extraction if backend ID is missing or fallback
-        // The backend saves ID, but here we receive URL (or ID inside URL object if track.url passed)
-        // Actually track.url is what we saved.
-        // Let's try to extract ID from URL using regex similar to backend or use URL constructor
         let urlObj;
-        try {
-             urlObj = new URL(url);
-        } catch {
-             // Maybe it is just an ID?
-             if (url.length === 11) videoId = url;
-        }
+        try { urlObj = new URL(url); } catch {}
 
+        // Simple extraction
         if (urlObj) {
             if (urlObj.hostname.includes("youtube.com")) videoId = urlObj.searchParams.get("v");
             else if (urlObj.hostname.includes("youtu.be")) videoId = urlObj.pathname.slice(1);
         }
 
-        // Regex Fallback
         if (!videoId) {
              const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
              if (match && match[1]) videoId = match[1];
@@ -163,18 +213,13 @@ function playTrack(url) {
     }
 }
 
-function toggleVideo() {
-    if (player.getPlayerState() === 1) player.pauseVideo();
-    else player.playVideo();
-}
-
-// --- 5. RENDER PEDALBOARD ---
+// --- 7. RENDER PEDALBOARD ---
 function renderPedalboard(profile) {
     const grid = document.getElementById("pedalboard-grid");
     grid.innerHTML = "";
 
     if (!profile || !profile.mappings) {
-        grid.innerHTML = '<div class="empty-state">Aucun profil actif</div>';
+        grid.innerHTML = '<div class="empty-state">En attente du profil...</div>';
         return;
     }
 
@@ -183,14 +228,22 @@ function renderPedalboard(profile) {
         div.className = "pedal-card";
         div.id = `card-${m.midi_cc}`;
         div.onclick = () => {
-            // Manual trigger always sends to backend for action execution?
-            // Or respects mode? Usually manual click implies "Testing" or "Forcing" action.
-            // Let's force trigger backend.
+            // Click Handler:
+            // 1. WIN Mode -> API Trigger
             fetch("/api/trigger", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({cc: m.midi_cc, value: 127})
             });
+
+            // 2. WEB Mode -> Immediate Local Feedback/Action if in Web Mode
+            if (currentMode === "WEB") {
+                executeWebAction(m.action_value);
+
+                // Visual Feedback
+                div.classList.add("active");
+                setTimeout(() => div.classList.remove("active"), 200);
+            }
         };
         div.innerHTML = `
             <span class="pedal-icon">⚡</span>
