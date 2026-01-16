@@ -37,20 +37,23 @@ header {
     overflow: hidden;
 }
 
+/* LEFT COLUMN: 70% */
 .media-zone {
-    flex: 6;
+    flex: 7;
     border-right: 1px solid #333;
     display: flex;
     flex-direction: column;
     padding: 10px;
 }
 
-.control-zone {
-    flex: 4;
+/* RIGHT COLUMN: 30% */
+.sidebar-zone {
+    flex: 3;
     padding: 10px;
     background-color: #181818;
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
 }
 
 /* YOUTUBE PLAYER */
@@ -59,74 +62,115 @@ header {
     aspect-ratio: 16 / 9;
     background: #000;
     margin-bottom: 15px;
+    flex-shrink: 0;
 }
 iframe { width: 100%; height: 100%; }
 
-/* SETLIST */
-.input-group { display: flex; gap: 10px; margin-bottom: 10px; }
-input {
-    flex: 1;
-    padding: 8px;
-    background: #333;
-    border: 1px solid #444;
-    color: white;
-    border-radius: 4px;
-}
-button {
-    padding: 8px 15px;
-    background: var(--accent);
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-}
-button:hover { opacity: 0.9; }
-
-#setlist-container {
+/* PEDALBOARD GRID (Bottom Left) */
+#pedalboard-container {
     flex: 1;
     overflow-y: auto;
 }
-.track-item {
-    background: var(--card-bg);
-    padding: 10px;
-    margin-bottom: 5px;
-    border-radius: 4px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.track-title { font-size: 0.9em; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
-.track-actions button {
-    font-size: 0.8em;
-    padding: 4px 8px;
-    margin-left: 5px;
-}
-.btn-play { background: var(--success); color: black; }
-.btn-del { background: var(--danger); color: black; }
-
-/* PEDALBOARD */
-.mode-switch { margin-bottom: 20px; text-align: center; }
-.toggle-btn-group button { background: #333; color: #888; }
-.toggle-btn-group button.active { background: var(--accent); color: black; }
-
 #pedalboard-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 15px;
-    overflow-y: auto;
+    grid-template-columns: repeat(5, 1fr); /* 5 Columns for AIRSTEP */
+    gap: 10px;
+    padding: 10px;
 }
 
 .pedal-card {
     background: var(--card-bg);
-    padding: 20px;
+    padding: 10px;
     border-radius: 8px;
     text-align: center;
     border: 2px solid transparent;
     transition: all 0.1s;
     cursor: pointer;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 }
 .pedal-card:active { transform: scale(0.98); }
 .pedal-card.active { border-color: var(--success); background: #2a2a2a; }
-.pedal-icon { font-size: 2em; display: block; margin-bottom: 5px; }
-.pedal-label { font-size: 0.9em; color: #aaa; }
-.pedal-cc { font-size: 0.7em; color: #555; }
+.pedal-icon { font-size: 1.5em; display: block; margin-bottom: 5px; }
+.pedal-label { font-size: 0.8em; color: #aaa; }
+.pedal-cc { font-size: 0.6em; color: #555; }
+
+/* SIDEBAR COMPONENTS */
+.sidebar-section {
+    margin-bottom: 20px;
+    background: #222;
+    padding: 10px;
+    border-radius: 8px;
+}
+.section-title {
+    font-size: 0.9em;
+    color: #888;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 5px;
+}
+
+/* SETLIST */
+.input-group { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap;}
+input, select {
+    flex: 1;
+    padding: 6px;
+    background: #333;
+    border: 1px solid #444;
+    color: white;
+    border-radius: 4px;
+    font-size: 0.8em;
+}
+button {
+    padding: 6px 12px;
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.8em;
+}
+button:hover { opacity: 0.9; }
+
+#setlist-container {
+    max-height: 300px;
+    overflow-y: auto;
+}
+.track-item {
+    background: #2a2a2a;
+    padding: 8px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+.track-item:hover { background: #333; }
+.track-title { font-size: 0.8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;}
+
+/* APPS LAUNCHER */
+.app-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+.app-card {
+    background: #333;
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 0.8em;
+}
+.app-card:hover { background: #444; }
+
+/* CONTROLS */
+.mode-switch { text-align: center; }
+.toggle-btn-group { display: flex; justify-content: center; gap: 5px; }
+.toggle-btn-group button { background: #333; color: #888; }
+.toggle-btn-group button.active { background: var(--accent); color: black; }

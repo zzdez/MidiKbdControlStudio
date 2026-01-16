@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Airstep Studio</title>
+    <title>Airstep Studio V3</title>
     <link rel="stylesheet" href="style.css">
-    <!-- API YouTube Iframe -->
     <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
@@ -16,52 +15,71 @@
         <div class="status-bar">
             <span id="connection-status" class="status-dot">●</span>
             <span id="active-profile">Profil : Global</span>
+            <button id="btn-settings">⚙️</button>
         </div>
     </header>
 
     <!-- MAIN LAYOUT -->
     <main class="cockpit">
 
-        <!-- COLONNE GAUCHE : MEDIA & SETLIST -->
+        <!-- COLONNE GAUCHE (70%) -->
         <section class="media-zone">
-            <!-- Lecteur YouTube -->
+            <!-- Lecteur -->
             <div id="video-container">
                 <div id="player"></div>
                 <iframe id="generic-player" style="width:100%; height:100%; display:none; border:none;" allowfullscreen></iframe>
             </div>
 
-            <!-- Setlist Manager -->
-            <div class="setlist-manager">
-                <div class="input-group">
-                    <input type="text" id="url-input" placeholder="Coller une URL YouTube...">
-                    <select id="mode-select" style="padding: 8px; background: #333; color: white; border: 1px solid #444; border-radius: 4px;">
-                        <option value="auto">Auto</option>
-                        <option value="iframe">Intégré</option>
-                        <option value="external">Externe</option>
-                    </select>
-                    <button onclick="addToSetlist()">Ajouter</button>
-                </div>
-                <div id="setlist-container">
-                    <!-- Liste générée par JS -->
+            <!-- Pédalier Virtuel (Sync) -->
+            <div id="pedalboard-container">
+                <div id="pedalboard-grid">
+                    <div class="empty-state">En attente...</div>
                 </div>
             </div>
         </section>
 
-        <!-- COLONNE DROITE : CONTROLE -->
-        <section class="control-zone">
-            <!-- Mode Switch -->
-            <div class="mode-switch">
-                <label>Mode Contrôle : </label>
-                <div class="toggle-btn-group">
-                    <button id="mode-win" class="active" onclick="setMode('WIN')">WINDOWS (App)</button>
-                    <button id="mode-web" onclick="setMode('WEB')">WEB (YouTube)</button>
+        <!-- COLONNE DROITE (30%) -->
+        <section class="sidebar-zone">
+
+            <!-- SECTION CONTROL MODE -->
+            <div class="sidebar-section">
+                <div class="section-title">Contrôle</div>
+                <div class="mode-switch">
+                    <div class="toggle-btn-group">
+                        <button id="mode-win" class="active" onclick="setMode('WIN')">WINDOWS</button>
+                        <button id="mode-web" onclick="setMode('WEB')">WEB</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Pédalier Virtuel -->
-            <div id="pedalboard-grid">
-                <div class="empty-state">En attente du profil...</div>
+            <!-- SECTION SETLIST -->
+            <div class="sidebar-section">
+                <div class="section-title">Setlist</div>
+                <div class="input-group">
+                    <input type="text" id="url-input" placeholder="URL...">
+                    <select id="mode-select">
+                        <option value="auto">Auto</option>
+                        <option value="iframe">Embed</option>
+                        <option value="external">Win</option>
+                    </select>
+                    <button onclick="addToSetlist()">+</button>
+                </div>
+                <div id="setlist-container"></div>
             </div>
+
+            <!-- SECTION APPS -->
+            <div class="sidebar-section">
+                <div class="section-title">Apps Launcher</div>
+                <div id="apps-container" class="app-grid">
+                    <!-- Apps JS -->
+                </div>
+                <div style="margin-top:5px; display:flex; gap:5px;">
+                    <input type="text" id="app-name" placeholder="Nom">
+                    <input type="text" id="app-path" placeholder="Chemin .exe">
+                    <button onclick="addApp()">+</button>
+                </div>
+            </div>
+
         </section>
 
     </main>

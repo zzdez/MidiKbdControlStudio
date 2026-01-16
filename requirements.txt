@@ -12,3 +12,5 @@ pyinstaller
 winsdk
 bleak-winrt
 requests
+customtkinter
+packaging

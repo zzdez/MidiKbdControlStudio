@@ -8,6 +8,7 @@ from typing import List, Dict
 import json
 import requests
 import re
+import subprocess
 
 try:
     from config_manager import ConfigManager
@@ -16,6 +17,7 @@ except ImportError:
 
 app = FastAPI()
 SETLIST_FILE = "setlist.json"
+APPS_FILE = "apps.json"
 
 app.add_middleware(
     CORSMiddleware,
@@ -187,6 +189,57 @@ async def remove_from_setlist(index: int):
         return items
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- APPS LAUNCHER ---
+@app.get("/api/apps")
+async def get_apps():
+    if os.path.exists(APPS_FILE):
+        try:
+            with open(APPS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+@app.post("/api/apps")
+async def add_app(app_def: Dict):
+    try:
+        apps = []
+        if os.path.exists(APPS_FILE):
+            with open(APPS_FILE, "r", encoding="utf-8") as f:
+                apps = json.load(f)
+
+        apps.append(app_def)
+
+        with open(APPS_FILE, "w", encoding="utf-8") as f:
+            json.dump(apps, f, indent=4)
+        return apps
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/launch_app")
+async def launch_app(request: Request):
+    try:
+        body = await request.json()
+        path = body.get("path")
+        if not path or not os.path.exists(path):
+            raise HTTPException(status_code=400, detail="Executable path not found")
+
+        subprocess.Popen(path, shell=True)
+        return {"status": "launched", "path": path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- CONFIG MANAGER (Profiles/Devices) ---
+@app.get("/api/profiles")
+async def get_profiles():
+    # Access state or reload
+    if hasattr(app.state, "profiles"):
+        return app.state.profiles
+    return []
+
+# Placeholder for device/profile management if needed by frontend
+# Currently ProfileManager loads from disk.
 
 @app.post("/api/set_mode")
 async def set_mode(request: Request):
