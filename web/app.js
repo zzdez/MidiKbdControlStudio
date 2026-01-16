@@ -205,21 +205,45 @@ function playTrackAt(index) {
     const track = currentTrackList[index];
     if (!track) return;
 
-    // Cas 1 : Iframe (YouTube ou Autre Embed)
+    // DOM Elements
+    const ytDiv = document.getElementById("player");
+    const genFrame = document.getElementById("generic-player");
+
+    // Cas 1 : Iframe
     if (track.open_mode === "iframe") {
-        // Option A: YouTube ID
-        if (track.id && player && player.loadVideoById) {
-            player.loadVideoById(track.id);
+        const isYouTube = track.url.includes("youtube.com") || track.url.includes("youtu.be");
+
+        if (isYouTube) {
+            // --- MODE YOUTUBE ---
+            genFrame.style.display = "none";
+            genFrame.src = ""; // Stop previous generic
+            ytDiv.style.display = "block";
+
+            if (track.id && player && player.loadVideoById) {
+                player.loadVideoById(track.id);
+            }
+            // Contrôle JS possible -> WEB Mode
+            setMode("WEB", track.profile_name);
+
         } else {
-            // Option B: Générique (Si supporté plus tard ou si non-YT détecté en mode Iframe)
-            console.log("Lecture Iframe générique non supportée via l'API YT. Tentative URL...");
-            // Pour l'instant on ne change rien car le player est "YT Player".
-            // Si on voulait supporter d'autres iframes, il faudrait changer le DOM.
+            // --- MODE GENERIQUE ---
+            if (player && player.stopVideo) player.stopVideo();
+            ytDiv.style.display = "none";
+            genFrame.style.display = "block";
+            genFrame.src = track.url;
+
+            // Pas de contrôle JS (CORS) -> WIN Mode (Clavier)
+            // On force WIN pour que les pédales envoient des keystrokes (Espace, Flèches) à l'OS
+            // L'utilisateur doit avoir le focus sur l'iframe (cliquer dedans une fois)
+            setMode("WIN", track.profile_name);
         }
-        setMode("WEB", track.profile_name);
     }
     // Cas 2 : Externe
     else {
+        // Stop Internal Players
+        if (player && player.stopVideo) player.stopVideo();
+        genFrame.src = "";
+
         window.open(track.url, '_blank');
         setMode("WIN", track.profile_name);
     }
