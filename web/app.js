@@ -29,10 +29,8 @@ function connectWS() {
         if (msg.type === "midi") {
             handleMidi(msg.cc, msg.value);
         } else if (msg.type === "profile_update") {
-            // STORE PROFILE
             currentProfile = msg.data;
             renderPedalboard(currentProfile);
-
             if (currentProfile && currentProfile.name) {
                 document.getElementById("active-profile").innerText = "Profil : " + currentProfile.name;
             } else {
@@ -47,15 +45,15 @@ function connectWS() {
     };
 }
 
-// --- 3. LOGIQUE METIER (WEB ACTIONS) ---
+// --- 3. LOGIQUE METIER UNIFIEE (WEB ACTIONS) ---
 function executeWebAction(actionValue) {
     if (!player || !player.getPlayerState) return;
     if (!actionValue) return;
 
     const cmd = actionValue.toLowerCase();
 
-    // Play/Pause
-    if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd.includes(c))) {
+    // Play/Pause (Space, K, Media)
+    if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd === c || cmd.includes(c))) {
         toggleVideo();
         return;
     }
@@ -66,12 +64,12 @@ function executeWebAction(actionValue) {
         return;
     }
 
-    // Seek Relative
-    if (cmd.includes('media_rewind') || cmd.includes('left')) {
+    // Seek Relative (Arrows, Media)
+    if (cmd.includes('media_rewind') || cmd === 'left' || cmd.includes('arrow left')) {
         seekRelative(-5);
         return;
     }
-    if (cmd.includes('media_forward') || cmd.includes('right')) {
+    if (cmd.includes('media_forward') || cmd === 'right' || cmd.includes('arrow right')) {
         seekRelative(5);
         return;
     }
@@ -139,12 +137,32 @@ function setMode(mode) {
     document.getElementById("mode-web").className = mode === "WEB" ? "active" : "";
 }
 
-// --- 5. GESTIONNAIRE SOURIS & CLAVIER ---
+// --- 5. GESTIONNAIRE CLAVIER GLOBAL (Mode WEB) ---
 window.addEventListener('keydown', (e) => {
-    // Global Space -> Pause Video (si pas dans un input)
-    if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
-        e.preventDefault();
-        toggleVideo();
+    // Only intercept in WEB mode and if not typing in input
+    if (currentMode === "WEB" && e.target.tagName !== 'INPUT') {
+        const code = e.code;
+
+        // Space / K -> Play/Pause
+        if (code === 'Space' || code === 'KeyK') {
+            e.preventDefault(); // Prevent scroll
+            toggleVideo();
+        }
+
+        // Arrows -> Seek
+        if (code === 'ArrowLeft') {
+            e.preventDefault();
+            seekRelative(-5);
+        }
+        if (code === 'ArrowRight') {
+            e.preventDefault();
+            seekRelative(5);
+        }
+
+        // 0 -> Restart
+        if (code === 'Digit0' || code === 'Numpad0') {
+            player.seekTo(0);
+        }
     }
 });
 
@@ -194,7 +212,6 @@ function playTrack(url) {
         let urlObj;
         try { urlObj = new URL(url); } catch {}
 
-        // Simple extraction
         if (urlObj) {
             if (urlObj.hostname.includes("youtube.com")) videoId = urlObj.searchParams.get("v");
             else if (urlObj.hostname.includes("youtu.be")) videoId = urlObj.pathname.slice(1);
@@ -213,7 +230,7 @@ function playTrack(url) {
     }
 }
 
-// --- 7. RENDER PEDALBOARD ---
+// --- 7. RENDER PEDALBOARD (Mode Hybride) ---
 function renderPedalboard(profile) {
     const grid = document.getElementById("pedalboard-grid");
     grid.innerHTML = "";
@@ -227,24 +244,26 @@ function renderPedalboard(profile) {
         const div = document.createElement("div");
         div.className = "pedal-card";
         div.id = `card-${m.midi_cc}`;
+
+        // HYBRID CLICK HANDLER
         div.onclick = () => {
-            // Click Handler:
-            // 1. WIN Mode -> API Trigger
-            fetch("/api/trigger", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({cc: m.midi_cc, value: 127})
-            });
+            // Visual Feedback
+            div.classList.add("active");
+            setTimeout(() => div.classList.remove("active"), 200);
 
-            // 2. WEB Mode -> Immediate Local Feedback/Action if in Web Mode
             if (currentMode === "WEB") {
+                // WEB Mode: Execute JS directly (Zero Latency)
                 executeWebAction(m.action_value);
-
-                // Visual Feedback
-                div.classList.add("active");
-                setTimeout(() => div.classList.remove("active"), 200);
+            } else {
+                // WIN Mode: Call Backend API
+                fetch("/api/trigger", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({cc: m.midi_cc, value: 127})
+                });
             }
         };
+
         div.innerHTML = `
             <span class="pedal-icon">⚡</span>
             <div class="pedal-label">${m.name}</div>
