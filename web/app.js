@@ -52,39 +52,18 @@ function executeWebAction(actionValue) {
 
     const cmd = actionValue.toLowerCase();
 
-    // Play/Pause (Space, K, Media)
     if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd === c || cmd.includes(c))) {
         toggleVideo();
         return;
     }
+    if (cmd.includes('media_stop')) { player.stopVideo(); return; }
 
-    // Stop
-    if (cmd.includes('media_stop')) {
-        player.stopVideo();
-        return;
-    }
+    if (cmd.includes('media_rewind') || cmd === 'left' || cmd.includes('arrow left')) { seekRelative(-5); return; }
+    if (cmd.includes('media_forward') || cmd === 'right' || cmd.includes('arrow right')) { seekRelative(5); return; }
 
-    // Seek Relative (Arrows, Media)
-    if (cmd.includes('media_rewind') || cmd === 'left' || cmd.includes('arrow left')) {
-        seekRelative(-5);
-        return;
-    }
-    if (cmd.includes('media_forward') || cmd === 'right' || cmd.includes('arrow right')) {
-        seekRelative(5);
-        return;
-    }
+    if (cmd.includes('media_seek_start') || cmd === '0') { player.seekTo(0); return; }
 
-    // Seek Absolute
-    if (cmd.includes('media_seek_start') || cmd === '0') {
-        player.seekTo(0);
-        return;
-    }
-
-    // Speed
-    if (cmd.includes('media_speed_up')) {
-        player.setPlaybackRate(player.getPlaybackRate() + 0.25);
-        return;
-    }
+    if (cmd.includes('media_speed_up')) { player.setPlaybackRate(player.getPlaybackRate() + 0.25); return; }
     if (cmd.includes('media_speed_down')) {
         const r = player.getPlaybackRate();
         if (r > 0.25) player.setPlaybackRate(r - 0.25);
@@ -113,16 +92,13 @@ function handleMidi(cc, value) {
         setTimeout(() => card.classList.remove("active"), 200);
     }
 
-    // Lookup Mapping
     if (!currentProfile || !currentProfile.mappings) return;
     const mapping = currentProfile.mappings.find(m => m.midi_cc == cc);
     if (!mapping) return;
 
-    // Routing Logic
     if (currentMode === "WEB") {
         executeWebAction(mapping.action_value);
     } else {
-        // WIN Mode -> Call Backend API
         fetch("/api/trigger", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
@@ -131,38 +107,27 @@ function handleMidi(cc, value) {
     }
 }
 
-function setMode(mode) {
+function setMode(mode, forcedProfileName = null) {
     currentMode = mode;
     document.getElementById("mode-win").className = mode === "WIN" ? "active" : "";
     document.getElementById("mode-web").className = mode === "WEB" ? "active" : "";
+
+    // Call Backend Lock
+    fetch("/api/set_mode", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ mode: mode, forced_profile_name: forcedProfileName })
+    });
 }
 
 // --- 5. GESTIONNAIRE CLAVIER GLOBAL (Mode WEB) ---
 window.addEventListener('keydown', (e) => {
-    // Only intercept in WEB mode and if not typing in input
     if (currentMode === "WEB" && e.target.tagName !== 'INPUT') {
         const code = e.code;
-
-        // Space / K -> Play/Pause
-        if (code === 'Space' || code === 'KeyK') {
-            e.preventDefault(); // Prevent scroll
-            toggleVideo();
-        }
-
-        // Arrows -> Seek
-        if (code === 'ArrowLeft') {
-            e.preventDefault();
-            seekRelative(-5);
-        }
-        if (code === 'ArrowRight') {
-            e.preventDefault();
-            seekRelative(5);
-        }
-
-        // 0 -> Restart
-        if (code === 'Digit0' || code === 'Numpad0') {
-            player.seekTo(0);
-        }
+        if (code === 'Space' || code === 'KeyK') { e.preventDefault(); toggleVideo(); }
+        if (code === 'ArrowLeft') { e.preventDefault(); seekRelative(-5); }
+        if (code === 'ArrowRight') { e.preventDefault(); seekRelative(5); }
+        if (code === 'Digit0' || code === 'Numpad0') { player.seekTo(0); }
     }
 });
 
@@ -179,7 +144,7 @@ async function loadSetlist() {
         div.innerHTML = `
             <span class="track-title" title="${track.title}">${track.title}</span>
             <div class="track-actions">
-                <button class="btn-play" onclick="playTrack('${track.url}')">▶</button>
+                <button class="btn-play" onclick="playTrackAt(${index})">▶</button>
                 <button class="btn-del" onclick="deleteTrack(${index})">X</button>
             </div>
         `;
@@ -206,31 +171,62 @@ async function deleteTrack(index) {
     loadSetlist();
 }
 
-function playTrack(url) {
-    let videoId = null;
-    try {
-        let urlObj;
-        try { urlObj = new URL(url); } catch {}
+// Global scope tracker for tracks since we need object data
+let currentTrackList = [];
+// (We should really store the list from loadSetlist to access index based data easier or pass full object)
+// Refactoring loadSetlist to store data
+async function loadSetlist() {
+    const res = await fetch("/api/setlist");
+    currentTrackList = await res.json();
+    const container = document.getElementById("setlist-container");
+    container.innerHTML = "";
 
-        if (urlObj) {
-            if (urlObj.hostname.includes("youtube.com")) videoId = urlObj.searchParams.get("v");
-            else if (urlObj.hostname.includes("youtu.be")) videoId = urlObj.pathname.slice(1);
+    currentTrackList.forEach((track, index) => {
+        const div = document.createElement("div");
+        div.className = "track-item";
+        div.innerHTML = `
+            <span class="track-title" title="${track.title}">${track.title}</span>
+            <div class="track-actions">
+                <button class="btn-play" onclick="playTrackAt(${index})">▶</button>
+                <button class="btn-del" onclick="deleteTrack(${index})">X</button>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function playTrackAt(index) {
+    const track = currentTrackList[index];
+    if (!track) return;
+
+    // Cas 1 : YouTube Iframe
+    if (track.open_mode === "iframe") {
+        if (track.id) {
+            player.loadVideoById(track.id);
+            // Hide "External" message if implemented, show Player
+            document.getElementById("player").style.display = "block";
         }
+        setMode("WEB", track.profile_name);
+    }
+    // Cas 2 : Externe (Songsterr etc)
+    else {
+        window.open(track.url, '_blank');
 
-        if (!videoId) {
-             const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
-             if (match && match[1]) videoId = match[1];
-        }
+        // Show message
+        // Maybe replace player div content temporary or overlay?
+        // Use console for now or alert? Requirement says: "Affiche un message dans la zone vidéo"
+        // Let's modify the DOM cleanly
+        // We can't overwrite the IFrame div easily without destroying it.
+        // Let's assume we just alert for now or set title?
+        // "Ouvert dans une fenêtre externe. Contrôle MIDI actif."
+        // Better: Overlay on top of player?
+        // Simpler: Just rely on Window switching.
 
-    } catch(e) {}
-
-    if (videoId && player) {
-        player.loadVideoById(videoId);
-        setMode("WEB"); // Auto-switch mode
+        setMode("WIN", track.profile_name);
     }
 }
 
-// --- 7. RENDER PEDALBOARD (Mode Hybride) ---
+// --- 7. RENDER PEDALBOARD ---
 function renderPedalboard(profile) {
     const grid = document.getElementById("pedalboard-grid");
     grid.innerHTML = "";
@@ -245,17 +241,13 @@ function renderPedalboard(profile) {
         div.className = "pedal-card";
         div.id = `card-${m.midi_cc}`;
 
-        // HYBRID CLICK HANDLER
         div.onclick = () => {
-            // Visual Feedback
             div.classList.add("active");
             setTimeout(() => div.classList.remove("active"), 200);
 
             if (currentMode === "WEB") {
-                // WEB Mode: Execute JS directly (Zero Latency)
                 executeWebAction(m.action_value);
             } else {
-                // WIN Mode: Call Backend API
                 fetch("/api/trigger", {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},

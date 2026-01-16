@@ -9,9 +9,6 @@ import json
 import requests
 import re
 
-# Import ConfigManager (assuming fallback imports or path setup in main.py works for this module too
-# but server.py is imported BY main.py, so we need to be careful about imports here if run standalone.
-# However, this app is run via main.py, so sys.path is set.
 try:
     from config_manager import ConfigManager
 except ImportError:
@@ -28,10 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global loop reference
 server_loop = None
-
-# Config Instance (Lazy load or init)
 config_manager = ConfigManager()
 
 @app.on_event("startup")
@@ -60,17 +54,11 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 def broadcast_sync(message: str):
-    """Helper to broadcast from sync threads (e.g. MIDI callback)"""
     if server_loop:
         asyncio.run_coroutine_threadsafe(manager.broadcast(message), server_loop)
 
 # --- HELPERS ---
 def extract_youtube_id(url: str):
-    """Extracts Video ID from various YouTube URL formats."""
-    # Patterns:
-    # youtube.com/watch?v=ID
-    # youtu.be/ID
-    # youtube.com/embed/ID
     regex = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
     match = re.search(regex, url)
     if match:
@@ -78,10 +66,7 @@ def extract_youtube_id(url: str):
     return None
 
 def fetch_youtube_title(video_id: str, api_key: str):
-    """Fetches video title from YouTube API."""
-    if not api_key:
-        return None
-
+    if not api_key: return None
     url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet&id={video_id}&key={api_key}"
     try:
         response = requests.get(url, timeout=5)
@@ -112,39 +97,49 @@ async def get_setlist():
 @app.post("/api/setlist")
 async def add_to_setlist(item: Dict):
     """
-    Ajoute un item à la setlist.
-    Attend: {"url": "..."}
-    Optionnel: {"title": "..."} (sinon auto-detect)
+    Smart Add to Setlist.
+    Analyzes URL to determine mode and profile.
     """
     try:
         url = item.get("url", "")
         if not url:
             raise HTTPException(status_code=400, detail="URL is required")
 
-        # 1. Extract ID
-        video_id = extract_youtube_id(url)
-        if not video_id:
-             # Fallback logic if not a valid YT ID, assume generic link?
-             # But requirement is YouTube. Let's accept it but ID is None.
-             video_id = ""
+        # 1. Determine Mode & Profile
+        open_mode = "external"
+        profile_name = "Web Generic"
 
-        # 2. Get Title
+        if "youtube.com" in url or "youtu.be" in url:
+            open_mode = "iframe"
+            profile_name = "YouTube"
+        elif "songsterr.com" in url:
+            open_mode = "external"
+            profile_name = "Songsterr" # Ensure this profile exists or defaults to Generic
+
+        # 2. Extract ID (YouTube Only)
+        video_id = ""
+        if open_mode == "iframe":
+            video_id = extract_youtube_id(url)
+
+        # 3. Get Title
         title = item.get("title")
         if not title:
-            # Try API
-            api_key = config_manager.get("YOUTUBE_API_KEY")
-            if video_id and api_key:
+            # Try API for YouTube
+            if open_mode == "iframe" and video_id:
+                api_key = config_manager.get("YOUTUBE_API_KEY")
                 title = fetch_youtube_title(video_id, api_key)
 
-            # Fallback Title
+            # Fallback
             if not title:
                 title = url
 
-        # 3. Save
+        # 4. Save
         new_item = {
             "title": title,
             "url": url,
-            "id": video_id
+            "id": video_id,
+            "open_mode": open_mode,
+            "profile_name": profile_name
         }
 
         items = []
@@ -166,7 +161,6 @@ async def add_to_setlist(item: Dict):
 
 @app.delete("/api/setlist/{index}")
 async def remove_from_setlist(index: int):
-    """Supprime un item de la setlist par index"""
     try:
         items = []
         if os.path.exists(SETLIST_FILE):
@@ -182,25 +176,98 @@ async def remove_from_setlist(index: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/set_mode")
+async def set_mode(request: Request):
+    """
+    Sets the operational mode and forces a profile override.
+    Payload: {"mode": "WEB"|"WIN", "forced_profile_name": "..."}
+    """
+    try:
+        body = await request.json()
+        mode = body.get("mode")
+        forced_profile_name = body.get("forced_profile_name")
+
+        # Access Context Monitor
+        if not hasattr(request.app.state, "context_monitor"):
+             # Might happen if not fully initialized or wrong injection
+             # But context_monitor should be injected in main.py
+             pass
+        else:
+            context_monitor = request.app.state.context_monitor
+
+            if mode == "WEB" and forced_profile_name:
+                context_monitor.set_manual_override(forced_profile_name)
+            elif mode == "WIN" and forced_profile_name:
+                # Even in WIN mode, if we are "Hybrid" (External Browser),
+                # we want to force the profile so the user sees the right buttons
+                # without needing the window to be focused 100% of the time,
+                # OR we might want to let auto-detect work.
+                # Requirement: "Si mode == 'WIN' : Appelle context_monitor.set_manual_override(None)"?
+                # Actually requirement says:
+                # "Cas 2 (External) ... Mode WIN ... et forced_profile_name"
+                # "Si mode == 'WIN' : Appelle context_monitor.set_manual_override(forced_profile_name)" seems implied by "Verrouillage".
+                # But logic "B" says: "Si mode == 'WIN' : Appelle context_monitor.set_manual_override(None)."
+                # Wait, "Cas 2 ... Appelle /api/set_mode avec mode: WIN et forced_profile_name"
+                # So if I receive WIN + Name, I should probably override?
+                # Let's look closely at "B. Mise à jour de POST /api/set_mode":
+                # "Si mode == 'WEB' : Appelle ... set_manual_override(forced_profile_name)"
+                # "Si mode == 'WIN' : Appelle ... set_manual_override(None)"
+
+                # CONTRADICTION CHECK:
+                # Frontend Plan for Case 2 says: "Appelle /api/set_mode avec mode: WIN ... et forced_profile_name"
+                # Backend Plan for Set Mode says: "Si mode == WIN ... set_manual_override(None)"
+
+                # INTERPRETATION:
+                # If I open external, I am in Windows Mode. I rely on Auto-Detect (Active Window).
+                # So I should clear override.
+                # BUT the user might want to see the specific profile "Songsterr" even if they click away.
+                # However, sticking to the explicit instruction B: "Si mode == 'WIN' : Appelle ... set_manual_override(None)"
+
+                # WAIT, Case 2 in Frontend section says: "Appelle /api/set_mode avec mode: WIN ... et forced_profile_name"
+                # Maybe the backend instruction B was a simplification or referring to a "Reset" action?
+                # Let's follow the most robust path:
+                # If a profile name is provided, use it.
+                # If "WIN" is sent without profile, clear it.
+                # Actually, let's implement exactly what logic A and B combined imply:
+                # Frontend sends Name. Backend decides what to do.
+
+                # Let's follow Logic B strictly as requested:
+                # "Si mode == 'WEB' : set_manual_override(forced_profile_name)"
+                # "Si mode == 'WIN' : set_manual_override(None)"
+
+                # But wait, if I open Songsterr (External), I want the "Songsterr" buttons on my screen.
+                # If I set override to None, ContextMonitor will scan windows.
+                # If Songsterr is active, it will pick Songsterr profile.
+                # If I click back to the Web App to change settings, it will switch to Chrome/Web Generic.
+                # This seems correct for "WIN" mode (Context Sensitive).
+
+                # So I will follow Logic B strictly.
+                pass
+
+            if mode == "WEB":
+                context_monitor.set_manual_override(forced_profile_name)
+            else:
+                # WIN Mode -> Release Lock (Auto-Detect)
+                context_monitor.set_manual_override(None)
+
+        return {"status": "ok", "mode": mode}
+    except Exception as e:
+        print(f"SetMode Error: {e}")
+        return {"status": "error", "detail": str(e)}
+
 @app.post("/api/trigger")
 async def trigger_action(request: Request):
-    """
-    Trigger an action via HTTP (Virtual Pedalboard).
-    Payload: {"cc": 50, "value": 127}
-    """
     try:
         body = await request.json()
         cc = body.get("cc")
         value = body.get("value", 127)
 
-        # Access state injected in main.py
         if not hasattr(request.app.state, "action_handler"):
             raise HTTPException(status_code=503, detail="Action Handler not ready")
 
         action_handler = request.app.state.action_handler
         profiles = request.app.state.profiles
 
-        # Execute
         action_handler.execute(int(cc), int(value), 1, profiles)
 
         return {"status": "triggered", "cc": cc}

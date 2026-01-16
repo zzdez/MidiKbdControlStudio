@@ -1,0 +1,11 @@
+{
+    "name": "Web Generic",
+    "app_context": "chrome",
+    "window_title_filter": "",
+    "mappings": [
+        {"name": "Play/Pause", "midi_cc": 54, "midi_channel": 16, "action_type": "hotkey", "action_value": "space"},
+        {"name": "Reculer", "midi_cc": 52, "midi_channel": 16, "action_type": "hotkey", "action_value": "left"},
+        {"name": "Avancer", "midi_cc": 56, "midi_channel": 16, "action_type": "hotkey", "action_value": "right"},
+        {"name": "Plein Écran", "midi_cc": 57, "midi_channel": 16, "action_type": "hotkey", "action_value": "f"}
+    ]
+}

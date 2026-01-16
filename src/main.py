@@ -175,6 +175,8 @@ def main():
     # Injection dans FastAPI pour l'API /api/trigger
     fastapi_app.state.action_handler = action_handler
     fastapi_app.state.profiles = profile_mgr.profiles
+    # Injection pour /api/set_mode
+    fastapi_app.state.context_monitor = context_monitor
 
     # Choix du Port
     requested_port = int(config.get("app_port", 8000))
