@@ -1,6 +1,7 @@
 import customtkinter as ctk
 import json
 import os
+import sys
 import time
 import threading
 import datetime
@@ -9,18 +10,18 @@ import keyboard
 import mido
 import pystray
 from PIL import Image
-try:
-    from icons import ICON_PNG_PATH, LOGO_PATH
-except ImportError:
-    # Fallback paths if icons.py is missing or paths are wrong
-    ICON_PNG_PATH = "icon.png"
-    LOGO_PATH = "logo.png"
-
 def get_resource_path(relative_path):
-    import sys, os
+    """Trouve les fichiers aussi bien en Dev qu'en EXE PyInstaller"""
     if hasattr(sys, '_MEIPASS'):
-        return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.path.abspath("."), relative_path)
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+# CORRECTION : On pointe vers assets/icon.png, pas juste icon.png
+ICON_PNG_PATH = get_resource_path(os.path.join("assets", "icon.png"))
+LOGO_PATH = get_resource_path(os.path.join("assets", "logo.png"))
 
 try:
     import driver_check
@@ -518,7 +519,7 @@ class AirstepApp(ctk.CTk):
         self.mapping_indicators = {}
         self.midi_engine = None
         self.midi_callback = None
-        self.action_handler = None
+        self.action_handler = ActionHandler()
         self.settings = {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO"}
 
         self.create_sidebar()
@@ -1273,12 +1274,8 @@ class AirstepApp(ctk.CTk):
     def setup_tray(self):
         def _create_tray():
             try:
-                icon_path = get_resource_path(ICON_PNG_PATH)
-                if not os.path.exists(icon_path):
-                    # Try finding in assets if not at root
-                    if os.path.exists("assets/icon.png"): icon_path = "assets/icon.png"
-
-                image = Image.open(icon_path)
+                # Use the robust path directly
+                image = Image.open(ICON_PNG_PATH)
                 menu = pystray.Menu(
                     pystray.MenuItem("Ouvrir", self.restore_window, default=True),
                     pystray.MenuItem("Quitter", self.quit_app)

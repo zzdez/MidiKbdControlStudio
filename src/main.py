@@ -121,32 +121,23 @@ def main():
     # We define a new callback that handles the raw 'msg' object from MidiManager
 
     def on_midi_event(msg):
-        # 1. Broadcast to Web
+        # 1. Envoi au Web (WebSocket)
         if hasattr(msg, 'control'):
              data = { "type": "midi", "cc": msg.control, "value": msg.value, "message": "cc" }
              broadcast_sync(json.dumps(data))
 
-             # 2. Update Native GUI (Thread Safe)
-             # gui.py's on_data_received takes (cc, channel)
-             # We assume channel in msg is 0-15, gui expects 1-16 usually but let's check.
-             # gui.py: self.lbl_monitor_ch.configure(text=f"CH: {channel}"...)
-             # It's just for display.
-             ch = (msg.channel + 1) if hasattr(msg, 'channel') else 1
-
+             # 2. Envoi à l'Interface Native (Tkinter)
              if gui_app:
-                gui_app.after(0, lambda: gui_app.on_data_received(msg.control, ch))
+                try:
+                    # On utilise after pour être thread-safe avec la GUI
+                    ch = (msg.channel + 1) if hasattr(msg, 'channel') else 1
+                    gui_app.after(0, lambda: gui_app.on_data_received(msg.control, ch))
 
-             # 3. Trigger Action
-             # The native app usually triggers via simulate_midi_press when clicking buttons,
-             # OR via action_handler when MIDI comes in?
-             # gui.py doesn't seem to call action_handler.execute inside on_data_received.
-             # It seems gui.py relied on a separate mechanism or didn't implement auto-trigger in the provided snippet?
-             # Wait, the provided gui.py does NOT call action_handler.execute in on_data_received.
-             # But the user wants it to trigger actions.
-             if gui_app and gui_app.action_handler:
-                 # We execute on the main thread or directly here?
-                 # ActionHandler is thread safe (debounce).
-                 gui_app.action_handler.execute(msg.control, msg.value, ch, gui_app.profiles)
+                    # On déclenche l'action PC (Clavier/Focus)
+                    if gui_app.action_handler:
+                         gui_app.action_handler.execute(msg.control, msg.value, ch, gui_app.profiles)
+                except Exception as e:
+                    print(f"Erreur update GUI native: {e}")
 
     # Register this callback with the App's Engine
     gui_app.set_midi_callback(on_midi_event)
