@@ -1331,9 +1331,15 @@ class AirstepApp(ctk.CTk):
         self.after(0, self._restore_main_thread)
 
     def _restore_main_thread(self):
-        self.deiconify()
-        self.lift()
-        self.focus_force()
+        # Prioritize restoring the Remote if it exists
+        if hasattr(self, 'remote_win') and self.remote_win and self.remote_win.winfo_exists():
+            self.remote_win.deiconify()
+            self.remote_win.lift()
+            self.remote_win.focus_force()
+        else:
+            self.deiconify()
+            self.lift()
+            self.focus_force()
 
     def simulate_midi_press(self, cc):
         """Simule l'appui physique sur une pédale (Feedback GUI + Action)"""

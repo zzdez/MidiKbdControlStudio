@@ -259,18 +259,6 @@ class RemoteControl(ctk.CTkToplevel):
         self.drawer_frame = ctk.CTkFrame(self.main_container, width=0, fg_color="#222")
         # Not packed initially
 
-        # --- Pill Widget (Hidden by default) ---
-        self.pill_frame = ctk.CTkFrame(self, fg_color=self.header_color, corner_radius=15)
-        # We don't pack it yet
-
-        self.btn_restore = ctk.CTkButton(self.pill_frame, text="⤢", width=30, height=30,
-                                         fg_color="transparent", font=ctk.CTkFont(size=16),
-                                         command=self.toggle_minimize)
-        self.btn_restore.pack(fill="both", expand=True)
-        # Bind dragging on pill
-        self.btn_restore.bind("<ButtonPress-1>", self.start_move)
-        self.btn_restore.bind("<B1-Motion>", self.do_move)
-
     def toggle_drawer(self):
         if not self.library_manager: return
 
@@ -359,32 +347,17 @@ class RemoteControl(ctk.CTkToplevel):
         self.callback_press(cc)
 
     def toggle_minimize(self):
-        if self.is_minimized:
-            # RESTORE
-            self.pill_frame.pack_forget()
-            self.header.pack(fill="x", side="top")
-            self.content_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        """Minimizes to Taskbar (Standard Behavior)"""
+        # To minimize a frameless window (overrideredirect), we must temporarily enable the frame
+        self.overrideredirect(False)
+        self.iconify()
+        self.bind("<Map>", self.on_restore)
 
-            # Restore size
-            self.geometry(self.saved_geometry)
-            self.is_minimized = False
-        else:
-            # MINIMIZE
-            self.saved_geometry = self.geometry() # Save full pos/size
-
-            self.header.pack_forget()
-            self.content_frame.pack_forget()
-
-            # Show pill
-            self.pill_frame.pack(fill="both", expand=True)
-
-            # Resize to small square
-            # Keep current X/Y but change W/H
-            curr_x = self.winfo_x()
-            curr_y = self.winfo_y()
-            self.geometry(f"50x50+{curr_x}+{curr_y}")
-
-            self.is_minimized = True
+    def on_restore(self, event):
+        """Restores frameless state when opened from Taskbar"""
+        if self.state() == "normal":
+            self.overrideredirect(True)
+            self.unbind("<Map>")
 
     def set_profile(self, new_profile):
         if not new_profile: return
