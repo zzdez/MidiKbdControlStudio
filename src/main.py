@@ -72,6 +72,8 @@ def main():
 
     # 2. Interface Graphique (GUI) - Doit être créée dans le Main Thread
     app = AirstepApp()
+    app.withdraw() # Démarrage discret
+    app.open_remote_control() # Affiche la télécommande immédiatement
 
     # 3. Démarrage Serveur Web (Thread)
     server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)

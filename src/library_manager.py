@@ -3,13 +3,18 @@ import os
 import subprocess
 import webbrowser
 import sys
+import shutil
 
 class LibraryManager:
     def __init__(self, library_file="library.json"):
         self.library_file = library_file
         self.data = []
+        self.callback_force_profile = None # Injected callback
         self.load_library()
         self.import_legacy_data()
+
+    def set_force_profile_callback(self, cb):
+        self.callback_force_profile = cb
 
     def load_library(self):
         if os.path.exists(self.library_file):
@@ -28,6 +33,36 @@ class LibraryManager:
                 json.dump(self.data, f, indent=4)
         except Exception as e:
             print(f"Library Save Error: {e}")
+
+    def import_apps_from_profiles(self, profile_manager):
+        """Smart Launcher: Import apps defined in profiles"""
+        if not profile_manager or not profile_manager.profiles:
+            return
+
+        # Find or create "Apps" folder
+        apps_folder = next((item for item in self.data if item.get("type") == "folder" and item.get("name") == "Apps (Smart)"), None)
+        if not apps_folder:
+            apps_folder = {"type": "folder", "name": "Apps (Smart)", "children": []}
+            self.data.append(apps_folder)
+
+        existing_names = [c["name"] for c in apps_folder["children"]]
+
+        added = False
+        for p in profile_manager.profiles:
+            app_ctx = p.get("app_context")
+            name = p.get("name", "Unknown")
+
+            if app_ctx and name not in existing_names:
+                apps_folder["children"].append({
+                    "type": "app",
+                    "name": name,
+                    "path": app_ctx,
+                    "profile": name # Store profile link
+                })
+                added = True
+
+        if added:
+            self.save_library()
 
     def import_legacy_data(self):
         # Only import if library is empty to avoid duplicates on every run
@@ -87,8 +122,14 @@ class LibraryManager:
     def launch_item(self, item):
         itype = item.get("type")
         path = item.get("path")
+        linked_profile = item.get("profile") # Get linked profile
 
         print(f"[Library] Launching: {item.get('name')} ({itype})")
+
+        # 1. Force Profile Switch if linked
+        if linked_profile and self.callback_force_profile:
+            print(f"[Library] Forcing Profile: {linked_profile}")
+            self.callback_force_profile(linked_profile)
 
         try:
             if itype == "url":
@@ -97,11 +138,18 @@ class LibraryManager:
                     return True, "URL Launched"
 
             elif itype == "app":
-                if path and os.path.exists(path):
-                    subprocess.Popen(path, shell=True)
+                if path:
+                    # Try to resolve path if not absolute
+                    target = path
+                    if not os.path.isabs(path):
+                        resolved = shutil.which(path)
+                        if resolved: target = resolved
+
+                    # Launch
+                    subprocess.Popen(target, shell=True)
                     return True, "App Launched"
                 else:
-                    return False, f"Executable not found: {path}"
+                    return False, "No path"
 
             elif itype == "file":
                 if path and os.path.exists(path):

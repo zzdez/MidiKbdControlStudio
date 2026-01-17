@@ -519,6 +519,7 @@ class AirstepApp(ctk.CTk):
 
         self.profiles = []
         self.current_profile = None
+        self.manual_override_profile = None # For Smart Launcher
         self.mapping_indicators = {}
         self.midi_engine = None
         self.midi_callback = None
@@ -745,6 +746,10 @@ class AirstepApp(ctk.CTk):
             self.select_profile_by_name(self.profiles[0]["name"])
         else:
             self.create_default_profile()
+
+        # 4. Smart Launcher Wiring
+        self.library_manager.import_apps_from_profiles(self.profile_manager)
+        self.library_manager.set_force_profile_callback(self.force_profile_switch)
 
     def update_device_def(self):
         port_name = self.device_combo.get()
@@ -1067,23 +1072,52 @@ class AirstepApp(ctk.CTk):
         # Start monitoring background context
         self.after(500, self._monitor_remote_context)
 
+    def force_profile_switch(self, profile_name):
+        """Called by LibraryManager when launching an app"""
+        found = next((p for p in self.profiles if p.get("name") == profile_name), None)
+        if found:
+            self.manual_override_profile = found
+            self.log_debug(f"FORCE PROFILE: {profile_name}")
+            # Immediate Update
+            self.current_profile = found
+            if self.remote_win: self.remote_win.set_profile(found)
+        else:
+            self.log_debug(f"Cannot force profile: {profile_name} not found")
+
     def _monitor_remote_context(self):
         # Stop if remote is closed
         if not self.remote_win or not self.remote_win.winfo_exists():
             return
 
-        if self.action_handler:
-            # Avoid detecting the remote itself
-            ignore = ["Remote -", "Airstep Remote", "Airstep Smart Control"]
+        # 1. Check Manual Override
+        if self.manual_override_profile:
+            # Check if we should release the lock?
+            # For now, we assume user wants to stay on it until they change focus manually?
+            # Or implementing a "Release" logic.
+            # Simpler: If we are locked, we check if the active window is DIFFERENT from the locked context.
+            # But the requirement is strict: "Force le changement".
+            # We keep it locked. But how to unlock?
+            # Let's say if user clicks on the remote, we are good.
+            # If user switches window naturally, we might want to unlock.
+            # But "Smart Launcher" implies we want the controls for that app.
 
-            # Find best profile for current active window
-            new_profile = self.action_handler.find_matching_profile(self.profiles, ignore_titles=ignore)
+            # Re-confirm logic: "set_manual_override".
+            # We stick to the override until explicitly cleared.
+            pass
+        else:
+            # 2. Auto-Detect
+            if self.action_handler:
+                # Avoid detecting the remote itself
+                ignore = ["Remote -", "Airstep Remote", "Airstep Smart Control"]
 
-            if new_profile:
-                # Update Remote UI
-                self.remote_win.set_profile(new_profile)
-                # Update internal state for click handling
-                self.current_profile = new_profile
+                # Find best profile for current active window
+                new_profile = self.action_handler.find_matching_profile(self.profiles, ignore_titles=ignore)
+
+                if new_profile and new_profile != self.current_profile:
+                    # Update Remote UI
+                    self.remote_win.set_profile(new_profile)
+                    # Update internal state for click handling
+                    self.current_profile = new_profile
 
         # Loop
         self.after(500, self._monitor_remote_context)

@@ -249,7 +249,7 @@ class RemoteControl(ctk.CTkToplevel):
 
         # --- Content (Grid of Buttons) ---
         self.content_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        self.content_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        self.content_frame.pack(side="top", fill="both", expand=True, padx=5, pady=5)
 
         # Instantiate Component
         self.pedalboard_frame = CompactPedalboardFrame(self.content_frame, self.device_def, self.profile, self.on_btn_click)
@@ -275,31 +275,33 @@ class RemoteControl(ctk.CTkToplevel):
         if not self.library_manager: return
 
         if self.drawer_open:
-            # Close
+            # Close (Bottom Drawer)
             self.drawer_frame.pack_forget()
             self.drawer_open = False
-            # Shrink window
-            curr_w = self.winfo_width()
-            new_w = max(200, curr_w - self.drawer_width)
-            self.geometry(f"{new_w}x{self.winfo_height()}")
+            # Shrink height
+            curr_h = self.winfo_height()
+            new_h = max(100, curr_h - 300) # Remove fixed height
+            # Keep Width
+            self.geometry(f"{self.winfo_width()}x{new_h}")
         else:
-            # Open
-            self.drawer_frame.pack(side="right", fill="y", padx=0, pady=0)
+            # Open (Bottom Drawer)
+            self.drawer_frame.pack(side="bottom", fill="both", expand=True, padx=0, pady=0)
             self.build_drawer_content()
             self.drawer_open = True
-            # Expand window
-            curr_w = self.winfo_width()
-            new_w = curr_w + self.drawer_width
-            self.geometry(f"{new_w}x{self.winfo_height()}")
+            # Expand Height
+            curr_h = self.winfo_height()
+            new_h = curr_h + 300
+            self.geometry(f"{self.winfo_width()}x{new_h}")
 
     def build_drawer_content(self):
         # Clear existing
         for w in self.drawer_frame.winfo_children(): w.destroy()
 
-        lbl = ctk.CTkLabel(self.drawer_frame, text="Bibliothèque", font=ctk.CTkFont(weight="bold"))
-        lbl.pack(pady=5)
+        lbl = ctk.CTkLabel(self.drawer_frame, text="Bibliothèque (Médias & Applis)", font=ctk.CTkFont(weight="bold"))
+        lbl.pack(pady=2, fill="x")
 
-        scroll = ctk.CTkScrollableFrame(self.drawer_frame, width=self.drawer_width-20)
+        # Scrollable Frame taking full width/height
+        scroll = ctk.CTkScrollableFrame(self.drawer_frame)
         scroll.pack(fill="both", expand=True, padx=5, pady=5)
 
         data = self.library_manager.get_library()
