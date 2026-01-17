@@ -79,9 +79,8 @@ def main():
     def open_settings_wrapper():
         # Utilise .after pour que l'appel vienne du Thread Principal Tkinter
         if app:
-            app.after(0, lambda: app.open_settings())
-            # Optionnel: on peut aussi juste afficher la fenêtre principale
-            # app.after(0, lambda: (app.deiconify(), app.lift()))
+            # CORRECTION : On ouvre la Fenêtre Principale, pas juste le dialogue settings
+            app.after(0, lambda: [app.deiconify(), app.lift(), app.focus_force()])
 
     fastapi_app.state.open_settings_callback = open_settings_wrapper
 
