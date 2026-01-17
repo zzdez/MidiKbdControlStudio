@@ -30,6 +30,7 @@ try:
     from env_manager import EnvManager
     from midi_engine import MidiManager
     from action_handler import ActionHandler
+    from library_manager import LibraryManager
     from remote_gui import RemoteControl, CompactPedalboardFrame
 except ImportError:
     from src import driver_check
@@ -38,6 +39,7 @@ except ImportError:
     from src.env_manager import EnvManager
     from src.midi_engine import MidiManager
     from src.action_handler import ActionHandler
+    from src.library_manager import LibraryManager
     from src.remote_gui import RemoteControl, CompactPedalboardFrame
 
 # Configuration de l'apparence
@@ -510,6 +512,7 @@ class AirstepApp(ctk.CTk):
         self.profile_manager.migrate_legacy_config()
 
         self.env_manager = EnvManager()
+        self.library_manager = LibraryManager()
 
         self.device_manager = DeviceManager()
         self.current_device_def = DEFAULT_AIRSTEP_DEF
@@ -1058,7 +1061,8 @@ class AirstepApp(ctk.CTk):
             self.current_device_def,
             self.current_profile,
             callback_press=self.simulate_midi_press,
-            callback_close=self.on_remote_close
+            callback_close=self.on_remote_close,
+            library_manager=self.library_manager
         )
         # Start monitoring background context
         self.after(500, self._monitor_remote_context)

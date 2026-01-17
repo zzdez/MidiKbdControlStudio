@@ -164,20 +164,23 @@ class CompactPedalboardFrame(ctk.CTkFrame):
 
 
 class RemoteControl(ctk.CTkToplevel):
-    def __init__(self, parent, device_def, profile, callback_press, callback_close):
+    def __init__(self, parent, device_def, profile, callback_press, callback_close, library_manager=None):
         super().__init__(parent)
         self.callback_press = callback_press
         self.callback_close = callback_close
         self.device_def = device_def
         self.profile = profile
+        self.library_manager = library_manager
 
         self.is_minimized = False
+        self.drawer_open = False
         self.saved_geometry = "400x300+100+100"
 
         # Style
         self.bg_color = "#2b2b2b"
         self.header_color = "#1f1f1f"
         self.hover_color = "#3a3a3a"
+        self.drawer_width = 200
 
         # Window Setup
         self.title("Airstep Remote")
@@ -216,7 +219,7 @@ class RemoteControl(ctk.CTkToplevel):
         title_text = f"Remote - {self.profile.get('name', 'Profile')}" if self.profile else "Airstep Remote"
         if len(title_text) > 25: title_text = title_text[:25] + "..."
 
-        self.lbl_title = ctk.CTkLabel(self.header, text=title_text, text_color="gray", width=150, anchor="w", font=ctk.CTkFont(size=11))
+        self.lbl_title = ctk.CTkLabel(self.header, text=title_text, text_color="gray", width=120, anchor="w", font=ctk.CTkFont(size=11))
         self.lbl_title.pack(side="left", padx=10, fill="x", expand=True)
         self.lbl_title.bind("<ButtonPress-1>", self.start_move)
         self.lbl_title.bind("<B1-Motion>", self.do_move)
@@ -233,13 +236,28 @@ class RemoteControl(ctk.CTkToplevel):
                                      command=self.toggle_minimize)
         self.btn_min.pack(side="right", padx=2, pady=2)
 
+        # Library Drawer Button
+        if self.library_manager:
+            self.btn_lib = ctk.CTkButton(self.header, text="📚", width=30, height=24,
+                                         fg_color="transparent", hover_color="#444",
+                                         command=self.toggle_drawer)
+            self.btn_lib.pack(side="right", padx=2, pady=2)
+
+        # --- Main Container (Holds Content + Drawer) ---
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.main_container.pack(fill="both", expand=True)
+
         # --- Content (Grid of Buttons) ---
-        self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.content_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.content_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        self.content_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
 
         # Instantiate Component
         self.pedalboard_frame = CompactPedalboardFrame(self.content_frame, self.device_def, self.profile, self.on_btn_click)
         self.pedalboard_frame.pack(fill="both", expand=True)
+
+        # --- Drawer (Hidden by default) ---
+        self.drawer_frame = ctk.CTkFrame(self.main_container, width=0, fg_color="#222")
+        # Not packed initially
 
         # --- Pill Widget (Hidden by default) ---
         self.pill_frame = ctk.CTkFrame(self, fg_color=self.header_color, corner_radius=15)
@@ -253,28 +271,86 @@ class RemoteControl(ctk.CTkToplevel):
         self.btn_restore.bind("<ButtonPress-1>", self.start_move)
         self.btn_restore.bind("<B1-Motion>", self.do_move)
 
+    def toggle_drawer(self):
+        if not self.library_manager: return
+
+        if self.drawer_open:
+            # Close
+            self.drawer_frame.pack_forget()
+            self.drawer_open = False
+            # Shrink window
+            curr_w = self.winfo_width()
+            new_w = max(200, curr_w - self.drawer_width)
+            self.geometry(f"{new_w}x{self.winfo_height()}")
+        else:
+            # Open
+            self.drawer_frame.pack(side="right", fill="y", padx=0, pady=0)
+            self.build_drawer_content()
+            self.drawer_open = True
+            # Expand window
+            curr_w = self.winfo_width()
+            new_w = curr_w + self.drawer_width
+            self.geometry(f"{new_w}x{self.winfo_height()}")
+
+    def build_drawer_content(self):
+        # Clear existing
+        for w in self.drawer_frame.winfo_children(): w.destroy()
+
+        lbl = ctk.CTkLabel(self.drawer_frame, text="Bibliothèque", font=ctk.CTkFont(weight="bold"))
+        lbl.pack(pady=5)
+
+        scroll = ctk.CTkScrollableFrame(self.drawer_frame, width=self.drawer_width-20)
+        scroll.pack(fill="both", expand=True, padx=5, pady=5)
+
+        data = self.library_manager.get_library()
+        self.populate_tree(scroll, data)
+
+    def populate_tree(self, parent_widget, items, indent=0):
+        for item in items:
+            itype = item.get("type", "unknown")
+            name = item.get("name", "Item")
+
+            if itype == "folder":
+                lbl_folder = ctk.CTkLabel(parent_widget, text=f"{'  '*indent}📁 {name}", anchor="w")
+                lbl_folder.pack(fill="x", pady=2)
+                # Recursion
+                children = item.get("children", [])
+                self.populate_tree(parent_widget, children, indent + 1)
+            else:
+                # Leaf (Action)
+                icon = "🌐" if itype == "url" else "🚀" if itype == "app" else "📄"
+                btn = ctk.CTkButton(parent_widget, text=f"{'  '*indent}{icon} {name}",
+                                    anchor="w", fg_color="transparent", hover_color="#444",
+                                    height=24,
+                                    command=lambda i=item: self.library_manager.launch_item(i))
+                btn.pack(fill="x", pady=1)
+
     def update_layout(self):
         # Just resize window logic, frame handles buttons
         self.update_idletasks()
-        w = self.content_frame.winfo_reqwidth() + 20
-        h = self.content_frame.winfo_reqheight() + 40 # + header
-
-        # Clamp min size
-        w = max(200, w)
-        h = max(100, h)
-
-        # Center on screen if first launch, else keep position
-        if "+" not in self.geometry():
-            screen_w = self.winfo_screenwidth()
-            screen_h = self.winfo_screenheight()
-            x = (screen_w // 2) - (w // 2)
-            y = (screen_h // 2) - (h // 2)
-            self.geometry(f"{w}x{h}+{x}+{y}")
+        if self.drawer_open:
+             # Keep size if drawer is open, maybe just adjust height
+             pass
         else:
-            # Just resize, keep x/y
-            curr_x = self.winfo_x()
-            curr_y = self.winfo_y()
-            self.geometry(f"{w}x{h}+{curr_x}+{curr_y}")
+            w = self.content_frame.winfo_reqwidth() + 20
+            h = self.content_frame.winfo_reqheight() + 40 # + header
+
+            # Clamp min size
+            w = max(200, w)
+            h = max(100, h)
+
+            # Center on screen if first launch, else keep position
+            if "+" not in self.geometry():
+                screen_w = self.winfo_screenwidth()
+                screen_h = self.winfo_screenheight()
+                x = (screen_w // 2) - (w // 2)
+                y = (screen_h // 2) - (h // 2)
+                self.geometry(f"{w}x{h}+{x}+{y}")
+            else:
+                # Just resize, keep x/y
+                curr_x = self.winfo_x()
+                curr_y = self.winfo_y()
+                self.geometry(f"{w}x{h}+{curr_x}+{curr_y}")
 
     def on_btn_click(self, cc):
         # Flash visual effect could be added here

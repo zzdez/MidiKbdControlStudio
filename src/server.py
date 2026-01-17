@@ -12,10 +12,13 @@ import subprocess
 
 try:
     from config_manager import ConfigManager
+    from library_manager import LibraryManager
 except ImportError:
     from src.config_manager import ConfigManager
+    from src.library_manager import LibraryManager
 
 app = FastAPI()
+library_manager = LibraryManager()
 SETLIST_FILE = "setlist.json"
 APPS_FILE = "apps.json"
 
@@ -229,6 +232,11 @@ async def launch_app(request: Request):
         return {"status": "launched", "path": path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/library")
+async def get_library():
+    """Returns the hierarchical library structure."""
+    return library_manager.get_library()
 
 # --- CONFIG MANAGER (Profiles/Devices) ---
 @app.get("/api/profiles")
