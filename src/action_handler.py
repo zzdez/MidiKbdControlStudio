@@ -203,6 +203,9 @@ class ActionHandler:
             app_filter = p.get('app_context', '').lower()
             title_filter = p.get('window_title_filter', '').lower()
 
+            if not app_filter and not title_filter:
+                continue
+
             match_app = True
             if app_filter:
                 match_app = (app_filter in active_process)

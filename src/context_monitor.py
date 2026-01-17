@@ -53,9 +53,24 @@ class ContextMonitor(threading.Thread):
                 if self.manual_override_profile:
                     matched_profile = self.manual_override_profile
                 else:
+                    # --- BLACKLIST CHECK ---
+                    active_process = self.action_handler.get_active_process_name().lower()
+                    active_title = self.action_handler.get_active_window_title().lower()
+
+                    blacklist_apps = ["python.exe", "airstepsmartcontrol.exe", "airstepstudio.exe"]
+                    if (active_process in blacklist_apps) or ("airstep" in active_title):
+                        # Ignored self-focus. Keep previous profile.
+                        time.sleep(self.interval)
+                        continue
+
                     # 2. AUTO DETECT
                     profiles = self.profile_manager.profiles
                     matched_profile = self.action_handler.find_matching_profile(profiles)
+
+                    # --- FALLBACK LOGIC ---
+                    if not matched_profile:
+                        # Fallback to "Global / Desktop"
+                        matched_profile = next((p for p in profiles if p.get("name") == "Global / Desktop"), None)
 
                 # 3. Determine name
                 current_name = matched_profile.get('name') if matched_profile else "Global / Aucun"
