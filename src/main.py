@@ -6,189 +6,111 @@ import uvicorn
 import multiprocessing
 import socket
 import time
-import json
-import customtkinter as ctk
 
-# --- FIX CRITIQUE POUR PYINSTALLER (WINDOWED MODE) ---
+# --- FIX CONSOLE PYINSTALLER ---
 class NullWriter:
     def write(self, text): pass
     def flush(self): pass
     def isatty(self): return False
 
-if sys.stdout is None:
-    sys.stdout = NullWriter()
-if sys.stderr is None:
-    sys.stderr = NullWriter()
-# -----------------------------------------------------
+if sys.stdout is None: sys.stdout = NullWriter()
+if sys.stderr is None: sys.stderr = NullWriter()
 
+# --- FIX CHEMINS ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
+if current_dir not in sys.path: sys.path.insert(0, current_dir)
 
+# --- IMPORTS ---
 try:
-    from server import app as fastapi_app, broadcast_sync
+    from server import app as fastapi_app
     from config_manager import ConfigManager
     from midi_engine import MidiManager
-    from action_handler import ActionHandler
-    from profile_manager import ProfileManager
-    from context_monitor import ContextMonitor
-    from device_manager import DeviceManager
-    from remote_gui import RemoteControl
-    from gui import SettingsDialog, AirstepApp
+    from gui import AirstepApp
 except ImportError:
-    from src.server import app as fastapi_app, broadcast_sync
+    from src.server import app as fastapi_app
     from src.config_manager import ConfigManager
     from src.midi_engine import MidiManager
-    from src.action_handler import ActionHandler
-    from src.profile_manager import ProfileManager
-    from src.context_monitor import ContextMonitor
-    from src.device_manager import DeviceManager
-    from src.remote_gui import RemoteControl
-    from src.gui import SettingsDialog, AirstepApp
+    from src.gui import AirstepApp
 
 # Globals
-config = None
-gui_app = None # AirstepApp
+server_thread = None
+midi_manager = None
+app = None
 
-def find_free_port(start_port=8000, max_tries=10):
-    for port in range(start_port, start_port + max_tries):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            if sock.connect_ex(('127.0.0.1', port)) != 0:
-                return port
-    return start_port
+# --- CALLBACK MIDI (Le Pont Critique) ---
+def on_midi_event(msg):
+    """Appelé quand le pédalier envoie un signal"""
+    if msg.type != 'control_change': return
+
+    # 1. Envoi au Web (WebSocket)
+    # (Note: Le broadcast est géré dans server.py via polling ou queue,
+    # mais pour l'instant on se concentre sur l'action locale)
+
+    if app:
+        # 2. Feedback Visuel sur la Télécommande (LEDs)
+        # On utilise .after pour thread-safety Tkinter
+        app.after(0, lambda: app.on_data_received(msg.control, msg.channel + 1))
+
+        # 3. EXECUTION DE L'ACTION (Le plus important)
+        # On utilise l'ActionHandler intégré à l'app GUI
+        if app.action_handler:
+            app.action_handler.execute(msg.control, msg.value, msg.channel + 1, app.profiles)
 
 def start_uvicorn(host, port):
     try:
         uvicorn.run(fastapi_app, host=host, port=port, log_level="warning")
-    except Exception as e:
-        with open("server_crash.log", "w") as f: f.write(str(e))
-
-# Background services are now handled by AirstepApp or shared logic.
-# We need to bridge AirstepApp events to the Web Server.
-
-def wait_for_server(host, port, timeout=5.0):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            with socket.create_connection((host, port), timeout=1.0): return True
-        except: time.sleep(0.2)
-    return False
+    except: pass
 
 def main():
-    global config, gui_app
+    global app, midi_manager, server_thread
 
-    print("--- Démarrage AirstepStudio V3 (Hybrid) ---")
+    print("--- Démarrage AirstepStudio ---")
 
-    # 1. Config Initial Load
+    # 1. Config
     config = ConfigManager()
+    port = int(config.get("app_port", 8000))
 
-    # 2. Start Web Server (Background)
-    base_port = int(config.get("app_port", 8000))
-    port = find_free_port(base_port)
+    # 2. Interface Graphique (GUI) - Doit être créée dans le Main Thread
+    app = AirstepApp()
+
+    # 3. Démarrage Serveur Web (Thread)
     server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)
     server_thread.start()
 
-    # 3. Initialize Main Native App (AirstepApp)
-    # AirstepApp handles Managers, MIDI, Context, etc. internally in its __init__
-    gui_app = AirstepApp()
+    # 4. Démarrage MIDI (Thread)
+    # On lance le MIDI maintenant !
+    def start_midi_engine():
+        time.sleep(1) # Petit délai pour laisser l'UI s'afficher
+        try:
+            device_name = config.get("midi_device_name", "AIRSTEP")
+            conn_mode = config.get("connection_mode", "BLE") # ou MIDO
 
-    # Hide immediately
-    gui_app.withdraw()
+            print(f"Tentative connexion MIDI ({conn_mode}) sur : {device_name}")
 
-    # 4. Bridge: Inject App State into Server
-    # We need to bridge MIDI events and Profile changes from App -> Web
+            midi_manager = MidiManager.create(conn_mode, device_name, on_midi_event)
+            # On stocke la ref dans l'app pour qu'elle puisse afficher le statut
+            app.midi_engine = midi_manager
+            midi_manager.start()
+        except Exception as e:
+            print(f"Erreur Fatal MIDI: {e}")
 
-    # A. Bridge Internal Commands (Media)
-    def on_internal_command(cmd):
-        msg = {"type": "command", "cmd": cmd}
-        broadcast_sync(json.dumps(msg))
+    threading.Thread(target=start_midi_engine, daemon=True).start()
 
-    # Check if gui_app has action_handler initialized
-    if gui_app.action_handler:
-        gui_app.action_handler.set_command_callback(on_internal_command)
-        fastapi_app.state.action_handler = gui_app.action_handler
+    # 5. Ouverture Navigateur
+    def open_browser():
+        time.sleep(2)
+        webbrowser.open(f"http://127.0.0.1:{port}")
 
-    fastapi_app.state.profiles = gui_app.profiles
+    threading.Thread(target=open_browser, daemon=True).start()
 
-    # B. Bridge Settings Button
-    def open_settings_from_web():
-        if gui_app:
-            gui_app.after(0, lambda: (gui_app.deiconify(), gui_app.lift()))
-
-    fastapi_app.state.open_settings_callback = open_settings_from_web
-
-    # C. Bridge MIDI Events (Native -> Web)
-    # We define a new callback that handles the raw 'msg' object from MidiManager
-
-    def on_midi_event(msg):
-        # 1. Envoi au Web (WebSocket)
-        if hasattr(msg, 'control'):
-             data = { "type": "midi", "cc": msg.control, "value": msg.value, "message": "cc" }
-             broadcast_sync(json.dumps(data))
-
-             # 2. Envoi à l'Interface Native (Tkinter)
-             if gui_app:
-                try:
-                    # On utilise after pour être thread-safe avec la GUI
-                    ch = (msg.channel + 1) if hasattr(msg, 'channel') else 1
-                    gui_app.after(0, lambda: gui_app.on_data_received(msg.control, ch))
-
-                    # On déclenche l'action PC (Clavier/Focus)
-                    if gui_app.action_handler:
-                         gui_app.action_handler.execute(msg.control, msg.value, ch, gui_app.profiles)
-                except Exception as e:
-                    print(f"Erreur update GUI native: {e}")
-
-    # Register this callback with the App's Engine
-    gui_app.set_midi_callback(on_midi_event)
-
-    # If engine is already running (started in __init__), we must update its callback reference
-    if gui_app.midi_engine:
-        gui_app.midi_engine.callback = on_midi_event
-
-    # D. Bridge Profile Changes (ContextMonitor -> Web)
-    # gui.py implements _monitor_remote_context loop but it's for RemoteControl.
-    # It seems gui.py uses a loop `_monitor_remote_context` to scan window?
-    # Wait, gui.py: `self.action_handler.find_matching_profile` is called inside `_monitor_remote_context`.
-    # And it updates `self.current_profile`.
-    # We need to hook into when `self.current_profile` changes.
-    # The provided gui.py does NOT have a robust ContextMonitor thread like the one we wrote in src/context_monitor.py.
-    # It has a simple `after` loop in `open_remote_control`.
-
-    # CRITICAL: We want the robust `ContextMonitor` from `src/context_monitor.py` running!
-    # But `AirstepApp` doesn't use it by default in the provided code.
-    # Solution: We instantiate and start `ContextMonitor` here in main, and use it to drive `gui_app`.
-
-    # 5. Robust Context Monitor
-    from context_monitor import ContextMonitor
-
-    def on_profile_change(profile_data):
-        # Update Web
-        msg = {"type": "profile_update", "data": profile_data}
-        broadcast_sync(json.dumps(msg))
-
-        # Update Native App
-        if gui_app and profile_data:
-            # Use select_profile_by_name to ensure UI combo box is also updated
-            gui_app.after(0, lambda: gui_app.select_profile_by_name(profile_data['name']))
-
-            # Update ActionHandler State (Redundant if select_profile does it, but safe)
-            if gui_app.action_handler:
-                gui_app.action_handler.set_current_profile(profile_data)
-
-    # Use managers from gui_app
-    ctx_monitor = ContextMonitor(gui_app.profile_manager, gui_app.action_handler, callback=on_profile_change)
-    ctx_monitor.start()
-    fastapi_app.state.context_monitor = ctx_monitor # For manual override API
-
-    # 6. Launch Browser
-    if wait_for_server("127.0.0.1", port):
-        url = f"http://127.0.0.1:{port}"
-        try: webbrowser.open(url)
-        except: pass
-
-    print(">>> Lancement GUI Native (Main)...")
-    gui_app.mainloop()
+    # 6. Boucle Principale (Bloquante Tkinter)
+    # C'est ici que l'application vit.
+    try:
+        app.mainloop()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if midi_manager: midi_manager.stop()
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
