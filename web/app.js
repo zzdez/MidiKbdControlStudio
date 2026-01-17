@@ -95,10 +95,27 @@ function setMode(mode, forcedProfileName = null) {
 // --- SETLIST ---
 let currentTrackList = [];
 async function loadSetlist() {
-    const res = await fetch("/api/setlist");
-    currentTrackList = await res.json();
+    try {
+        const res = await fetch("/api/setlist");
+        if (res.ok) {
+            currentTrackList = await res.json();
+        } else {
+            currentTrackList = [];
+        }
+    } catch (e) {
+        console.error("Setlist load error:", e);
+        currentTrackList = [];
+    }
+
     const container = document.getElementById("setlist-container");
+    if (!container) return;
+
     container.innerHTML = "";
+    if (!currentTrackList || currentTrackList.length === 0) {
+        container.innerHTML = "<div style='color:gray; font-size:12px; padding:10px;'>Setlist vide</div>";
+        return;
+    }
+
     currentTrackList.forEach((track, index) => {
         const div = document.createElement("div");
         div.className = "track-item";
@@ -187,6 +204,10 @@ async function launchApp(path) {
     });
 }
 
+async function openSettings() {
+    await fetch("/api/open_settings", { method: "POST" });
+}
+
 // --- RENDER ---
 function renderPedalboard(profile) {
     const grid = document.getElementById("pedalboard-grid");
@@ -219,6 +240,10 @@ window.addEventListener('keydown', (e) => {
         if (e.code === 'Space' || e.code === 'KeyK') { e.preventDefault(); toggleVideo(); }
     }
 });
+
+window.onload = () => {
+    loadSetlist();
+};
 
 loadYouTubeAPI();
 connectWS();

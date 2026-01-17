@@ -34,6 +34,7 @@ try:
     from context_monitor import ContextMonitor
     from device_manager import DeviceManager
     from remote_gui import RemoteControl
+    from gui import SettingsDialog
 except ImportError:
     from src.server import app as fastapi_app, broadcast_sync
     from src.config_manager import ConfigManager
@@ -43,6 +44,7 @@ except ImportError:
     from src.context_monitor import ContextMonitor
     from src.device_manager import DeviceManager
     from src.remote_gui import RemoteControl
+    from src.gui import SettingsDialog
 
 # Globals
 config = None
@@ -157,6 +159,15 @@ def main():
     fastapi_app.state.action_handler = action_handler
     fastapi_app.state.profiles = profile_mgr.profiles
 
+    # Callback to open Settings from Web
+    def open_settings_from_web():
+        if remote_gui:
+            # Must run on main thread via .after()
+            # We use env_mgr defined below
+            remote_gui.after(0, lambda: SettingsDialog(remote_gui, profile_mgr, action_handler, env_mgr))
+
+    fastapi_app.state.open_settings_callback = open_settings_from_web
+
     # 2. Server (Background)
     base_port = int(config.get("app_port", 8000))
     port = find_free_port(base_port)
@@ -181,6 +192,13 @@ def main():
         airstep_def = device_mgr.definitions[0]
 
     ctk.set_appearance_mode("Dark")
+
+    # Import EnvManager locally if needed
+    try:
+        from env_manager import EnvManager
+    except ImportError:
+        from src.env_manager import EnvManager
+    env_mgr = EnvManager()
 
     # Callback for Remote Clicks
     def on_remote_press(cc):

@@ -299,15 +299,15 @@ class ActionHandler:
             return
 
         # --- Shift Priming (Wake up Chrome/Windows Input Hook) ---
-        if not self.has_primed:
-            self.log("PRIMING: Injection Shift pour réveiller l'input...")
-            try:
-                keyboard.press('shift')
-                time.sleep(0.05)
-                keyboard.release('shift')
-                self.has_primed = True
-                time.sleep(0.05)
-            except: pass
+        # if not self.has_primed:
+        #    self.log("PRIMING: Injection Shift pour réveiller l'input...")
+        #    try:
+        #        keyboard.press('shift')
+        #        time.sleep(0.05)
+        #        keyboard.release('shift')
+        #        self.has_primed = True
+        #        time.sleep(0.05)
+        #    except: pass
 
         # --- CAS 0 : Native Arrows (Chrome/Songsterr Fix) ---
         # Detection stricte des flèches pour utiliser keybd_event

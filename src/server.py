@@ -340,6 +340,24 @@ async def trigger_action(request: Request):
         print(f"Trigger Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/open_settings")
+async def open_settings(request: Request):
+    """
+    Requests the main thread to open the Settings Dialog.
+    """
+    try:
+        if hasattr(request.app.state, "open_settings_callback"):
+            callback = request.app.state.open_settings_callback
+            if callback:
+                # Execute callback (which schedules UI on main thread)
+                callback()
+                return {"status": "opened"}
+
+        return {"status": "error", "detail": "Callback not registered"}
+    except Exception as e:
+        print(f"OpenSettings Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
