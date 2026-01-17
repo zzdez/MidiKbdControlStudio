@@ -118,30 +118,42 @@ def main():
     fastapi_app.state.open_settings_callback = open_settings_from_web
 
     # C. Bridge MIDI Events (Native -> Web)
-    # AirstepApp needs a callback to us.
-    # Looking at gui.py: AirstepApp.set_midi_callback(self, cb) exists? Yes.
-    # But MidiManager.create takes a callback. gui.py passes self.on_data_received.
-    # We need to hook into on_data_received or wrap it.
+    # We define a new callback that handles the raw 'msg' object from MidiManager
 
-    original_on_data = gui_app.on_data_received
+    def on_midi_event(msg):
+        # 1. Broadcast to Web
+        if hasattr(msg, 'control'):
+             data = { "type": "midi", "cc": msg.control, "value": msg.value, "message": "cc" }
+             broadcast_sync(json.dumps(data))
 
-    def wrapped_on_data_received(cc=None, channel=None):
-        # Call original (Updates Native GUI)
-        original_on_data(cc, channel)
-        # Broadcast to Web
-        if cc is not None:
-            data = {
-                "type": "midi",
-                "cc": cc,
-                "value": 127, # Assuming press
-                "message": "cc"
-            }
-            broadcast_sync(json.dumps(data))
+             # 2. Update Native GUI (Thread Safe)
+             # gui.py's on_data_received takes (cc, channel)
+             # We assume channel in msg is 0-15, gui expects 1-16 usually but let's check.
+             # gui.py: self.lbl_monitor_ch.configure(text=f"CH: {channel}"...)
+             # It's just for display.
+             ch = (msg.channel + 1) if hasattr(msg, 'channel') else 1
 
-    gui_app.on_data_received = wrapped_on_data_received
-    # Force update the running MidiEngine with the new callback
+             if gui_app:
+                gui_app.after(0, lambda: gui_app.on_data_received(msg.control, ch))
+
+             # 3. Trigger Action
+             # The native app usually triggers via simulate_midi_press when clicking buttons,
+             # OR via action_handler when MIDI comes in?
+             # gui.py doesn't seem to call action_handler.execute inside on_data_received.
+             # It seems gui.py relied on a separate mechanism or didn't implement auto-trigger in the provided snippet?
+             # Wait, the provided gui.py does NOT call action_handler.execute in on_data_received.
+             # But the user wants it to trigger actions.
+             if gui_app and gui_app.action_handler:
+                 # We execute on the main thread or directly here?
+                 # ActionHandler is thread safe (debounce).
+                 gui_app.action_handler.execute(msg.control, msg.value, ch, gui_app.profiles)
+
+    # Register this callback with the App's Engine
+    gui_app.set_midi_callback(on_midi_event)
+
+    # If engine is already running (started in __init__), we must update its callback reference
     if gui_app.midi_engine:
-        gui_app.midi_engine.callback = wrapped_on_data_received
+        gui_app.midi_engine.callback = on_midi_event
 
     # D. Bridge Profile Changes (ContextMonitor -> Web)
     # gui.py implements _monitor_remote_context loop but it's for RemoteControl.
@@ -165,17 +177,13 @@ def main():
         broadcast_sync(json.dumps(msg))
 
         # Update Native App
-        if gui_app:
-            gui_app.current_profile = profile_data
-            gui_app.after(0, gui_app.refresh_ui_for_profile)
+        if gui_app and profile_data:
+            # Use select_profile_by_name to ensure UI combo box is also updated
+            gui_app.after(0, lambda: gui_app.select_profile_by_name(profile_data['name']))
 
-            # Update ActionHandler State
+            # Update ActionHandler State (Redundant if select_profile does it, but safe)
             if gui_app.action_handler:
                 gui_app.action_handler.set_current_profile(profile_data)
-
-            # Update Remote if open
-            if hasattr(gui_app, 'remote_win') and gui_app.remote_win:
-                gui_app.remote_win.set_profile(profile_data)
 
     # Use managers from gui_app
     ctx_monitor = ContextMonitor(gui_app.profile_manager, gui_app.action_handler, callback=on_profile_change)

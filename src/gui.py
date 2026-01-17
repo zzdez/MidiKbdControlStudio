@@ -16,6 +16,12 @@ except ImportError:
     ICON_PNG_PATH = "icon.png"
     LOGO_PATH = "logo.png"
 
+def get_resource_path(relative_path):
+    import sys, os
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
 try:
     import driver_check
     from profile_manager import ProfileManager
@@ -1267,7 +1273,12 @@ class AirstepApp(ctk.CTk):
     def setup_tray(self):
         def _create_tray():
             try:
-                image = Image.open(ICON_PNG_PATH)
+                icon_path = get_resource_path(ICON_PNG_PATH)
+                if not os.path.exists(icon_path):
+                    # Try finding in assets if not at root
+                    if os.path.exists("assets/icon.png"): icon_path = "assets/icon.png"
+
+                image = Image.open(icon_path)
                 menu = pystray.Menu(
                     pystray.MenuItem("Ouvrir", self.restore_window, default=True),
                     pystray.MenuItem("Quitter", self.quit_app)
