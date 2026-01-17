@@ -34,7 +34,7 @@ try:
     from context_monitor import ContextMonitor
     from device_manager import DeviceManager
     from remote_gui import RemoteControl
-    from gui import SettingsDialog
+    from gui import SettingsDialog, AirstepApp
 except ImportError:
     from src.server import app as fastapi_app, broadcast_sync
     from src.config_manager import ConfigManager
@@ -44,16 +44,11 @@ except ImportError:
     from src.context_monitor import ContextMonitor
     from src.device_manager import DeviceManager
     from src.remote_gui import RemoteControl
-    from src.gui import SettingsDialog
+    from src.gui import SettingsDialog, AirstepApp
 
 # Globals
 config = None
-profile_mgr = None
-device_mgr = None
-action_handler = None
-midi_mgr = None
-context_monitor = None
-remote_gui = None # Tkinter App
+gui_app = None # AirstepApp
 
 def find_free_port(start_port=8000, max_tries=10):
     for port in range(start_port, start_port + max_tries):
@@ -68,66 +63,8 @@ def start_uvicorn(host, port):
     except Exception as e:
         with open("server_crash.log", "w") as f: f.write(str(e))
 
-def start_background_services():
-    global midi_mgr, context_monitor, profile_mgr, action_handler, config, device_mgr, remote_gui
-
-    print(">>> Initialisation des Services Backend (Async)...")
-    try:
-        # 1. Context Monitor
-        def on_profile_change(profile_data):
-            try:
-                # Update Logic
-                action_handler.set_current_profile(profile_data)
-
-                # Web Broadcast
-                msg = {"type": "profile_update", "data": profile_data}
-                broadcast_sync(json.dumps(msg))
-
-                # Remote GUI Update (Thread Safe call)
-                if remote_gui:
-                    remote_gui.after(0, lambda: remote_gui.set_profile(profile_data))
-
-            except Exception as e:
-                print(f"Profile Change Error: {e}")
-
-        context_monitor = ContextMonitor(profile_mgr, action_handler, callback=on_profile_change)
-        context_monitor.start()
-
-        # 2. MIDI Engine
-        midi_device = config.get("midi_device_name", "AIRSTEP")
-        connection_mode = config.get("connection_mode", "BLE")
-
-        def on_midi_event(msg):
-            try:
-                # Web Broadcast
-                data = {
-                    "type": "midi",
-                    "cc": msg.control if msg.type == 'control_change' else None,
-                    "value": msg.value if hasattr(msg, 'value') else None,
-                    "message": str(msg)
-                }
-                broadcast_sync(json.dumps(data))
-
-                # Remote GUI Flash (Thread Safe)
-                if remote_gui and msg.type == 'control_change':
-                    # Optional: Flash visual on Remote
-                    pass
-
-                # Action Trigger (Decoupled: Frontend decides, but here we keep backend trigger available via API)
-                # But wait, we removed backend trigger for MIDI in main.py previously.
-                # However, for the REMOTE GUI (Native), clicking buttons calls execute().
-                # Does the Remote GUI act as a MIDI Controller? No, it acts as a Trigger.
-                pass
-
-            except Exception as ex:
-                print(f"MIDI Callback Error: {ex}")
-
-        midi_mgr = MidiManager.create(connection_mode, midi_device, on_midi_event)
-        midi_mgr.start()
-        print(">>> Backend Opérationnel !")
-
-    except Exception as e:
-        print(f"!!! ERREUR CRITIQUE BACKEND : {e}")
+# Background services are now handled by AirstepApp or shared logic.
+# We need to bridge AirstepApp events to the Web Server.
 
 def wait_for_server(host, port, timeout=5.0):
     start_time = time.time()
@@ -138,98 +75,121 @@ def wait_for_server(host, port, timeout=5.0):
     return False
 
 def main():
-    global config, profile_mgr, device_mgr, action_handler, remote_gui
+    global config, gui_app
 
     print("--- Démarrage AirstepStudio V3 (Hybrid) ---")
 
-    # 1. Init Managers
+    # 1. Config Initial Load
     config = ConfigManager()
-    profile_mgr = ProfileManager()
-    profile_mgr.migrate_legacy_config()
-    profile_mgr.load_all_profiles()
-    device_mgr = DeviceManager()
-    action_handler = ActionHandler()
 
-    # Inject State
-    def on_internal_command(cmd):
-        msg = {"type": "command", "cmd": cmd}
-        broadcast_sync(json.dumps(msg))
-
-    action_handler.set_command_callback(on_internal_command)
-    fastapi_app.state.action_handler = action_handler
-    fastapi_app.state.profiles = profile_mgr.profiles
-
-    # Callback to open Settings from Web
-    def open_settings_from_web():
-        if remote_gui:
-            # Must run on main thread via .after()
-            # We use env_mgr defined below
-            remote_gui.after(0, lambda: SettingsDialog(remote_gui, profile_mgr, action_handler, env_mgr))
-
-    fastapi_app.state.open_settings_callback = open_settings_from_web
-
-    # 2. Server (Background)
+    # 2. Start Web Server (Background)
     base_port = int(config.get("app_port", 8000))
     port = find_free_port(base_port)
     server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)
     server_thread.start()
 
-    # 3. Browser
+    # 3. Initialize Main Native App (AirstepApp)
+    # AirstepApp handles Managers, MIDI, Context, etc. internally in its __init__
+    gui_app = AirstepApp()
+
+    # Hide immediately
+    gui_app.withdraw()
+
+    # 4. Bridge: Inject App State into Server
+    # We need to bridge MIDI events and Profile changes from App -> Web
+
+    # A. Bridge Internal Commands (Media)
+    def on_internal_command(cmd):
+        msg = {"type": "command", "cmd": cmd}
+        broadcast_sync(json.dumps(msg))
+
+    # Check if gui_app has action_handler initialized
+    if gui_app.action_handler:
+        gui_app.action_handler.set_command_callback(on_internal_command)
+        fastapi_app.state.action_handler = gui_app.action_handler
+
+    fastapi_app.state.profiles = gui_app.profiles
+
+    # B. Bridge Settings Button
+    def open_settings_from_web():
+        if gui_app:
+            gui_app.after(0, lambda: (gui_app.deiconify(), gui_app.lift()))
+
+    fastapi_app.state.open_settings_callback = open_settings_from_web
+
+    # C. Bridge MIDI Events (Native -> Web)
+    # AirstepApp needs a callback to us.
+    # Looking at gui.py: AirstepApp.set_midi_callback(self, cb) exists? Yes.
+    # But MidiManager.create takes a callback. gui.py passes self.on_data_received.
+    # We need to hook into on_data_received or wrap it.
+
+    original_on_data = gui_app.on_data_received
+
+    def wrapped_on_data_received(cc=None, channel=None):
+        # Call original (Updates Native GUI)
+        original_on_data(cc, channel)
+        # Broadcast to Web
+        if cc is not None:
+            data = {
+                "type": "midi",
+                "cc": cc,
+                "value": 127, # Assuming press
+                "message": "cc"
+            }
+            broadcast_sync(json.dumps(data))
+
+    gui_app.on_data_received = wrapped_on_data_received
+    # Force update the running MidiEngine with the new callback
+    if gui_app.midi_engine:
+        gui_app.midi_engine.callback = wrapped_on_data_received
+
+    # D. Bridge Profile Changes (ContextMonitor -> Web)
+    # gui.py implements _monitor_remote_context loop but it's for RemoteControl.
+    # It seems gui.py uses a loop `_monitor_remote_context` to scan window?
+    # Wait, gui.py: `self.action_handler.find_matching_profile` is called inside `_monitor_remote_context`.
+    # And it updates `self.current_profile`.
+    # We need to hook into when `self.current_profile` changes.
+    # The provided gui.py does NOT have a robust ContextMonitor thread like the one we wrote in src/context_monitor.py.
+    # It has a simple `after` loop in `open_remote_control`.
+
+    # CRITICAL: We want the robust `ContextMonitor` from `src/context_monitor.py` running!
+    # But `AirstepApp` doesn't use it by default in the provided code.
+    # Solution: We instantiate and start `ContextMonitor` here in main, and use it to drive `gui_app`.
+
+    # 5. Robust Context Monitor
+    from context_monitor import ContextMonitor
+
+    def on_profile_change(profile_data):
+        # Update Web
+        msg = {"type": "profile_update", "data": profile_data}
+        broadcast_sync(json.dumps(msg))
+
+        # Update Native App
+        if gui_app:
+            gui_app.current_profile = profile_data
+            gui_app.after(0, gui_app.refresh_ui_for_profile)
+
+            # Update ActionHandler State
+            if gui_app.action_handler:
+                gui_app.action_handler.set_current_profile(profile_data)
+
+            # Update Remote if open
+            if hasattr(gui_app, 'remote_win') and gui_app.remote_win:
+                gui_app.remote_win.set_profile(profile_data)
+
+    # Use managers from gui_app
+    ctx_monitor = ContextMonitor(gui_app.profile_manager, gui_app.action_handler, callback=on_profile_change)
+    ctx_monitor.start()
+    fastapi_app.state.context_monitor = ctx_monitor # For manual override API
+
+    # 6. Launch Browser
     if wait_for_server("127.0.0.1", port):
         url = f"http://127.0.0.1:{port}"
         try: webbrowser.open(url)
         except: pass
 
-    # 4. Background Services (MIDI/Context)
-    # We must inject `remote_gui` later as it is created in Main Thread
-    bg_thread = threading.Thread(target=start_background_services, daemon=True)
-    bg_thread.start()
-
-    # 5. GUI Native (MAIN THREAD - BLOCKING)
-    # Load default device def
-    airstep_def = next((d for d in device_mgr.definitions if "AIRSTEP" in d.get("name", "")), None)
-    if not airstep_def and device_mgr.definitions:
-        airstep_def = device_mgr.definitions[0]
-
-    ctk.set_appearance_mode("Dark")
-
-    # Import EnvManager locally if needed
-    try:
-        from env_manager import EnvManager
-    except ImportError:
-        from src.env_manager import EnvManager
-    env_mgr = EnvManager()
-
-    # Callback for Remote Clicks
-    def on_remote_press(cc):
-        # When clicking Remote, we simulate the action directly
-        # Use ActionHandler
-        # We assume Channel 1 for UI triggers
-        # We need current profile. ActionHandler has it set by ContextMonitor
-        profiles = profile_mgr.profiles # Fallback
-        # Ideally ActionHandler uses its internal state
-        # The execute method priorities current_profile if set
-        action_handler.execute(cc, 127, 1, profiles)
-
-    def on_close():
-        # Stop background threads if needed
-        if midi_mgr: midi_mgr.stop()
-        if context_monitor: context_monitor.stop()
-        sys.exit(0)
-
-    remote_gui = RemoteControl(None, airstep_def, None, on_remote_press, on_close)
-
-    # Inject context monitor for set_mode API to update GUI if needed?
-    # Actually ContextMonitor updates GUI via callback.
-    fastapi_app.state.context_monitor = context_monitor # This might be None until bg thread starts?
-    # Actually context_monitor is global and set in bg thread.
-    # Race condition potential for API calls early on.
-    # But acceptable for prototype.
-
-    # Inject remote_gui into global so ContextMonitor can find it (already done via global)
-
-    print(">>> Lancement GUI Native...")
-    remote_gui.mainloop()
+    print(">>> Lancement GUI Native (Main)...")
+    gui_app.mainloop()
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()

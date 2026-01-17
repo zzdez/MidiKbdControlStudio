@@ -72,12 +72,23 @@ function handleMidi(cc, value) {
     const m = currentProfile.mappings.find(x => x.midi_cc == cc);
     if (!m) return;
 
-    if (currentMode === "WEB") executeWebAction(m.action_value);
-    else fetch("/api/trigger", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({cc: cc, value: 127})
-    });
+    if (currentMode === "WEB") {
+        // Direct Control for YouTube/Web
+        // Priority to Hardcoded Airstep Mapping for Reliability
+        if (cc == 54) toggleVideo(); // C
+        else if (cc == 52) seekRelative(-5); // B
+        else if (cc == 56) seekRelative(5); // D
+        else if (cc == 50 && player) player.setPlaybackRate(Math.max(0.25, player.getPlaybackRate() - 0.25)); // A
+        else if (cc == 58 && player) player.setPlaybackRate(player.getPlaybackRate() + 0.25); // E
+        else if ((cc == 53 || cc == 55) && player) player.seekTo(0); // Long Press
+        else executeWebAction(m.action_value); // Fallback to mapped value
+    } else {
+        fetch("/api/trigger", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({cc: cc, value: 127})
+        });
+    }
 }
 
 function setMode(mode, forcedProfileName = null) {
