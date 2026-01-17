@@ -75,6 +75,16 @@ def main():
     app.withdraw() # Démarrage discret
     app.open_remote_control() # Affiche la télécommande immédiatement
 
+    # 2b. Wiring Web Settings Button -> Native GUI
+    def open_settings_wrapper():
+        # Utilise .after pour que l'appel vienne du Thread Principal Tkinter
+        if app:
+            app.after(0, lambda: app.open_settings())
+            # Optionnel: on peut aussi juste afficher la fenêtre principale
+            # app.after(0, lambda: (app.deiconify(), app.lift()))
+
+    fastapi_app.state.open_settings_callback = open_settings_wrapper
+
     # 3. Démarrage Serveur Web (Thread)
     server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)
     server_thread.start()
