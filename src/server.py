@@ -94,7 +94,20 @@ async def get_setlist():
     if os.path.exists(SETLIST_FILE):
         try:
             with open(SETLIST_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                items = json.load(f)
+
+            # Migration: Ensure category exists
+            migrated = False
+            for item in items:
+                if "category" not in item:
+                    item["category"] = "Général"
+                    migrated = True
+
+            if migrated:
+                with open(SETLIST_FILE, "w", encoding="utf-8") as f:
+                    json.dump(items, f, indent=4)
+
+            return items
         except:
             return []
     return []
@@ -109,6 +122,7 @@ async def add_to_setlist(item: Dict):
     try:
         url = item.get("url", "")
         manual_mode = item.get("manual_mode", "auto")
+        category = item.get("category", "Général")
 
         if not url:
             raise HTTPException(status_code=400, detail="URL is required")
@@ -156,7 +170,8 @@ async def add_to_setlist(item: Dict):
             "url": url,
             "id": video_id,
             "open_mode": open_mode,
-            "profile_name": profile_name
+            "profile_name": profile_name,
+            "category": category
         }
 
         items = []

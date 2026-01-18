@@ -105,6 +105,7 @@ function setMode(mode, forcedProfileName = null) {
 
 // --- SETLIST ---
 let currentTrackList = [];
+
 async function loadSetlist() {
     try {
         const res = await fetch("/api/setlist");
@@ -117,32 +118,101 @@ async function loadSetlist() {
         console.error("Setlist load error:", e);
         currentTrackList = [];
     }
+    renderSetlist(currentTrackList);
+}
 
+function renderSetlist(tracks) {
     const container = document.getElementById("setlist-container");
     if (!container) return;
-
     container.innerHTML = "";
-    if (!currentTrackList || currentTrackList.length === 0) {
-        container.innerHTML = "<div style='color:gray; font-size:12px; padding:10px;'>Setlist vide</div>";
+
+    // 1. Search Filter
+    const query = document.getElementById("search-input").value.toLowerCase();
+    const filtered = tracks.filter(t => (t.title || t.url).toLowerCase().includes(query));
+
+    if (!filtered || filtered.length === 0) {
+        container.innerHTML = "<div style='color:gray; font-size:12px; padding:10px;'>Aucun résultat</div>";
         return;
     }
 
-    currentTrackList.forEach((track, index) => {
-        const div = document.createElement("div");
-        div.className = "track-item";
-        div.innerHTML = `<span class="track-title" onclick="playTrackAt(${index})">${track.title || track.url}</span> <button class="btn-del" onclick="deleteTrack(${index})">×</button>`;
-        container.appendChild(div);
+    // 2. Group by Category
+    const grouped = {};
+    const categories = new Set();
+
+    filtered.forEach((track, index) => {
+        // We need original index for deletion/playing correctly,
+        // so we store the object reference or find index in original list.
+        // Let's store original index in a transient property if needed or search it.
+        // Better: filtered map contains original indices?
+        // Let's find index in currentTrackList
+        const realIndex = currentTrackList.indexOf(track);
+
+        const cat = track.category || "Général";
+        categories.add(cat);
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push({track, index: realIndex});
+    });
+
+    // 3. Update Datalist
+    const dataList = document.getElementById("categories");
+    if (dataList) {
+        dataList.innerHTML = "";
+        // Add all known categories from full list, not just filtered
+        const allCats = new Set(currentTrackList.map(t => t.category || "Général"));
+        allCats.forEach(c => {
+            const opt = document.createElement("option");
+            opt.value = c;
+            dataList.appendChild(opt);
+        });
+    }
+
+    // 4. Render Groups
+    // Sort categories (Général first or alphabetical)
+    const sortedCats = Object.keys(grouped).sort();
+
+    sortedCats.forEach(cat => {
+        const groupDiv = document.createElement("div");
+        groupDiv.className = "setlist-group";
+
+        // Header
+        const header = document.createElement("div");
+        header.className = "category-header";
+        header.style.cssText = "background-color: #333; padding: 5px; cursor: pointer; font-weight: bold; margin-top: 5px; border-radius: 4px;";
+        header.innerText = `${cat} (${grouped[cat].length})`;
+        header.onclick = () => {
+            const list = groupDiv.querySelector(".category-list");
+            list.style.display = list.style.display === "none" ? "block" : "none";
+        };
+        groupDiv.appendChild(header);
+
+        // List
+        const listDiv = document.createElement("div");
+        listDiv.className = "category-list";
+        listDiv.style.display = "block"; // Open by default
+
+        grouped[cat].forEach(item => {
+            const div = document.createElement("div");
+            div.className = "track-item";
+            div.style.cssText = "display: flex; justify-content: space-between; padding: 5px 10px; border-bottom: 1px solid #444; align-items: center;";
+            div.innerHTML = `<span class="track-title" onclick="playTrackAt(${item.index})" style="cursor: pointer; flex: 1;">${item.track.title || item.track.url}</span> <button class="btn-del" onclick="deleteTrack(${item.index})" style="background: none; border: none; color: #cc3300; cursor: pointer; font-weight: bold;">×</button>`;
+            listDiv.appendChild(div);
+        });
+
+        groupDiv.appendChild(listDiv);
+        container.appendChild(groupDiv);
     });
 }
 
 async function addToSetlist() {
     const url = document.getElementById("url-input").value;
     const mode = document.getElementById("mode-select").value;
+    const cat = document.getElementById("category-input").value;
+
     if (!url) return;
     await fetch("/api/setlist", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({url: url, manual_mode: mode})
+        body: JSON.stringify({url: url, manual_mode: mode, category: cat || "Général"})
     });
     document.getElementById("url-input").value = "";
     loadSetlist();
