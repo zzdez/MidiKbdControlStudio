@@ -107,12 +107,12 @@ def main():
 
     threading.Thread(target=start_midi_engine, daemon=True).start()
 
-    # 5. Ouverture Navigateur
-    def open_browser():
-        time.sleep(2)
-        webbrowser.open(f"http://127.0.0.1:{port}")
-
-    threading.Thread(target=open_browser, daemon=True).start()
+    # 5. Ouverture Navigateur (Désactivé : Mode Service)
+    # def open_browser():
+    #     time.sleep(2)
+    #     webbrowser.open(f"http://127.0.0.1:{port}")
+    #
+    # threading.Thread(target=open_browser, daemon=True).start()
 
     # 6. Boucle Principale (Bloquante Tkinter)
     # C'est ici que l'application vit.
