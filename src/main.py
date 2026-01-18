@@ -73,7 +73,7 @@ def main():
     # 2. Interface Graphique (GUI) - Doit être créée dans le Main Thread
     app = AirstepApp()
     app.withdraw() # Démarrage discret
-    app.open_remote_control() # Affiche la télécommande immédiatement
+    # app.open_remote_control() # Affiche la télécommande immédiatement (Désactivé : Mode Service)
 
     # 2b. Wiring Web Settings Button -> Native GUI
     def open_settings_wrapper():

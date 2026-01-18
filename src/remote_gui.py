@@ -164,10 +164,12 @@ class CompactPedalboardFrame(ctk.CTkFrame):
 
 
 class RemoteControl(ctk.CTkToplevel):
-    def __init__(self, parent, device_def, profile, callback_press, callback_close, library_manager=None):
+    def __init__(self, parent, device_def, profile, callback_press, callback_close, library_manager=None, callback_open_conf=None, callback_open_web=None):
         super().__init__(parent)
         self.callback_press = callback_press
         self.callback_close = callback_close
+        self.callback_open_conf = callback_open_conf
+        self.callback_open_web = callback_open_web
         self.device_def = device_def
         self.profile = profile
         self.library_manager = library_manager
@@ -235,6 +237,20 @@ class RemoteControl(ctk.CTkToplevel):
                                      fg_color="transparent", hover_color="#444",
                                      command=self.toggle_minimize)
         self.btn_min.pack(side="right", padx=2, pady=2)
+
+        # Config Button (Left)
+        if self.callback_open_conf:
+            self.btn_conf = ctk.CTkButton(self.header, text="⚙️", width=30, height=24,
+                                          fg_color="transparent", hover_color="#444",
+                                          command=self.callback_open_conf)
+            self.btn_conf.pack(side="left", padx=2, pady=2)
+
+        # Web Button (Left)
+        if self.callback_open_web:
+            self.btn_web = ctk.CTkButton(self.header, text="🌐", width=30, height=24,
+                                         fg_color="transparent", hover_color="#444",
+                                         command=self.callback_open_web)
+            self.btn_web.pack(side="left", padx=2, pady=2)
 
         # Library Drawer Button
         if self.library_manager:

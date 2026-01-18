@@ -9,6 +9,7 @@ import pygetwindow as gw
 import keyboard
 import mido
 import pystray
+import webbrowser
 from PIL import Image
 def get_resource_path(relative_path):
     """Trouve les fichiers aussi bien en Dev qu'en EXE PyInstaller"""
@@ -1067,7 +1068,9 @@ class AirstepApp(ctk.CTk):
             self.current_profile,
             callback_press=self.simulate_midi_press,
             callback_close=self.on_remote_close,
-            library_manager=self.library_manager
+            library_manager=self.library_manager,
+            callback_open_conf=lambda: (self.deiconify(), self.lift(), self.focus_force()),
+            callback_open_web=self.open_web
         )
         # Start monitoring background context
         self.after(500, self._monitor_remote_context)
@@ -1315,7 +1318,10 @@ class AirstepApp(ctk.CTk):
                 # Use the robust path directly
                 image = Image.open(ICON_PNG_PATH)
                 menu = pystray.Menu(
-                    pystray.MenuItem("Ouvrir", self.restore_window, default=True),
+                    pystray.MenuItem("Télécommande", self.open_remote_from_tray, default=True),
+                    pystray.MenuItem("Configuration", self.open_conf_from_tray),
+                    pystray.MenuItem("Interface Web", self.open_web),
+                    pystray.Menu.SEPARATOR,
                     pystray.MenuItem("Quitter", self.quit_app)
                 )
                 self.tray_icon = pystray.Icon("AirstepSmartControl", image, "Airstep Smart Control", menu)
@@ -1323,6 +1329,22 @@ class AirstepApp(ctk.CTk):
             except Exception as e:
                 self.log_debug(f"Erreur Tray: {e}")
         threading.Thread(target=_create_tray, daemon=True).start()
+
+    def open_remote_from_tray(self, icon=None, item=None):
+        self.after(0, self.open_remote_control)
+
+    def open_conf_from_tray(self, icon=None, item=None):
+        self.after(0, lambda: (self.deiconify(), self.lift(), self.focus_force()))
+
+    def open_web(self, icon=None, item=None):
+        try:
+            port = self.settings.get("app_port", 8000)
+            # Default is 8000 if not in settings, but ConfigManager might have it.
+            # Ideally we check where 'config' variable ended up, but here we use self.settings dict.
+            # self.settings is loaded from config.json.
+            url = f"http://127.0.0.1:{port}"
+            webbrowser.open(url)
+        except: pass
 
     def minimize_to_tray(self):
         self.withdraw()
