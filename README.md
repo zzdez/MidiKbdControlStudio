@@ -6,23 +6,25 @@
 
 ## 🚀 Fonctionnalités Clés
 
-*   **Setlist Intelligente :**
-    *   Détection automatique des liens YouTube (Mode Intégré) vs Sites Externes (Songsterr, Tabs).
-    *   Récupération automatique des titres via l'API YouTube.
+*   **Mode Service (Nouveau) :** L'application démarre discrètement dans la zone de notification (Tray). Ouvrez ce dont vous avez besoin, quand vous en avez besoin.
+*   **Bibliothèque & Smart Launcher :**
+    *   Un tiroir ("Drawer") intégré à la télécommande pour lancer vos morceaux et vos applications favorites.
+    *   Détection automatique des applications liées à vos profils (ex: lancez "Reaper" et le profil change automatiquement).
+*   **Setlist Catégorisée :** Organisez vos morceaux par Artiste, Style ou Dossier. Recherche instantanée intégrée.
 *   **Contrôle Hybride :**
     *   **Mode WEB :** Pilotez le lecteur YouTube (Play, Pause, Vitesse, Seek) directement avec vos pédales.
     *   **Mode WINDOWS :** Simulez des raccourcis clavier pour contrôler vos logiciels ou sites externes.
-*   **Apps Launcher :** Lancez vos outils (Reaper, Neural DSP, etc.) directement depuis le Dashboard.
-*   **Overlay Persistant :** Une fenêtre "Always-on-Top" qui affiche l'état de votre pédalier, pliable en une simple "pillule" discrète.
+*   **Overlay Persistant :** Une fenêtre "Always-on-Top" qui affiche l'état de votre pédalier, minimisable dans la barre des tâches.
 
 ## 🛠️ Installation (Développeurs)
 
 1.  **Pré-requis :** Python 3.10+
 2.  **Installation des dépendances :**
     `pip install -r requirements.txt`
-    *(Inclut désormais `customtkinter`, `fastapi`, `uvicorn`, `requests`, `bleak`...)*
+    *(Inclut désormais `customtkinter`, `fastapi`, `uvicorn`, `requests`, `bleak`, `pystray`...)*
 3.  **Lancement :**
     `python src/main.py`
+    *Note : L'application se lance dans le System Tray. Cherchez l'icône Airstep.*
 
 ## 🏗️ Architecture Hybride
 
@@ -34,7 +36,7 @@
     *   HTML5/CSS3/JS Vanilla.
     *   Communication temps réel via WebSocket.
 *   **GUI Native (CustomTkinter) :**
-    *   Interface légère pour le retour visuel immédiat.
+    *   Interface légère pour le retour visuel immédiat et le lanceur d'applications.
 
 ## 📦 Compilation
 
