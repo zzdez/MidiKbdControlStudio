@@ -102,27 +102,50 @@
             <hr class="separator">
 
             <!-- Edit Form -->
-            <div class="edit-form">
-                <label>Titre</label>
-                <input type="text" id="edit-title" placeholder="Titre de la chanson">
-
-                <label>URL</label>
-                <input type="text" id="edit-url" placeholder="https://...">
-
-                <div class="row-inputs">
-                    <div class="col">
-                        <label>Catégorie</label>
-                        <input list="categories" id="edit-category" placeholder="Général">
-                        <datalist id="categories"></datalist>
+            <div class="edit-form" style="display:flex; gap:15px;">
+                <!-- Thumbnail Preview (Left) -->
+                <div style="width:120px; flex-shrink:0;">
+                    <div id="preview-thumbnail" style="width:100%; aspect-ratio:16/9; background:#000; display:flex; align-items:center; justify-content:center; border:1px solid #333; overflow:hidden;">
+                        <span style="font-size:30px;">🎵</span>
                     </div>
-                    <div class="col">
-                        <label>Mode</label>
-                        <select id="edit-mode">
-                            <option value="auto">Auto (Détection)</option>
-                            <option value="iframe">Intégré (YouTube)</option>
-                            <option value="external">Externe (Navigateur)</option>
-                        </select>
+                </div>
+
+                <!-- Fields (Right) -->
+                <div style="flex:1;">
+                    <label>Titre</label>
+                    <input type="text" id="edit-title" placeholder="Titre de la chanson">
+
+                    <label>Artiste / Groupe</label>
+                    <input type="text" id="edit-artist" placeholder="Ex: Metallica">
+
+                    <label>URL</label>
+                    <input type="text" id="edit-url" placeholder="https://...">
+
+                    <div class="row-inputs">
+                        <div class="col">
+                            <label>Chaîne YouTube</label>
+                            <input type="text" id="edit-channel" placeholder="Nom de la chaîne">
+                        </div>
                     </div>
+
+                    <div class="row-inputs">
+                        <div class="col">
+                            <label>Catégorie</label>
+                            <input list="categories" id="edit-category" placeholder="Général">
+                            <datalist id="categories"></datalist>
+                        </div>
+                        <div class="col">
+                            <label>Mode</label>
+                            <select id="edit-mode">
+                                <option value="auto">Auto (Détection)</option>
+                                <option value="iframe">Intégré (YouTube)</option>
+                                <option value="external">Externe (Navigateur)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <label>Résumé / Notes</label>
+                    <textarea id="edit-description" rows="3" style="width:100%; background:#121212; border:1px solid #333; color:white; padding:5px;" placeholder="Description ou notes..."></textarea>
                 </div>
             </div>
         </div>

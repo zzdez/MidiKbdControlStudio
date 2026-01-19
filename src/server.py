@@ -128,6 +128,7 @@ def search_youtube(query: str, api_key: str):
                         "id": video_id,
                         "title": snippet.get("title"),
                         "channel": snippet.get("channelTitle"),
+                        "description": snippet.get("description"),
                         "thumbnail_url": snippet.get("thumbnails", {}).get("medium", {}).get("url")
                     })
     except Exception as e:
@@ -231,7 +232,11 @@ async def add_to_setlist(item: Dict):
             "id": video_id,
             "open_mode": open_mode,
             "profile_name": profile_name,
-            "category": category
+            "category": category,
+            "artist": item.get("artist", ""),
+            "channel": item.get("channel", ""),
+            "thumbnail": item.get("thumbnail", ""),
+            "description": item.get("description", "")
         }
 
         items = []
@@ -317,7 +322,11 @@ async def update_setlist_item(index: int, item: Dict):
                 "id": video_id,
                 "open_mode": open_mode,
                 "profile_name": profile_name,
-                "category": category
+                "category": category,
+                "artist": item.get("artist", ""),
+                "channel": item.get("channel", ""),
+                "thumbnail": item.get("thumbnail", ""),
+                "description": item.get("description", "")
             }
 
             items[index] = updated_item

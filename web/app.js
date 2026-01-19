@@ -226,10 +226,17 @@ function openAddModal() {
     // Clear Form
     document.getElementById("yt-search-input").value = "";
     document.getElementById("search-results").innerHTML = "";
+
     document.getElementById("edit-title").value = "";
+    document.getElementById("edit-artist").value = "";
+    document.getElementById("edit-channel").value = "";
     document.getElementById("edit-url").value = "";
     document.getElementById("edit-category").value = "Général";
     document.getElementById("edit-mode").value = "auto";
+    document.getElementById("edit-description").value = "";
+
+    document.getElementById("preview-thumbnail").innerHTML = '<span style="font-size:30px;">🎵</span>';
+
     document.getElementById("yt-search-input").focus();
 }
 
@@ -243,17 +250,21 @@ function openEditModal(index) {
     // Fill Form
     document.getElementById("yt-search-input").value = "";
     document.getElementById("search-results").innerHTML = ""; // Clear old search
+
     document.getElementById("edit-title").value = track.title;
+    document.getElementById("edit-artist").value = track.artist || "";
+    document.getElementById("edit-channel").value = track.channel || "";
     document.getElementById("edit-url").value = track.url;
     document.getElementById("edit-category").value = track.category || "Général";
-
-    // Mode Logic: if track has specific open_mode that is NOT auto-derived...
-    // The backend stores "open_mode", but the UI dropdown expects "auto", "iframe", "external".
-    // If we want to show what is saved, we assume "manual_mode" isn't stored, but inferred.
-    // Let's assume standard behavior: if it's set to iframe/external, show it.
-    // If it was auto, we might have lost that info unless we store "manual_mode".
-    // For now, let's map what we have.
     document.getElementById("edit-mode").value = track.open_mode || "auto";
+    document.getElementById("edit-description").value = track.description || "";
+
+    // Thumbnail
+    if (track.thumbnail) {
+        document.getElementById("preview-thumbnail").innerHTML = `<img src="${track.thumbnail}" style="width:100%; height:100%; object-fit:cover;">`;
+    } else {
+        document.getElementById("preview-thumbnail").innerHTML = '<span style="font-size:30px;">🎵</span>';
+    }
 }
 
 function closeModal() {
@@ -273,15 +284,22 @@ async function searchYouTube() {
         const results = await res.json();
 
         container.innerHTML = "";
+
+        // Pass results data to window to allow accessing full object from onclick string if needed,
+        // OR better: use closure in forEach.
         results.forEach(video => {
             const card = document.createElement("div");
             card.className = "result-card";
+            // We pass the simplified object
             card.onclick = () => selectResult(video);
             card.innerHTML = `
                 <img src="${video.thumbnail_url}">
                 <div class="info">
                     <div class="title" title="${video.title}">${video.title}</div>
-                    <div style="color:#888; margin-top:2px;">${video.channel}</div>
+                    <div style="color:#888; margin-top:2px; font-size:0.7em;">${video.channel}</div>
+                    <div style="color:#666; font-size:0.6em; margin-top:2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                        ${video.description || ""}
+                    </div>
                 </div>
             `;
             container.appendChild(card);
@@ -293,19 +311,50 @@ async function searchYouTube() {
 }
 
 function selectResult(video) {
+    // 1. Title & URL
     document.getElementById("edit-title").value = video.title;
     const url = video.id ? `https://www.youtube.com/watch?v=${video.id}` : "";
     if (url) document.getElementById("edit-url").value = url;
 
-    // Auto-set mode to iframe if YouTube
+    // 2. Channel & Description
+    document.getElementById("edit-channel").value = video.channel || "";
+    document.getElementById("edit-description").value = video.description || "";
+
+    // 3. Thumbnail Preview
+    if (video.thumbnail_url) {
+        document.getElementById("preview-thumbnail").innerHTML = `<img src="${video.thumbnail_url}" style="width:100%; height:100%; object-fit:cover;">`;
+    }
+
+    // 4. Try Parse Artist (Format "Artist - Title")
+    if (video.title && video.title.includes("-")) {
+        const parts = video.title.split("-");
+        if (parts.length >= 2) {
+            document.getElementById("edit-artist").value = parts[0].trim();
+            // Optionally clean title? No, keep original title usually safer or ask user.
+        }
+    } else {
+        // Fallback: Use Channel as Artist? often true for VEVO etc
+        // document.getElementById("edit-artist").value = video.channel;
+    }
+
+    // 5. Auto-set mode
     document.getElementById("edit-mode").value = "iframe";
 }
 
 async function saveItem() {
     const title = document.getElementById("edit-title").value;
+    const artist = document.getElementById("edit-artist").value;
+    const channel = document.getElementById("edit-channel").value;
     const url = document.getElementById("edit-url").value;
     const category = document.getElementById("edit-category").value;
     const mode = document.getElementById("edit-mode").value;
+    const description = document.getElementById("edit-description").value;
+
+    // Extract thumbnail from preview if it's an image
+    let thumbnail = "";
+    const previewDiv = document.getElementById("preview-thumbnail");
+    const img = previewDiv.querySelector("img");
+    if (img) thumbnail = img.src;
 
     if (!url) {
         alert("L'URL est obligatoire.");
@@ -316,7 +365,11 @@ async function saveItem() {
         title: title,
         url: url,
         category: category,
-        manual_mode: mode // Backend expects manual_mode to decide
+        manual_mode: mode,
+        artist: artist,
+        channel: channel,
+        description: description,
+        thumbnail: thumbnail
     };
 
     if (editingIndex !== null) {
