@@ -12,6 +12,10 @@ VK_UP = 0x26
 VK_RIGHT = 0x27
 VK_DOWN = 0x28
 
+# Win32 Constants for ScanCodes
+KEYEVENTF_SCANCODE = 0x0008
+KEYEVENTF_KEYUP = 0x0002
+
 class ActionHandler:
     def __init__(self):
         self.debounce_timer = None
@@ -267,7 +271,7 @@ class ActionHandler:
             except: continue
 
     def _send_native_key(self, vk_code):
-        """Simulate key press using native Windows API (keybd_event)"""
+        """Simulate key press using native Windows API (keybd_event) with Virtual Key Code"""
         if not hasattr(ctypes, 'windll'): return
         try:
             # Press
@@ -277,6 +281,21 @@ class ActionHandler:
             ctypes.windll.user32.keybd_event(vk_code, 0, 2, 0)
         except Exception as e:
             self.log(f"Native Key Error: {e}")
+
+    def _send_native_scancode(self, scancode):
+        """Simulate key press using native Windows API (keybd_event) with Hardware Scan Code"""
+        if not hasattr(ctypes, 'windll'): return
+        try:
+            # Envoi Pression (Flag 0x0008 = KEYEVENTF_SCANCODE)
+            # Param 1 (bVk) est ignoré quand KEYEVENTF_SCANCODE est défini, mais on met 0
+            ctypes.windll.user32.keybd_event(0, scancode, KEYEVENTF_SCANCODE, 0)
+
+            time.sleep(0.1) # Maintien physique augmenté pour Electron
+
+            # Envoi Relâchement
+            ctypes.windll.user32.keybd_event(0, scancode, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, 0)
+        except Exception as e:
+            self.log(f"Native Scancode Error: {e}")
 
     def trigger_keystroke(self, mapping):
         """
@@ -334,10 +353,18 @@ class ActionHandler:
                         keyboard.press(mod_sc)
                     time.sleep(0.05) 
 
-                # B. Appuyer sur la touche principale via son code physique
-                keyboard.press(main_scan_code)
-                time.sleep(0.1) # Increased press duration for reliability
-                keyboard.release(main_scan_code)
+                # B. Appuyer sur la touche principale
+                # Exception pour Espace (57) ou Flèches (75, 77, 72, 80) qui nécessitent souvent du natif (Win32)
+                FORCE_NATIVE_CODES = [57, 75, 77, 72, 80]
+
+                if main_scan_code in FORCE_NATIVE_CODES:
+                    self.log(f" -> Envoi NATIF (Win32) pour SC {main_scan_code}")
+                    self._send_native_scancode(main_scan_code)
+                else:
+                    # Méthode standard via keyboard library
+                    keyboard.press(main_scan_code)
+                    time.sleep(0.1) # Increased press duration for reliability
+                    keyboard.release(main_scan_code)
 
                 # C. Relâcher les modifieurs
                 if modifier_scan_codes:
