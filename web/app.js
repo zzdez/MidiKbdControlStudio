@@ -330,6 +330,8 @@ async function searchYouTube() {
 }
 
 function selectResult(video) {
+    console.log("Selected Data:", video); // Debug
+
     // 1. Title & URL
     document.getElementById("edit-title").value = video.title;
     const url = video.id ? `https://www.youtube.com/watch?v=${video.id}` : "";
@@ -338,11 +340,10 @@ function selectResult(video) {
     // 2. Channel & Description
     document.getElementById("edit-channel").value = video.channel || "";
     document.getElementById("edit-youtube-description").value = video.description || "";
-    // Don't overwrite user notes
 
     // 3. Thumbnail Preview
     if (video.thumbnail_url) {
-        document.getElementById("preview-thumbnail").innerHTML = `<img src="${video.thumbnail_url}" style="width:100%; height:100%; object-fit:cover;">`;
+        document.getElementById("preview-thumbnail").innerHTML = `<img src="${video.thumbnail_url}">`; // CSS handles object-fit
     }
 
     // 4. Try Parse Artist (Format "Artist - Title")
