@@ -147,7 +147,7 @@ class ActionHandler:
             if ctypes.windll.user32.IsIconic(found_hwnd):
                 ctypes.windll.user32.ShowWindow(found_hwnd, 9)
             ctypes.windll.user32.SetForegroundWindow(found_hwnd)
-            time.sleep(0.05)
+            time.sleep(0.2) # Increased wait time for Electron/Moises apps
         else:
             self.log(f"FOCUS SWITCH: Cible introuvable (App='{target_app}', Title='{target_title}')")
 
@@ -336,7 +336,7 @@ class ActionHandler:
 
                 # B. Appuyer sur la touche principale via son code physique
                 keyboard.press(main_scan_code)
-                time.sleep(0.05) # Pause cruciale pour que Windows enregistre l'appui
+                time.sleep(0.1) # Increased press duration for reliability
                 keyboard.release(main_scan_code)
 
                 # C. Relâcher les modifieurs
