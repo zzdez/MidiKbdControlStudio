@@ -83,7 +83,67 @@ def fetch_youtube_title(video_id: str, api_key: str):
         print(f"YouTube API Error: {e}")
     return None
 
+def search_youtube(query: str, api_key: str):
+    """
+    Searches YouTube for query.
+    Returns a list of dicts: {id, title, channel, thumbnail_url}
+    """
+    if not api_key:
+        return []
+
+    # Check if query is a direct link
+    video_id = extract_youtube_id(query)
+    if video_id:
+        # It's a URL, fetch single video details
+        title = fetch_youtube_title(video_id, api_key)
+        if title:
+            return [{
+                "id": video_id,
+                "title": title,
+                "channel": "Direct URL",
+                "thumbnail_url": f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg"
+            }]
+        return []
+
+    # Text Search
+    url = "https://www.googleapis.com/youtube/v3/search"
+    params = {
+        "part": "snippet",
+        "type": "video",
+        "maxResults": 5,
+        "q": query,
+        "key": api_key
+    }
+
+    results = []
+    try:
+        response = requests.get(url, params=params, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            for item in data.get("items", []):
+                snippet = item.get("snippet", {})
+                video_id = item.get("id", {}).get("videoId")
+                if video_id:
+                    results.append({
+                        "id": video_id,
+                        "title": snippet.get("title"),
+                        "channel": snippet.get("channelTitle"),
+                        "thumbnail_url": snippet.get("thumbnails", {}).get("medium", {}).get("url")
+                    })
+    except Exception as e:
+        print(f"YouTube Search Error: {e}")
+
+    return results
+
 # --- ROUTES ---
+
+@app.get("/api/youtube/search")
+async def api_youtube_search(q: str):
+    api_key = config_manager.get("YOUTUBE_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Missing YOUTUBE_API_KEY")
+
+    return search_youtube(q, api_key)
 
 @app.get("/api/status")
 async def get_status():
@@ -206,6 +266,70 @@ async def remove_from_setlist(index: int):
 
         return items
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/setlist/{index}")
+async def update_setlist_item(index: int, item: Dict):
+    try:
+        items = []
+        if os.path.exists(SETLIST_FILE):
+            with open(SETLIST_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+
+        if 0 <= index < len(items):
+            # LOGIC REPLICATION FROM POST (Smart Processing)
+            url = item.get("url", "")
+            manual_mode = item.get("manual_mode", "auto")
+            category = item.get("category", "Général")
+            title = item.get("title", "Sans titre")
+
+            if not url:
+                raise HTTPException(status_code=400, detail="URL is required")
+
+            # 1. Determine Profile (Content Based)
+            profile_name = "Web Generic"
+            if "youtube.com" in url or "youtu.be" in url:
+                profile_name = "YouTube"
+            elif "songsterr.com" in url:
+                profile_name = "Songsterr"
+
+            # 2. Determine Open Mode
+            open_mode = "external" # Default safe
+
+            if manual_mode == "iframe":
+                open_mode = "iframe"
+            elif manual_mode == "external":
+                open_mode = "external"
+            else:
+                # AUTO Detect
+                if "youtube.com" in url or "youtu.be" in url:
+                    open_mode = "iframe"
+                else:
+                    open_mode = "external"
+
+            # 3. Extract ID (If YouTube)
+            video_id = extract_youtube_id(url)
+
+            # 4. Construct Full Item
+            updated_item = {
+                "title": title,
+                "url": url,
+                "id": video_id,
+                "open_mode": open_mode,
+                "profile_name": profile_name,
+                "category": category
+            }
+
+            items[index] = updated_item
+
+            with open(SETLIST_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+            return items
+        else:
+            raise HTTPException(status_code=404, detail="Item not found")
+
+    except Exception as e:
+        print(f"Update Setlist Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- APPS LAUNCHER ---

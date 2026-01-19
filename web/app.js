@@ -105,6 +105,7 @@ function setMode(mode, forcedProfileName = null) {
 
 // --- SETLIST ---
 let currentTrackList = [];
+let editingIndex = null; // null = Add Mode, number = Edit Mode
 
 async function loadSetlist() {
     try {
@@ -119,6 +120,16 @@ async function loadSetlist() {
         currentTrackList = [];
     }
     renderSetlist(currentTrackList);
+}
+
+function getIcon(url) {
+    if (!url) return '';
+    try {
+        const domain = new URL(url).hostname;
+        return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+    } catch {
+        return '';
+    }
 }
 
 function renderSetlist(tracks) {
@@ -140,13 +151,7 @@ function renderSetlist(tracks) {
     const categories = new Set();
 
     filtered.forEach((track, index) => {
-        // We need original index for deletion/playing correctly,
-        // so we store the object reference or find index in original list.
-        // Let's store original index in a transient property if needed or search it.
-        // Better: filtered map contains original indices?
-        // Let's find index in currentTrackList
         const realIndex = currentTrackList.indexOf(track);
-
         const cat = track.category || "Général";
         categories.add(cat);
         if (!grouped[cat]) grouped[cat] = [];
@@ -157,7 +162,6 @@ function renderSetlist(tracks) {
     const dataList = document.getElementById("categories");
     if (dataList) {
         dataList.innerHTML = "";
-        // Add all known categories from full list, not just filtered
         const allCats = new Set(currentTrackList.map(t => t.category || "Général"));
         allCats.forEach(c => {
             const opt = document.createElement("option");
@@ -167,7 +171,6 @@ function renderSetlist(tracks) {
     }
 
     // 4. Render Groups
-    // Sort categories (Général first or alphabetical)
     const sortedCats = Object.keys(grouped).sort();
 
     sortedCats.forEach(cat => {
@@ -193,8 +196,20 @@ function renderSetlist(tracks) {
         grouped[cat].forEach(item => {
             const div = document.createElement("div");
             div.className = "track-item";
-            div.style.cssText = "display: flex; justify-content: space-between; padding: 5px 10px; border-bottom: 1px solid #444; align-items: center;";
-            div.innerHTML = `<span class="track-title" onclick="playTrackAt(${item.index})" style="cursor: pointer; flex: 1;">${item.track.title || item.track.url}</span> <button class="btn-del" onclick="deleteTrack(${item.index})" style="background: none; border: none; color: #cc3300; cursor: pointer; font-weight: bold;">×</button>`;
+
+            const iconUrl = getIcon(item.track.url);
+            const iconImg = iconUrl ? `<img src="${iconUrl}" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">` : '';
+
+            div.innerHTML = `
+                <div style="flex:1; cursor:pointer; display:flex; align-items:center;" onclick="playTrackAt(${item.index})">
+                    ${iconImg}
+                    <span class="track-title">${item.track.title || item.track.url}</span>
+                </div>
+                <div style="display:flex; gap:5px;">
+                    <button class="btn-icon" onclick="openEditModal(${item.index})" style="font-size:1em; color:#aaa;">✎</button>
+                    <button class="btn-icon" onclick="deleteTrack(${item.index})" style="font-size:1em; color:#cf6679;">×</button>
+                </div>
+            `;
             listDiv.appendChild(div);
         });
 
@@ -203,30 +218,172 @@ function renderSetlist(tracks) {
     });
 }
 
-async function addToSetlist() {
-    const url = document.getElementById("url-input").value;
-    const mode = document.getElementById("mode-select").value;
-    const cat = document.getElementById("category-input").value;
+// --- MODAL & EDIT LOGIC ---
 
-    if (!url) return;
-    await fetch("/api/setlist", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({url: url, manual_mode: mode, category: cat || "Général"})
-    });
-    document.getElementById("url-input").value = "";
+function openAddModal() {
+    editingIndex = null;
+    document.getElementById("media-modal").showModal();
+    // Clear Form
+    document.getElementById("yt-search-input").value = "";
+    document.getElementById("search-results").innerHTML = "";
+    document.getElementById("edit-title").value = "";
+    document.getElementById("edit-url").value = "";
+    document.getElementById("edit-category").value = "Général";
+    document.getElementById("edit-mode").value = "auto";
+    document.getElementById("yt-search-input").focus();
+}
+
+function openEditModal(index) {
+    editingIndex = index;
+    const track = currentTrackList[index];
+    if (!track) return;
+
+    document.getElementById("media-modal").showModal();
+
+    // Fill Form
+    document.getElementById("yt-search-input").value = "";
+    document.getElementById("search-results").innerHTML = ""; // Clear old search
+    document.getElementById("edit-title").value = track.title;
+    document.getElementById("edit-url").value = track.url;
+    document.getElementById("edit-category").value = track.category || "Général";
+
+    // Mode Logic: if track has specific open_mode that is NOT auto-derived...
+    // The backend stores "open_mode", but the UI dropdown expects "auto", "iframe", "external".
+    // If we want to show what is saved, we assume "manual_mode" isn't stored, but inferred.
+    // Let's assume standard behavior: if it's set to iframe/external, show it.
+    // If it was auto, we might have lost that info unless we store "manual_mode".
+    // For now, let's map what we have.
+    document.getElementById("edit-mode").value = track.open_mode || "auto";
+}
+
+function closeModal() {
+    document.getElementById("media-modal").close();
+    editingIndex = null;
+}
+
+async function searchYouTube() {
+    const q = document.getElementById("yt-search-input").value;
+    if (!q) return;
+
+    const container = document.getElementById("search-results");
+    container.innerHTML = "Chargement...";
+
+    try {
+        const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(q)}`);
+        const results = await res.json();
+
+        container.innerHTML = "";
+        results.forEach(video => {
+            const card = document.createElement("div");
+            card.className = "result-card";
+            card.onclick = () => selectResult(video);
+            card.innerHTML = `
+                <img src="${video.thumbnail_url}">
+                <div class="info">
+                    <div class="title" title="${video.title}">${video.title}</div>
+                    <div style="color:#888; margin-top:2px;">${video.channel}</div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    } catch (e) {
+        container.innerHTML = "Erreur de recherche.";
+        console.error(e);
+    }
+}
+
+function selectResult(video) {
+    document.getElementById("edit-title").value = video.title;
+    const url = video.id ? `https://www.youtube.com/watch?v=${video.id}` : "";
+    if (url) document.getElementById("edit-url").value = url;
+
+    // Auto-set mode to iframe if YouTube
+    document.getElementById("edit-mode").value = "iframe";
+}
+
+async function saveItem() {
+    const title = document.getElementById("edit-title").value;
+    const url = document.getElementById("edit-url").value;
+    const category = document.getElementById("edit-category").value;
+    const mode = document.getElementById("edit-mode").value;
+
+    if (!url) {
+        alert("L'URL est obligatoire.");
+        return;
+    }
+
+    const payload = {
+        title: title,
+        url: url,
+        category: category,
+        manual_mode: mode // Backend expects manual_mode to decide
+    };
+
+    if (editingIndex !== null) {
+        // UPDATE
+        await fetch(`/api/setlist/${editingIndex}`, {
+            method: "PUT",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+    } else {
+        // CREATE
+        await fetch("/api/setlist", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+    }
+
+    closeModal();
     loadSetlist();
 }
 
+function previewItem() {
+    const title = document.getElementById("edit-title").value;
+    const url = document.getElementById("edit-url").value;
+    const mode = document.getElementById("edit-mode").value;
+
+    // Construct a temporary track object
+    // We need backend logic to resolve ID if missing,
+    // but for preview we do best effort or rely on JS.
+
+    // If it's YouTube and we have URL, we can extract ID in JS for preview
+    let id = null;
+    const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
+    if (match) id = match[1];
+
+    let open_mode = mode;
+    if (mode === "auto") {
+        open_mode = (url.includes("youtube.com") || url.includes("youtu.be")) ? "iframe" : "external";
+    }
+
+    const track = {
+        title: title,
+        url: url,
+        id: id,
+        open_mode: open_mode,
+        profile_name: "Preview" // Temporary
+    };
+
+    // Play it
+    playTrack(track);
+}
+
+// --- PLAYER ---
+
 async function deleteTrack(index) {
+    if (!confirm("Supprimer ?")) return;
     await fetch(`/api/setlist/${index}`, { method: "DELETE" });
     loadSetlist();
 }
 
 function playTrackAt(index) {
     const track = currentTrackList[index];
-    if (!track) return;
+    if (track) playTrack(track);
+}
 
+function playTrack(track) {
     const ytDiv = document.getElementById("player");
     const genFrame = document.getElementById("generic-player");
 
@@ -235,6 +392,12 @@ function playTrackAt(index) {
         if (isYT) {
             genFrame.style.display = "none"; ytDiv.style.display = "block";
             if (track.id && player) player.loadVideoById(track.id);
+            // If just URL and no ID (e.g. preview), try to load by url?
+            // player.loadVideoByUrl? Or extract ID.
+            // If track.id is missing but it is YT, we might fail.
+            // But extract logic is in backend.
+            // For preview, we extracted it in JS.
+
             setMode("WEB", track.profile_name);
         } else {
             if (player && player.stopVideo) player.stopVideo();
@@ -243,6 +406,7 @@ function playTrackAt(index) {
             setMode("WIN", track.profile_name);
         }
     } else {
+        // External
         if (player && player.stopVideo) player.stopVideo();
         genFrame.src = "";
         window.open(track.url, '_blank');

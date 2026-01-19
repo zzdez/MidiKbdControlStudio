@@ -54,27 +54,13 @@
 
             <!-- SECTION SETLIST -->
             <div class="sidebar-section">
-                <div class="section-title">Bibliothèque Musicale</div>
+                <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+                    Bibliothèque Musicale
+                    <button class="btn-icon" onclick="openAddModal()">+</button>
+                </div>
 
                 <!-- Search -->
-                <input type="text" id="search-input" placeholder="Rechercher..." onkeyup="renderSetlist(currentTrackList)" style="width: 100%; margin-bottom: 10px; padding: 5px; box-sizing: border-box;">
-
-                <!-- Add Form -->
-                <div class="input-group" style="display:flex; flex-direction:column; gap:5px; margin-bottom:10px;">
-                    <div style="display:flex; gap:5px;">
-                        <input type="text" id="url-input" placeholder="URL..." style="flex:1;">
-                        <select id="mode-select" style="width:70px;">
-                            <option value="auto">Auto</option>
-                            <option value="iframe">Embed</option>
-                            <option value="external">Win</option>
-                        </select>
-                    </div>
-                    <div style="display:flex; gap:5px;">
-                        <input list="categories" id="category-input" placeholder="Catégorie (ex: Rock)" style="flex:1;">
-                        <datalist id="categories"></datalist>
-                        <button onclick="addToSetlist()" style="width:40px;">+</button>
-                    </div>
-                </div>
+                <input type="text" id="search-input" placeholder="Filtrer..." onkeyup="renderSetlist(currentTrackList)" style="width: 100%; margin-bottom: 10px; padding: 5px; box-sizing: border-box;">
 
                 <div id="setlist-container"></div>
             </div>
@@ -95,6 +81,59 @@
         </section>
 
     </main>
+
+    <!-- MEDIA MODAL -->
+    <dialog id="media-modal">
+        <div class="modal-header">
+            <h3>Ajouter / Modifier un Média</h3>
+            <button onclick="closeModal()" class="btn-close">×</button>
+        </div>
+
+        <div class="modal-body">
+            <!-- Search Zone -->
+            <div class="search-zone">
+                <div class="input-group">
+                    <input type="text" id="yt-search-input" placeholder="Recherche YouTube ou URL..." onkeydown="if(event.key==='Enter') searchYouTube()">
+                    <button onclick="searchYouTube()">🔍</button>
+                </div>
+                <div id="search-results" class="results-grid"></div>
+            </div>
+
+            <hr class="separator">
+
+            <!-- Edit Form -->
+            <div class="edit-form">
+                <label>Titre</label>
+                <input type="text" id="edit-title" placeholder="Titre de la chanson">
+
+                <label>URL</label>
+                <input type="text" id="edit-url" placeholder="https://...">
+
+                <div class="row-inputs">
+                    <div class="col">
+                        <label>Catégorie</label>
+                        <input list="categories" id="edit-category" placeholder="Général">
+                        <datalist id="categories"></datalist>
+                    </div>
+                    <div class="col">
+                        <label>Mode</label>
+                        <select id="edit-mode">
+                            <option value="auto">Auto (Détection)</option>
+                            <option value="iframe">Intégré (YouTube)</option>
+                            <option value="external">Externe (Navigateur)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn-secondary" onclick="previewItem()">Prévisualiser</button>
+            <div style="flex:1"></div>
+            <button class="btn-text" onclick="closeModal()">Annuler</button>
+            <button class="btn-primary" onclick="saveItem()">Sauvegarder</button>
+        </div>
+    </dialog>
 
     <script src="app.js"></script>
 </body>
