@@ -158,7 +158,7 @@ function renderSetlist(tracks) {
         grouped[cat].push({track, index: realIndex});
     });
 
-    // 3. Update Datalist
+    // 3. Update Datalist (Categories)
     const dataList = document.getElementById("categories");
     if (dataList) {
         dataList.innerHTML = "";
@@ -167,6 +167,18 @@ function renderSetlist(tracks) {
             const opt = document.createElement("option");
             opt.value = c;
             dataList.appendChild(opt);
+        });
+    }
+
+    // Update Datalist (Genres)
+    const genreList = document.getElementById("genres");
+    if (genreList) {
+        genreList.innerHTML = "";
+        const allGenres = new Set(currentTrackList.map(t => t.genre || "Divers"));
+        allGenres.forEach(g => {
+            const opt = document.createElement("option");
+            opt.value = g;
+            genreList.appendChild(opt);
         });
     }
 
@@ -232,8 +244,10 @@ function openAddModal() {
     document.getElementById("edit-channel").value = "";
     document.getElementById("edit-url").value = "";
     document.getElementById("edit-category").value = "Général";
+    document.getElementById("edit-genre").value = "Divers";
     document.getElementById("edit-mode").value = "auto";
-    document.getElementById("edit-description").value = "";
+    document.getElementById("edit-youtube-description").value = "";
+    document.getElementById("edit-user-notes").value = "";
 
     document.getElementById("preview-thumbnail").innerHTML = '<span style="font-size:30px;">🎵</span>';
 
@@ -256,8 +270,13 @@ function openEditModal(index) {
     document.getElementById("edit-channel").value = track.channel || "";
     document.getElementById("edit-url").value = track.url;
     document.getElementById("edit-category").value = track.category || "Général";
+    document.getElementById("edit-genre").value = track.genre || "Divers";
     document.getElementById("edit-mode").value = track.open_mode || "auto";
-    document.getElementById("edit-description").value = track.description || "";
+
+    // Legacy support: if description exists but not youtube_description, assume it was generic description (or user note?)
+    // Since we just migrated, we can put old description into user_notes if user_notes empty
+    document.getElementById("edit-youtube-description").value = track.youtube_description || "";
+    document.getElementById("edit-user-notes").value = track.user_notes || track.description || "";
 
     // Thumbnail
     if (track.thumbnail) {
@@ -318,7 +337,8 @@ function selectResult(video) {
 
     // 2. Channel & Description
     document.getElementById("edit-channel").value = video.channel || "";
-    document.getElementById("edit-description").value = video.description || "";
+    document.getElementById("edit-youtube-description").value = video.description || "";
+    // Don't overwrite user notes
 
     // 3. Thumbnail Preview
     if (video.thumbnail_url) {
@@ -347,8 +367,10 @@ async function saveItem() {
     const channel = document.getElementById("edit-channel").value;
     const url = document.getElementById("edit-url").value;
     const category = document.getElementById("edit-category").value;
+    const genre = document.getElementById("edit-genre").value;
     const mode = document.getElementById("edit-mode").value;
-    const description = document.getElementById("edit-description").value;
+    const youtube_description = document.getElementById("edit-youtube-description").value;
+    const user_notes = document.getElementById("edit-user-notes").value;
 
     // Extract thumbnail from preview if it's an image
     let thumbnail = "";
@@ -365,10 +387,12 @@ async function saveItem() {
         title: title,
         url: url,
         category: category,
+        genre: genre,
         manual_mode: mode,
         artist: artist,
         channel: channel,
-        description: description,
+        youtube_description: youtube_description,
+        user_notes: user_notes,
         thumbnail: thumbnail
     };
 

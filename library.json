@@ -1,0 +1,38 @@
+[
+    {
+        "type": "folder",
+        "name": "Setlist Import\u00e9e",
+        "children": [
+            {
+                "type": "url",
+                "name": "David Gilmour - Sorrow (Live at the Circus Maximus, Rome)",
+                "path": "https://www.youtube.com/watch?v=2Ud_WPoCv0k&list=RDMM2Ud_WPoCv0k&start_radio=1",
+                "profile": "YouTube"
+            },
+            {
+                "type": "url",
+                "name": "ZZ Top - La Grange (Live From Gruene Hall) | Stages",
+                "path": "https://www.youtube.com/watch?v=Gg9cNGHl-bg",
+                "profile": "YouTube"
+            },
+            {
+                "type": "url",
+                "name": "https://www.songsterr.com/a/wsa/cripper-shortcut-tab-s69298",
+                "path": "https://www.songsterr.com/a/wsa/cripper-shortcut-tab-s69298",
+                "profile": "Songsterr"
+            },
+            {
+                "type": "url",
+                "name": "ZZ Top - Brown Sugar (Live From Gruene Hall)",
+                "path": "https://youtu.be/h50eAv9tjvA?list=RDh50eAv9tjvA",
+                "profile": "YouTube"
+            },
+            {
+                "type": "url",
+                "name": "https://youtu.be/h50eAv9tjvA?list=RDh50eAv9tjvA",
+                "path": "https://youtu.be/h50eAv9tjvA?list=RDh50eAv9tjvA",
+                "profile": "YouTube"
+            }
+        ]
+    }
+]

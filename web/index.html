@@ -130,10 +130,18 @@
 
                     <div class="row-inputs">
                         <div class="col">
-                            <label>Catégorie</label>
-                            <input list="categories" id="edit-category" placeholder="Général">
+                            <label>Catégorie (Fonction)</label>
+                            <input list="categories" id="edit-category" placeholder="Ex: Cours, Cover...">
                             <datalist id="categories"></datalist>
                         </div>
+                        <div class="col">
+                            <label>Genre (Style)</label>
+                            <input list="genres" id="edit-genre" placeholder="Ex: Rock, Jazz...">
+                            <datalist id="genres"></datalist>
+                        </div>
+                    </div>
+
+                    <div class="row-inputs">
                         <div class="col">
                             <label>Mode</label>
                             <select id="edit-mode">
@@ -144,8 +152,11 @@
                         </div>
                     </div>
 
-                    <label>Résumé / Notes</label>
-                    <textarea id="edit-description" rows="3" style="width:100%; background:#121212; border:1px solid #333; color:white; padding:5px;" placeholder="Description ou notes..."></textarea>
+                    <label>Description YouTube</label>
+                    <textarea id="edit-youtube-description" rows="3" style="width:100%; background:#1a1a1a; border:1px solid #333; color:#aaa; padding:5px; font-size:0.8em;" placeholder="Description officielle..." readonly></textarea>
+
+                    <label>Mes Notes / Résumé</label>
+                    <textarea id="edit-user-notes" rows="3" style="width:100%; background:#121212; border:1px solid #333; color:white; padding:5px;" placeholder="Mes notes personnelles, accords, structure..."></textarea>
                 </div>
             </div>
         </div>

@@ -233,10 +233,12 @@ async def add_to_setlist(item: Dict):
             "open_mode": open_mode,
             "profile_name": profile_name,
             "category": category,
+            "genre": item.get("genre", "Divers"),
             "artist": item.get("artist", ""),
             "channel": item.get("channel", ""),
             "thumbnail": item.get("thumbnail", ""),
-            "description": item.get("description", "")
+            "youtube_description": item.get("youtube_description", ""),
+            "user_notes": item.get("user_notes", "")
         }
 
         items = []
@@ -323,10 +325,12 @@ async def update_setlist_item(index: int, item: Dict):
                 "open_mode": open_mode,
                 "profile_name": profile_name,
                 "category": category,
+                "genre": item.get("genre", "Divers"),
                 "artist": item.get("artist", ""),
                 "channel": item.get("channel", ""),
                 "thumbnail": item.get("thumbnail", ""),
-                "description": item.get("description", "")
+                "youtube_description": item.get("youtube_description", ""),
+                "user_notes": item.get("user_notes", "")
             }
 
             items[index] = updated_item
