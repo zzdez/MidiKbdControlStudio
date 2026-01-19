@@ -263,27 +263,30 @@ dialog::backdrop {
 .edit-layout {
     display: flex;
     flex-direction: column;
-    gap: 15px;
-}
-
-.edit-top-section {
-    display: flex;
-    gap: 20px;
-}
-
-.edit-left-col {
-    width: 320px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
     gap: 10px;
 }
 
-.edit-right-col {
+/* Zone 2: Split View */
+.zone-split {
+    display: flex;
+    gap: 15px;
+}
+
+.split-left {
+    width: 320px;
+    flex-shrink: 0;
+}
+
+.split-right {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+}
+
+/* Make Youtube Description fill height of image approx */
+.split-right textarea {
+    flex: 1; /* Fill remaining vertical space */
+    min-height: 170px; /* Approximate 16:9 of 320px width */
 }
 
 .thumbnail-preview {
@@ -300,7 +303,7 @@ dialog::backdrop {
 
 .edit-form label {
     display: block;
-    margin-top: 8px;
+    margin-top: 5px;
     margin-bottom: 2px;
     font-size: 0.8em;
     color: #aaa;

@@ -103,67 +103,68 @@
 
             <!-- Edit Form -->
             <div class="edit-form edit-layout">
-                <!-- Top Section: Thumbnail + Metadata -->
-                <div class="edit-top-section">
-                    <!-- Left: Thumbnail (Fixed Width) -->
-                    <div class="edit-left-col">
+
+                <!-- Zone 1: Title (Full Width) -->
+                <div class="zone-title">
+                    <label>Titre</label>
+                    <input type="text" id="edit-title" placeholder="Titre de la chanson" style="font-size:1.1em; font-weight:bold;">
+                </div>
+
+                <!-- Zone 2: Split View (Image | Description) -->
+                <div class="zone-split">
+                    <div class="split-left">
                         <div id="preview-thumbnail" class="thumbnail-preview">
                             <span style="font-size:40px;">🎵</span>
                         </div>
-
-                        <label>URL</label>
-                        <input type="text" id="edit-url" placeholder="https://...">
-
-                        <div class="row-inputs">
-                            <div class="col">
-                                <label>Catégorie</label>
-                                <input list="categories" id="edit-category" placeholder="Ex: Cours">
-                                <datalist id="categories"></datalist>
-                            </div>
-                            <div class="col">
-                                <label>Genre</label>
-                                <input list="genres" id="edit-genre" placeholder="Ex: Rock">
-                                <datalist id="genres"></datalist>
-                            </div>
-                        </div>
-
-                        <div class="row-inputs">
-                            <div class="col">
-                                <label>Mode</label>
-                                <select id="edit-mode">
-                                    <option value="auto">Auto</option>
-                                    <option value="iframe">Intégré (YouTube)</option>
-                                    <option value="external">Externe</option>
-                                </select>
-                            </div>
-                        </div>
                     </div>
-
-                    <!-- Right: Metadata & YouTube Desc -->
-                    <div class="edit-right-col">
-                        <label>Titre</label>
-                        <input type="text" id="edit-title" placeholder="Titre de la chanson">
-
-                        <div class="row-inputs">
-                            <div class="col">
-                                <label>Artiste</label>
-                                <input type="text" id="edit-artist" placeholder="Ex: Metallica">
-                            </div>
-                            <div class="col">
-                                <label>Chaîne</label>
-                                <input type="text" id="edit-channel" placeholder="Nom de la chaîne">
-                            </div>
-                        </div>
-
+                    <div class="split-right">
                         <label>Description YouTube</label>
                         <textarea id="edit-youtube-description" placeholder="Description officielle..." readonly></textarea>
                     </div>
                 </div>
 
-                <!-- Bottom Section: User Notes -->
-                <div class="edit-bottom-section">
+                <!-- Zone 3: Metadata Grid -->
+                <div class="zone-metadata">
+                    <div class="row-inputs">
+                        <div class="col">
+                            <label>Artiste</label>
+                            <input type="text" id="edit-artist" placeholder="Ex: Metallica">
+                        </div>
+                        <div class="col">
+                            <label>Chaîne</label>
+                            <input type="text" id="edit-channel" placeholder="Nom de la chaîne">
+                        </div>
+                        <div class="col">
+                            <label>URL</label>
+                            <input type="text" id="edit-url" placeholder="https://...">
+                        </div>
+                    </div>
+                    <div class="row-inputs">
+                        <div class="col">
+                            <label>Catégorie</label>
+                            <input list="categories" id="edit-category" placeholder="Ex: Cours">
+                            <datalist id="categories"></datalist>
+                        </div>
+                        <div class="col">
+                            <label>Genre</label>
+                            <input list="genres" id="edit-genre" placeholder="Ex: Rock">
+                            <datalist id="genres"></datalist>
+                        </div>
+                        <div class="col">
+                            <label>Mode</label>
+                            <select id="edit-mode">
+                                <option value="auto">Auto</option>
+                                <option value="iframe">Intégré (YouTube)</option>
+                                <option value="external">Externe</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Zone 4: User Notes -->
+                <div class="zone-notes">
                     <label>Mes Notes / Résumé</label>
-                    <textarea id="edit-user-notes" rows="4" placeholder="Mes notes personnelles, accords, structure..."></textarea>
+                    <textarea id="edit-user-notes" rows="3" placeholder="Mes notes personnelles, accords, structure..."></textarea>
                 </div>
             </div>
         </div>

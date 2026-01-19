@@ -343,7 +343,9 @@ function selectResult(video) {
 
     // 3. Thumbnail Preview
     if (video.thumbnail_url) {
-        document.getElementById("preview-thumbnail").innerHTML = `<img src="${video.thumbnail_url}">`; // CSS handles object-fit
+        document.getElementById("preview-thumbnail").innerHTML = `<img src="${video.thumbnail_url}">`;
+    } else {
+        document.getElementById("preview-thumbnail").innerHTML = '<span style="font-size:40px;">🎵</span>';
     }
 
     // 4. Try Parse Artist (Format "Artist - Title")
