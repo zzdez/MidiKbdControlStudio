@@ -243,8 +243,16 @@ function openAddModal() {
     document.getElementById("edit-artist").value = "";
     document.getElementById("edit-channel").value = "";
     document.getElementById("edit-url").value = "";
-    document.getElementById("edit-category").value = "Général";
-    document.getElementById("edit-genre").value = "Divers";
+
+    // Empty default for easy datalist access, with placeholders
+    const catInput = document.getElementById("edit-category");
+    catInput.value = "";
+    catInput.placeholder = "Général";
+
+    const genreInput = document.getElementById("edit-genre");
+    genreInput.value = "";
+    genreInput.placeholder = "Divers";
+
     document.getElementById("edit-mode").value = "auto";
     document.getElementById("youtube-desc-input").value = "";
     document.getElementById("user-notes-input").value = "";
@@ -369,8 +377,11 @@ async function saveItem() {
     const artist = document.getElementById("edit-artist").value;
     const channel = document.getElementById("edit-channel").value;
     const url = document.getElementById("edit-url").value;
-    const category = document.getElementById("edit-category").value;
-    const genre = document.getElementById("edit-genre").value;
+
+    // Use defaults if empty
+    const category = document.getElementById("edit-category").value || "Général";
+    const genre = document.getElementById("edit-genre").value || "Divers";
+
     const mode = document.getElementById("edit-mode").value;
     const youtube_description = document.getElementById("youtube-desc-input").value;
     const user_notes = document.getElementById("user-notes-input").value;
