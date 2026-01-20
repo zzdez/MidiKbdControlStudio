@@ -325,7 +325,7 @@ dialog::backdrop {
 
 .edit-form textarea { resize: vertical; }
 
-#edit-youtube-description {
+#youtube-desc-input {
     font-size: 0.8em;
     color: #aaa;
     background: #181818;

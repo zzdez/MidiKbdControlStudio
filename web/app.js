@@ -246,8 +246,8 @@ function openAddModal() {
     document.getElementById("edit-category").value = "Général";
     document.getElementById("edit-genre").value = "Divers";
     document.getElementById("edit-mode").value = "auto";
-    document.getElementById("edit-youtube-description").value = "";
-    document.getElementById("edit-user-notes").value = "";
+    document.getElementById("youtube-desc-input").value = "";
+    document.getElementById("user-notes-input").value = "";
 
     document.getElementById("preview-thumbnail").innerHTML = '<span style="font-size:30px;">🎵</span>';
 
@@ -275,8 +275,8 @@ function openEditModal(index) {
 
     // Legacy support: if description exists but not youtube_description, assume it was generic description (or user note?)
     // Since we just migrated, we can put old description into user_notes if user_notes empty
-    document.getElementById("edit-youtube-description").value = track.youtube_description || "";
-    document.getElementById("edit-user-notes").value = track.user_notes || track.description || "";
+    document.getElementById("youtube-desc-input").value = track.youtube_description || "";
+    document.getElementById("user-notes-input").value = track.user_notes || track.description || "";
 
     // Thumbnail
     if (track.thumbnail) {
@@ -339,7 +339,7 @@ function selectResult(video) {
 
     // 2. Channel & Description
     document.getElementById("edit-channel").value = video.channel || "";
-    document.getElementById("edit-youtube-description").value = video.description || "";
+    document.getElementById("youtube-desc-input").value = video.description || "";
 
     // 3. Thumbnail Preview
     if (video.thumbnail_url) {
@@ -372,8 +372,8 @@ async function saveItem() {
     const category = document.getElementById("edit-category").value;
     const genre = document.getElementById("edit-genre").value;
     const mode = document.getElementById("edit-mode").value;
-    const youtube_description = document.getElementById("edit-youtube-description").value;
-    const user_notes = document.getElementById("edit-user-notes").value;
+    const youtube_description = document.getElementById("youtube-desc-input").value;
+    const user_notes = document.getElementById("user-notes-input").value;
 
     // Extract thumbnail from preview if it's an image
     let thumbnail = "";

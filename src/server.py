@@ -128,7 +128,7 @@ def search_youtube(query: str, api_key: str):
                         "id": video_id,
                         "title": snippet.get("title"),
                         "channel": snippet.get("channelTitle"),
-                        "description": snippet.get("description"),
+                        "description": snippet.get("description", ""),
                         "thumbnail_url": snippet.get("thumbnails", {}).get("medium", {}).get("url")
                     })
     except Exception as e:
