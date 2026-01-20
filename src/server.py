@@ -70,7 +70,8 @@ def extract_youtube_id(url: str):
         return match.group(1)
     return None
 
-def fetch_youtube_title(video_id: str, api_key: str):
+def fetch_youtube_details(video_id: str, api_key: str):
+    """Fetches full details for a specific video ID."""
     if not api_key: return None
     url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet&id={video_id}&key={api_key}"
     try:
@@ -78,15 +79,28 @@ def fetch_youtube_title(video_id: str, api_key: str):
         if response.status_code == 200:
             data = response.json()
             if "items" in data and len(data["items"]) > 0:
-                return data["items"][0]["snippet"]["title"]
+                item = data["items"][0]
+                snippet = item.get("snippet", {})
+                return {
+                    "id": video_id,
+                    "title": snippet.get("title"),
+                    "channel": snippet.get("channelTitle"),
+                    "description": snippet.get("description", ""),
+                    "thumbnail_url": snippet.get("thumbnails", {}).get("medium", {}).get("url")
+                }
     except Exception as e:
         print(f"YouTube API Error: {e}")
     return None
 
+# Deprecated but kept for compatibility if imported elsewhere, aliased to new logic
+def fetch_youtube_title(video_id: str, api_key: str):
+    details = fetch_youtube_details(video_id, api_key)
+    return details["title"] if details else None
+
 def search_youtube(query: str, api_key: str):
     """
     Searches YouTube for query.
-    Returns a list of dicts: {id, title, channel, thumbnail_url}
+    Returns a list of dicts: {id, title, channel, thumbnail_url, description}
     """
     if not api_key:
         return []
@@ -95,14 +109,9 @@ def search_youtube(query: str, api_key: str):
     video_id = extract_youtube_id(query)
     if video_id:
         # It's a URL, fetch single video details
-        title = fetch_youtube_title(video_id, api_key)
-        if title:
-            return [{
-                "id": video_id,
-                "title": title,
-                "channel": "Direct URL",
-                "thumbnail_url": f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg"
-            }]
+        details = fetch_youtube_details(video_id, api_key)
+        if details:
+            return [details]
         return []
 
     # Text Search
