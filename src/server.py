@@ -4,6 +4,7 @@ import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from typing import List, Dict
 import json
 import requests
@@ -155,6 +156,12 @@ async def api_youtube_search(q: str):
 
     return search_youtube(q, api_key)
 
+@app.get("/api/stream")
+async def stream_file(path: str):
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path)
+
 @app.get("/api/status")
 async def get_status():
     return {"status": "ok"}
@@ -197,38 +204,43 @@ async def add_to_setlist(item: Dict):
         if not url:
             raise HTTPException(status_code=400, detail="URL is required")
 
-        # 1. Determine Profile (Content Based)
+        # 1. Determine Type (Web vs Local)
+        is_web = url.startswith("http")
+
+        # 2. Determine Profile & Mode
         profile_name = "Web Generic"
-        if "youtube.com" in url or "youtu.be" in url:
-            profile_name = "YouTube"
-        elif "songsterr.com" in url:
-            profile_name = "Songsterr"
+        open_mode = "external"
 
-        # 2. Determine Open Mode
-        open_mode = "external" # Default safe
-
-        if manual_mode == "iframe":
-            open_mode = "iframe"
-        elif manual_mode == "external":
-            open_mode = "external"
-        else:
-            # AUTO Detect
+        if is_web:
             if "youtube.com" in url or "youtu.be" in url:
+                profile_name = "YouTube"
+            elif "songsterr.com" in url:
+                profile_name = "Songsterr"
+
+            if manual_mode == "iframe":
                 open_mode = "iframe"
-            else:
+            elif manual_mode == "external":
                 open_mode = "external"
+            else:
+                # AUTO Detect Web
+                open_mode = "iframe" if profile_name == "YouTube" else "external"
+        else:
+            # Local File
+            profile_name = "Local Media"
+            open_mode = "local"
 
         # 3. Extract ID (If YouTube)
-        # We always try to extract ID if it looks like YouTube, useful for metadata
         video_id = extract_youtube_id(url)
 
-        # 3. Get Title
+        # 4. Get Title
         title = item.get("title")
         if not title:
             # Try API for YouTube
             if open_mode == "iframe" and video_id:
                 api_key = config_manager.get("YOUTUBE_API_KEY")
                 title = fetch_youtube_title(video_id, api_key)
+            elif open_mode == "local":
+                title = os.path.basename(url)
 
             # Fallback
             if not title:
@@ -302,26 +314,30 @@ async def update_setlist_item(index: int, item: Dict):
             if not url:
                 raise HTTPException(status_code=400, detail="URL is required")
 
-            # 1. Determine Profile (Content Based)
+            # 1. Determine Type (Web vs Local)
+            is_web = url.startswith("http")
+
+            # 2. Determine Profile & Mode
             profile_name = "Web Generic"
-            if "youtube.com" in url or "youtu.be" in url:
-                profile_name = "YouTube"
-            elif "songsterr.com" in url:
-                profile_name = "Songsterr"
+            open_mode = "external"
 
-            # 2. Determine Open Mode
-            open_mode = "external" # Default safe
-
-            if manual_mode == "iframe":
-                open_mode = "iframe"
-            elif manual_mode == "external":
-                open_mode = "external"
-            else:
-                # AUTO Detect
+            if is_web:
                 if "youtube.com" in url or "youtu.be" in url:
+                    profile_name = "YouTube"
+                elif "songsterr.com" in url:
+                    profile_name = "Songsterr"
+
+                if manual_mode == "iframe":
                     open_mode = "iframe"
-                else:
+                elif manual_mode == "external":
                     open_mode = "external"
+                else:
+                    # AUTO Detect Web
+                    open_mode = "iframe" if profile_name == "YouTube" else "external"
+            else:
+                # Local File
+                profile_name = "Local Media"
+                open_mode = "local"
 
             # 3. Extract ID (If YouTube)
             video_id = extract_youtube_id(url)

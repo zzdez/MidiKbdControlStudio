@@ -45,16 +45,36 @@ function connectWS() {
 
 // --- LOGIC ---
 function executeWebAction(actionValue) {
-    if (!player || !player.getPlayerState) return;
     if (!actionValue) return;
     const cmd = actionValue.toLowerCase();
 
-    if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd.includes(c))) toggleVideo();
-    else if (cmd.includes('media_stop')) player.stopVideo();
-    else if (cmd.includes('media_rewind') || cmd.includes('left')) seekRelative(-5);
-    else if (cmd.includes('media_forward') || cmd.includes('right')) seekRelative(5);
-    else if (cmd.includes('media_speed_up')) player.setPlaybackRate(player.getPlaybackRate() + 0.25);
-    else if (cmd.includes('media_speed_down')) player.setPlaybackRate(Math.max(0.25, player.getPlaybackRate() - 0.25));
+    // Check if HTML5 player is active
+    const html5 = document.getElementById("html5-player");
+    const isHtml5 = html5 && html5.style.display !== "none";
+
+    if (isHtml5) {
+        if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd.includes(c))) {
+            html5.paused ? html5.play() : html5.pause();
+        } else if (cmd.includes('media_stop')) {
+            html5.pause(); html5.currentTime = 0;
+        } else if (cmd.includes('media_rewind') || cmd.includes('left')) {
+            html5.currentTime = Math.max(0, html5.currentTime - 5);
+        } else if (cmd.includes('media_forward') || cmd.includes('right')) {
+            html5.currentTime = Math.min(html5.duration, html5.currentTime + 5);
+        } else if (cmd.includes('media_speed_up')) {
+            html5.playbackRate += 0.25;
+        } else if (cmd.includes('media_speed_down')) {
+            html5.playbackRate = Math.max(0.25, html5.playbackRate - 0.25);
+        }
+    } else if (player && player.getPlayerState) {
+        // YouTube API
+        if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd.includes(c))) toggleVideo();
+        else if (cmd.includes('media_stop')) player.stopVideo();
+        else if (cmd.includes('media_rewind') || cmd.includes('left')) seekRelative(-5);
+        else if (cmd.includes('media_forward') || cmd.includes('right')) seekRelative(5);
+        else if (cmd.includes('media_speed_up')) player.setPlaybackRate(player.getPlaybackRate() + 0.25);
+        else if (cmd.includes('media_speed_down')) player.setPlaybackRate(Math.max(0.25, player.getPlaybackRate() - 0.25));
+    }
 }
 
 function seekRelative(sec) { player.seekTo(player.getCurrentTime() + sec, true); }
@@ -536,29 +556,35 @@ function playTrackAt(index) {
 function playTrack(track) {
     const ytDiv = document.getElementById("player");
     const genFrame = document.getElementById("generic-player");
+    const html5 = document.getElementById("html5-player");
+
+    // Reset all
+    ytDiv.style.display = "none";
+    genFrame.style.display = "none";
+    html5.style.display = "none";
+
+    if (player && player.stopVideo) player.stopVideo();
+    html5.pause(); html5.src = "";
+    genFrame.src = "";
 
     if (track.open_mode === "iframe") {
         const isYT = track.url.includes("youtu");
         if (isYT) {
-            genFrame.style.display = "none"; ytDiv.style.display = "block";
+            ytDiv.style.display = "block";
             if (track.id && player) player.loadVideoById(track.id);
-            // If just URL and no ID (e.g. preview), try to load by url?
-            // player.loadVideoByUrl? Or extract ID.
-            // If track.id is missing but it is YT, we might fail.
-            // But extract logic is in backend.
-            // For preview, we extracted it in JS.
-
             setMode("WEB", track.profile_name);
         } else {
-            if (player && player.stopVideo) player.stopVideo();
-            ytDiv.style.display = "none"; genFrame.style.display = "block";
+            genFrame.style.display = "block";
             genFrame.src = track.url;
             setMode("WIN", track.profile_name);
         }
+    } else if (track.open_mode === "local") {
+        html5.style.display = "block";
+        html5.src = "/api/stream?path=" + encodeURIComponent(track.url);
+        html5.play();
+        setMode("WEB", track.profile_name);
     } else {
         // External
-        if (player && player.stopVideo) player.stopVideo();
-        genFrame.src = "";
         window.open(track.url, '_blank');
         setMode("WIN", track.profile_name);
     }
