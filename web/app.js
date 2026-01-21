@@ -93,9 +93,7 @@ function handleMidi(cc, value) {
 
 function setMode(mode, forcedProfileName = null) {
     currentMode = mode;
-    document.getElementById("mode-win").className = mode === "WIN" ? "active" : "";
-    document.getElementById("mode-web").className = mode === "WEB" ? "active" : "";
-
+    // Removed old button update logic
     fetch("/api/set_mode", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
@@ -103,15 +101,29 @@ function setMode(mode, forcedProfileName = null) {
     });
 }
 
+// --- VIEW NAVIGATION ---
+function switchView(viewName) {
+    // Buttons
+    document.getElementById("tab-library").classList.toggle("active", viewName === "library");
+    document.getElementById("tab-apps").classList.toggle("active", viewName === "apps");
+
+    // Containers
+    document.getElementById("view-library").style.display = viewName === "library" ? "block" : "none";
+    document.getElementById("view-apps").style.display = viewName === "apps" ? "block" : "none";
+}
+
 // --- SETLIST ---
 let currentTrackList = [];
 let editingIndex = null; // null = Add Mode, number = Edit Mode
+let sortAsc = true;
 
 async function loadSetlist() {
     try {
         const res = await fetch("/api/setlist");
         if (res.ok) {
-            currentTrackList = await res.json();
+            const rawList = await res.json();
+            // Assign persistent original index for safe editing/deleting after sort
+            currentTrackList = rawList.map((track, idx) => ({ ...track, originalIndex: idx }));
         } else {
             currentTrackList = [];
         }
@@ -132,37 +144,62 @@ function getIcon(url) {
     }
 }
 
+function sortTable(key) {
+    sortAsc = !sortAsc;
+    currentTrackList.sort((a, b) => {
+        const valA = (a[key] || "").toString().toLowerCase();
+        const valB = (b[key] || "").toString().toLowerCase();
+        return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    });
+    renderSetlist(currentTrackList);
+}
+
 function renderSetlist(tracks) {
-    const container = document.getElementById("setlist-container");
-    if (!container) return;
-    container.innerHTML = "";
+    const tbody = document.getElementById("setlist-body");
+    if (!tbody) return;
+    tbody.innerHTML = "";
 
     // 1. Search Filter
     const query = document.getElementById("search-input").value.toLowerCase();
     const filtered = tracks.filter(t => (t.title || t.url).toLowerCase().includes(query));
 
     if (!filtered || filtered.length === 0) {
-        container.innerHTML = "<div style='color:gray; font-size:12px; padding:10px;'>Aucun résultat</div>";
+        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:20px; color:gray;'>Aucun résultat</td></tr>";
+        // Update datalists anyway
+        updateDatalists(tracks);
         return;
     }
 
-    // 2. Group by Category
-    const grouped = {};
-    const categories = new Set();
+    filtered.forEach((track) => {
+        // Use originalIndex for safe actions
+        const realIndex = track.originalIndex;
 
-    filtered.forEach((track, index) => {
-        const realIndex = currentTrackList.indexOf(track);
-        const cat = track.category || "Général";
-        categories.add(cat);
-        if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push({track, index: realIndex});
+        const tr = document.createElement("tr");
+
+        const iconUrl = getIcon(track.url);
+        const iconImg = iconUrl ? `<img src="${iconUrl}" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">` : '';
+
+        tr.innerHTML = `
+            <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${iconImg}${track.title || track.url}</td>
+            <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.artist || ""}</td>
+            <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.category || ""}</td>
+            <td style="text-align:right;">
+                <button class="btn-action" onclick="openEditModal(${realIndex})" title="Éditer">✎</button>
+                <button class="btn-action" onclick="deleteTrack(${realIndex})" style="color:#cf6679;" title="Supprimer">×</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
     });
 
-    // 3. Update Datalist (Categories)
+    updateDatalists(currentTrackList);
+}
+
+function updateDatalists(tracks) {
+    // Categories
     const dataList = document.getElementById("categories");
     if (dataList) {
         dataList.innerHTML = "";
-        const allCats = new Set(currentTrackList.map(t => t.category || "Général"));
+        const allCats = new Set(tracks.map(t => t.category || "Général"));
         allCats.forEach(c => {
             const opt = document.createElement("option");
             opt.value = c;
@@ -170,64 +207,85 @@ function renderSetlist(tracks) {
         });
     }
 
-    // Update Datalist (Genres)
+    // Genres
     const genreList = document.getElementById("genres");
     if (genreList) {
         genreList.innerHTML = "";
-        const allGenres = new Set(currentTrackList.map(t => t.genre || "Divers"));
+        const allGenres = new Set(tracks.map(t => t.genre || "Divers"));
         allGenres.forEach(g => {
             const opt = document.createElement("option");
             opt.value = g;
             genreList.appendChild(opt);
         });
     }
+}
 
-    // 4. Render Groups
-    const sortedCats = Object.keys(grouped).sort();
+// --- APPS LOGIC ---
+async function loadApps() {
+    try {
+        const res = await fetch("/api/apps");
+        const apps = await res.json();
+        renderApps(apps);
+    } catch (e) {
+        console.error("Apps load error:", e);
+    }
+}
 
-    sortedCats.forEach(cat => {
-        const groupDiv = document.createElement("div");
-        groupDiv.className = "setlist-group";
+function renderApps(apps) {
+    const container = document.getElementById("apps-container");
+    if (!container) return;
+    container.innerHTML = "";
 
-        // Header
-        const header = document.createElement("div");
-        header.className = "category-header";
-        header.style.cssText = "background-color: #333; padding: 5px; cursor: pointer; font-weight: bold; margin-top: 5px; border-radius: 4px;";
-        header.innerText = `${cat} (${grouped[cat].length})`;
-        header.onclick = () => {
-            const list = groupDiv.querySelector(".category-list");
-            list.style.display = list.style.display === "none" ? "block" : "none";
-        };
-        groupDiv.appendChild(header);
+    apps.forEach((app, index) => {
+        const card = document.createElement("div");
+        card.className = "app-card-large";
+        card.onclick = () => launchApp(app.path);
 
-        // List
-        const listDiv = document.createElement("div");
-        listDiv.className = "category-list";
-        listDiv.style.display = "block"; // Open by default
-
-        grouped[cat].forEach(item => {
-            const div = document.createElement("div");
-            div.className = "track-item";
-
-            const iconUrl = getIcon(item.track.url);
-            const iconImg = iconUrl ? `<img src="${iconUrl}" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">` : '';
-
-            div.innerHTML = `
-                <div style="flex:1; cursor:pointer; display:flex; align-items:center;" onclick="playTrackAt(${item.index})">
-                    ${iconImg}
-                    <span class="track-title">${item.track.title || item.track.url}</span>
-                </div>
-                <div style="display:flex; gap:5px;">
-                    <button class="btn-icon" onclick="openEditModal(${item.index})" style="font-size:1em; color:#aaa;">✎</button>
-                    <button class="btn-icon" onclick="deleteTrack(${item.index})" style="font-size:1em; color:#cf6679;">×</button>
-                </div>
-            `;
-            listDiv.appendChild(div);
-        });
-
-        groupDiv.appendChild(listDiv);
-        container.appendChild(groupDiv);
+        card.innerHTML = `
+            <div class="app-icon-large">🚀</div>
+            <div class="app-name-large">${app.name}</div>
+        `;
+        container.appendChild(card);
     });
+}
+
+function openAppModal() { document.getElementById("app-modal").showModal(); }
+function closeAppModal() { document.getElementById("app-modal").close(); }
+
+async function saveApp() {
+    const name = document.getElementById("new-app-name").value;
+    const path = document.getElementById("new-app-path").value;
+    if (!name || !path) return;
+
+    await fetch("/api/apps", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({name, path})
+    });
+
+    document.getElementById("new-app-name").value = "";
+    document.getElementById("new-app-path").value = "";
+    closeAppModal();
+    loadApps();
+}
+
+async function addApp() {
+    // Deprecated inline call, redirected to modal
+    openAppModal();
+}
+
+async function launchApp(path) {
+    // Launching app implies WIN mode usually
+    setMode("WIN");
+    await fetch("/api/launch_app", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({path})
+    });
+}
+
+async function openSettings() {
+    await fetch("/api/open_settings", { method: "POST" });
 }
 
 // --- MODAL & EDIT LOGIC ---
@@ -264,7 +322,8 @@ function openAddModal() {
 
 function openEditModal(index) {
     editingIndex = index;
-    const track = currentTrackList[index];
+    // Find track by original index in the current (possibly sorted) list
+    const track = currentTrackList.find(t => t.originalIndex === index);
     if (!track) return;
 
     document.getElementById("media-modal").showModal();
@@ -470,7 +529,7 @@ async function deleteTrack(index) {
 }
 
 function playTrackAt(index) {
-    const track = currentTrackList[index];
+    const track = currentTrackList.find(t => t.originalIndex === index);
     if (track) playTrack(track);
 }
 
@@ -503,45 +562,6 @@ function playTrack(track) {
         window.open(track.url, '_blank');
         setMode("WIN", track.profile_name);
     }
-}
-
-// --- APPS ---
-async function loadApps() {
-    const res = await fetch("/api/apps");
-    const apps = await res.json();
-    const container = document.getElementById("apps-container");
-    container.innerHTML = "";
-    apps.forEach(app => {
-        const div = document.createElement("div");
-        div.className = "app-card";
-        div.innerText = app.name;
-        div.onclick = () => launchApp(app.path);
-        container.appendChild(div);
-    });
-}
-
-async function addApp() {
-    const name = document.getElementById("app-name").value;
-    const path = document.getElementById("app-path").value;
-    if (!name || !path) return;
-    await fetch("/api/apps", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({name, path})
-    });
-    loadApps();
-}
-
-async function launchApp(path) {
-    await fetch("/api/launch_app", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({path})
-    });
-}
-
-async function openSettings() {
-    await fetch("/api/open_settings", { method: "POST" });
 }
 
 // --- RENDER ---

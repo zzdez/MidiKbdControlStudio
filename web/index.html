@@ -41,46 +41,79 @@
         <!-- COLONNE DROITE (30%) -->
         <section class="sidebar-zone">
 
-            <!-- SECTION CONTROL MODE -->
-            <div class="sidebar-section">
-                <div class="section-title">Contrôle</div>
-                <div class="mode-switch">
-                    <div class="toggle-btn-group">
-                        <button id="mode-win" class="active" onclick="setMode('WIN')">WINDOWS</button>
-                        <button id="mode-web" onclick="setMode('WEB')">WEB</button>
+            <!-- TAB NAVIGATION -->
+            <div class="nav-tabs">
+                <button id="tab-library" class="active" onclick="switchView('library')">BIBLIOTHÈQUE 🎵</button>
+                <button id="tab-apps" onclick="switchView('apps')">APPLICATIONS 🚀</button>
+            </div>
+
+            <!-- VIEW: LIBRARY -->
+            <div id="view-library" class="view-container">
+                <div class="sidebar-section">
+                    <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+                        Setlist
+                        <button class="btn-icon" onclick="openAddModal()">+</button>
+                    </div>
+
+                    <!-- Search -->
+                    <input type="text" id="search-input" placeholder="Filtrer..." onkeyup="renderSetlist(currentTrackList)" style="width: 100%; margin-bottom: 10px; padding: 5px; box-sizing: border-box;">
+
+                    <!-- Table -->
+                    <div class="table-wrapper">
+                        <table id="library-table">
+                            <thead>
+                                <tr>
+                                    <th onclick="sortTable('title')">Titre</th>
+                                    <th onclick="sortTable('artist')">Artiste</th>
+                                    <th onclick="sortTable('category')">Cat</th>
+                                    <th style="width: 60px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="setlist-body">
+                                <!-- JS Generated -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
 
-            <!-- SECTION SETLIST -->
-            <div class="sidebar-section">
-                <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
-                    Bibliothèque Musicale
-                    <button class="btn-icon" onclick="openAddModal()">+</button>
-                </div>
+            <!-- VIEW: APPS -->
+            <div id="view-apps" class="view-container" style="display:none;">
+                <div class="sidebar-section">
+                    <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+                        Lanceur
+                        <button class="btn-icon" onclick="openAppModal()">+</button>
+                    </div>
 
-                <!-- Search -->
-                <input type="text" id="search-input" placeholder="Filtrer..." onkeyup="renderSetlist(currentTrackList)" style="width: 100%; margin-bottom: 10px; padding: 5px; box-sizing: border-box;">
-
-                <div id="setlist-container"></div>
-            </div>
-
-            <!-- SECTION APPS -->
-            <div class="sidebar-section">
-                <div class="section-title">Apps Launcher</div>
-                <div id="apps-container" class="app-grid">
-                    <!-- Apps JS -->
-                </div>
-                <div style="margin-top:5px; display:flex; gap:5px;">
-                    <input type="text" id="app-name" placeholder="Nom">
-                    <input type="text" id="app-path" placeholder="Chemin .exe">
-                    <button onclick="addApp()">+</button>
+                    <div id="apps-container" class="app-grid-large">
+                        <!-- Apps JS -->
+                    </div>
                 </div>
             </div>
 
         </section>
 
     </main>
+
+    <!-- APP MODAL -->
+    <dialog id="app-modal">
+        <div class="modal-header">
+            <h3>Ajouter une Application</h3>
+            <button onclick="closeAppModal()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="edit-form">
+                <label>Nom</label>
+                <input type="text" id="new-app-name" placeholder="Ex: Reaper">
+                <label>Chemin Exécutable</label>
+                <input type="text" id="new-app-path" placeholder="C:\Program Files\...">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-text" onclick="closeAppModal()">Annuler</button>
+            <button class="btn-primary" onclick="saveApp()">Sauvegarder</button>
+        </div>
+    </dialog>
 
     <!-- MEDIA MODAL -->
     <dialog id="media-modal">
