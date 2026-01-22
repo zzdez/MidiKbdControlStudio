@@ -230,10 +230,17 @@ async function deleteTrack(index) {
 
 // --- 6. LOGIQUE LOCALE (NOUVEAU) ---
 async function addLocalFile() {
-    // Appel au Backend pour ouvrir la fenêtre de fichier Windows
-    await fetch("/api/local/add", { method: "POST" });
-    // Recharger la liste après sélection
-    loadLocalLib();
+    console.log("Clic sur Ajouter Fichier Local...");
+    try {
+        const response = await fetch("/api/local/add", { method: "POST" });
+        const result = await response.json();
+        console.log("Réponse serveur:", result);
+        if (result.status === "ok") {
+            loadLocalLib(); // Rafraîchir la liste
+        }
+    } catch (e) {
+        console.error("Erreur addLocalFile:", e);
+    }
 }
 
 async function loadLocalLib() {

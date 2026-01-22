@@ -272,7 +272,7 @@ async def add_local_file(request: Request):
         with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
             json.dump(items, f, indent=4)
 
-        return new_item
+        return {"status": "ok", "data": new_item}
 
     except Exception as e:
         print(f"Local Add Error: {e}")
