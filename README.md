@@ -10,9 +10,13 @@
 *   **Bibliothèque & Smart Launcher :**
     *   Un tiroir ("Drawer") intégré à la télécommande pour lancer vos morceaux et vos applications favorites.
     *   Détection automatique des applications liées à vos profils (ex: lancez "Reaper" et le profil change automatiquement).
-*   **Setlist Catégorisée :** Organisez vos morceaux par Artiste, Style ou Dossier. Recherche instantanée intégrée.
-*   **Contrôle Hybride :**
+*   **Setlist Catégorisée & Intelligente :**
+    *   **Nouveau !** Modale de recherche YouTube intégrée : trouvez, prévisualisez et ajoutez vos backing tracks sans quitter l'appli.
+    *   **Nouveau !** Support des fichiers locaux (MP3/WAV) via streaming natif.
+    *   Organisez par Artiste, Genre, et ajoutez vos notes personnelles distinctes de la description YouTube.
+*   **Contrôle Hybride & Robuste :**
     *   **Mode WEB :** Pilotez le lecteur YouTube (Play, Pause, Vitesse, Seek) directement avec vos pédales.
+    *   **Nouveau !** Injection native des commandes (Win32) pour piloter même les applications récalcitrantes (Moises, applis Electron).
     *   **Mode WINDOWS :** Simulez des raccourcis clavier pour contrôler vos logiciels ou sites externes.
 *   **Overlay Persistant :** Une fenêtre "Always-on-Top" qui affiche l'état de votre pédalier, minimisable dans la barre des tâches.
 
