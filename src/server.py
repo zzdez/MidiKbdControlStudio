@@ -5,6 +5,8 @@ import urllib.parse
 import mimetypes
 import shutil
 from pathlib import Path
+import tkinter
+from tkinter import filedialog
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -199,38 +201,36 @@ async def get_local_files():
     return []
 
 @app.post("/api/local/add")
-async def add_local_file(request: Request):
-    """
-    Opens native file dialog on server machine (via main thread wrapper).
-    Extracts metadata using mutagen.
-    Saves to local_lib.json.
-    """
+def add_local_file():
+    print("[SERVER] Demande d'ajout de fichier local reçue.")
+
+    # Astuce pour ouvrir une dialog depuis un thread non-GUI
     try:
-        # 1. Trigger Dialog via Main Thread
-        if not hasattr(request.app.state, "open_file_dialog"):
-            raise HTTPException(status_code=503, detail="File Dialog not supported")
+        # On crée une racine Tkinter temporaire juste pour la dialog
+        root = tkinter.Tk()
+        root.attributes("-topmost", True) # Force au premier plan
+        root.withdraw() # Cache la petite fenêtre vide
 
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
+        file_path = filedialog.askopenfilename(
+            parent=root,
+            title="Sélectionner un fichier audio/vidéo",
+            filetypes=[("Media files", "*.mp3 *.wav *.mp4 *.mkv *.flac")]
+        )
 
-        def on_file_selected(path):
-            loop.call_soon_threadsafe(future.set_result, path)
+        root.destroy() # Nettoyage
 
-        request.app.state.open_file_dialog(on_file_selected)
-
-        # Wait for user input (this blocks this request, but not the server)
-        path = await future
-
-        if not path:
+        if not file_path:
             return {"status": "cancelled"}
 
-        # 2. Extract Metadata
+        print(f"[SERVER] Fichier choisi : {file_path}")
+
+        # --- Extraction Métadonnées (Mutagen) ---
         artist = ""
-        title = os.path.basename(path)
+        title = os.path.basename(file_path)
         duration = 0
 
         try:
-            audio = mutagen.File(path)
+            audio = mutagen.File(file_path)
             if audio:
                 # Duration
                 if hasattr(audio, "info") and hasattr(audio.info, "length"):
@@ -247,19 +247,18 @@ async def add_local_file(request: Request):
 
                         # Vorbis (FLAC, OGG) / MP4
                         if not artist and "artist" in tags: artist = str(tags["artist"][0])
-                        if title == os.path.basename(path) and "title" in tags: title = str(tags["title"][0])
+                        if title == os.path.basename(file_path) and "title" in tags: title = str(tags["title"][0])
         except Exception as e:
             print(f"Metadata Error: {e}")
 
-        # 3. Create Record
+        # --- Sauvegarde dans local_lib.json ---
         new_item = {
             "title": title,
             "artist": artist,
             "duration": duration,
-            "path": path
+            "path": file_path
         }
 
-        # 4. Save
         items = []
         if os.path.exists(LOCAL_LIB_FILE):
             try:
@@ -275,8 +274,8 @@ async def add_local_file(request: Request):
         return {"status": "ok", "data": new_item}
 
     except Exception as e:
-        print(f"Local Add Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[SERVER] Erreur FileDialog : {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.delete("/api/local/files/{index}")
 async def delete_local_file(index: int):
