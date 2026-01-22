@@ -44,8 +44,9 @@
 
             <!-- TAB NAVIGATION -->
             <div class="nav-tabs">
-                <button id="tab-library" class="active" onclick="switchView('library')">BIBLIOTHÈQUE 🎵</button>
-                <button id="tab-apps" onclick="switchView('apps')">APPLICATIONS 🚀</button>
+                <button id="tab-library" class="active" onclick="switchView('library')">WEB 🎵</button>
+                <button id="tab-local" onclick="switchView('local')">LOCAL 📂</button>
+                <button id="tab-apps" onclick="switchView('apps')">APPS 🚀</button>
             </div>
 
             <!-- VIEW: LIBRARY -->
@@ -71,6 +72,35 @@
                                 </tr>
                             </thead>
                             <tbody id="setlist-body">
+                                <!-- JS Generated -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: LOCAL -->
+            <div id="view-local" class="view-container" style="display:none;">
+                <div class="sidebar-section">
+                    <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+                        Média Local
+                        <button class="btn-icon" onclick="importLocalFile()">📥</button>
+                    </div>
+
+                    <button class="btn-secondary" style="width:100%; margin-bottom:10px;" onclick="importLocalFile()">Importer un fichier</button>
+
+                    <!-- Table Local -->
+                    <div class="table-wrapper">
+                        <table id="local-table">
+                            <thead>
+                                <tr>
+                                    <th>Artiste</th>
+                                    <th>Titre</th>
+                                    <th style="width: 50px;">Durée</th>
+                                    <th style="width: 50px;">Act</th>
+                                </tr>
+                            </thead>
+                            <tbody id="local-body">
                                 <!-- JS Generated -->
                             </tbody>
                         </table>

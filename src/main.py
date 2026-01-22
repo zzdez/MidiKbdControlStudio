@@ -6,6 +6,7 @@ import uvicorn
 import multiprocessing
 import socket
 import time
+from tkinter import filedialog
 
 # --- FIX CONSOLE PYINSTALLER ---
 class NullWriter:
@@ -82,7 +83,19 @@ def main():
             # CORRECTION : On ouvre la Fenêtre Principale, pas juste le dialogue settings
             app.after(0, lambda: [app.deiconify(), app.lift(), app.focus_force()])
 
+    def open_file_dialog_wrapper(callback):
+        def internal_task():
+            if app:
+                file_path = filedialog.askopenfilename(
+                    title="Importer un fichier média",
+                    filetypes=[("Média", "*.mp3 *.wav *.mp4 *.mkv *.avi *.flac *.ogg *.wma"), ("Tous les fichiers", "*.*")]
+                )
+                callback(file_path)
+        if app:
+            app.after(0, internal_task)
+
     fastapi_app.state.open_settings_callback = open_settings_wrapper
+    fastapi_app.state.open_file_dialog = open_file_dialog_wrapper
 
     # 3. Démarrage Serveur Web (Thread)
     server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)

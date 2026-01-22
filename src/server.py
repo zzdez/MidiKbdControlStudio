@@ -1,6 +1,10 @@
 import os
 import sys
 import asyncio
+import urllib.parse
+import mimetypes
+import shutil
+from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +14,7 @@ import json
 import requests
 import re
 import subprocess
+import mutagen
 
 try:
     from config_manager import ConfigManager
@@ -22,6 +27,7 @@ app = FastAPI()
 library_manager = LibraryManager()
 SETLIST_FILE = "setlist.json"
 APPS_FILE = "apps.json"
+LOCAL_LIB_FILE = "local_lib.json"
 
 app.add_middleware(
     CORSMiddleware,
@@ -158,9 +164,137 @@ async def api_youtube_search(q: str):
 
 @app.get("/api/stream")
 async def stream_file(path: str):
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(path)
+    """
+    Stream a local file with proper MIME type headers.
+    Path is URL-encoded.
+    """
+    try:
+        decoded_path = urllib.parse.unquote(path)
+        if not os.path.exists(decoded_path):
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Guess MIME type
+        mime_type, _ = mimetypes.guess_type(decoded_path)
+        if not mime_type:
+            # Fallback based on extension
+            ext = os.path.splitext(decoded_path)[1].lower()
+            if ext == ".mp3": mime_type = "audio/mpeg"
+            elif ext == ".wav": mime_type = "audio/wav"
+            elif ext == ".mp4": mime_type = "video/mp4"
+            else: mime_type = "application/octet-stream"
+
+        return FileResponse(decoded_path, media_type=mime_type)
+    except Exception as e:
+        print(f"Stream Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/local/files")
+async def get_local_files():
+    if os.path.exists(LOCAL_LIB_FILE):
+        try:
+            with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+@app.post("/api/local/add")
+async def add_local_file(request: Request):
+    """
+    Opens native file dialog on server machine (via main thread wrapper).
+    Extracts metadata using mutagen.
+    Saves to local_lib.json.
+    """
+    try:
+        # 1. Trigger Dialog via Main Thread
+        if not hasattr(request.app.state, "open_file_dialog"):
+            raise HTTPException(status_code=503, detail="File Dialog not supported")
+
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+
+        def on_file_selected(path):
+            loop.call_soon_threadsafe(future.set_result, path)
+
+        request.app.state.open_file_dialog(on_file_selected)
+
+        # Wait for user input (this blocks this request, but not the server)
+        path = await future
+
+        if not path:
+            return {"status": "cancelled"}
+
+        # 2. Extract Metadata
+        artist = ""
+        title = os.path.basename(path)
+        duration = 0
+
+        try:
+            audio = mutagen.File(path)
+            if audio:
+                # Duration
+                if hasattr(audio, "info") and hasattr(audio.info, "length"):
+                    duration = int(audio.info.length)
+
+                # Tags (Best effort)
+                # ID3 (MP3)
+                if hasattr(audio, "tags"):
+                    tags = audio.tags
+                    if tags:
+                        # MP3 ID3
+                        if "TIT2" in tags: title = str(tags["TIT2"])
+                        if "TPE1" in tags: artist = str(tags["TPE1"])
+
+                        # Vorbis (FLAC, OGG) / MP4
+                        if not artist and "artist" in tags: artist = str(tags["artist"][0])
+                        if title == os.path.basename(path) and "title" in tags: title = str(tags["title"][0])
+        except Exception as e:
+            print(f"Metadata Error: {e}")
+
+        # 3. Create Record
+        new_item = {
+            "title": title,
+            "artist": artist,
+            "duration": duration,
+            "path": path
+        }
+
+        # 4. Save
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+            try:
+                with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                    items = json.load(f)
+            except: pass
+
+        items.append(new_item)
+
+        with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=4)
+
+        return new_item
+
+    except Exception as e:
+        print(f"Local Add Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/local/files/{index}")
+async def delete_local_file(index: int):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+            with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+
+        if 0 <= index < len(items):
+            items.pop(index)
+            with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+            return items
+        else:
+            raise HTTPException(status_code=404, detail="Item not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/status")
 async def get_status():
