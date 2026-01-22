@@ -65,41 +65,34 @@ function connectWS() {
 function handleMidi(cc, value) {
     if (value === 0) return;
 
-    // Highlight visuel
+    // Feedback visuel
     const card = document.getElementById(`card-${cc}`);
     if (card) {
         card.classList.add("active");
         setTimeout(() => card.classList.remove("active"), 200);
     }
 
-    if (!currentProfile || !currentProfile.mappings) return;
-    const m = currentProfile.mappings.find(x => x.midi_cc == cc);
+    // Récupération de l'action mappée (si existe)
+    let action = null;
+    if (currentProfile && currentProfile.mappings) {
+        const m = currentProfile.mappings.find(x => x.midi_cc == cc);
+        if (m) action = m.action_value;
+    }
 
-    // Actions Locales (JS) si mode WEB
+    // MODE WEB : On contrôle le lecteur (YouTube ou Local)
     if (currentMode === "WEB") {
-        // Logique YouTube
-        if (player && player.getPlayerState) {
-             if (cc == 54) player.getPlayerState() === 1 ? player.pauseVideo() : player.playVideo();
-             else if (cc == 52) player.seekTo(player.getCurrentTime() - 5, true);
-             else if (cc == 56) player.seekTo(player.getCurrentTime() + 5, true);
-             else if (cc == 50) player.setPlaybackRate(Math.max(0.25, player.getPlaybackRate() - 0.25));
-             else if (cc == 58) player.setPlaybackRate(player.getPlaybackRate() + 0.25);
-             else if (m) executeWebAction(m.action_value);
+        // Mapping par défaut si pas de profil chargé ou action vide
+        if (!action) {
+            if (cc == 54) action = "media_play";
+            if (cc == 52) action = "media_rewind";
+            if (cc == 56) action = "media_forward";
+            if (cc == 50) action = "media_speed_down";
+            if (cc == 58) action = "media_speed_up";
         }
-
-        // Logique Lecteur HTML5 (Local)
-        const localPlayer = document.getElementById("html5-player");
-        const isHtml5 = localPlayer && localPlayer.style.display !== "none";
-
-        if (isHtml5 && !localPlayer.ended) {
-             if (cc == 54) localPlayer.paused ? localPlayer.play() : localPlayer.pause();
-             else if (cc == 52) localPlayer.currentTime = Math.max(0, localPlayer.currentTime - 5);
-             else if (cc == 56) localPlayer.currentTime = Math.min(localPlayer.duration, localPlayer.currentTime + 5);
-             else if (cc == 50) localPlayer.playbackRate = Math.max(0.25, localPlayer.playbackRate - 0.25);
-             else if (cc == 58) localPlayer.playbackRate += 0.25;
-        }
-    } else {
-        // Mode WIN : Trigger Server
+        executeWebAction(action);
+    }
+    // MODE WIN : On envoie au Python
+    else {
         fetch("/api/trigger", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
@@ -490,6 +483,10 @@ function openAddModal() {
     document.querySelector(".search-zone").style.display = "block";
     document.getElementById("youtube-desc-input").style.display = "block";
     document.querySelector("label[for='youtube-desc-input']").innerText = "Description YouTube";
+
+    // Hide local path
+    const pathDisplay = document.getElementById("local-path-display");
+    if(pathDisplay) pathDisplay.style.display = "none";
 }
 
 function openEditModal(index) {
@@ -516,6 +513,10 @@ function openEditModal(index) {
     document.querySelector(".search-zone").style.display = "block";
     document.getElementById("youtube-desc-input").style.display = "block";
     document.querySelector("label[for='youtube-desc-input']").innerText = "Description YouTube";
+
+    // Hide local path
+    const pathDisplay = document.getElementById("local-path-display");
+    if(pathDisplay) pathDisplay.style.display = "none";
 }
 
 async function openEditModalLocal(index) {
@@ -542,10 +543,16 @@ async function openEditModalLocal(index) {
         document.getElementById("edit-channel").parentElement.style.display = "none";
         document.querySelector(".search-zone").style.display = "none";
 
-        // Hide textarea desc and change label
+        // Hide textarea desc
         document.getElementById("youtube-desc-input").style.display = "none";
-        const descLabel = document.querySelector("label[for='youtube-desc-input']");
-        descLabel.innerText = "Chemin du fichier : " + track.path;
+
+        // Use proper label and display div
+        document.querySelector("label[for='youtube-desc-input']").innerText = "Chemin du fichier :";
+        const pathDisplay = document.getElementById("local-path-display");
+        if(pathDisplay) {
+            pathDisplay.innerText = track.path;
+            pathDisplay.style.display = "block";
+        }
 
     } catch (e) { console.error(e); }
 }
