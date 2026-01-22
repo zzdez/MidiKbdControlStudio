@@ -22,6 +22,7 @@ function connectWS() {
     websocket.onopen = () => {
         document.getElementById("connection-status").classList.add("connected");
         loadSetlist();
+        loadLocalLib();
         loadApps();
     };
 
@@ -125,10 +126,12 @@ function setMode(mode, forcedProfileName = null) {
 function switchView(viewName) {
     // Buttons
     document.getElementById("tab-library").classList.toggle("active", viewName === "library");
+    document.getElementById("tab-local").classList.toggle("active", viewName === "local");
     document.getElementById("tab-apps").classList.toggle("active", viewName === "apps");
 
     // Containers
     document.getElementById("view-library").style.display = viewName === "library" ? "block" : "none";
+    document.getElementById("view-local").style.display = viewName === "local" ? "block" : "none";
     document.getElementById("view-apps").style.display = viewName === "apps" ? "block" : "none";
 }
 
@@ -238,6 +241,88 @@ function updateDatalists(tracks) {
             genreList.appendChild(opt);
         });
     }
+}
+
+// --- LOCAL LIBRARY LOGIC ---
+let localTracks = [];
+
+async function loadLocalLib() {
+    try {
+        const res = await fetch("/api/local/files");
+        if (res.ok) {
+            localTracks = await res.json();
+            renderLocalLib(localTracks);
+        }
+    } catch (e) {
+        console.error("Local lib error:", e);
+    }
+}
+
+function renderLocalLib(tracks) {
+    const tbody = document.getElementById("local-body");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    if (!tracks || tracks.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:20px; color:gray;'>Aucun fichier. Cliquez sur Importer.</td></tr>";
+        return;
+    }
+
+    tracks.forEach((track, index) => {
+        const tr = document.createElement("tr");
+
+        // Format duration
+        let durationStr = "--:--";
+        if (track.duration) {
+            const min = Math.floor(track.duration / 60);
+            const sec = track.duration % 60;
+            durationStr = `${min}:${sec.toString().padStart(2, '0')}`;
+        }
+
+        tr.innerHTML = `
+            <td style="cursor:pointer;" onclick="playLocalTrack(${index})">${track.artist || "Inconnu"}</td>
+            <td style="cursor:pointer;" onclick="playLocalTrack(${index})">${track.title || track.path}</td>
+            <td style="cursor:pointer; text-align:center;" onclick="playLocalTrack(${index})">${durationStr}</td>
+            <td style="text-align:right;">
+                <button class="btn-action" onclick="deleteLocalTrack(${index})" style="color:#cf6679;" title="Supprimer">×</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+async function importLocalFile() {
+    try {
+        const res = await fetch("/api/local/add", { method: "POST" });
+        const result = await res.json();
+        if (result && !result.status) { // if not cancelled
+            loadLocalLib();
+        }
+    } catch (e) {
+        console.error("Import error:", e);
+        alert("Erreur importation: " + e);
+    }
+}
+
+async function deleteLocalTrack(index) {
+    if(!confirm("Retirer ce fichier de la bibliothèque ?")) return;
+    await fetch(`/api/local/files/${index}`, { method: "DELETE" });
+    loadLocalLib();
+}
+
+function playLocalTrack(index) {
+    const track = localTracks[index];
+    if (!track) return;
+
+    // Construct track object compatible with playTrack
+    const playObj = {
+        title: track.title,
+        url: track.path,
+        open_mode: "local",
+        profile_name: "Local Media" // Default context
+    };
+
+    playTrack(playObj);
 }
 
 // --- APPS LOGIC ---
@@ -625,6 +710,7 @@ window.addEventListener('keydown', (e) => {
 
 window.onload = () => {
     loadSetlist();
+    loadLocalLib();
 };
 
 loadYouTubeAPI();
