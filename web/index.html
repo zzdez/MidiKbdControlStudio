@@ -44,13 +44,13 @@
 
             <!-- TAB NAVIGATION -->
             <div class="nav-tabs">
-                <button id="tab-library" class="active" onclick="switchView('library')">WEB 🎵</button>
-                <button id="tab-local" onclick="switchView('local')">LOCAL 📂</button>
-                <button id="tab-apps" onclick="switchView('apps')">APPS 🚀</button>
+                <button id="btn-tab-web" class="nav-btn active" onclick="switchTab('web')">WEB 🎵</button>
+                <button id="btn-tab-local" class="nav-btn" onclick="switchTab('local')">LOCAL 📂</button>
+                <button id="btn-tab-apps" class="nav-btn" onclick="switchTab('apps')">APPS 🚀</button>
             </div>
 
-            <!-- VIEW: LIBRARY -->
-            <div id="view-library" class="view-container">
+            <!-- VIEW: WEB -->
+            <div id="view-web" class="view-container">
                 <div class="sidebar-section">
                     <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
                         Setlist
@@ -84,10 +84,10 @@
                 <div class="sidebar-section">
                     <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
                         Média Local
-                        <button class="btn-icon" onclick="importLocalFile()">📥</button>
+                        <button class="btn-icon" onclick="addLocalFile()">📥</button>
                     </div>
 
-                    <button class="btn-secondary" style="width:100%; margin-bottom:10px;" onclick="importLocalFile()">Importer un fichier</button>
+                    <button class="btn-secondary" style="width:100%; margin-bottom:10px;" onclick="addLocalFile()">Importer un fichier</button>
 
                     <!-- Table Local -->
                     <div class="table-wrapper">
@@ -96,11 +96,10 @@
                                 <tr>
                                     <th>Artiste</th>
                                     <th>Titre</th>
-                                    <th style="width: 50px;">Durée</th>
-                                    <th style="width: 50px;">Act</th>
+                                    <th style="width: 50px;">Action</th>
                                 </tr>
                             </thead>
-                            <tbody id="local-body">
+                            <tbody id="local-list-body">
                                 <!-- JS Generated -->
                             </tbody>
                         </table>
