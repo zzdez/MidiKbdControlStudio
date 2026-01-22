@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ========================================================
-echo   COMPILATION AIRSTEP STUDIO (MODE HYBRIDE)
+echo   COMPILATION AIRSTEP STUDIO (VERSION MUTAGEN)
 echo ========================================================
 
 :: 1. TUER L'APPLICATION
@@ -41,7 +41,7 @@ if exist assets (
 :: 4. COMPILATION
 cd _BUILD_TEMP
 
-:: AJOUT DE PYSTRAY ET PIL ICI :
+:: AJOUT DE MUTAGEN ICI :
 pyinstaller --noconfirm --onefile --windowed ^
  --name "AirstepStudio" ^
  --add-data "config.json;." ^
@@ -66,6 +66,7 @@ pyinstaller --noconfirm --onefile --windowed ^
  --hidden-import "PIL" ^
  --hidden-import "mido.backends.rtmidi" ^
  --hidden-import "bleak" ^
+ --hidden-import "mutagen" ^
  --collect-all "pygame" ^
  main.py
 
