@@ -277,6 +277,34 @@ def add_local_file():
         print(f"[SERVER] Erreur FileDialog : {e}")
         return {"status": "error", "message": str(e)}
 
+@app.put("/api/local/files/{index}")
+async def update_local_file(index: int, item: Dict):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+            with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+
+        if 0 <= index < len(items):
+            # Update specific fields
+            current = items[index]
+            current["title"] = item.get("title", current.get("title"))
+            current["artist"] = item.get("artist", current.get("artist"))
+            current["genre"] = item.get("genre", current.get("genre", "Divers"))
+            current["category"] = item.get("category", current.get("category", "Général"))
+            current["user_notes"] = item.get("user_notes", current.get("user_notes", ""))
+
+            # Save
+            items[index] = current
+            with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+
+            return {"status": "ok", "data": current}
+        else:
+            raise HTTPException(status_code=404, detail="Item not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.delete("/api/local/files/{index}")
 async def delete_local_file(index: int):
     try:

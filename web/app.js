@@ -131,6 +131,7 @@ function executeWebAction(actionValue) {
 let currentTrackList = [];
 let editingIndex = null;
 let sortAsc = true;
+let editContext = 'setlist'; // 'setlist' or 'local'
 
 async function loadSetlist() {
     try {
@@ -259,9 +260,10 @@ async function loadLocalLib() {
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td>${f.artist || "-"}</td>
-            <td>${f.title || f.path}</td>
+            <td title="${f.title || f.path}">${f.title || f.path}</td>
             <td style="text-align:right;">
                 <button class="btn-action" onclick="playLocal('${f.path.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}')">▶</button>
+                <button class="btn-action" onclick="openEditModalLocal(${index})" title="Éditer">✎</button>
                 <button class="btn-action" onclick="deleteLocalTrack(${index})" style="color:#cf6679;">×</button>
             </td>
         `;
@@ -422,52 +424,115 @@ function sortTable(key) {
 
 // Modal Helpers
 function openAddModal() {
+    editContext = 'setlist';
     editingIndex = null;
     document.getElementById("media-modal").showModal();
-    // Clear form logic... simplified for brevity, assume user clears manually or handled here
+
     document.getElementById("edit-title").value = "";
+    document.getElementById("edit-artist").value = "";
     document.getElementById("edit-url").value = "";
     document.getElementById("edit-mode").value = "auto";
+    document.getElementById("edit-category").value = "";
+    document.getElementById("edit-genre").value = "";
+    document.getElementById("youtube-desc-input").value = "";
+    document.getElementById("user-notes-input").value = "";
+
+    // Show URL fields
+    document.getElementById("edit-url").parentElement.style.display = "block";
+    document.getElementById("edit-mode").parentElement.style.display = "block";
+    document.getElementById("edit-channel").parentElement.style.display = "block";
 }
 
 function openEditModal(index) {
+    editContext = 'setlist';
     editingIndex = index;
     const track = currentTrackList.find(t => t.originalIndex === index);
     if (!track) return;
     document.getElementById("media-modal").showModal();
+
     document.getElementById("edit-title").value = track.title;
+    document.getElementById("edit-artist").value = track.artist || "";
     document.getElementById("edit-url").value = track.url;
     document.getElementById("edit-mode").value = track.open_mode;
     document.getElementById("edit-category").value = track.category || "";
     document.getElementById("edit-genre").value = track.genre || "";
-    document.getElementById("edit-artist").value = track.artist || "";
+    document.getElementById("edit-channel").value = track.channel || "";
+    document.getElementById("youtube-desc-input").value = track.youtube_description || "";
+    document.getElementById("user-notes-input").value = track.user_notes || "";
+
+    // Show fields
+    document.getElementById("edit-url").parentElement.style.display = "block";
+    document.getElementById("edit-mode").parentElement.style.display = "block";
+    document.getElementById("edit-channel").parentElement.style.display = "block";
+}
+
+async function openEditModalLocal(index) {
+    editContext = 'local';
+    editingIndex = index;
+
+    // Fetch fresh local data (or use global localTracks if available, but fetch is safer)
+    try {
+        const res = await fetch("/api/local/files");
+        const files = await res.json();
+        const track = files[index];
+        if (!track) return;
+
+        document.getElementById("media-modal").showModal();
+
+        document.getElementById("edit-title").value = track.title || "";
+        document.getElementById("edit-artist").value = track.artist || "";
+        document.getElementById("edit-category").value = track.category || "";
+        document.getElementById("edit-genre").value = track.genre || "";
+        document.getElementById("user-notes-input").value = track.user_notes || "";
+
+        // Hide irrelevant fields for local
+        document.getElementById("edit-url").parentElement.style.display = "none";
+        document.getElementById("edit-mode").parentElement.style.display = "none";
+        document.getElementById("edit-channel").parentElement.style.display = "none";
+        document.getElementById("youtube-desc-input").value = "Fichier local : " + track.path;
+
+    } catch (e) { console.error(e); }
 }
 
 function closeModal() { document.getElementById("media-modal").close(); }
 
 async function saveItem() {
     const title = document.getElementById("edit-title").value;
-    const url = document.getElementById("edit-url").value;
-    const mode = document.getElementById("edit-mode").value;
+    const artist = document.getElementById("edit-artist").value;
+    const category = document.getElementById("edit-category").value;
+    const genre = document.getElementById("edit-genre").value;
+    const user_notes = document.getElementById("user-notes-input").value;
 
     const payload = {
-        title, url, manual_mode: mode,
-        category: document.getElementById("edit-category").value,
-        genre: document.getElementById("edit-genre").value,
-        artist: document.getElementById("edit-artist").value
+        title, artist, category, genre, user_notes
     };
 
-    if (editingIndex !== null) {
-        await fetch(`/api/setlist/${editingIndex}`, {
-            method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)
-        });
+    if (editContext === 'local') {
+        if (editingIndex !== null) {
+            await fetch(`/api/local/files/${editingIndex}`, {
+                method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)
+            });
+        }
+        loadLocalLib();
     } else {
-        await fetch("/api/setlist", {
-            method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)
-        });
+        // SETLIST MODE
+        payload.url = document.getElementById("edit-url").value;
+        payload.manual_mode = document.getElementById("edit-mode").value;
+        payload.channel = document.getElementById("edit-channel").value;
+        payload.youtube_description = document.getElementById("youtube-desc-input").value;
+
+        if (editingIndex !== null) {
+            await fetch(`/api/setlist/${editingIndex}`, {
+                method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)
+            });
+        } else {
+            await fetch("/api/setlist", {
+                method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)
+            });
+        }
+        loadSetlist();
     }
     closeModal();
-    loadSetlist();
 }
 
 async function openSettings() {
