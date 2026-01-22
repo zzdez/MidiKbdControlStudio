@@ -108,21 +108,55 @@ function handleMidi(cc, value) {
     }
 }
 
-function executeWebAction(actionValue) {
-    if (!actionValue) return;
-    const cmd = actionValue.toLowerCase();
+function executeWebAction(action) {
+    if (!action) return;
+    const cmd = action.toLowerCase();
 
-    // Re-use logic for mapped actions if not hardcoded
-    const html5 = document.getElementById("html5-player");
-    const isHtml5 = html5 && html5.style.display !== "none";
+    // 1. Détecter quel lecteur est actif (visible)
+    const localPlayer = document.getElementById("html5-player");
 
-    if (isHtml5) {
-        if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd.includes(c))) {
-            html5.paused ? html5.play() : html5.pause();
+    // Est-ce qu'on est en mode Local ? (Vérifie si le lecteur HTML5 est affiché)
+    const isLocal = localPlayer && localPlayer.style.display !== "none";
+
+    console.log("Action:", cmd, "| Mode Local:", isLocal);
+
+    if (isLocal) {
+        // --- PILOTAGE HTML5 ---
+        // Mapping approximatif des commandes basées sur des mots clés si l'action n'est pas exacte
+        if (['media_play', 'media_pause', 'space', 'k'].some(s => cmd.includes(s))) {
+            localPlayer.paused ? localPlayer.play() : localPlayer.pause();
+        } else if (cmd.includes('media_stop')) {
+            localPlayer.pause();
+            localPlayer.currentTime = 0;
+        } else if (cmd.includes('media_speed_up') || cmd.includes('shift+;')) {
+            localPlayer.playbackRate += 0.1;
+        } else if (cmd.includes('media_speed_down') || cmd.includes('shift+,')) {
+            localPlayer.playbackRate = Math.max(0.1, localPlayer.playbackRate - 0.1);
+        } else if (cmd.includes('left') || cmd.includes('media_rewind')) {
+            localPlayer.currentTime -= 5;
+        } else if (cmd.includes('right') || cmd.includes('media_forward')) {
+            localPlayer.currentTime += 5;
+        } else if (cmd === '0') {
+            localPlayer.currentTime = 0;
         }
-    } else if (player && player.getPlayerState) {
-        if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd.includes(c))) {
+    } else {
+        // --- PILOTAGE YOUTUBE ---
+        if (!player || !player.getPlayerState) return;
+
+        if (['media_play', 'media_pause', 'space', 'k'].some(s => cmd.includes(s))) {
             player.getPlayerState() === 1 ? player.pauseVideo() : player.playVideo();
+        } else if (cmd.includes('media_stop')) {
+            player.stopVideo();
+        } else if (cmd.includes('media_speed_up')) {
+            player.setPlaybackRate(player.getPlaybackRate() + 0.25);
+        } else if (cmd.includes('media_speed_down')) {
+            player.setPlaybackRate(Math.max(0.25, player.getPlaybackRate() - 0.25));
+        } else if (cmd.includes('left') || cmd.includes('media_rewind')) {
+            player.seekTo(player.getCurrentTime() - 5, true);
+        } else if (cmd.includes('right') || cmd.includes('media_forward')) {
+            player.seekTo(player.getCurrentTime() + 5, true);
+        } else if (cmd === '0') {
+            player.seekTo(0);
         }
     }
 }
@@ -441,6 +475,9 @@ function openAddModal() {
     document.getElementById("edit-url").parentElement.style.display = "block";
     document.getElementById("edit-mode").parentElement.style.display = "block";
     document.getElementById("edit-channel").parentElement.style.display = "block";
+    document.querySelector(".search-zone").style.display = "block";
+    document.getElementById("youtube-desc-input").style.display = "block";
+    document.querySelector("label[for='youtube-desc-input']").innerText = "Description YouTube";
 }
 
 function openEditModal(index) {
@@ -464,13 +501,15 @@ function openEditModal(index) {
     document.getElementById("edit-url").parentElement.style.display = "block";
     document.getElementById("edit-mode").parentElement.style.display = "block";
     document.getElementById("edit-channel").parentElement.style.display = "block";
+    document.querySelector(".search-zone").style.display = "block";
+    document.getElementById("youtube-desc-input").style.display = "block";
+    document.querySelector("label[for='youtube-desc-input']").innerText = "Description YouTube";
 }
 
 async function openEditModalLocal(index) {
     editContext = 'local';
     editingIndex = index;
 
-    // Fetch fresh local data (or use global localTracks if available, but fetch is safer)
     try {
         const res = await fetch("/api/local/files");
         const files = await res.json();
@@ -489,7 +528,12 @@ async function openEditModalLocal(index) {
         document.getElementById("edit-url").parentElement.style.display = "none";
         document.getElementById("edit-mode").parentElement.style.display = "none";
         document.getElementById("edit-channel").parentElement.style.display = "none";
-        document.getElementById("youtube-desc-input").value = "Fichier local : " + track.path;
+        document.querySelector(".search-zone").style.display = "none";
+
+        // Hide textarea desc and change label
+        document.getElementById("youtube-desc-input").style.display = "none";
+        const descLabel = document.querySelector("label[for='youtube-desc-input']");
+        descLabel.innerText = "Fichier Source : " + track.path;
 
     } catch (e) { console.error(e); }
 }
