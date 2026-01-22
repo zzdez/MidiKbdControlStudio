@@ -122,27 +122,39 @@ function executeWebAction(action) {
 
     if (isLocal) {
         // --- PILOTAGE HTML5 ---
-        // Mapping approximatif des commandes basées sur des mots clés si l'action n'est pas exacte
-        if (['media_play', 'media_pause', 'space', 'k'].some(s => cmd.includes(s))) {
-            localPlayer.paused ? localPlayer.play() : localPlayer.pause();
-        } else if (cmd.includes('media_stop')) {
-            localPlayer.pause();
-            localPlayer.currentTime = 0;
-        } else if (cmd.includes('media_speed_up') || cmd.includes('shift+;')) {
-            localPlayer.playbackRate += 0.1;
-        } else if (cmd.includes('media_speed_down') || cmd.includes('shift+,')) {
-            localPlayer.playbackRate = Math.max(0.1, localPlayer.playbackRate - 0.1);
-        } else if (cmd.includes('left') || cmd.includes('media_rewind')) {
-            localPlayer.currentTime -= 5;
-        } else if (cmd.includes('right') || cmd.includes('media_forward')) {
-            localPlayer.currentTime += 5;
-        } else if (cmd === '0') {
-            localPlayer.currentTime = 0;
+        switch (true) {
+            case ['media_play', 'media_pause', 'space', 'k'].some(s => cmd.includes(s)):
+                localPlayer.paused ? localPlayer.play() : localPlayer.pause();
+                break;
+            case cmd.includes('media_stop'):
+                localPlayer.pause();
+                localPlayer.currentTime = 0;
+                break;
+            case cmd.includes('media_speed_up'):
+            case cmd.includes('shift+;'):
+                localPlayer.playbackRate += 0.1;
+                break;
+            case cmd.includes('media_speed_down'):
+            case cmd.includes('shift+,'):
+                localPlayer.playbackRate = Math.max(0.1, localPlayer.playbackRate - 0.1);
+                break;
+            case cmd.includes('left'):
+            case cmd.includes('media_rewind'):
+                localPlayer.currentTime -= 5;
+                break;
+            case cmd.includes('right'):
+            case cmd.includes('media_forward'):
+                localPlayer.currentTime += 5;
+                break;
+            case cmd === '0':
+                localPlayer.currentTime = 0;
+                break;
         }
     } else {
         // --- PILOTAGE YOUTUBE ---
         if (!player || !player.getPlayerState) return;
 
+        // Simple mapping based on command string
         if (['media_play', 'media_pause', 'space', 'k'].some(s => cmd.includes(s))) {
             player.getPlayerState() === 1 ? player.pauseVideo() : player.playVideo();
         } else if (cmd.includes('media_stop')) {
@@ -533,7 +545,7 @@ async function openEditModalLocal(index) {
         // Hide textarea desc and change label
         document.getElementById("youtube-desc-input").style.display = "none";
         const descLabel = document.querySelector("label[for='youtube-desc-input']");
-        descLabel.innerText = "Fichier Source : " + track.path;
+        descLabel.innerText = "Chemin du fichier : " + track.path;
 
     } catch (e) { console.error(e); }
 }
