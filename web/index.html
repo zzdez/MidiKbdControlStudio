@@ -159,7 +159,7 @@
                                 <tr>
                                     <th onclick="sortLocal('artist')">Artiste</th>
                                     <th onclick="sortLocal('title')">Titre</th>
-                                    <th onclick="sortLocal('album')">Album</th>
+                                    <th onclick="sortLocal('category')">Cat</th>
                                     <th style="width: 100px;">Actions</th>
                                 </tr>
                             </thead>
@@ -214,12 +214,20 @@
                 <label>Titre</label>
                 <input type="text" id="local-title">
 
-                <label>Artiste</label>
-                <input type="text" id="local-artist">
+                <div class="row-inputs">
+                    <div class="col">
+                        <label>Artiste</label>
+                        <input type="text" id="local-artist">
+                    </div>
+                    <div class="col">
+                        <label>Catégorie</label>
+                        <input type="text" id="local-category" placeholder="ex: Tuto..." list="categories">
+                    </div>
+                </div>
 
                 <div class="row-inputs">
                     <div class="col">
-                        <label>Album</label>
+                        <label>Album (Tag)</label>
                         <input type="text" id="local-album">
                     </div>
                     <div class="col">

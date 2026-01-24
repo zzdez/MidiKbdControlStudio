@@ -716,13 +716,15 @@ function renderLocalFiles() {
     // Filters
     const fArtist = (document.getElementById("filter-local-artist")?.value || "").toLowerCase();
     const fTitle = (document.getElementById("filter-local-title")?.value || "").toLowerCase();
-    const fAlbum = (document.getElementById("filter-local-album")?.value || "").toLowerCase();
+    const fCategory = (document.getElementById("filter-local-album")?.value || "").toLowerCase(); // Reusing the 3rd input ID for Category
 
     const filtered = localFiles.filter(file => {
         const matchArtist = (file.artist || "").toLowerCase().includes(fArtist);
         const matchTitle = (file.title || "").toLowerCase().includes(fTitle);
-        const matchAlbum = (file.album || "").toLowerCase().includes(fAlbum);
-        return matchArtist && matchTitle && matchAlbum;
+        // Match against CATEGORY now, not Album (though we could search both?)
+        // User requested Category column filter.
+        const matchCat = (file.category || "").toLowerCase().includes(fCategory);
+        return matchArtist && matchTitle && matchCat;
     });
 
     if (!filtered || filtered.length === 0) {
@@ -731,23 +733,22 @@ function renderLocalFiles() {
     }
 
     filtered.forEach((file, index) => {
-        // We use original logic, but index might mismatch if we filter?
-        // Wait, playLocal uses index from THE LIST.
-        // Issue: if we filter, 'index' passed to playLocal(index) refers to index in FILTERED list?
-        // playLocal uses localFiles[index]. This will BREAK current logic if we just pass loop index.
-        // Fix: We need to find the REAL index in localFiles, or pass the file object itself to playLocal?
-        // Since localFiles is a simple array, let's just find the index in the original array.
-        // Best way: add originalIndex to localFiles objects on load, or lookup.
-        // Let's lookup for now to be safe, or just pass the ID if we had one.
-        // Simple fix: localFiles.indexOf(file)
-
         const realIndex = localFiles.indexOf(file);
+
+        // Icon Logic
+        const ext = file.path.split('.').pop().toLowerCase();
+        const isAudio = ['mp3', 'wav', 'flac', 'm4a', 'aac'].includes(ext);
+        const icon = isAudio ? '🎵' : '🎥';
+        const color = isAudio ? '#bb86fc' : '#03dac6'; // Distinguish colors
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td>${file.artist || ""}</td>
-            <td style="cursor:pointer;" onclick="playLocal(${realIndex})">${file.title}</td>
-            <td>${file.album || ""}</td>
+            <td style="cursor:pointer;" onclick="playLocal(${realIndex})">
+                <span style="color:${color}; margin-right:5px; font-size:1.1em;">${icon}</span>
+                ${file.title}
+            </td>
+            <td>${file.category || "Général"}</td>
             <td style="text-align:right;">
                 <button class="btn-action" onclick="openEditLocalModal(${realIndex})">✎</button>
                 <button class="btn-action" onclick="deleteLocalFile(${realIndex})" style="color:#cf6679;">×</button>
@@ -870,6 +871,7 @@ function openEditLocalModal(index) {
     document.getElementById("local-artist").value = item.artist || "";
     document.getElementById("local-album").value = item.album || "";
     document.getElementById("local-genre").value = item.genre || "";
+    document.getElementById("local-category").value = item.category || "Général";
     document.getElementById("local-year").value = item.year || "";
     document.getElementById("local-notes").value = item.user_notes || "";
 
@@ -892,6 +894,7 @@ async function saveLocalItem() {
         artist: document.getElementById("local-artist").value,
         album: document.getElementById("local-album").value,
         genre: document.getElementById("local-genre").value,
+        category: document.getElementById("local-category").value || "Général",
         year: document.getElementById("local-year").value,
         user_notes: document.getElementById("local-notes").value
     };
