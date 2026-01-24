@@ -1,7 +1,8 @@
-let player;
 let currentMode = "WIN";
 let websocket;
 let currentProfile = null;
+let currentActivePlayer = 'youtube';
+let wavesurfer = null;
 
 // --- INIT ---
 function onYouTubeIframeAPIReady() {
@@ -12,6 +13,8 @@ function onYouTubeIframeAPIReady() {
         events: { 'onReady': onPlayerReady }
     });
 }
+
+
 function onPlayerReady() { console.log("Player Ready"); }
 
 // --- WEBSOCKET ---
@@ -50,9 +53,8 @@ function executeWebAction(actionValue) {
 
     // Check if HTML5 player is active
     const html5 = document.getElementById("html5-player");
-    const isHtml5 = html5 && html5.style.display !== "none";
 
-    if (isHtml5) {
+    if (currentActivePlayer === 'local') {
         if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd.includes(c))) {
             html5.paused ? html5.play() : html5.pause();
         } else if (cmd.includes('media_stop')) {
@@ -66,6 +68,24 @@ function executeWebAction(actionValue) {
         } else if (cmd.includes('media_speed_down')) {
             html5.playbackRate = Math.max(0.25, html5.playbackRate - 0.25);
         }
+    } else if (currentActivePlayer === 'waveform' && wavesurfer) {
+        // WaveSurfer Controls
+        const act = actionValue.toLowerCase();
+        if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => act.includes(c))) {
+            wavesurfer.playPause();
+        } else if (act.includes('media_stop')) {
+            wavesurfer.stop();
+        } else if (act.includes('media_rewind') || act.includes('left')) {
+            wavesurfer.skip(-5);
+        } else if (act.includes('media_forward') || act.includes('right')) {
+            wavesurfer.skip(5);
+        } else if (act.includes('media_speed_up')) {
+            wavesurfer.setPlaybackRate(wavesurfer.getPlaybackRate() + 0.1);
+        } else if (act.includes('media_speed_down')) {
+            wavesurfer.setPlaybackRate(Math.max(0.1, wavesurfer.getPlaybackRate() - 0.1));
+        }
+
+
     } else if (player && player.getPlayerState) {
         // YouTube API
         if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd.includes(c))) toggleVideo();
@@ -105,8 +125,8 @@ function handleMidi(cc, value) {
     } else {
         fetch("/api/trigger", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({cc: cc, value: 127})
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cc: cc, value: 127 })
         });
     }
 }
@@ -116,7 +136,7 @@ function setMode(mode, forcedProfileName = null) {
     // Removed old button update logic
     fetch("/api/set_mode", {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: mode, forced_profile_name: forcedProfileName })
     });
 }
@@ -126,10 +146,14 @@ function switchView(viewName) {
     // Buttons
     document.getElementById("tab-library").classList.toggle("active", viewName === "library");
     document.getElementById("tab-apps").classList.toggle("active", viewName === "apps");
+    document.getElementById("tab-local").classList.toggle("active", viewName === "local");
 
     // Containers
     document.getElementById("view-library").style.display = viewName === "library" ? "block" : "none";
     document.getElementById("view-apps").style.display = viewName === "apps" ? "block" : "none";
+    document.getElementById("view-local").style.display = viewName === "local" ? "block" : "none";
+
+    if (viewName === "local") loadLocalFiles();
 }
 
 // --- SETLIST ---
@@ -179,9 +203,17 @@ function renderSetlist(tracks) {
     if (!tbody) return;
     tbody.innerHTML = "";
 
-    // 1. Search Filter
-    const query = document.getElementById("search-input").value.toLowerCase();
-    const filtered = tracks.filter(t => (t.title || t.url).toLowerCase().includes(query));
+    // 1. Search Filters
+    const fArtist = document.getElementById("filter-artist").value.toLowerCase();
+    const fTitle = document.getElementById("filter-title").value.toLowerCase();
+    const fCat = document.getElementById("filter-category").value.toLowerCase();
+
+    const filtered = tracks.filter(t => {
+        const matchArtist = (t.artist || "").toLowerCase().includes(fArtist);
+        const matchTitle = (t.title || t.url).toLowerCase().includes(fTitle);
+        const matchCat = (t.category || "").toLowerCase().includes(fCat);
+        return matchArtist && matchTitle && matchCat;
+    });
 
     if (!filtered || filtered.length === 0) {
         tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:20px; color:gray;'>Aucun résultat</td></tr>";
@@ -199,9 +231,10 @@ function renderSetlist(tracks) {
         const iconUrl = getIcon(track.url);
         const iconImg = iconUrl ? `<img src="${iconUrl}" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">` : '';
 
+        // Swapped Columns: Artist | Title (with icon) | Category
         tr.innerHTML = `
-            <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${iconImg}${track.title || track.url}</td>
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.artist || ""}</td>
+            <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${iconImg}${track.title || track.url}</td>
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.category || ""}</td>
             <td style="text-align:right;">
                 <button class="btn-action" onclick="openEditModal(${realIndex})" title="Éditer">✎</button>
@@ -279,8 +312,8 @@ async function saveApp() {
 
     await fetch("/api/apps", {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({name, path})
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, path })
     });
 
     document.getElementById("new-app-name").value = "";
@@ -299,8 +332,8 @@ async function launchApp(path) {
     setMode("WIN");
     await fetch("/api/launch_app", {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({path})
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path })
     });
 }
 
@@ -493,14 +526,14 @@ async function saveItem() {
         // UPDATE
         await fetch(`/api/setlist/${editingIndex}`, {
             method: "PUT",
-            headers: {"Content-Type": "application/json"},
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
     } else {
         // CREATE
         await fetch("/api/setlist", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
     }
@@ -558,7 +591,13 @@ function playTrack(track) {
     const genFrame = document.getElementById("generic-player");
     const html5 = document.getElementById("html5-player");
 
-    // Reset all
+    // Reset Containers
+    const videoContainer = document.getElementById("video-container");
+    const audioContainer = document.getElementById("audio-player-container");
+    videoContainer.style.display = "flex";
+    audioContainer.style.display = "none";
+
+    // Reset all Players
     ytDiv.style.display = "none";
     genFrame.style.display = "none";
     html5.style.display = "none";
@@ -573,15 +612,18 @@ function playTrack(track) {
             ytDiv.style.display = "block";
             if (track.id && player) player.loadVideoById(track.id);
             setMode("WEB", track.profile_name);
+            currentActivePlayer = 'youtube';
         } else {
             genFrame.style.display = "block";
             genFrame.src = track.url;
             setMode("WIN", track.profile_name);
+            currentActivePlayer = 'external';
         }
     } else if (track.open_mode === "local") {
         html5.style.display = "block";
         html5.src = "/api/stream?path=" + encodeURIComponent(track.url);
         html5.play();
+        currentActivePlayer = 'local';
         setMode("WEB", track.profile_name);
     } else {
         // External
@@ -608,8 +650,8 @@ function renderPedalboard(profile) {
             if (currentMode === "WEB") executeWebAction(m.action_value);
             else fetch("/api/trigger", {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({cc: m.midi_cc, value: 127})
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ cc: m.midi_cc, value: 127 })
             });
         };
         div.innerHTML = `<span class="pedal-icon">⚡</span><div class="pedal-label">${m.name}</div>`;
@@ -625,7 +667,261 @@ window.addEventListener('keydown', (e) => {
 
 window.onload = () => {
     loadSetlist();
+    if (typeof WaveSurfer !== 'undefined') initWaveSurfer();
 };
+
+function initWaveSurfer() {
+    try {
+        wavesurfer = WaveSurfer.create({
+            container: '#waveform',
+            waveColor: '#4F4A85',
+            progressColor: '#383351',
+            url: null,
+            cursorColor: '#bb86fc',
+            height: 256,
+            barWidth: undefined,
+            responsive: true,
+            normalize: true,
+            backend: 'WebAudio'
+        });
+
+        wavesurfer.on('interaction', () => { wavesurfer.play(); });
+        wavesurfer.on('finish', () => { /* Loop or Next */ });
+        wavesurfer.on('timeupdate', (currentTime) => {
+            const duration = wavesurfer.getDuration();
+            const fmt = (s) => new Date(s * 1000).toISOString().substr(14, 5);
+            document.getElementById("audio-time").innerText = fmt(currentTime) + " / " + fmt(duration);
+        });
+    } catch (e) { console.error("WaveSurfer Init Error:", e); }
+}
+
+
+// --- LOCAL FILES LOGIC ---
+let localFiles = [];
+let editingLocalIndex = null;
+
+async function loadLocalFiles() {
+    try {
+        const res = await fetch("/api/local/files");
+        localFiles = await res.json();
+    } catch (e) { localFiles = []; }
+    renderLocalFiles();
+}
+
+function renderLocalFiles() {
+    const tbody = document.getElementById("local-body");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    // Filters
+    const fArtist = (document.getElementById("filter-local-artist")?.value || "").toLowerCase();
+    const fTitle = (document.getElementById("filter-local-title")?.value || "").toLowerCase();
+    const fAlbum = (document.getElementById("filter-local-album")?.value || "").toLowerCase();
+
+    const filtered = localFiles.filter(file => {
+        const matchArtist = (file.artist || "").toLowerCase().includes(fArtist);
+        const matchTitle = (file.title || "").toLowerCase().includes(fTitle);
+        const matchAlbum = (file.album || "").toLowerCase().includes(fAlbum);
+        return matchArtist && matchTitle && matchAlbum;
+    });
+
+    if (!filtered || filtered.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:20px; color:gray;'>Aucun résultat</td></tr>";
+        return;
+    }
+
+    filtered.forEach((file, index) => {
+        // We use original logic, but index might mismatch if we filter?
+        // Wait, playLocal uses index from THE LIST.
+        // Issue: if we filter, 'index' passed to playLocal(index) refers to index in FILTERED list?
+        // playLocal uses localFiles[index]. This will BREAK current logic if we just pass loop index.
+        // Fix: We need to find the REAL index in localFiles, or pass the file object itself to playLocal?
+        // Since localFiles is a simple array, let's just find the index in the original array.
+        // Best way: add originalIndex to localFiles objects on load, or lookup.
+        // Let's lookup for now to be safe, or just pass the ID if we had one.
+        // Simple fix: localFiles.indexOf(file)
+
+        const realIndex = localFiles.indexOf(file);
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${file.artist || ""}</td>
+            <td style="cursor:pointer;" onclick="playLocal(${realIndex})">${file.title}</td>
+            <td>${file.album || ""}</td>
+            <td style="text-align:right;">
+                <button class="btn-action" onclick="openEditLocalModal(${realIndex})">✎</button>
+                <button class="btn-action" onclick="deleteLocalFile(${realIndex})" style="color:#cf6679;">×</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function resetFilters(mode) {
+    if (mode === 'web') {
+        document.getElementById("filter-artist").value = "";
+        document.getElementById("filter-title").value = "";
+        document.getElementById("filter-category").value = "";
+        renderSetlist(currentTrackList);
+    } else if (mode === 'local') {
+        document.getElementById("filter-local-artist").value = "";
+        document.getElementById("filter-local-title").value = "";
+        document.getElementById("filter-local-album").value = "";
+        renderLocalFiles();
+    }
+}
+
+function playLocal(index) {
+    const file = localFiles[index];
+    if (!file) return;
+
+    // Detect Type
+    const ext = file.path.split('.').pop().toLowerCase();
+    const isAudio = ['mp3', 'wav', 'flac', 'm4a', 'aac'].includes(ext);
+
+    // Containers
+    const videoContainer = document.getElementById("video-container");
+    const audioContainer = document.getElementById("audio-player-container");
+
+    // Common Resets
+    document.getElementById("player").style.display = "none";
+    const genFrame = document.getElementById("generic-player");
+    if (genFrame) genFrame.style.display = "none";
+
+    const v = document.getElementById("html5-player");
+
+    if (isAudio) {
+        // --- AUDIO MODE (Hide Video Container) ---
+        videoContainer.style.display = "none";
+        audioContainer.style.display = "flex";
+
+        v.pause();
+        v.style.display = "none";
+        // aContainer.style.display = "flex"; // Already done above
+
+        // Update UI
+        document.getElementById("audio-title").innerText = file.title;
+        document.getElementById("audio-artist").innerText = file.artist || "Artiste Inconnu";
+        document.getElementById("audio-album").innerText = file.album || "";
+
+        const artImg = document.getElementById("audio-art");
+        // Reset first
+        artImg.style.display = "none";
+        artImg.src = "";
+
+        // Try load (The onerror in HTML handles failure to hide it, but we set it block here to try)
+        // We set src to API endpoint
+        artImg.src = `/api/local/art/${index}?t=${Date.now()}`; // cache bust
+        artImg.style.display = "block";
+
+        // Load WaveSurfer
+        if (wavesurfer) {
+            wavesurfer.load("/api/stream?path=" + encodeURIComponent(file.path));
+            wavesurfer.on('ready', () => wavesurfer.play());
+        }
+
+        currentActivePlayer = 'waveform';
+
+    } else {
+        // --- VIDEO MODE (Show Video Container) ---
+        videoContainer.style.display = "flex";
+        audioContainer.style.display = "none";
+
+        if (wavesurfer) wavesurfer.pause();
+        // aContainer.style.display = "none"; // Done above
+        v.style.display = "block";
+
+        v.src = "/api/stream?path=" + encodeURIComponent(file.path);
+        v.play();
+
+        currentActivePlayer = 'local';
+    }
+
+    setMode("WEB", "Local Media");
+}
+
+// --- AUDIO CONTROLS (On Screen) ---
+function audioControl(action) {
+    if (!wavesurfer) return;
+    switch (action) {
+        case 'playpause': wavesurfer.playPause(); break;
+        case 'prev': wavesurfer.skip(-10); break;
+        case 'next': wavesurfer.skip(10); break;
+        case 'speed':
+            let rate = wavesurfer.getPlaybackRate();
+            rate = rate >= 2 ? 0.5 : rate + 0.25;
+            wavesurfer.setPlaybackRate(rate);
+            break;
+    }
+}
+
+async function addLocalFile() {
+    await fetch("/api/local/add", { method: "POST" });
+    loadLocalFiles();
+}
+
+function openEditLocalModal(index) {
+    editingLocalIndex = index;
+    const item = localFiles[index];
+    document.getElementById("modal-local").showModal();
+
+    document.getElementById("local-path-display").innerText = item.path;
+    document.getElementById("local-title").value = item.title;
+    document.getElementById("local-artist").value = item.artist || "";
+    document.getElementById("local-album").value = item.album || "";
+    document.getElementById("local-genre").value = item.genre || "";
+    document.getElementById("local-year").value = item.year || "";
+    document.getElementById("local-notes").value = item.user_notes || "";
+
+    // Load Art
+    const img = document.getElementById("local-art-img");
+    img.src = `/api/local/art/${index}?t=${Date.now()}`;
+    img.style.display = "block";
+}
+
+function closeLocalModal() {
+    document.getElementById("modal-local").close();
+    editingLocalIndex = null;
+}
+
+async function saveLocalItem() {
+    if (editingLocalIndex === null) return;
+
+    const payload = {
+        title: document.getElementById("local-title").value,
+        artist: document.getElementById("local-artist").value,
+        album: document.getElementById("local-album").value,
+        genre: document.getElementById("local-genre").value,
+        year: document.getElementById("local-year").value,
+        user_notes: document.getElementById("local-notes").value
+    };
+
+    await fetch(`/api/local/${editingLocalIndex}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    closeLocalModal();
+    loadLocalFiles();
+}
+
+async function deleteLocalFile(index) {
+    if (!confirm("Supprimer de la liste locale ?")) return;
+    await fetch(`/api/local/${index}`, { method: "DELETE" });
+    loadLocalFiles();
+}
+
+function sortLocal(key) {
+    // Basic sort
+    localFiles.sort((a, b) => {
+        const va = (a[key] || "").toLowerCase();
+        const vb = (b[key] || "").toLowerCase();
+        return va.localeCompare(vb);
+    });
+    renderLocalFiles();
+}
+
 
 loadYouTubeAPI();
 connectWS();

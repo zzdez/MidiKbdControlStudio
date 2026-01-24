@@ -14,3 +14,4 @@ bleak-winrt
 requests
 customtkinter
 packaging
+mutagen

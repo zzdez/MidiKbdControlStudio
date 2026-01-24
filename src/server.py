@@ -1,7 +1,7 @@
 import os
 import sys
 import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -10,6 +10,10 @@ import json
 import requests
 import re
 import subprocess
+import tkinter as tk
+from tkinter import filedialog
+import urllib.parse
+import mutagen
 
 try:
     from config_manager import ConfigManager
@@ -22,6 +26,7 @@ app = FastAPI()
 library_manager = LibraryManager()
 SETLIST_FILE = "setlist.json"
 APPS_FILE = "apps.json"
+LOCAL_LIB_FILE = "local_lib.json"
 
 app.add_middleware(
     CORSMiddleware,
@@ -158,9 +163,10 @@ async def api_youtube_search(q: str):
 
 @app.get("/api/stream")
 async def stream_file(path: str):
-    if not os.path.exists(path):
+    decoded_path = urllib.parse.unquote(path)
+    if not os.path.exists(decoded_path):
         raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(path)
+    return FileResponse(decoded_path)
 
 @app.get("/api/status")
 async def get_status():
@@ -414,6 +420,212 @@ async def launch_app(request: Request):
 async def get_library():
     """Returns the hierarchical library structure."""
     return library_manager.get_library()
+
+# --- LOCAL LIBRARY ---
+def scan_file_metadata(path):
+    try:
+        audio = mutagen.File(path, easy=True)
+        if not audio: return {}
+        
+        # Safe extraction
+        def get_tag(k): return audio.get(k, [""])[0]
+        
+        length = 0
+        if hasattr(audio, 'info') and hasattr(audio.info, 'length'):
+            length = audio.info.length
+
+        return {
+            "title": get_tag("title") or os.path.basename(path),
+            "artist": get_tag("artist"),
+            "album": get_tag("album"),
+            "genre": get_tag("genre"),
+            "year": get_tag("date"),
+            "duration": length
+        }
+    except Exception as e:
+        print(f"Metadata Read Error: {e}")
+        return {"title": os.path.basename(path)}
+
+def write_file_metadata(path, data):
+    try:
+        audio = mutagen.File(path, easy=True)
+        if not audio:
+            # Fallback for untagged items if possible
+            audio = mutagen.File(path)
+            # Not all mutagen types support easy=True writing if not initialized
+            pass
+
+        if audio:
+            if "title" in data: audio["title"] = data["title"]
+            if "artist" in data: audio["artist"] = data["artist"]
+            if "album" in data: audio["album"] = data["album"]
+            if "genre" in data: audio["genre"] = data["genre"]
+            if "year" in data: audio["date"] = data["year"]
+            audio.save()
+            return True
+    except Exception as e:
+        print(f"Metadata Write Error: {e}")
+    return False
+
+@app.get("/api/local/files")
+async def get_local_files():
+    if os.path.exists(LOCAL_LIB_FILE):
+        try:
+            with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+@app.get("/api/local/art/{index}")
+async def get_local_art(index: int):
+    path = None
+    if os.path.exists(LOCAL_LIB_FILE):
+        try:
+            with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+                if 0 <= index < len(items):
+                    path = items[index].get("path")
+        except: pass
+
+    if not path or not os.path.exists(path):
+        return Response(status_code=404)
+
+    try:
+        # 1. Try Embedded Tags
+        try:
+            audio = mutagen.File(path)
+            if audio:
+                # ID3 (MP3)
+                if hasattr(audio, 'tags') and audio.tags:
+                    for key in audio.tags.keys():
+                        if key.startswith('APIC'):
+                            frame = audio.tags[key]
+                            if hasattr(frame, 'data'):
+                                return Response(content=frame.data, media_type=frame.mime)
+
+                # MP4 (M4A)
+                if 'covr' in audio:
+                    return Response(content=audio['covr'][0], media_type="image/jpeg")
+                    
+                # FLAC
+                if hasattr(audio, 'pictures') and audio.pictures:
+                    return Response(content=audio.pictures[0].data, media_type=audio.pictures[0].mime)
+        except:
+             pass
+
+        # 2. Try Local File Fallback (folder.jpg, cover.jpg, etc)
+        directory = os.path.dirname(path)
+        for cand in ["folder.jpg", "cover.jpg", "album.jpg", "folder.png", "cover.png"]:
+            cand_path = os.path.join(directory, cand)
+            if os.path.exists(cand_path):
+                return FileResponse(cand_path)
+        
+        # 3. Try looking for image with same name as audio file
+        base_name = os.path.splitext(os.path.basename(path))[0]
+        for ext in [".jpg", ".png", ".jpeg"]:
+           img_path = os.path.join(directory, base_name + ext)
+           if os.path.exists(img_path):
+               return FileResponse(img_path)
+
+    except Exception as e:
+        print(f"Art Error: {e}")
+
+    return Response(status_code=404)
+
+@app.post("/api/local/add")
+async def add_local_file():
+    try:
+        root = tk.Tk()
+        root.attributes("-topmost", True)
+        root.withdraw()
+        path = filedialog.askopenfilename(parent=root, filetypes=[("Audio/Video", "*.mp3 *.wav *.mp4 *.mkv *.avi *.flac")])
+        root.destroy()
+
+        if not path:
+            return {"status": "cancelled"}
+
+        if not os.path.exists(path):
+             raise HTTPException(status_code=404, detail="File not found")
+
+        # Analyze
+        meta = scan_file_metadata(path)
+        
+        new_item = {
+            "path": path,
+            "title": meta.get("title", os.path.basename(path)),
+            "artist": meta.get("artist", ""),
+            "album": meta.get("album", ""),
+            "genre": meta.get("genre", ""),
+            "category": "Général", # Default Category
+            "year": meta.get("year", ""),
+            "user_notes": "",
+            "duration": meta.get("duration", 0)
+        }
+
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+            with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+        
+        items.append(new_item)
+
+        with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=4)
+        
+        return items
+    except Exception as e:
+        print(f"Add Local Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/local/{index}")
+async def update_local_file(index: int, item: Dict):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+            with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+
+        if 0 <= index < len(items):
+            current = items[index]
+            # Update fields
+            current["title"] = item.get("title", current["title"])
+            current["artist"] = item.get("artist", current.get("artist", ""))
+            current["album"] = item.get("album", current.get("album", ""))
+            current["genre"] = item.get("genre", current.get("genre", ""))
+            current["category"] = item.get("category", current.get("category", "Général"))
+            current["year"] = item.get("year", current.get("year", ""))
+            current["user_notes"] = item.get("user_notes", current.get("user_notes", ""))
+            
+            # Write to disk tags
+            write_file_metadata(current["path"], item)
+
+            items[index] = current
+            with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+            return items
+        else:
+             raise HTTPException(status_code=404, detail="Item not found")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/local/{index}")
+async def delete_local_file(index: int):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+            with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+
+        if 0 <= index < len(items):
+            items.pop(index)
+            with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+        return items
+    except Exception as e:
+         raise HTTPException(status_code=500, detail=str(e))
+
 
 # --- CONFIG MANAGER (Profiles/Devices) ---
 @app.get("/api/profiles")

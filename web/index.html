@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Airstep Studio V3</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="lib/wavesurfer.min.js"></script>
 </head>
+
 <body>
 
     <!-- HEADER -->
@@ -27,8 +30,37 @@
             <!-- Lecteur -->
             <div id="video-container">
                 <div id="player"></div>
-                <iframe id="generic-player" style="width:100%; height:100%; display:none; border:none;" allowfullscreen></iframe>
-                <video id="html5-player" controls style="width:100%; height:100%; display:none; background:#000;"></video>
+                <iframe id="generic-player" style="width:100%; height:100%; display:none; border:none;"
+                    allowfullscreen></iframe>
+                <video id="html5-player" controls
+                    style="width:100%; height:100%; display:none; background:#000;"></video>
+            </div>
+
+            <!-- Audio Player (Waveform) - SEPARATE CONTAINER -->
+            <div id="audio-player-container"
+                style="display:none; width:100%; height:100%; flex-direction:column; justify-content:center; align-items:center; background:#121212;">
+                <!-- Album Art -->
+                <img id="audio-art" src=""
+                    style="max-height: 40%; max-width: 80%; object-fit: contain; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); display:none;"
+                    onerror="this.style.display='none'">
+
+                <div id="audio-meta-display" style="text-align:center; margin-bottom:10px;">
+                    <div id="audio-title" style="font-size:1.5em; font-weight:bold; color:white;">Titre</div>
+                    <div id="audio-artist" style="font-size:1em; color:#bbb;">Artiste</div>
+                    <div id="audio-album" style="font-size:0.8em; color:#888;">Album</div>
+                </div>
+                <div id="waveform" style="width:90%; height:100px;"></div>
+                <div id="audio-time" style="margin-top:10px; color:#666; font-size:0.8em;">00:00 / 00:00</div>
+
+                <!-- On Screen Controls -->
+                <div class="audio-controls" style="margin-top:20px; display:flex; gap:20px; align-items:center;">
+                    <button class="btn-icon" onclick="audioControl('prev')" style="font-size:20px;">⏪</button>
+                    <button class="btn-icon" onclick="audioControl('playpause')"
+                        style="font-size:30px; color:var(--accent);">⏯</button>
+                    <button class="btn-icon" onclick="audioControl('next')" style="font-size:20px;">⏩</button>
+                    <button class="btn-icon" onclick="audioControl('speed')"
+                        style="font-size:16px; color:#888;">1x</button>
+                </div>
             </div>
 
             <!-- Pédalier Virtuel (Sync) -->
@@ -44,8 +76,9 @@
 
             <!-- TAB NAVIGATION -->
             <div class="nav-tabs">
-                <button id="tab-library" class="active" onclick="switchView('library')">BIBLIOTHÈQUE 🎵</button>
-                <button id="tab-apps" onclick="switchView('apps')">APPLICATIONS 🚀</button>
+                <button id="tab-library" class="active" onclick="switchView('library')">Bibliothèque Web 🎵</button>
+                <button id="tab-local" onclick="switchView('local')">Fichiers Locaux 📂</button>
+                <button id="tab-apps" onclick="switchView('apps')">Applications 🚀</button>
             </div>
 
             <!-- VIEW: LIBRARY -->
@@ -56,18 +89,26 @@
                         <button class="btn-icon" onclick="openAddModal()">+</button>
                     </div>
 
-                    <!-- Search -->
-                    <input type="text" id="search-input" placeholder="Filtrer..." onkeyup="renderSetlist(currentTrackList)" style="width: 100%; margin-bottom: 10px; padding: 5px; box-sizing: border-box;">
+                    <!-- Search / Filters -->
+                    <div class="search-filters">
+                        <input type="text" id="filter-artist" placeholder="Artiste..."
+                            onkeyup="renderSetlist(currentTrackList)" style="flex:1;">
+                        <input type="text" id="filter-title" placeholder="Titre..."
+                            onkeyup="renderSetlist(currentTrackList)" style="flex:1;">
+                        <input type="text" id="filter-category" placeholder="Cat..."
+                            onkeyup="renderSetlist(currentTrackList)" style="flex:0.5;">
+                        <button class="btn-clear-global" onclick="resetFilters('web')" title="Réinitialiser">×</button>
+                    </div>
 
                     <!-- Table -->
                     <div class="table-wrapper">
-                        <table id="library-table">
+                        <table id="library-table" class="styled-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortTable('title')">Titre</th>
                                     <th onclick="sortTable('artist')">Artiste</th>
+                                    <th onclick="sortTable('title')">Titre</th>
                                     <th onclick="sortTable('category')">Cat</th>
-                                    <th style="width: 60px;">Actions</th>
+                                    <th style="width: 80px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="setlist-body">
@@ -88,6 +129,42 @@
 
                     <div id="apps-container" class="app-grid-large">
                         <!-- Apps JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: LOCAL FILES -->
+            <div id="view-local" class="view-container" style="display:none;">
+                <div class="sidebar-section">
+                    <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+                        Fichiers Locaux
+                        <button class="btn-icon" onclick="addLocalFile()">+</button>
+                    </div>
+
+                    <!-- Local Filters -->
+                    <div class="search-filters">
+                        <input type="text" id="filter-local-artist" placeholder="Artiste..."
+                            onkeyup="renderLocalFiles()" style="flex:1;">
+                        <input type="text" id="filter-local-title" placeholder="Titre..." onkeyup="renderLocalFiles()"
+                            style="flex:1;">
+                        <input type="text" id="filter-local-album" placeholder="Album..." onkeyup="renderLocalFiles()"
+                            style="flex:0.5;">
+                        <button class="btn-clear-global" onclick="resetFilters('local')"
+                            title="Réinitialiser">×</button>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table id="local-table" class="styled-table">
+                            <thead>
+                                <tr>
+                                    <th onclick="sortLocal('artist')">Artiste</th>
+                                    <th onclick="sortLocal('title')">Titre</th>
+                                    <th onclick="sortLocal('album')">Album</th>
+                                    <th style="width: 100px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="local-body"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -116,6 +193,54 @@
         </div>
     </dialog>
 
+    <!-- LOCAL FILE MODAL -->
+    <dialog id="modal-local">
+        <div class="modal-header">
+            <h3>Éditer Fichier Local</h3>
+            <button onclick="closeLocalModal()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body">
+            <!-- ART PREVIEW -->
+            <div style="display:flex; justify-content:center; margin-bottom:15px;">
+                <img id="local-art-img" src="" style="max-height:150px; border-radius:8px; display:none;"
+                    onerror="this.style.display='none'">
+            </div>
+            <div class="edit-form">
+                <label>Chemin du Fichier</label>
+                <div id="local-path-display"
+                    style="font-size:0.8em; color:#888; background:#222; padding:5px; border-radius:4px; margin-bottom:10px; word-break:break-all;">
+                </div>
+
+                <label>Titre</label>
+                <input type="text" id="local-title">
+
+                <label>Artiste</label>
+                <input type="text" id="local-artist">
+
+                <div class="row-inputs">
+                    <div class="col">
+                        <label>Album</label>
+                        <input type="text" id="local-album">
+                    </div>
+                    <div class="col">
+                        <label>Année</label>
+                        <input type="text" id="local-year">
+                    </div>
+                </div>
+
+                <label>Genre</label>
+                <input type="text" id="local-genre">
+
+                <label>Notes</label>
+                <textarea id="local-notes" rows="3"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-text" onclick="closeLocalModal()">Annuler</button>
+            <button class="btn-primary" onclick="saveLocalItem()">Sauvegarder</button>
+        </div>
+    </dialog>
+
     <!-- MEDIA MODAL -->
     <dialog id="media-modal">
         <div class="modal-header">
@@ -127,7 +252,8 @@
             <!-- Search Zone -->
             <div class="search-zone">
                 <div class="input-group">
-                    <input type="text" id="yt-search-input" placeholder="Recherche YouTube ou URL..." onkeydown="if(event.key==='Enter') searchYouTube()">
+                    <input type="text" id="yt-search-input" placeholder="Recherche YouTube ou URL..."
+                        onkeydown="if(event.key==='Enter') searchYouTube()">
                     <button onclick="searchYouTube()">🔍</button>
                 </div>
                 <div id="search-results" class="results-grid"></div>
@@ -141,7 +267,8 @@
                 <!-- Zone 1: Title (Full Width) -->
                 <div class="zone-title">
                     <label>Titre</label>
-                    <input type="text" id="edit-title" placeholder="Titre de la chanson" style="font-size:1.1em; font-weight:bold;">
+                    <input type="text" id="edit-title" placeholder="Titre de la chanson"
+                        style="font-size:1.1em; font-weight:bold;">
                 </div>
 
                 <!-- Zone 2: Split View (Image | Description) -->
@@ -198,7 +325,8 @@
                 <!-- Zone 4: User Notes -->
                 <div class="zone-notes">
                     <label>Mes Notes / Résumé</label>
-                    <textarea id="user-notes-input" rows="3" placeholder="Mes notes personnelles, accords, structure..."></textarea>
+                    <textarea id="user-notes-input" rows="3"
+                        placeholder="Mes notes personnelles, accords, structure..."></textarea>
                 </div>
             </div>
         </div>
@@ -213,4 +341,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>
