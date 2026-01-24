@@ -147,7 +147,7 @@
                             onkeyup="renderLocalFiles()" style="flex:1;">
                         <input type="text" id="filter-local-title" placeholder="Titre..." onkeyup="renderLocalFiles()"
                             style="flex:1;">
-                        <input type="text" id="filter-local-album" placeholder="Album..." onkeyup="renderLocalFiles()"
+                        <input type="text" id="filter-local-album" placeholder="Cat..." onkeyup="renderLocalFiles()"
                             style="flex:0.5;">
                         <button class="btn-clear-global" onclick="resetFilters('local')"
                             title="Réinitialiser">×</button>
@@ -206,7 +206,6 @@
                     onerror="this.style.display='none'">
             </div>
             <div class="edit-form">
-                <label>Chemin du Fichier</label>
                 <div id="local-path-display"
                     style="font-size:0.8em; color:#888; background:#222; padding:5px; border-radius:4px; margin-bottom:10px; word-break:break-all;">
                 </div>
@@ -217,7 +216,7 @@
                 <div class="row-inputs">
                     <div class="col">
                         <label>Artiste</label>
-                        <input type="text" id="local-artist">
+                        <input type="text" id="local-artist" list="artists">
                     </div>
                     <div class="col">
                         <label>Catégorie</label>
@@ -226,18 +225,19 @@
                 </div>
 
                 <div class="row-inputs">
-                    <div class="col">
+                    <div class="col" style="flex:2;">
                         <label>Album (Tag)</label>
                         <input type="text" id="local-album">
                     </div>
-                    <div class="col">
+                    <div class="col" style="flex:2;">
+                        <label>Genre</label>
+                        <input type="text" id="local-genre" list="genres">
+                    </div>
+                    <div class="col" style="flex:0.8;">
                         <label>Année</label>
                         <input type="text" id="local-year">
                     </div>
                 </div>
-
-                <label>Genre</label>
-                <input type="text" id="local-genre">
 
                 <label>Notes</label>
                 <textarea id="local-notes" rows="3"></textarea>

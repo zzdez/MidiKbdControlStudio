@@ -605,9 +605,10 @@ async def update_local_file(index: int, item: Dict):
                 json.dump(items, f, indent=4)
             return items
         else:
-             raise HTTPException(status_code=404, detail="Item not found")
+            raise HTTPException(status_code=404, detail="Item not found")
 
     except Exception as e:
+        print(f"Update Local Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/local/{index}")

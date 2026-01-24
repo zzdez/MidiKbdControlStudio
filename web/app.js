@@ -195,10 +195,11 @@ function sortTable(key) {
         const valB = (b[key] || "").toString().toLowerCase();
         return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
     });
-    renderSetlist(currentTrackList);
+    renderSetlist(currentTrackList); // Render Sorted
+    updateDatalists(currentTrackList); // Update shared datalists
 }
 
-function renderSetlist(tracks) {
+function renderSetlist(list) {
     const tbody = document.getElementById("setlist-body");
     if (!tbody) return;
     tbody.innerHTML = "";
@@ -208,7 +209,7 @@ function renderSetlist(tracks) {
     const fTitle = document.getElementById("filter-title").value.toLowerCase();
     const fCat = document.getElementById("filter-category").value.toLowerCase();
 
-    const filtered = tracks.filter(t => {
+    const filtered = list.filter(t => {
         const matchArtist = (t.artist || "").toLowerCase().includes(fArtist);
         const matchTitle = (t.title || t.url).toLowerCase().includes(fTitle);
         const matchCat = (t.category || "").toLowerCase().includes(fCat);
@@ -218,7 +219,7 @@ function renderSetlist(tracks) {
     if (!filtered || filtered.length === 0) {
         tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:20px; color:gray;'>Aucun résultat</td></tr>";
         // Update datalists anyway
-        updateDatalists(tracks);
+        updateDatalists(list);
         return;
     }
 
@@ -700,11 +701,35 @@ function initWaveSurfer() {
 let localFiles = [];
 let editingLocalIndex = null;
 
+// --- DATALISTS ---
+function updateDatalists() {
+    // 1. Categories (Web + Local)
+    const webCats = currentTrackList.map(t => t.category).filter(c => c && c.trim() !== "");
+    const localCats = localFiles.map(f => f.category).filter(c => c && c.trim() !== "");
+    const uniqueCats = [...new Set([...webCats, ...localCats])].sort();
+
+    const catList = document.getElementById("categories");
+    if (catList) {
+        catList.innerHTML = uniqueCats.map(c => `<option value="${c}">`).join("");
+    }
+
+    // 2. Genres (Web + Local)
+    const webGenres = currentTrackList.map(t => t.genre).filter(g => g && g.trim() !== "");
+    const localGenres = localFiles.map(f => f.genre).filter(g => g && g.trim() !== "");
+    const uniqueGenres = [...new Set([...webGenres, ...localGenres])].sort();
+
+    const genreList = document.getElementById("genres");
+    if (genreList) {
+        genreList.innerHTML = uniqueGenres.map(g => `<option value="${g}">`).join("");
+    }
+}
+
 async function loadLocalFiles() {
     try {
         const res = await fetch("/api/local/files");
         localFiles = await res.json();
     } catch (e) { localFiles = []; }
+    updateDatalists(); // Update shared datalists
     renderLocalFiles();
 }
 
@@ -906,6 +931,12 @@ async function saveLocalItem() {
     });
 
     closeLocalModal();
+    loadLocalFiles();
+}
+
+async function deleteLocalFile(index) {
+    if (!confirm("Supprimer ce fichier de la bibliothèque ?")) return;
+    await fetch(`/api/local/${index}`, { method: "DELETE" });
     loadLocalFiles();
 }
 

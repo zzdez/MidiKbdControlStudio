@@ -260,7 +260,15 @@ button:hover {
 
 #setlist-container {
     max-height: 300px;
+    margin-top: 10px;
     overflow-y: auto;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    cursor: pointer;
 }
 
 .track-item {
