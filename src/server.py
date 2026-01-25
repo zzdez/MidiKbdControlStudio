@@ -526,51 +526,81 @@ def write_file_metadata(path, data):
             # --- Handle Cover Art ---
             if "cover_data" in data and data["cover_data"]:
                 logging.info("Processing cover art...")
-                try:
-                    header, encoded = data["cover_data"].split(",", 1)
-                    image_data = base64.b64decode(encoded)
-                    logging.info(f"Image data decoded, size: {len(image_data)} bytes")
-                    
-                    mime_type = "image/jpeg"
-                    if "image/png" in header:
-                        mime_type = "image/png"
+                
+                # Check for Deletion Signal
+                if data["cover_data"] == "DELETE":
+                    logging.info("DELETE signal received. Removing cover art.")
+                    try:
+                        # 1. MP3
+                        if ext == ".mp3":
+                            tags = ID3(path)
+                            tags.delall("APIC")
+                            tags.save(path, v2_version=3)
+                        
+                        # 2. FLAC
+                        elif ext == ".flac":
+                            f_audio = FLAC(path)
+                            f_audio.clear_pictures()
+                            f_audio.save()
+                        
+                        # 3. M4A / MP4
+                        elif ext in [".m4a", ".mp4"]:
+                            m_audio = MP4(path)
+                            if "covr" in m_audio:
+                                del m_audio["covr"]
+                                m_audio.save()
+                        
+                        logging.info("Cover art removed successfully")
+                    except Exception as e:
+                        logging.error(f"Cover Art Deletion Error: {e}")
+                
+                else:
+                    # Normal Write Logic
+                    try:
+                        header, encoded = data["cover_data"].split(",", 1)
+                        image_data = base64.b64decode(encoded)
+                        logging.info(f"Image data decoded, size: {len(image_data)} bytes")
+                        
+                        mime_type = "image/jpeg"
+                        if "image/png" in header:
+                            mime_type = "image/png"
 
-                    # 1. MP3
-                    if ext == ".mp3":
-                        tags = ID3(path) # Re-open for ID3 specific manipulation
-                        tags.delall("APIC") # Remove existing covers
-                        tags.add(APIC(
-                            encoding=0, # 0=Latin-1 (Safe for v2.3), 3=UTF-8 (Not supported in v2.3)
-                            mime=mime_type,
-                            type=3, 
-                            desc=u'', # Empty description for max compatibility
-                            data=image_data
-                        ))
-                        tags.save(path, v2_version=3)
+                        # 1. MP3
+                        if ext == ".mp3":
+                            tags = ID3(path) # Re-open for ID3 specific manipulation
+                            tags.delall("APIC") # Remove existing covers
+                            tags.add(APIC(
+                                encoding=0, # 0=Latin-1 (Safe for v2.3), 3=UTF-8 (Not supported in v2.3)
+                                mime=mime_type,
+                                type=3, 
+                                desc=u'', # Empty description for max compatibility
+                                data=image_data
+                            ))
+                            tags.save(path, v2_version=3)
 
-                    # 2. FLAC
-                    elif ext == ".flac":
-                        f_audio = FLAC(path)
-                        pic = Picture()
-                        pic.type = 3
-                        pic.mime = mime_type
-                        pic.desc = 'Cover'
-                        pic.data = image_data
-                        f_audio.clear_pictures()
-                        f_audio.add_picture(pic)
-                        f_audio.save()
+                        # 2. FLAC
+                        elif ext == ".flac":
+                            f_audio = FLAC(path)
+                            pic = Picture()
+                            pic.type = 3
+                            pic.mime = mime_type
+                            pic.desc = 'Cover'
+                            pic.data = image_data
+                            f_audio.clear_pictures()
+                            f_audio.add_picture(pic)
+                            f_audio.save()
 
-                    # 3. M4A / MP4
-                    elif ext in [".m4a", ".mp4"]:
-                        m_audio = MP4(path)
-                        fmt = MP4Cover.FORMAT_PNG if mime_type == "image/png" else MP4Cover.FORMAT_JPEG
-                        m_audio["covr"] = [MP4Cover(image_data, imageformat=fmt)]
-                        m_audio.save()
-                    
-                    logging.info("Cover art saved")
+                        # 3. M4A / MP4
+                        elif ext in [".m4a", ".mp4"]:
+                            m_audio = MP4(path)
+                            fmt = MP4Cover.FORMAT_PNG if mime_type == "image/png" else MP4Cover.FORMAT_JPEG
+                            m_audio["covr"] = [MP4Cover(image_data, imageformat=fmt)]
+                            m_audio.save()
+                        
+                        logging.info("Cover art saved")
 
-                except Exception as e:
-                    logging.error(f"Cover Art Write Error: {e}")
+                    except Exception as e:
+                        logging.error(f"Cover Art Write Error: {e}")
 
             return True
         else:

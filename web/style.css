@@ -703,3 +703,13 @@ dialog::backdrop {
     color: white;
     border-color: #666;
 }
+
+/* Shows delete button only when image is present and hovered */
+#local-art-container:hover #btn-delete-cover {
+    display: flex !important;
+}
+
+/* Hide button if placeholder is visible (no image) */
+#local-art-placeholder:not([style*="display: none"])~#btn-delete-cover {
+    display: none !important;
+}

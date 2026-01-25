@@ -997,3 +997,23 @@ function handleLocalCover(input) {
         reader.readAsDataURL(input.files[0]);
     }
 }
+
+
+function removeLocalCover() {
+    // Logic to mark cover for deletion
+    currentCoverData = "DELETE";
+
+    // Update UI immediately
+    const img = document.getElementById("local-art-img");
+    const placeholder = document.getElementById("local-art-placeholder");
+    const fileInput = document.getElementById("cover-upload");
+
+    if (img && placeholder) {
+        img.style.display = "none";
+        img.src = ""; // Clear source
+        placeholder.style.display = "flex";
+    }
+
+    // Reset file input
+    if (fileInput) fileInput.value = "";
+}
