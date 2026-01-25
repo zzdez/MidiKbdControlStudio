@@ -17,8 +17,18 @@ import urllib.parse
 import mutagen
 import base64
 from mutagen.id3 import ID3, APIC, error as ID3Error
+from mutagen.easyid3 import EasyID3
+from mutagen.easymp4 import EasyMP4
 from mutagen.flac import Picture, FLAC
 from mutagen.mp4 import MP4, MP4Cover
+import logging
+
+# Configure Logging
+logging.basicConfig(
+    filename='airstep_debug.log',
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 try:
     from config_manager import ConfigManager
@@ -452,50 +462,74 @@ def scan_file_metadata(path):
         return {"title": os.path.basename(path)}
 
 def write_file_metadata(path, data):
+    logging.info(f"Attempting to write metadata for: {path}")
     ext = os.path.splitext(path)[1].lower()
-    # Skip video files for safety
-    if ext in ['.mkv', '.avi', '.mp4', '.mov', '.webm']:
+    
+    # Skip video files for safety (only allow audio formats we are sure of)
+    if ext in ['.mkv', '.avi', '.mov', '.webm']:
+        # We now allow .mp4 as it might contain audio tags we want to edit.
+        logging.info("Skipping excluded extension")
         return False
 
     try:
         audio = None
-        try:
-            # Try Easy mode first (handles MP3 ID3v2.3+, FLAC, etc)
-            audio = mutagen.File(path, easy=True)
-        except Exception:
-            pass
-
-        # Fallback for MP3s that strictly need EasyID3 wrapper if mutagen.File didn't return an EasyID3-like object
-        if not audio and ext == ".mp3":
+        
+        # 1. Try Easy methods based on extension first for precision
+        if ext == ".mp3":
             try:
                 audio = EasyID3(path)
-            except Exception:
-                # File might not have tags yet, try creating
+            except Exception as e:
+                logging.warning(f"EasyID3 load failed, attempting init: {e}")
                 try:
-                    audio = EasyID3()
-                    audio.save(path) # Initialize
+                    # Provide ID3 Header
+                    try: 
+                        ID3(path)
+                    except ID3Error:
+                        logging.info("Creating new ID3 Header (v2.3)")
+                        tags = ID3()
+                        tags.save(path, v2_version=3)
                     audio = EasyID3(path)
-                except:
-                    pass
+                except Exception as e2:
+                    logging.error(f"Failed to init MP3 tags: {e2}")
+                    return False
 
-        if audio:
+        elif ext in [".m4a", ".mp4"]:
+            try:
+                audio = EasyMP4(path)
+            except Exception as e:
+                logging.error(f"EasyMP4 load failed: {e}")
+                # Try standard MP4?
+                pass
+        
+        # 2. Generic Fallback
+        if not audio:
+            try:
+                audio = mutagen.File(path, easy=True)
+            except Exception as e:
+                logging.error(f"mutagen.File easy=True failed: {e}")
+
+        if audio is not None:
+            logging.info(f"Audio object loaded: {type(audio)}")
             # Map standard keys
-            # Note: 'date' is standard in EasyID3 for Year/Date
             if "title" in data: audio["title"] = data["title"]
             if "artist" in data: audio["artist"] = data["artist"]
             if "album" in data: audio["album"] = data["album"]
             if "genre" in data: audio["genre"] = data["genre"]
             if "year" in data: audio["date"] = data["year"]
             
-            audio.save()
+            if ext == ".mp3":
+                audio.save(v2_version=3)
+            else:
+                audio.save()
+            logging.info("Text tags saved successfully")
 
             # --- Handle Cover Art ---
             if "cover_data" in data and data["cover_data"]:
+                logging.info("Processing cover art...")
                 try:
-                    # Expect "data:image/png;base64,..." or just base64?
-                    # Usually reader.readAsDataURL returns "data:image/xyz;base64,..."
                     header, encoded = data["cover_data"].split(",", 1)
                     image_data = base64.b64decode(encoded)
+                    logging.info(f"Image data decoded, size: {len(image_data)} bytes")
                     
                     mime_type = "image/jpeg"
                     if "image/png" in header:
@@ -503,55 +537,54 @@ def write_file_metadata(path, data):
 
                     # 1. MP3
                     if ext == ".mp3":
-                        try:
-                            tags = ID3(path)
-                        except ID3Error:
-                            tags = ID3()
-                        
+                        tags = ID3(path) # Re-open for ID3 specific manipulation
+                        tags.delall("APIC") # Remove existing covers
                         tags.add(APIC(
-                            encoding=3,  # 3 is generic UTF-8 compatible usually
+                            encoding=0, # 0=Latin-1 (Safe for v2.3), 3=UTF-8 (Not supported in v2.3)
                             mime=mime_type,
-                            type=3,  # Cover (front)
-                            desc=u'Cover',
+                            type=3, 
+                            desc=u'', # Empty description for max compatibility
                             data=image_data
                         ))
-                        tags.save(path)
+                        tags.save(path, v2_version=3)
 
                     # 2. FLAC
                     elif ext == ".flac":
-                        try:
-                            f_audio = FLAC(path)
-                            pic = Picture()
-                            pic.type = 3
-                            pic.mime = mime_type
-                            pic.desc = 'Cover'
-                            pic.data = image_data
-                            f_audio.clear_pictures()
-                            f_audio.add_picture(pic)
-                            f_audio.save()
-                        except: pass
+                        f_audio = FLAC(path)
+                        pic = Picture()
+                        pic.type = 3
+                        pic.mime = mime_type
+                        pic.desc = 'Cover'
+                        pic.data = image_data
+                        f_audio.clear_pictures()
+                        f_audio.add_picture(pic)
+                        f_audio.save()
 
-                    # 3. MP4 / M4A
+                    # 3. M4A / MP4
                     elif ext in [".m4a", ".mp4"]:
-                        try:
-                            m_audio = MP4(path)
-                            # MP4Cover.FORMAT_JPEG = 13, FORMAT_PNG = 14
-                            fmt = MP4Cover.FORMAT_PNG if mime_type == "image/png" else MP4Cover.FORMAT_JPEG
-                            m_audio["covr"] = [MP4Cover(image_data, imageformat=fmt)]
-                            m_audio.save()
-                        except: pass
+                        m_audio = MP4(path)
+                        fmt = MP4Cover.FORMAT_PNG if mime_type == "image/png" else MP4Cover.FORMAT_JPEG
+                        m_audio["covr"] = [MP4Cover(image_data, imageformat=fmt)]
+                        m_audio.save()
+                    
+                    logging.info("Cover art saved")
 
                 except Exception as e:
-                    print(f"Cover Art Write Error: {e}")
+                    logging.error(f"Cover Art Write Error: {e}")
 
             return True
+        else:
+            logging.error("Failed to load audio object for tagging")
 
     except PermissionError:
+        logging.error("PermissionDenied: File is locked")
         raise PermissionError("File in use")
     except Exception as e:
-        print(f"Metadata Write Error: {e}")
+        logging.error(f"Metadata Write Fatal Error: {e}")
     
     return False
+
+
 
 @app.get("/api/local/files")
 async def get_local_files():
@@ -577,34 +610,40 @@ async def get_local_art(index: int):
     if not path or not os.path.exists(path):
         return Response(status_code=404)
 
+    logging.debug(f"Fetching art for: {path}")
     try:
         # 1. Try Embedded Tags
         try:
             audio = mutagen.File(path)
             if audio:
+                logging.debug(f"Audio loaded for art: {type(audio)}")
                 # ID3 (MP3)
                 if hasattr(audio, 'tags') and audio.tags:
                     for key in audio.tags.keys():
                         if key.startswith('APIC'):
+                            logging.debug(f"Found APIC: {key}")
                             frame = audio.tags[key]
                             if hasattr(frame, 'data'):
                                 return Response(content=frame.data, media_type=frame.mime)
-
+                
                 # MP4 (M4A)
                 if 'covr' in audio:
+                    logging.debug("Found MP4 covr")
                     return Response(content=audio['covr'][0], media_type="image/jpeg")
                     
                 # FLAC
                 if hasattr(audio, 'pictures') and audio.pictures:
+                    logging.debug("Found FLAC Picture")
                     return Response(content=audio.pictures[0].data, media_type=audio.pictures[0].mime)
-        except:
-             pass
+        except Exception as e_art:
+             logging.error(f"Art Extraction Error: {e_art}")
 
         # 2. Try Local File Fallback (folder.jpg, cover.jpg, etc)
         directory = os.path.dirname(path)
         for cand in ["folder.jpg", "cover.jpg", "album.jpg", "folder.png", "cover.png"]:
             cand_path = os.path.join(directory, cand)
             if os.path.exists(cand_path):
+                logging.debug(f"Found local art file: {cand}")
                 return FileResponse(cand_path)
         
         # 3. Try looking for image with same name as audio file
@@ -612,11 +651,13 @@ async def get_local_art(index: int):
         for ext in [".jpg", ".png", ".jpeg"]:
            img_path = os.path.join(directory, base_name + ext)
            if os.path.exists(img_path):
+               logging.debug(f"Found sibling art file: {img_path}")
                return FileResponse(img_path)
 
     except Exception as e:
-        print(f"Art Error: {e}")
+        logging.error(f"Art Fatal Error: {e}")
 
+    logging.debug("No art found")
     return Response(status_code=404)
 
 @app.post("/api/local/add")
