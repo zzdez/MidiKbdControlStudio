@@ -345,7 +345,6 @@ async function openSettings() {
 // --- MODAL & EDIT LOGIC ---
 
 function openAddModal() {
-    editingIndex = null;
     document.getElementById("media-modal").showModal();
     // Clear Form
     document.getElementById("yt-search-input").value = "";
@@ -901,9 +900,26 @@ function openEditLocalModal(index) {
     document.getElementById("local-notes").value = item.user_notes || "";
 
     // Load Art
+    currentCoverData = null;
+    document.getElementById("cover-upload").value = "";
+
     const img = document.getElementById("local-art-img");
+    const placeholder = document.getElementById("local-art-placeholder");
+
+    // Reset visibility logic
+    img.style.display = "none";
+    placeholder.style.display = "flex";
+
+    img.onload = () => {
+        img.style.display = "block";
+        placeholder.style.display = "none";
+    };
+    img.onerror = () => {
+        img.style.display = "none";
+        placeholder.style.display = "flex";
+    };
+
     img.src = `/api/local/art/${index}?t=${Date.now()}`;
-    img.style.display = "block";
 }
 
 function closeLocalModal() {
@@ -921,14 +937,22 @@ async function saveLocalItem() {
         genre: document.getElementById("local-genre").value,
         category: document.getElementById("local-category").value || "Général",
         year: document.getElementById("local-year").value,
-        user_notes: document.getElementById("local-notes").value
+        user_notes: document.getElementById("local-notes").value,
+        cover_data: currentCoverData // Send base64 data if changed
     };
 
-    await fetch(`/api/local/${editingLocalIndex}`, {
+    const res = await fetch(`/api/local/${editingLocalIndex}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
     });
+
+    if (res.ok) {
+        const data = await res.json();
+        if (data.warning) {
+            alert(data.warning);
+        }
+    }
 
     closeLocalModal();
     loadLocalFiles();
@@ -940,11 +964,7 @@ async function deleteLocalFile(index) {
     loadLocalFiles();
 }
 
-async function deleteLocalFile(index) {
-    if (!confirm("Supprimer de la liste locale ?")) return;
-    await fetch(`/api/local/${index}`, { method: "DELETE" });
-    loadLocalFiles();
-}
+
 
 function sortLocal(key) {
     // Basic sort
@@ -959,3 +979,21 @@ function sortLocal(key) {
 
 loadYouTubeAPI();
 connectWS();
+
+function handleLocalCover(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            currentCoverData = e.target.result; // Base64 string
+            const img = document.getElementById("local-art-img");
+            const placeholder = document.getElementById("local-art-placeholder");
+
+            if (img && placeholder) {
+                img.src = currentCoverData;
+                img.style.display = "block";
+                placeholder.style.display = "none";
+            }
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}

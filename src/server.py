@@ -13,7 +13,12 @@ import subprocess
 import tkinter as tk
 from tkinter import filedialog
 import urllib.parse
+
 import mutagen
+import base64
+from mutagen.id3 import ID3, APIC, error as ID3Error
+from mutagen.flac import Picture, FLAC
+from mutagen.mp4 import MP4, MP4Cover
 
 try:
     from config_manager import ConfigManager
@@ -447,24 +452,105 @@ def scan_file_metadata(path):
         return {"title": os.path.basename(path)}
 
 def write_file_metadata(path, data):
+    ext = os.path.splitext(path)[1].lower()
+    # Skip video files for safety
+    if ext in ['.mkv', '.avi', '.mp4', '.mov', '.webm']:
+        return False
+
     try:
-        audio = mutagen.File(path, easy=True)
-        if not audio:
-            # Fallback for untagged items if possible
-            audio = mutagen.File(path)
-            # Not all mutagen types support easy=True writing if not initialized
+        audio = None
+        try:
+            # Try Easy mode first (handles MP3 ID3v2.3+, FLAC, etc)
+            audio = mutagen.File(path, easy=True)
+        except Exception:
             pass
 
+        # Fallback for MP3s that strictly need EasyID3 wrapper if mutagen.File didn't return an EasyID3-like object
+        if not audio and ext == ".mp3":
+            try:
+                audio = EasyID3(path)
+            except Exception:
+                # File might not have tags yet, try creating
+                try:
+                    audio = EasyID3()
+                    audio.save(path) # Initialize
+                    audio = EasyID3(path)
+                except:
+                    pass
+
         if audio:
+            # Map standard keys
+            # Note: 'date' is standard in EasyID3 for Year/Date
             if "title" in data: audio["title"] = data["title"]
             if "artist" in data: audio["artist"] = data["artist"]
             if "album" in data: audio["album"] = data["album"]
             if "genre" in data: audio["genre"] = data["genre"]
             if "year" in data: audio["date"] = data["year"]
+            
             audio.save()
+
+            # --- Handle Cover Art ---
+            if "cover_data" in data and data["cover_data"]:
+                try:
+                    # Expect "data:image/png;base64,..." or just base64?
+                    # Usually reader.readAsDataURL returns "data:image/xyz;base64,..."
+                    header, encoded = data["cover_data"].split(",", 1)
+                    image_data = base64.b64decode(encoded)
+                    
+                    mime_type = "image/jpeg"
+                    if "image/png" in header:
+                        mime_type = "image/png"
+
+                    # 1. MP3
+                    if ext == ".mp3":
+                        try:
+                            tags = ID3(path)
+                        except ID3Error:
+                            tags = ID3()
+                        
+                        tags.add(APIC(
+                            encoding=3,  # 3 is generic UTF-8 compatible usually
+                            mime=mime_type,
+                            type=3,  # Cover (front)
+                            desc=u'Cover',
+                            data=image_data
+                        ))
+                        tags.save(path)
+
+                    # 2. FLAC
+                    elif ext == ".flac":
+                        try:
+                            f_audio = FLAC(path)
+                            pic = Picture()
+                            pic.type = 3
+                            pic.mime = mime_type
+                            pic.desc = 'Cover'
+                            pic.data = image_data
+                            f_audio.clear_pictures()
+                            f_audio.add_picture(pic)
+                            f_audio.save()
+                        except: pass
+
+                    # 3. MP4 / M4A
+                    elif ext in [".m4a", ".mp4"]:
+                        try:
+                            m_audio = MP4(path)
+                            # MP4Cover.FORMAT_JPEG = 13, FORMAT_PNG = 14
+                            fmt = MP4Cover.FORMAT_PNG if mime_type == "image/png" else MP4Cover.FORMAT_JPEG
+                            m_audio["covr"] = [MP4Cover(image_data, imageformat=fmt)]
+                            m_audio.save()
+                        except: pass
+
+                except Exception as e:
+                    print(f"Cover Art Write Error: {e}")
+
             return True
+
+    except PermissionError:
+        raise PermissionError("File in use")
     except Exception as e:
         print(f"Metadata Write Error: {e}")
+    
     return False
 
 @app.get("/api/local/files")
@@ -597,13 +683,24 @@ async def update_local_file(index: int, item: Dict):
             current["year"] = item.get("year", current.get("year", ""))
             current["user_notes"] = item.get("user_notes", current.get("user_notes", ""))
             
-            # Write to disk tags
-            write_file_metadata(current["path"], item)
-
-            items[index] = current
+            # 1. Save JSON (Database Priority)
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=4)
-            return items
+
+            # 2. Write to disk tags (Physical)
+            warning_msg = None
+            try:
+                write_file_metadata(current["path"], item)
+            except PermissionError:
+                warning_msg = "Attention : Le fichier est en cours d'utilisation. Les tags internes n'ont pas été modifiés, mais la bibliothèque est à jour."
+            except Exception as e:
+                print(f"Tag Write Warning: {e}")
+            
+            return {
+                "status": "partial_success" if warning_msg else "ok",
+                "warning": warning_msg,
+                "items": items
+            }
         else:
             raise HTTPException(status_code=404, detail="Item not found")
 
