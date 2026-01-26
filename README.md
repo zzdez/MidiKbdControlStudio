@@ -13,6 +13,7 @@
 *   **Setlist Catégorisée & Intelligente :**
     *   **Nouveau !** Modale de recherche YouTube intégrée : trouvez, prévisualisez et ajoutez vos backing tracks sans quitter l'appli.
     *   **Nouveau !** Support des fichiers locaux (MP3/WAV) via streaming natif.
+    *   **Éditeur de Métadonnées :** Modifiez physiquement vos fichiers (Titres, Artistes...) et gérez vos pochettes d'album directement depuis l'application.
     *   Organisez par Artiste, Genre, et ajoutez vos notes personnelles distinctes de la description YouTube.
 *   **Contrôle Hybride & Robuste :**
     *   **Mode WEB :** Pilotez le lecteur YouTube (Play, Pause, Vitesse, Seek) directement avec vos pédales.

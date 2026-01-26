@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ========================================================
-echo   COMPILATION AIRSTEP STUDIO (VERSION MUTAGEN)
+echo   COMPILATION AIRSTEP STUDIO (FULL MUTAGEN SUPPORT)
 echo ========================================================
 
 :: 1. TUER L'APPLICATION
@@ -41,7 +41,7 @@ if exist assets (
 :: 4. COMPILATION
 cd _BUILD_TEMP
 
-:: AJOUT DE MUTAGEN ICI :
+:: COMMANDE AVEC TOUS LES MODULES MUTAGEN EXPLICITES
 pyinstaller --noconfirm --onefile --windowed ^
  --name "AirstepStudio" ^
  --add-data "config.json;." ^
@@ -67,6 +67,14 @@ pyinstaller --noconfirm --onefile --windowed ^
  --hidden-import "mido.backends.rtmidi" ^
  --hidden-import "bleak" ^
  --hidden-import "mutagen" ^
+ --hidden-import "mutagen.mp3" ^
+ --hidden-import "mutagen.easyid3" ^
+ --hidden-import "mutagen.oggvorbis" ^
+ --hidden-import "mutagen.flac" ^
+ --hidden-import "mutagen.wave" ^
+ --hidden-import "mutagen.mp4" ^
+ --hidden-import "mutagen.easymp4" ^
+ --hidden-import "mutagen.matroska" ^
  --collect-all "pygame" ^
  main.py
 

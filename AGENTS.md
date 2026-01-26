@@ -43,3 +43,13 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
 2.  **Imports :** Utilisez toujours le bloc `try/except ImportError` pour gérer la dualité "Mode Dev (dossier `src/`)" vs "Mode Frozen (PyInstaller flat)".
 3.  **Ressources :** Toujours utiliser `sys._MEIPASS` (via `get_resource_path` dans `gui.py`) pour localiser les icônes et le dossier `web/` en production.
 4.  **Contexte :** `ContextMonitor` ignore les processus internes (`python.exe`, `Airstep...`) pour éviter les boucles de détection (Ghost Profiles).
+
+### 6. Évolution V4 : Gestion Avancée des Fichiers Locaux
+*   **Physical Tagging (Backend) :** Intégration de `mutagen` dans `src/server.py`.
+    *   **MP3 :** Support complet ID3v2.3 (forcé pour compatibilité Windows) via `EasyID3` + `ID3` pour les images.
+    *   **M4A / MP4 :** Support des atomes `covr` et métadonnées iTunes via `EasyMP4`.
+    *   **FLAC :** Support natif Vorbis Comments et Picture blocks.
+*   **Gestion des Erreurs :** Détection des fichiers "locked" par d'autres processus (VLC, Windows Explorer) avec retour d'alerte utilisateur (Partial Success).
+*   **Frontend Audio :** Nouveau visualiseur WaveSurfer haute résolution, contrôles de lecture flottants.
+*   **Media Modal :** Système d'upload de pochette avec prévisualisation Base64 et option de suppression (Signal `DELETE`).
+

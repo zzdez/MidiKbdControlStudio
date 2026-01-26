@@ -16,10 +16,12 @@ import urllib.parse
 
 import mutagen
 import base64
-from mutagen.id3 import ID3, APIC, error as ID3Error
+from mutagen.id3 import ID3, APIC, TIT2, TPE1, TALB, TCON, TDRC, TRCK, error as ID3Error
 from mutagen.easyid3 import EasyID3
 from mutagen.easymp4 import EasyMP4
 from mutagen.flac import Picture, FLAC
+from mutagen.oggvorbis import OggVorbis
+from mutagen.wave import WAVE
 from mutagen.mp4 import MP4, MP4Cover
 import logging
 
@@ -437,24 +439,72 @@ async def get_library():
     return library_manager.get_library()
 
 # --- LOCAL LIBRARY ---
+
+
 def scan_file_metadata(path):
+    ext = os.path.splitext(path)[1].lower()
     try:
-        audio = mutagen.File(path, easy=True)
-        if not audio: return {}
+        audio = None
+        if ext in ['.m4a', '.mp4']:
+            try: audio = EasyMP4(path)
+            except: pass
+        elif ext == '.ogg':
+            try: audio = OggVorbis(path)
+            except: pass
         
-        # Safe extraction
-        def get_tag(k): return audio.get(k, [""])[0]
+        # Generic Fallback (Handles WebM/MKV if supported by installed mutagen)
+        if not audio:
+            audio = mutagen.File(path, easy=True)
+            
+        if not audio: 
+             # Fallback specifically for OGG if Easy failed and we didn't try OggVorbis yet
+             if ext == '.ogg':
+                 try: audio = OggVorbis(path)
+                 except: pass
+
+        if not audio: return {"title": os.path.basename(path)}
         
+        # Helper to get first item safely
+        def get_val(obj, keys):
+            for k in keys:
+                if k in obj and obj[k]:
+                    return obj[k][0]
+            return ""
+
+        title = os.path.basename(path)
+        artist = ""
+        album = ""
+        genre = ""
+        year = ""
+        
+        # Strategy: Duck Typing keys based on object type
+        # Matroska / OggVorbis use UPPERCASE keys usually (or simple tags)
+        # EasyID3/EasyMP4 use 'title', 'artist'
+        
+        keys_title = ['title', 'TITLE', 'Title']
+        keys_artist = ['artist', 'ARTIST', 'Artist']
+        keys_album = ['album', 'ALBUM', 'Album']
+        keys_genre = ['genre', 'GENRE', 'Genre']
+        keys_date = ['date', 'DATE', 'year', 'YEAR']
+
+        t = get_val(audio, keys_title)
+        if t: title = t
+        
+        artist = get_val(audio, keys_artist)
+        album = get_val(audio, keys_album)
+        genre = get_val(audio, keys_genre)
+        year = get_val(audio, keys_date)
+
         length = 0
         if hasattr(audio, 'info') and hasattr(audio.info, 'length'):
             length = audio.info.length
 
         return {
-            "title": get_tag("title") or os.path.basename(path),
-            "artist": get_tag("artist"),
-            "album": get_tag("album"),
-            "genre": get_tag("genre"),
-            "year": get_tag("date"),
+            "title": title,
+            "artist": artist,
+            "album": album,
+            "genre": genre,
+            "year": year,
             "duration": length
         }
     except Exception as e:
@@ -466,8 +516,13 @@ def write_file_metadata(path, data):
     ext = os.path.splitext(path)[1].lower()
     
     # Skip video files for safety (only allow audio formats we are sure of)
-    if ext in ['.mkv', '.avi', '.mov', '.webm']:
-        # We now allow .mp4 as it might contain audio tags we want to edit.
+    # Skip video files for safety (only allow audio formats we are sure of)
+    # WebM/MKV are read-only for metadata here to avoid corruption
+    if ext in ['.mkv', '.webm']:
+        logging.info("WebM/MKV : Mise à jour DB locale uniquement (Format Read-Only)")
+        return True # Return True to allow DB update
+    
+    if ext in ['.avi', '.mov']:
         logging.info("Skipping excluded extension")
         return False
 
@@ -496,12 +551,124 @@ def write_file_metadata(path, data):
         elif ext in [".m4a", ".mp4"]:
             try:
                 audio = EasyMP4(path)
+                # Map standard keys
+                if "title" in data: audio["title"] = data["title"]
+                if "artist" in data: audio["artist"] = data["artist"]
+                if "album" in data: audio["album"] = data["album"]
+                if "genre" in data: audio["genre"] = data["genre"]
+                if "year" in data: audio["date"] = data["year"]
+                audio.save()
+                
+                # Handle Cover Art for M4A/MP4
+                if "cover_data" in data and data["cover_data"]:
+                     m_audio = MP4(path)
+                     if data["cover_data"] == "DELETE":
+                         if "covr" in m_audio:
+                             del m_audio["covr"]
+                             m_audio.save()
+                     else:
+                         header, encoded = data["cover_data"].split(",", 1)
+                         image_data = base64.b64decode(encoded)
+                         mime_type = "image/jpeg"
+                         if "image/png" in header: mime_type = "image/png"
+                         fmt = MP4Cover.FORMAT_PNG if mime_type == "image/png" else MP4Cover.FORMAT_JPEG
+                         m_audio["covr"] = [MP4Cover(image_data, imageformat=fmt)]
+                         m_audio.save()
+                
+                return True
+
             except Exception as e:
-                logging.error(f"EasyMP4 load failed: {e}")
-                # Try standard MP4?
+                logging.error(f"EasyMP4 load/save failed: {e}")
                 pass
         
-        # 2. Generic Fallback
+        elif ext == ".wav":
+            # --- WAV SPECIAL HANDLING (ID3 in RIFF) ---
+            try:
+                try:
+                    audio = WAVE(path)
+                except Exception as e:
+                    logging.warning(f"WAVE load failed, creating tags: {e}")
+                    audio = WAVE(path)
+                    audio.add_tags()
+                
+                if audio.tags is None: audio.add_tags()
+
+                # Manual Mapping to ID3 Frames
+                if "title" in data: audio.tags.add(TIT2(encoding=3, text=data["title"]))
+                if "artist" in data: audio.tags.add(TPE1(encoding=3, text=data["artist"]))
+                if "album" in data: audio.tags.add(TALB(encoding=3, text=data["album"]))
+                if "genre" in data: audio.tags.add(TCON(encoding=3, text=data["genre"]))
+                if "year" in data: audio.tags.add(TDRC(encoding=3, text=str(data["year"])))
+                
+                audio.save()
+
+                # WAV Cover Art (APIC)
+                if "cover_data" in data and data["cover_data"]:
+                    try:
+                        if data["cover_data"] == "DELETE":
+                            audio.tags.delall("APIC")
+                            audio.save()
+                        else:
+                            header, encoded = data["cover_data"].split(",", 1)
+                            image_data = base64.b64decode(encoded)
+                            mime_type = "image/jpeg"
+                            if "image/png" in header: mime_type = "image/png"
+                            
+                            audio.tags.delall("APIC")
+                            audio.tags.add(APIC(encoding=0, mime=mime_type, type=3, desc=u'', data=image_data))
+                            audio.save()
+                    except Exception as e:
+                        logging.error(f"WAV Cover Error: {e}")
+
+                return True # Handled completely
+
+            except Exception as e:
+                logging.error(f"WAV Metadata Error: {e}")
+                return False
+
+        elif ext == '.ogg':
+            try:
+                audio = OggVorbis(path)
+                # Mapping manuel OGG (Uppercased keys)
+                if 'title' in data: audio['TITLE'] = data['title']
+                if 'artist' in data: audio['ARTIST'] = data['artist']
+                if 'album' in data: audio['ALBUM'] = data['album']
+                if 'genre' in data: audio['GENRE'] = data['genre']
+                if 'year' in data: audio['DATE'] = data['year']
+                audio.save()
+                
+                # OGG Cover Art
+                if "cover_data" in data and data["cover_data"]:
+                    if data["cover_data"] == "DELETE":
+                         audio.clear_pictures()
+                         audio.save()
+                    else:
+                        header, encoded = data["cover_data"].split(",", 1)
+                        image_data = base64.b64decode(encoded)
+                        mime_type = "image/jpeg"
+                        if "image/png" in header: mime_type = "image/png"
+                        
+                        pic = Picture()
+                        pic.type = 3
+                        pic.mime = mime_type
+                        pic.desc = 'Cover'
+                        pic.data = image_data
+                        
+                        audio.clear_pictures()
+                        audio.add_picture(pic)
+                        audio.save()
+                return True
+            except Exception as e:
+                logging.error(f"[TAGS] OGG Error: {e}")
+                return False
+
+        elif ext == '.flac':
+             # Explicit check for FLAC to handle text separately if needed, 
+             # but mutagen.File(easy=True) works well for FLAC text.
+             # forcing generic fallback for FLAC text, or we can implement explicit FLAC here.
+             pass
+
+        # 2. Generic Fallback (Includes FLAC/OGG Text)
         if not audio:
             try:
                 audio = mutagen.File(path, easy=True)
@@ -529,7 +696,7 @@ def write_file_metadata(path, data):
                 
                 # Check for Deletion Signal
                 if data["cover_data"] == "DELETE":
-                    logging.info("DELETE signal received. Removing cover art.")
+                    logging.info("DELETE signal received.")
                     try:
                         # 1. MP3
                         if ext == ".mp3":
@@ -537,9 +704,10 @@ def write_file_metadata(path, data):
                             tags.delall("APIC")
                             tags.save(path, v2_version=3)
                         
-                        # 2. FLAC
-                        elif ext == ".flac":
-                            f_audio = FLAC(path)
+                        # 2. FLAC & OGG
+                        elif ext in [".flac", ".ogg"]:
+                            if ext == ".flac": f_audio = FLAC(path)
+                            else: f_audio = OggVorbis(path)
                             f_audio.clear_pictures()
                             f_audio.save()
                         
@@ -567,25 +735,28 @@ def write_file_metadata(path, data):
 
                         # 1. MP3
                         if ext == ".mp3":
-                            tags = ID3(path) # Re-open for ID3 specific manipulation
-                            tags.delall("APIC") # Remove existing covers
+                            tags = ID3(path) 
+                            tags.delall("APIC") 
                             tags.add(APIC(
-                                encoding=0, # 0=Latin-1 (Safe for v2.3), 3=UTF-8 (Not supported in v2.3)
+                                encoding=0, 
                                 mime=mime_type,
                                 type=3, 
-                                desc=u'', # Empty description for max compatibility
+                                desc=u'', 
                                 data=image_data
                             ))
                             tags.save(path, v2_version=3)
 
-                        # 2. FLAC
-                        elif ext == ".flac":
-                            f_audio = FLAC(path)
+                        # 2. FLAC & OGG
+                        elif ext in [".flac", ".ogg"]:
+                            if ext == ".flac": f_audio = FLAC(path)
+                            else: f_audio = OggVorbis(path)
+                            
                             pic = Picture()
                             pic.type = 3
                             pic.mime = mime_type
                             pic.desc = 'Cover'
                             pic.data = image_data
+                            
                             f_audio.clear_pictures()
                             f_audio.add_picture(pic)
                             f_audio.save()
@@ -696,7 +867,7 @@ async def add_local_file():
         root = tk.Tk()
         root.attributes("-topmost", True)
         root.withdraw()
-        path = filedialog.askopenfilename(parent=root, filetypes=[("Audio/Video", "*.mp3 *.wav *.mp4 *.mkv *.avi *.flac")])
+        path = filedialog.askopenfilename(parent=root, filetypes=[("Audio/Video", "*.mp3 *.wav *.mp4 *.m4a *.mkv *.avi *.flac *.ogg *.webm")])
         root.destroy()
 
         if not path:
