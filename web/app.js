@@ -1017,3 +1017,99 @@ function removeLocalCover() {
     // Reset file input
     if (fileInput) fileInput.value = "";
 }
+// --- AUTO-TAG LOGIC ---
+async function autoTagLocal() {
+    let q = document.getElementById("local-title").value;
+    if (!q) {
+        // Fallback to filename if title is empty
+        const pathDisplay = document.getElementById("local-path-display").innerText;
+        // Basic extraction: filename without path
+        if (pathDisplay) {
+            const parts = pathDisplay.split(/[\\/]/);
+            q = parts[parts.length - 1];
+        }
+    }
+
+    if (!q) {
+        alert("Veuillez entrer un titre ou sélectionner un fichier.");
+        return;
+    }
+
+    const container = document.getElementById("auto-tag-results");
+    container.style.display = "flex";
+    container.innerHTML = "<div style='color:#888;'>Recherche en cours...</div>";
+
+    try {
+        const res = await fetch(`/api/metadata/search?q=${encodeURIComponent(q)}`);
+        const results = await res.json();
+
+        container.innerHTML = "";
+
+        if (results.length === 0) {
+            container.innerHTML = "<div style='color:#aaa;'>Aucun résultat trouvé.</div>";
+            return;
+        }
+
+        results.forEach(item => {
+            const div = document.createElement("div");
+            div.style.padding = "5px";
+            div.style.background = "#2a2a2a";
+            div.style.border = "1px solid #444";
+            div.style.borderRadius = "4px";
+            div.style.cursor = "pointer";
+            div.style.display = "flex";
+            div.style.gap = "10px";
+            div.style.alignItems = "center";
+
+            // Thumbnail handling (if available)
+            let thumb = "<span style='font-size:20px;'>🎵</span>";
+            if (item.cover_url) {
+                thumb = `<img src="${item.cover_url}" style="width:30px; height:30px; object-fit:cover;">`;
+            }
+
+            div.innerHTML = `
+                ${thumb}
+                <div>
+                    <div style="font-weight:bold; font-size:0.9em;">${item.title}</div>
+                    <div style="font-size:0.8em; color:#bbb;">${item.artist} - ${item.album} (${item.year})</div>
+                </div>
+            `;
+
+            // Pass full item to handler
+            div.onclick = () => applyAutoTag(item);
+            container.appendChild(div);
+        });
+
+    } catch (e) {
+        container.innerHTML = "<div style='color:red;'>Erreur API.</div>";
+        console.error(e);
+    }
+}
+
+function applyAutoTag(item) {
+    // Fill fields
+    document.getElementById("local-title").value = item.title || "";
+    document.getElementById("local-artist").value = item.artist || "";
+    document.getElementById("local-album").value = item.album || "";
+    document.getElementById("local-year").value = item.year || "";
+
+    // Hide results
+    document.getElementById("auto-tag-results").style.display = "none";
+
+    // Cover Logic
+    if (item.cover_url) {
+        currentCoverData = item.cover_url; // Store URL directly
+        // Update Preview
+        const img = document.getElementById("local-art-img");
+        const ph = document.getElementById("local-art-placeholder");
+        const btnDel = document.getElementById("btn-delete-cover");
+
+        img.src = item.cover_url;
+        img.style.display = "block";
+        ph.style.display = "none";
+        btnDel.style.display = "flex";
+    }
+}
+
+// Ensure pendingCoverData is global or accessible
+// (It is, defined near addLocalFile)

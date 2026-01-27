@@ -227,7 +227,15 @@
                 </div>
 
                 <label>Titre</label>
-                <input type="text" id="local-title">
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="local-title" style="flex:1;">
+                    <button class="btn-secondary" onclick="autoTagLocal()" title="Rechercher sur MusicBrainz">🔍
+                        Auto-Tag</button>
+                </div>
+                <!-- Auto-Tag Results Area -->
+                <div id="auto-tag-results"
+                    style="margin-top:5px; margin-bottom:10px; display:none; flex-direction:column; gap:5px; background:#1a1a1a; padding:5px; border-radius:4px; max-height:200px; overflow-y:auto;">
+                </div>
 
                 <div class="row-inputs">
                     <div class="col">

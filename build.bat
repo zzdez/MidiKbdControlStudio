@@ -75,6 +75,7 @@ pyinstaller --noconfirm --onefile --windowed ^
  --hidden-import "mutagen.mp4" ^
  --hidden-import "mutagen.easymp4" ^
  --hidden-import "mutagen.matroska" ^
+ --hidden-import "musicbrainzngs" ^
  --collect-all "pygame" ^
  main.py
 
