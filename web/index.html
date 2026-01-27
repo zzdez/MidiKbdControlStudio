@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="lib/wavesurfer.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
 </head>
 
 <body>
@@ -76,9 +77,12 @@
 
             <!-- TAB NAVIGATION -->
             <div class="nav-tabs">
-                <button id="tab-library" class="active" onclick="switchView('library')">Bibliothèque Web 🎵</button>
-                <button id="tab-local" onclick="switchView('local')">Fichiers Locaux 📂</button>
-                <button id="tab-apps" onclick="switchView('apps')">Applications 🚀</button>
+                <button id="tab-library" class="active" onclick="switchView('library')"><i class="ph ph-music-notes"
+                        style="font-size:1.1em; vertical-align:middle; margin-right:5px;"></i> Bibliothèque Web</button>
+                <button id="tab-local" onclick="switchView('local')"><i class="ph ph-folder-notch-open"
+                        style="font-size:1.1em; vertical-align:middle; margin-right:5px;"></i> Fichiers Locaux</button>
+                <button id="tab-apps" onclick="switchView('apps')"><i class="ph ph-windows-logo"
+                        style="font-size:1.1em; vertical-align:middle; margin-right:5px;"></i> Applications</button>
             </div>
 
             <!-- VIEW: LIBRARY -->

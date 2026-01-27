@@ -761,15 +761,22 @@ function renderLocalFiles() {
 
         // Icon Logic
         const ext = file.path.split('.').pop().toLowerCase();
-        const isAudio = ['mp3', 'wav', 'flac', 'm4a', 'aac'].includes(ext);
-        const icon = isAudio ? '🎵' : '🎥';
-        const color = isAudio ? '#bb86fc' : '#03dac6'; // Distinguish colors
+        const isAudio = ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg'].includes(ext);
+
+        // Phosphor Icons
+        let iconHtml = '';
+        if (isAudio) {
+            iconHtml = `<i class="ph ph-music-notes" style="color:#bb86fc; font-size:1.2em; vertical-align:middle; margin-right:5px;"></i>`;
+        } else {
+            // Video / Film Strip
+            iconHtml = `<i class="ph ph-film-strip" style="color:#03dac6; font-size:1.2em; vertical-align:middle; margin-right:5px;"></i>`;
+        }
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td>${file.artist || ""}</td>
             <td style="cursor:pointer;" onclick="playLocal(${realIndex})">
-                <span style="color:${color}; margin-right:5px; font-size:1.1em;">${icon}</span>
+                ${iconHtml}
                 ${file.title}
             </td>
             <td>${file.category || "Général"}</td>
