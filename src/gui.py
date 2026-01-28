@@ -25,7 +25,6 @@ ICON_PNG_PATH = get_resource_path(os.path.join("assets", "icon.png"))
 LOGO_PATH = get_resource_path(os.path.join("assets", "logo.png"))
 
 try:
-    import driver_check
     from profile_manager import ProfileManager
     from device_manager import DeviceManager, DEFAULT_AIRSTEP_DEF
     from env_manager import EnvManager
@@ -34,7 +33,6 @@ try:
     from library_manager import LibraryManager
     from remote_gui import RemoteControl, CompactPedalboardFrame
 except ImportError:
-    from src import driver_check
     from src.profile_manager import ProfileManager
     from src.device_manager import DeviceManager, DEFAULT_AIRSTEP_DEF
     from src.env_manager import EnvManager
@@ -527,19 +525,17 @@ class AirstepApp(ctk.CTk):
         self.action_handler = ActionHandler()
         self.settings = {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO"}
 
+        self.midi_callback = None
+
         self.create_sidebar()
         self.create_main_area()
 
         self.load_data()
         self.refresh_midi_ports()
-        self.check_driver()
-
+        
         self.setup_tray()
         self.last_flash_time = 0
         self._revert_timer = None
-
-    def set_midi_callback(self, cb):
-        self.midi_callback = cb
 
     def log_debug(self, message):
         try:
@@ -1269,23 +1265,9 @@ class AirstepApp(ctk.CTk):
         if connected:
             self.lbl_conn_led.configure(text_color="green")
             self.lbl_conn_text.configure(text="Port Ouvert")
-            # Clear error message if present
-            try:
-                if "Err:" in self.lbl_driver.cget("text"):
-                    self.lbl_driver.configure(text="Driver KORG: OK", text_color="gray")
-            except: pass
         else:
             self.lbl_conn_led.configure(text_color="red")
             self.lbl_conn_text.configure(text="Déconnecté")
-            if message:
-                self.lbl_driver.configure(text=f"Err: {message}", text_color="orange")
-
-    def check_driver(self):
-        installed, msg = driver_check.is_korg_driver_installed()
-        if installed:
-            self.lbl_driver.configure(text="Driver KORG: OK", text_color="gray")
-        else:
-            self.lbl_driver.configure(text="Driver KORG: MANQUANT", text_color="red")
 
     def check_startup_status(self):
         startup_dir = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
