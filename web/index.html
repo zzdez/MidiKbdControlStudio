@@ -339,13 +339,17 @@
                     <div class="row-inputs">
                         <div class="col">
                             <label>Catégorie</label>
-                            <input list="categories" id="edit-category" placeholder="Ex: Cours">
-                            <datalist id="categories"></datalist>
+                            <div class="autocomplete-wrapper">
+                                <input type="text" id="edit-category" placeholder="Ex: Cours" autocomplete="off">
+                                <div id="suggestions-category" class="suggestions-box"></div>
+                            </div>
                         </div>
                         <div class="col">
                             <label>Genre</label>
-                            <input list="genres" id="edit-genre" placeholder="Ex: Rock">
-                            <datalist id="genres"></datalist>
+                            <div class="autocomplete-wrapper">
+                                <input type="text" id="edit-genre" placeholder="Ex: Rock" autocomplete="off">
+                                <div id="suggestions-genre" class="suggestions-box"></div>
+                            </div>
                         </div>
                         <div class="col">
                             <label>Mode</label>

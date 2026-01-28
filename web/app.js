@@ -259,31 +259,101 @@ function renderSetlist(list) {
     updateDatalists(currentTrackList);
 }
 
-function updateDatalists(tracks) {
-    // Categories
-    const dataList = document.getElementById("categories");
-    if (dataList) {
-        dataList.innerHTML = "";
-        const allCats = new Set(tracks.map(t => t.category || "Général"));
-        allCats.forEach(c => {
-            const opt = document.createElement("option");
-            opt.value = c;
-            dataList.appendChild(opt);
-        });
-    }
 
-    // Genres
-    const genreList = document.getElementById("genres");
-    if (genreList) {
-        genreList.innerHTML = "";
-        const allGenres = new Set(tracks.map(t => t.genre || "Divers"));
-        allGenres.forEach(g => {
-            const opt = document.createElement("option");
-            opt.value = g;
-            genreList.appendChild(opt);
-        });
+// --- CUSTOM AUTOCOMPLETE ---
+let blockedTags = { category: [], genre: [] };
+
+async function loadBlockedTags() {
+    try {
+        const res = await fetch("/api/metadata/blocked");
+        const data = await res.json();
+        blockedTags = data;
+    } catch (e) {
+        console.error("Failed to load blocked tags", e);
     }
 }
+
+async function blockTag(field, value) {
+    if (!confirm(`Ne plus jamais suggérer "${value}" pour ${field} ?`)) return;
+
+    // Optimistic Update
+    if (!blockedTags[field]) blockedTags[field] = [];
+    blockedTags[field].push(value);
+
+    try {
+        await fetch("/api/metadata/block", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ field, value })
+        });
+    } catch (e) {
+        console.error("Block Tag Error", e);
+    }
+}
+
+function setupCustomAutocomplete(inputId, boxId, field) {
+    const input = document.getElementById(inputId);
+    const box = document.getElementById(boxId);
+
+    if (!input || !box) return;
+
+    const hideBox = () => setTimeout(() => box.style.display = "none", 200);
+
+    const showSuggestions = () => {
+        const currentVal = input.value.toLowerCase();
+
+        // 1. Get all unique values from library
+        const allValues = new Set(localFiles.map(t => t[field] || "").filter(v => v));
+
+        // 2. Filter: Match input AND Not Blocked
+        const matches = Array.from(allValues).filter(v => {
+            if (blockedTags[field] && blockedTags[field].includes(v)) return false;
+            return v.toLowerCase().includes(currentVal);
+        }).sort();
+
+        if (matches.length === 0) {
+            box.style.display = "none";
+            return;
+        }
+
+        // 3. Render
+        box.innerHTML = "";
+        matches.forEach(val => {
+            const div = document.createElement("div");
+            div.className = "suggestion-item";
+
+            const textSpan = document.createElement("span");
+            textSpan.innerText = val;
+
+            const delBtn = document.createElement("span");
+            delBtn.className = "suggestion-delete";
+            delBtn.innerText = "×";
+            delBtn.title = "Ne plus suggérer";
+            delBtn.onclick = (e) => {
+                e.stopPropagation(); // Don't trigger select
+                blockTag(field, val);
+                input.focus(); // Keep focus
+                showSuggestions(); // Refresh list immediately
+            };
+
+            div.onclick = () => {
+                input.value = val;
+                box.style.display = "none";
+            };
+
+            div.appendChild(textSpan);
+            div.appendChild(delBtn);
+            box.appendChild(div);
+        });
+
+        box.style.display = "block";
+    };
+
+    input.addEventListener("input", showSuggestions);
+    input.addEventListener("focus", showSuggestions);
+    input.addEventListener("blur", hideBox);
+}
+
 
 // --- APPS LOGIC ---
 async function loadApps() {
@@ -855,10 +925,16 @@ function updateDatalists() {
 
 async function loadLocalFiles() {
     try {
+        await loadBlockedTags(); // Load blocked list first
+
         const res = await fetch("/api/local/files");
         localFiles = await res.json();
     } catch (e) { localFiles = []; }
-    updateDatalists(); // Update shared datalists
+
+    // Initialize Custom Autocompletes
+    setupCustomAutocomplete("edit-category", "suggestions-category", "category");
+    setupCustomAutocomplete("edit-genre", "suggestions-genre", "genre");
+
     renderLocalFiles();
 }
 

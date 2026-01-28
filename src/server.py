@@ -183,6 +183,28 @@ async def api_youtube_search(q: str):
 
     return search_youtube(q, api_key)
 
+@app.get("/api/metadata/blocked")
+async def get_blocked_tags():
+    return config_manager.get("blocked_tags", {})
+
+@app.post("/api/metadata/block")
+async def block_tag(data: Dict):
+    field = data.get("field") # "category", "genre"
+    value = data.get("value")
+    
+    if not field or not value:
+        raise HTTPException(status_code=400, detail="Missing field or value")
+    
+    current_blocked = config_manager.get("blocked_tags", {})
+    if field not in current_blocked:
+        current_blocked[field] = []
+    
+    if value not in current_blocked[field]:
+        current_blocked[field].append(value)
+        config_manager.set("blocked_tags", current_blocked)
+        
+    return {"status": "ok", "blocked": current_blocked}
+
 @app.get("/api/metadata/search")
 async def api_metadata_search(q: str):
     """Recherche des métadonnées via MusicBrainz."""
