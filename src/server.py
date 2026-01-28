@@ -13,8 +13,10 @@ import subprocess
 import tkinter as tk
 from tkinter import filedialog
 import urllib.parse
-
+import shutil
 import mutagen
+import time
+import logging # Ensure logging is imported if not already, though it seems used elsewhere
 import base64
 from mutagen.id3 import ID3, APIC, TIT2, TPE1, TALB, TCON, TDRC, TRCK, error as ID3Error
 from mutagen.easyid3 import EasyID3
@@ -190,8 +192,12 @@ async def api_metadata_search(q: str):
 @app.get("/api/stream")
 async def stream_file(path: str):
     decoded_path = urllib.parse.unquote(path)
+    logging.info(f"STREAM API HIT: {decoded_path}") 
     if not os.path.exists(decoded_path):
+        logging.error(f"STREAM MISSING: {decoded_path}")
         raise HTTPException(status_code=404, detail="File not found")
+    
+    # Force media type for common video formats if needed, or let FileResponse guess
     return FileResponse(decoded_path)
 
 @app.get("/api/status")
@@ -428,6 +434,58 @@ async def add_app(app_def: Dict):
         return apps
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- SETTINGS & CONFIG ---
+
+@app.get("/api/settings")
+async def get_settings():
+    """Returns all configuration settings."""
+    # Reload config to be sure
+    config_manager._load_config()
+    
+    # Construct settings object
+    return {
+        "YOUTUBE_API_KEY": config_manager.get("YOUTUBE_API_KEY", ""),
+        "media_folders": config_manager.get("media_folders", [])
+    }
+
+@app.post("/api/settings")
+async def update_settings(settings: Dict):
+    """Updates configuration."""
+    for key, value in settings.items():
+        config_manager.set(key, value)
+    return {"status": "ok", "settings": settings}
+
+@app.post("/api/open_native_editor")
+async def open_native_editor():
+    """Opens the Native Tkinter Window (Main App)."""
+    if hasattr(app.state, "open_settings_callback"):
+        app.state.open_settings_callback()
+        return {"status": "opened"}
+    return {"status": "error", "message": "Callback not linked"}
+
+# Compatibility alias
+@app.post("/api/open_settings")
+async def open_settings_alias():
+    return await open_native_editor()
+
+@app.post("/api/library/add_folder")
+async def add_library_folder():
+    """Triggers Native Folder Selector"""
+    if hasattr(app.state, "select_folder_callback"):
+        path = app.state.select_folder_callback()
+        if path:
+            # Add to config
+            folders = config_manager.get("media_folders", [])
+            if path not in folders:
+                folders.append(path)
+                config_manager.set("media_folders", folders)
+                # Trigger Library Rescan (Optional but good)
+                # library_manager.scan_local_files() # If we had one exposed
+            return {"status": "added", "path": path, "folders": folders}
+        return {"status": "cancelled"}
+    return {"status": "error", "message": "Callback not linked"}
+
 
 @app.post("/api/launch_app")
 async def launch_app(request: Request):
@@ -840,46 +898,134 @@ async def get_local_art(index: int):
 @app.post("/api/local/add")
 async def add_local_file():
     try:
-        root = tk.Tk()
-        root.attributes("-topmost", True)
-        root.withdraw()
-        path = filedialog.askopenfilename(parent=root, filetypes=[("Audio/Video", "*.mp3 *.wav *.mp4 *.m4a *.mkv *.avi *.flac *.ogg *.webm")])
-        root.destroy()
+        if hasattr(app.state, "select_file_callback"):
+            path = app.state.select_file_callback()
+            if path:
+                # --- SMART IMPORT CHECK ---
+                folders = config_manager.get("media_folders", [])
+                
+                # Normalize paths for comparison
+                abs_path = os.path.abspath(path)
+                
+                # Check if file is inside one of the managed folders
+                is_managed = False
+                for folder in folders:
+                    abs_folder = os.path.abspath(folder)
+                    # Check if path starts with folder path (simple containment check)
+                    if abs_path.lower().startswith(abs_folder.lower()):
+                        is_managed = True
+                        break
+                
+                if not is_managed:
+                    return {
+                        "status": "import_needed",
+                        "source_path": path,
+                        "filename": os.path.basename(path),
+                        "target_folders": folders
+                    }
+                
+                # If already managed, proceed normally
+                try:
+                    file_data = scan_file_metadata(path)
+                    file_data["path"] = path
+                    file_data["added_at"] = time.time()
+                    
+                    items = []
+                    if os.path.exists(LOCAL_LIB_FILE):
+                        with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                            items = json.load(f)
+                    
+                    # Avoid duplicates
+                    existing = next((i for i in items if i["path"] == path), None)
+                    if not existing:
+                        items.append(file_data)
+                        with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                            json.dump(items, f, indent=4)
+                        return {"status": "ok", "message": "Added"}
+                    else:
+                         return {"status": "exists", "message": "Already in library"}
+                except Exception as e:
+                     logging.error(f"Scan Error on Add: {e}")
+                     return {"status": "error", "message": str(e)}
 
-        if not path:
-            return {"status": "cancelled"}
+        return {"status": "cancelled"}
+    except Exception as e:
+        print(f"Add File Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-        if not os.path.exists(path):
-             raise HTTPException(status_code=404, detail="File not found")
+@app.post("/api/local/confirm_import")
+async def confirm_import(data: Dict):
+    source_path = data.get("source_path", "").strip()
+    action = data.get("action") # "copy", "move", "link"
+    target_folder = data.get("target_folder", "").strip()
+    
+    # Debug exact content including hidden chars
+    logging.info(f"IMPORT REQUEST RAW: Source={repr(source_path)} Target={repr(target_folder)} Action={action}")
 
-        # Analyze
-        meta = scan_file_metadata(path)
+    if not source_path or not os.path.exists(source_path):
+        logging.error(f"Import Source Path Not Found: {repr(source_path)}")
+        raise HTTPException(status_code=400, detail="Source file not found")
+
+    final_path = source_path
+    
+    try:
+        if action in ["copy", "move"]:
+            # Normalize target folder
+            if target_folder:
+                target_folder = os.path.normpath(target_folder)
+            
+            # Check availability
+            if not target_folder or not os.path.isdir(target_folder):
+                 logging.error(f"Import Target Folder Invalid (Not a dir or missing): {repr(target_folder)}")
+                 
+                 # PROBE: Try to list parent dir to understand why
+                 try:
+                     parent = os.path.dirname(target_folder)
+                     if os.path.exists(parent):
+                         logging.info(f"Parent {parent} exists. Sibling listing: {os.listdir(parent)[:5]}...")
+                     else:
+                         logging.warning(f"Parent {parent} does NOT exist.")
+                 except: pass
+
+                 raise HTTPException(status_code=400, detail=f"Target folder invalid: {target_folder}")
+                 
+            filename = os.path.basename(source_path)
+            destination = os.path.join(target_folder, filename)
+            
+            # Handle duplicates (Auto-rename)
+            base, ext = os.path.splitext(destination)
+            counter = 1
+            while os.path.exists(destination):
+                destination = f"{base}_{counter}{ext}"
+                counter += 1
+            
+            if action == "copy":
+                shutil.copy2(source_path, destination)
+            elif action == "move":
+                shutil.move(source_path, destination)
+                
+            final_path = destination
+
+        # Add to Library
+        file_data = scan_file_metadata(final_path)
+        file_data["path"] = final_path
+        file_data["added_at"] = time.time()
         
-        new_item = {
-            "path": path,
-            "title": meta.get("title", os.path.basename(path)),
-            "artist": meta.get("artist", ""),
-            "album": meta.get("album", ""),
-            "genre": meta.get("genre", ""),
-            "category": "Général", # Default Category
-            "year": meta.get("year", ""),
-            "user_notes": "",
-            "duration": meta.get("duration", 0)
-        }
-
         items = []
         if os.path.exists(LOCAL_LIB_FILE):
-            with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
-                items = json.load(f)
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                  items = json.load(f)
+                  
+        existing = next((i for i in items if i["path"] == final_path), None)
+        if not existing:
+             items.append(file_data)
+             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                 json.dump(items, f, indent=4)
+                 
+        return {"status": "ok", "path": final_path}
         
-        items.append(new_item)
-
-        with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
-            json.dump(items, f, indent=4)
-        
-        return items
     except Exception as e:
-        print(f"Add Local Error: {e}")
+        logging.error(f"Import Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/local/{index}")

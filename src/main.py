@@ -80,6 +80,87 @@ def main():
 
     fastapi_app.state.open_settings_callback = open_settings_wrapper
 
+    # 2c. Wiring Folder Selection (Thread-Safe)
+    def select_folder_wrapper():
+        """Ouvre askdirectory dans le thread principal et renvoie le résultat"""
+        result = {"path": None}
+        event = threading.Event()
+        
+        def _ask():
+            try:
+                from tkinter import filedialog, Toplevel
+                
+                # Z-Order Fix: Create TopLevel parent
+                top = Toplevel(app)
+                top.withdraw() 
+                top.attributes('-topmost', True)
+
+                # Ensure window is visible or use root
+                path = filedialog.askdirectory(parent=top, title="Sélectionner un dossier")
+                
+                top.destroy()
+                
+                if path:
+                    result["path"] = path
+            except Exception as e:
+                print(f"Dialog Error: {e}")
+            finally:
+                event.set()
+        
+        if app:
+            app.after(0, _ask)
+            event.wait() # Wait for UI thread to process
+            return result["path"]
+        return None
+
+    fastapi_app.state.select_folder_callback = select_folder_wrapper
+
+    # 2d. Wiring File Selection (Thread-Safe)
+    def select_file_wrapper():
+        """Ouvre askopenfilename dans le thread principal et renvoie le résultat"""
+        result = {"path": None}
+        event = threading.Event()
+        
+        def _ask_file():
+            try:
+                from tkinter import filedialog, Toplevel
+                
+                # Create a temporary top-level window to act as parent
+                # This allow us to set 'topmost' so the dialog appears above the browser
+                top = Toplevel(app)
+                top.withdraw() 
+                top.attributes('-topmost', True)
+                
+                # Restore filetypes now that we know it wasn't the crash cause
+                # Use simplified list just in case
+                path = filedialog.askopenfilename(
+                    parent=top,
+                    title="Ajouter un fichier",
+                    filetypes=[("Media", "*.mp3 *.wav *.flac *.m4a *.mp4 *.mkv *.webm *.ogg"), ("All", "*.*")]
+                )
+                
+                top.destroy()
+                
+                if path:
+                    result["path"] = path
+            except Exception as e:
+                print(f"Dialog Error: {e}")
+            finally:
+                event.set()
+        
+        if app:
+            app.after(0, _ask_file)
+            
+            # Timeout safety
+            is_set = event.wait(timeout=10.0) 
+            if not is_set:
+                print("Dialog Callback Timeout")
+            
+            return result["path"]
+        return None
+
+    fastapi_app.state.select_file_callback = select_file_wrapper
+
     # 3. Démarrage Serveur Web (Thread)
     server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)
     server_thread.start()

@@ -41,6 +41,14 @@ class ConfigManager:
 
         if key in self.config_data:
             return self.config_data[key]
+            
+        # Specific Default for media_folders
+        # Specific Default for media_folders
+        if key == "media_folders":
+            default_path = os.path.join(os.path.expanduser("~"), "Music")
+            if os.path.exists(default_path):
+                return [default_path]
+            return []
 
         # 3. Default
         return default

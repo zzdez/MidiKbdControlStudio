@@ -19,7 +19,7 @@
         <div class="status-bar">
             <span id="connection-status" class="status-dot">●</span>
             <span id="active-profile">Profil : Global</span>
-            <button id="btn-settings" onclick="openSettings()">⚙️</button>
+            <button id="btn-settings" onclick="openSettingsModal()">⚙️</button>
         </div>
     </header>
 
@@ -67,7 +67,7 @@
             <!-- Pédalier Virtuel (Sync) -->
             <div id="pedalboard-container">
                 <div id="pedalboard-grid">
-                    <div class="empty-state">En attente...</div>
+                    <div class="empty-state">Pédalier : En attente...</div>
                 </div>
             </div>
         </section>
@@ -372,6 +372,89 @@
             <div style="flex:1"></div>
             <button class="btn-text" onclick="closeModal()">Annuler</button>
             <button class="btn-primary" onclick="saveItem()">Sauvegarder</button>
+        </div>
+    </dialog>
+
+    <!-- SETTINGS MODAL -->
+    <dialog id="settings-modal">
+        <div class="modal-header">
+            <h3>Réglages</h3>
+            <button onclick="closeSettingsModal()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body" style="padding:0; display:flex;">
+            <!-- SIDE NAV -->
+            <div class="settings-nav">
+                <button class="nav-btn active" onclick="switchSettingsTab('general')">Général</button>
+                <button class="nav-btn" onclick="switchSettingsTab('library')">Médiathèque</button>
+                <button class="nav-btn" onclick="switchSettingsTab('controller')">Contrôleur</button>
+            </div>
+
+            <!-- CONTENT -->
+            <div class="settings-content">
+                <!-- TAB: GENERAL -->
+                <div id="tab-settings-general" class="settings-tab">
+                    <h4>Clés API</h4>
+                    <label>YouTube Data API Key</label>
+                    <input type="password" id="setting-youtube-key" placeholder="AIzaSy...">
+                    <p class="hint">Nécessaire pour la recherche et les titres YouTube.</p>
+                </div>
+
+                <!-- TAB: LIBRARY -->
+                <div id="tab-settings-library" class="settings-tab" style="display:none;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <h4>Dossiers Locaux</h4>
+                        <button class="btn-secondary" onclick="addLibraryFolder()">+ Ajouter Dossier</button>
+                    </div>
+
+                    <div id="settings-folder-list" class="folder-list">
+                        <!-- JS injected -->
+                    </div>
+                    <p class="hint">Les fichiers audio (MP3, WAV, FLAC, M4A, OGG) seront analysés automatiquement.</p>
+                </div>
+
+                <!-- TAB: CONTROLLER -->
+                <div id="tab-settings-controller" class="settings-tab" style="display:none;">
+                    <h4>Configuration du Pédalier</h4>
+                    <p>Pour modifier les boutons, les actions avancées et les profils, utilisez l'éditeur natif.</p>
+
+                    <div style="text-align:center; margin-top:30px;">
+                        <button class="btn-primary" onclick="openNativeEditor()"
+                            style="padding:15px 30px; font-size:1.1em;">
+                            Ouvrir l'Éditeur Avancé ⚙️
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-text" onclick="closeSettingsModal()">Annuler</button>
+            <button class="btn-primary" onclick="saveSettings()">Enregistrer</button>
+        </div>
+    </dialog>
+
+    <!-- IMPORT MODAL -->
+    <dialog id="import-modal" class="small-modal">
+        <div class="modal-header">
+            <h3>Importer le fichier ?</h3>
+        </div>
+        <div class="modal-content">
+            <p>Ce fichier ne se trouve pas dans vos dossiers gérés.</p>
+            <div class="monitor-path" id="import-source-path" style="font-size:0.8em; color:#888; margin-bottom:10px;">
+                ...</div>
+
+            <label>Dossier de destination :</label>
+            <select id="import-target-folder"
+                style="width:100%; padding:8px; margin-bottom:15px; background:#333; color:white; border:1px solid #555;"></select>
+
+            <div class="import-actions" style="display:flex; flex-direction:column; gap:10px;">
+                <button class="btn-primary" onclick="confirmImport('copy')">Copier vers le dossier (Non
+                    Destructif)</button>
+                <button class="btn-secondary" onclick="confirmImport('move')">Déplacer vers le dossier</button>
+                <button class="btn-text" onclick="confirmImport('link')">Lier uniquement (Laisser sur place)</button>
+            </div>
+        </div>
+        <div class="modal-footer" style="justify-content:center; margin-top:10px;">
+            <button class="btn-text" onclick="closeImportModal()">Annuler</button>
         </div>
     </dialog>
 

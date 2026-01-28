@@ -3,6 +3,8 @@ let websocket;
 let currentProfile = null;
 let currentActivePlayer = 'youtube';
 let wavesurfer = null;
+let player = null; // Fix: Explicit declaration to avoid ID collision
+let currentCoverData = null; // Fix: Explicit declaration
 
 // --- INIT ---
 function onYouTubeIframeAPIReady() {
@@ -98,7 +100,16 @@ function executeWebAction(actionValue) {
 }
 
 function seekRelative(sec) { player.seekTo(player.getCurrentTime() + sec, true); }
-function toggleVideo() { player.getPlayerState() === 1 ? player.pauseVideo() : player.playVideo(); }
+function toggleVideo() {
+    if (currentActivePlayer === 'local') {
+        const v = document.getElementById("html5-player");
+        v.paused ? v.play() : v.pause();
+    } else if (currentActivePlayer === 'waveform' && wavesurfer) {
+        wavesurfer.playPause();
+    } else if (player && typeof player.getPlayerState === 'function') {
+        player.getPlayerState() === 1 ? player.pauseVideo() : player.playVideo();
+    }
+}
 
 function handleMidi(cc, value) {
     if (value === 0) return;
@@ -338,8 +349,127 @@ async function launchApp(path) {
     });
 }
 
+// --- SETTINGS LOGIC ---
+let currentSettings = {
+    YOUTUBE_API_KEY: "",
+    media_folders: []
+};
+
 async function openSettings() {
-    await fetch("/api/open_settings", { method: "POST" });
+    // Deprecated Name, redirected to Modal
+    openSettingsModal();
+}
+
+async function openSettingsModal() {
+    try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+            currentSettings = await res.json();
+
+            // Populate Fields
+            document.getElementById("setting-youtube-key").value = currentSettings.YOUTUBE_API_KEY || "";
+            renderSettingsFolders();
+
+            // Show Modal
+            document.getElementById("settings-modal").showModal();
+            switchSettingsTab('general'); // Reset to first tab
+        }
+    } catch (e) {
+        console.error("Settings Load Error", e);
+    }
+}
+
+function closeSettingsModal() {
+    document.getElementById("settings-modal").close();
+}
+
+function switchSettingsTab(tabName) {
+    // Hide all
+    document.getElementById("tab-settings-general").style.display = "none";
+    document.getElementById("tab-settings-library").style.display = "none";
+    document.getElementById("tab-settings-controller").style.display = "none";
+
+    // Deactivate Buttons
+    const btns = document.querySelectorAll(".settings-nav .nav-btn");
+    btns.forEach(b => b.classList.remove("active"));
+
+    // Show Target
+    document.getElementById(`tab-settings-${tabName}`).style.display = "block";
+
+    // Activate Button (Simple Index Logic or Search)
+    const map = { 'general': 0, 'library': 1, 'controller': 2 };
+    if (btns[map[tabName]]) btns[map[tabName]].classList.add("active");
+}
+
+function renderSettingsFolders() {
+    const list = document.getElementById("settings-folder-list");
+    list.innerHTML = "";
+
+    const folders = currentSettings.media_folders || [];
+    folders.forEach((path, index) => {
+        const div = document.createElement("div");
+        div.className = "folder-item";
+        div.innerHTML = `
+            <div class="folder-path">${path}</div>
+            <button class="btn-remove-folder" onclick="removeFolder(${index})">×</button>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function removeFolder(index) {
+    if (currentSettings.media_folders) {
+        currentSettings.media_folders.splice(index, 1);
+        renderSettingsFolders();
+    }
+}
+
+async function addLibraryFolder() {
+    try {
+        const res = await fetch("/api/library/add_folder", { method: "POST" });
+        const data = await res.json();
+
+        if (data.status === "added" && data.path) {
+            // Update local state
+            if (!currentSettings.media_folders) currentSettings.media_folders = [];
+
+            // Avoid duplicates
+            if (!currentSettings.media_folders.includes(data.path)) {
+                currentSettings.media_folders.push(data.path);
+                renderSettingsFolders();
+            }
+        }
+    } catch (e) {
+        console.error("Add Folder Error", e);
+    }
+}
+
+async function saveSettings() {
+    // Harvest Data
+    currentSettings.YOUTUBE_API_KEY = document.getElementById("setting-youtube-key").value;
+
+    try {
+        await fetch("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(currentSettings)
+        });
+        closeSettingsModal();
+
+        // Optional: Reload Library if folders changed?
+        // Since we don't have a live reload event yet, maybe just reload local view
+        loadLocalFiles();
+
+    } catch (e) {
+        alert("Erreur lors de la sauvegarde.");
+        console.error(e);
+    }
+}
+
+async function openNativeEditor() {
+    // Calls the server route which triggers Tkinter
+    closeSettingsModal(); // Close web modal to avoid confusion
+    await fetch("/api/open_native_editor", { method: "POST" });
 }
 
 // --- MODAL & EDIT LOGIC ---
@@ -863,8 +993,20 @@ function playLocal(index) {
         // aContainer.style.display = "none"; // Done above
         v.style.display = "block";
 
-        v.src = "/api/stream?path=" + encodeURIComponent(file.path);
-        v.play();
+        const streamUrl = "/api/stream?path=" + encodeURIComponent(file.path);
+        console.log("PlayLocal Video:", file.path, streamUrl);
+        v.src = streamUrl;
+        v.load(); // Force reload
+
+        v.onerror = (e) => {
+            console.error("Video Error:", v.error);
+            alert("Erreur lecture vidéo: " + (v.error ? v.error.message : "Code " + v.error.code));
+        };
+
+        v.play().catch(e => {
+            console.error("Play Promise Error:", e);
+            alert("Erreur lecture auto: " + e.message);
+        });
 
         currentActivePlayer = 'local';
     }
@@ -888,8 +1030,70 @@ function audioControl(action) {
 }
 
 async function addLocalFile() {
-    await fetch("/api/local/add", { method: "POST" });
-    loadLocalFiles();
+    const res = await fetch("/api/local/add", { method: "POST" });
+    const data = await res.json();
+
+    if (data.status === "ok") {
+        loadLocalFiles();
+    } else if (data.status === "import_needed") {
+        openImportModal(data);
+    } else if (data.status === "exists") {
+        alert("Ce fichier est déjà dans la bibliothèque.");
+    }
+}
+
+// --- IMPORT LOGIC ---
+let pendingImportData = null;
+
+function openImportModal(data) {
+    pendingImportData = data;
+    document.getElementById("import-modal").showModal();
+    document.getElementById("import-source-path").innerText = data.source_path;
+
+    const select = document.getElementById("import-target-folder");
+    select.innerHTML = "";
+    data.target_folders.forEach(folder => {
+        const opt = document.createElement("option");
+        opt.value = folder;
+        opt.innerText = folder;
+        select.appendChild(opt);
+    });
+}
+
+function closeImportModal() {
+    document.getElementById("import-modal").close();
+    pendingImportData = null;
+}
+
+async function confirmImport(action) {
+    if (!pendingImportData) return;
+
+    const targetFolder = document.getElementById("import-target-folder").value;
+    const payload = {
+        source_path: pendingImportData.source_path,
+        action: action,
+        target_folder: targetFolder
+    };
+
+    closeImportModal(); // Close immediately
+
+    // Show loading or opt
+    try {
+        const res = await fetch("/api/local/confirm_import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            loadLocalFiles();
+        } else {
+            alert("Erreur lors de l'importation.");
+        }
+    } catch (e) {
+        console.error("Import Error", e);
+        alert("Erreur technique lors de l'import.");
+    }
 }
 
 function openEditLocalModal(index) {
@@ -984,7 +1188,7 @@ function sortLocal(key) {
 }
 
 
-loadYouTubeAPI();
+// loadYouTubeAPI(); // Fix: Removed undefined call. API loaded via HTML script tag.
 connectWS();
 
 function handleLocalCover(input) {
