@@ -11,10 +11,35 @@ class ProfileManager:
         self.config_file = config_file
         self.profiles = []
         self.ensure_profile_dir()
+        self.ensure_web_profiles()
 
     def ensure_profile_dir(self):
         if not os.path.exists(PROFILE_DIR):
             os.makedirs(PROFILE_DIR)
+
+    def ensure_web_profiles(self):
+        """Creates default Web profiles if they don't exist."""
+        defaults = [
+            {"name": "Web YouTube", "desc": "Controls for YouTube Player"},
+            {"name": "Web Audio Local", "desc": "Controls for Local Audio Files"},
+            {"name": "Web Video Local", "desc": "Controls for Local Video Files"}
+        ]
+        
+        for d in defaults:
+            safe_name = "".join([c for c in d["name"] if c.isalnum() or c in (' ', '-', '_')]).strip()
+            filepath = os.path.join(PROFILE_DIR, f"{safe_name}.json")
+            
+            if not os.path.exists(filepath):
+                # Create basic profile
+                profile = {
+                    "name": d["name"],
+                    "app_context": "chrome.exe", # Default context
+                    "window_title_filter": "",
+                    "mappings": []
+                }
+                # Pre-fill some defaults if needed (optional)
+                self.save_profile(profile)
+                print(f"Created default profile: {d['name']}")
 
     def export_backup(self, target_path):
         try:

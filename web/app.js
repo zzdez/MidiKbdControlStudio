@@ -15,12 +15,45 @@ function onYouTubeIframeAPIReady() {
         events: { 'onReady': onPlayerReady }
     });
 }
+window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
 
-function onPlayerReady() { console.log("Player Ready"); }
+let queuedVideoId = null;
 
-// --- WEBSOCKET ---
-function connectWS() {
+function onPlayerReady() {
+    console.log("Player Ready");
+    if (queuedVideoId) {
+        console.log("Playing queued video:", queuedVideoId);
+        player.loadVideoById(queuedVideoId);
+        queuedVideoId = null;
+    }
+}
+
+// --- CONTEXT AWARE PROFILES ---
+let currentWebMode = "GENERIC"; // GENERIC, YOUTUBE, AUDIO, VIDEO
+
+async function setMode(mode, profileName) {
+    if (currentWebMode === mode) return;
+
+    console.log(`Switching Web Mode: ${mode} -> ${profileName}`);
+    currentWebMode = mode;
+
+    // Notify Backend
+    try {
+        await fetch("/api/profile/active", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: profileName })
+        });
+    } catch (e) {
+        console.error("Failed to switch profile", e);
+    }
+}
+
+// --- WEBSOCKET & MIDI HANDLING ---
+let socket;
+
+function connectVideoWebSocket() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     websocket = new WebSocket(`${protocol}//${location.host}/ws`);
 
@@ -48,54 +81,93 @@ function connectWS() {
     };
 }
 
-// --- LOGIC ---
-function executeWebAction(actionValue) {
-    if (!actionValue) return;
-    const cmd = actionValue.toLowerCase();
+// --- ACTION EXECUTOR (Context Aware) ---
+function executeWebAction(action, value) {
+    console.log(`Executing WEB Action: ${action} [Value: ${value}] Mode: ${currentWebMode}`);
 
-    // Check if HTML5 player is active
-    const html5 = document.getElementById("html5-player");
+    // --- YOUTUBE CONTEXT ---
+    if (currentWebMode === "YOUTUBE") {
+        if (!player || !player.playVideo) return;
 
-    if (currentActivePlayer === 'local') {
-        if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd.includes(c))) {
-            html5.paused ? html5.play() : html5.pause();
-        } else if (cmd.includes('media_stop')) {
-            html5.pause(); html5.currentTime = 0;
-        } else if (cmd.includes('media_rewind') || cmd.includes('left')) {
-            html5.currentTime = Math.max(0, html5.currentTime - 5);
-        } else if (cmd.includes('media_forward') || cmd.includes('right')) {
-            html5.currentTime = Math.min(html5.duration, html5.currentTime + 5);
-        } else if (cmd.includes('media_speed_up')) {
-            html5.playbackRate += 0.25;
-        } else if (cmd.includes('media_speed_down')) {
-            html5.playbackRate = Math.max(0.25, html5.playbackRate - 0.25);
+        if (action === "media_play_pause") {
+            const state = player.getPlayerState();
+            if (state === 1) player.pauseVideo();
+            else player.playVideo();
         }
-    } else if (currentActivePlayer === 'waveform' && wavesurfer) {
-        // WaveSurfer Controls
-        const act = actionValue.toLowerCase();
-        if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => act.includes(c))) {
-            wavesurfer.playPause();
-        } else if (act.includes('media_stop')) {
-            wavesurfer.stop();
-        } else if (act.includes('media_rewind') || act.includes('left')) {
-            wavesurfer.skip(-5);
-        } else if (act.includes('media_forward') || act.includes('right')) {
-            wavesurfer.skip(5);
-        } else if (act.includes('media_speed_up')) {
-            wavesurfer.setPlaybackRate(wavesurfer.getPlaybackRate() + 0.1);
-        } else if (act.includes('media_speed_down')) {
-            wavesurfer.setPlaybackRate(Math.max(0.1, wavesurfer.getPlaybackRate() - 0.1));
+        else if (action === "media_stop") player.stopVideo();
+        // else if (action === "media_next") playNext(); // Not implemented yet
+        // else if (action === "media_prev") playPrev(); // Not implemented yet
+        else if (action === "media_seek_forward") {
+            const cur = player.getCurrentTime();
+            player.seekTo(cur + 10, true);
         }
+        else if (action === "media_seek_backward") {
+            const cur = player.getCurrentTime();
+            player.seekTo(cur - 10, true);
+        }
+        else if (action === "media_restart") player.seekTo(0, true);
+        else if (action === "media_speed_up") {
+            const rates = player.getAvailablePlaybackRates();
+            const curr = player.getPlaybackRate();
+            // Simple interaction: next available rate or +0.25
+            const idx = rates.indexOf(curr);
+            if (idx < rates.length - 1) player.setPlaybackRate(rates[idx + 1]);
+        }
+        else if (action === "media_slow_down") {
+            const rates = player.getAvailablePlaybackRates();
+            const curr = player.getPlaybackRate();
+            const idx = rates.indexOf(curr);
+            if (idx > 0) player.setPlaybackRate(rates[idx - 1]);
+        }
+    }
 
+    // --- AUDIO LOCAL CONTEXT ---
+    else if (currentWebMode === "AUDIO") {
+        if (!wavesurfer) return;
 
-    } else if (player && player.getPlayerState) {
-        // YouTube API
-        if (['media_play', 'media_pause', 'media_play_pause', 'space', 'k'].some(c => cmd.includes(c))) toggleVideo();
-        else if (cmd.includes('media_stop')) player.stopVideo();
-        else if (cmd.includes('media_rewind') || cmd.includes('left')) seekRelative(-5);
-        else if (cmd.includes('media_forward') || cmd.includes('right')) seekRelative(5);
-        else if (cmd.includes('media_speed_up')) player.setPlaybackRate(player.getPlaybackRate() + 0.25);
-        else if (cmd.includes('media_speed_down')) player.setPlaybackRate(Math.max(0.25, player.getPlaybackRate() - 0.25));
+        if (action === "media_play_pause") wavesurfer.playPause();
+        else if (action === "media_stop") { wavesurfer.stop(); }
+        // else if (action === "media_next") playNext(); // Not implemented yet
+        // else if (action === "media_prev") playPrev(); // Not implemented yet
+        else if (action === "media_seek_forward") wavesurfer.skip(10);
+        else if (action === "media_seek_backward") wavesurfer.skip(-10);
+        else if (action === "media_restart") wavesurfer.seekTo(0);
+        else if (action === "media_speed_up") {
+            const rate = wavesurfer.getPlaybackRate();
+            wavesurfer.setPlaybackRate(Math.min(rate + 0.25, 2.0));
+        }
+        else if (action === "media_slow_down") {
+            const rate = wavesurfer.getPlaybackRate();
+            wavesurfer.setPlaybackRate(Math.max(rate - 0.25, 0.5));
+        }
+    }
+
+    // --- VIDEO LOCAL CONTEXT ---
+    else if (currentWebMode === "VIDEO") {
+        const vid = document.getElementById("html5-player");
+        if (!vid) return;
+
+        if (action === "media_play_pause") {
+            if (vid.paused) vid.play(); else vid.pause();
+        }
+        else if (action === "media_stop") { vid.pause(); vid.currentTime = 0; }
+        // else if (action === "media_next") playNext(); // Not implemented yet
+        // else if (action === "media_prev") playPrev(); // Not implemented yet
+        else if (action === "media_seek_forward") vid.currentTime += 10;
+        else if (action === "media_seek_backward") vid.currentTime -= 10;
+        else if (action === "media_restart") vid.currentTime = 0;
+        else if (action === "media_speed_up") {
+            vid.playbackRate = Math.min(vid.playbackRate + 0.25, 2.0);
+        }
+        else if (action === "media_slow_down") {
+            vid.playbackRate = Math.max(vid.playbackRate - 0.25, 0.5);
+        }
+    }
+
+    // --- GENERIC FALLBACK (Same as before) ---
+    else {
+        // No specific player context, so we can't execute media actions.
+        // This block could be used for global actions or simply do nothing.
     }
 }
 
@@ -775,6 +847,35 @@ function previewItem() {
 
 // --- PLAYER ---
 
+// --- PLAYER CONTROL ---
+function stopAllMedia() {
+    console.log("Stopping all media players...");
+
+    // 1. YouTube
+    if (player && typeof player.stopVideo === "function") {
+        try { player.stopVideo(); } catch (e) { }
+    }
+
+    // 2. WaveSurfer (Audio Local)
+    if (wavesurfer) {
+        try { wavesurfer.pause(); } catch (e) { }
+    }
+
+    // 3. HTML5 Video (Video Local)
+    const v = document.getElementById("html5-player");
+    if (v) {
+        v.pause();
+        // Don't reset src here aggressively to avoid side effects, just pause.
+    }
+
+    // 4. Generic Iframe
+    const genFrame = document.getElementById("generic-player");
+    if (genFrame) {
+        // Clearing src stops playback for generic iframes
+        // genFrame.src = ""; // Optional: might flash white, usually strictly separate
+    }
+}
+
 async function deleteTrack(index) {
     if (!confirm("Supprimer ?")) return;
     await fetch(`/api/setlist/${index}`, { method: "DELETE" });
@@ -791,6 +892,9 @@ function playTrack(track) {
     const genFrame = document.getElementById("generic-player");
     const html5 = document.getElementById("html5-player");
 
+    // STOP ALL MEDIA first
+    stopAllMedia();
+
     // Reset Containers
     const videoContainer = document.getElementById("video-container");
     const audioContainer = document.getElementById("audio-player-container");
@@ -806,29 +910,32 @@ function playTrack(track) {
     html5.pause(); html5.src = "";
     genFrame.src = "";
 
-    if (track.open_mode === "iframe") {
-        const isYT = track.url.includes("youtu");
-        if (isYT) {
-            ytDiv.style.display = "block";
-            if (track.id && player) player.loadVideoById(track.id);
-            setMode("WEB", track.profile_name);
-            currentActivePlayer = 'youtube';
+    if (track.open_mode === "external") {
+        fetch(`/api/open_external?url=${encodeURIComponent(track.url)}`);
+        setMode("GENERIC", track.profile_name); // External apps don't have a web mode
+    } else if (track.open_mode === "iframe" && track.id) {
+        // YouTube Iframe
+        setMode("YOUTUBE", "Web YouTube"); // Context Switch
+
+        ytDiv.style.display = "block";
+        currentActivePlayer = 'youtube'; // Important for logic tracking
+
+        if (player && typeof player.loadVideoById === "function") {
+            player.loadVideoById(track.id);
+            // playerState = 1; // Handled by API
         } else {
-            genFrame.style.display = "block";
-            genFrame.src = track.url;
-            setMode("WIN", track.profile_name);
-            currentActivePlayer = 'external';
+            console.warn("YouTube Player not ready yet. Video ID queued:", track.id);
+            // Optional: queue it? Or just let user click again.
+            // But we must at least show the container.
+            // If we rely on onYouTubeIframeAPIReady, it creates a NEW player.
+            // If player exists but methods missing, that's weird.
         }
-    } else if (track.open_mode === "local") {
-        html5.style.display = "block";
-        html5.src = "/api/stream?path=" + encodeURIComponent(track.url);
-        html5.play();
-        currentActivePlayer = 'local';
-        setMode("WEB", track.profile_name);
     } else {
-        // External
-        window.open(track.url, '_blank');
-        setMode("WIN", track.profile_name);
+        // Generic / Direct URL (could be any iframeable content)
+        setMode("GENERIC", "Web Generic"); // Fallback
+
+        genFrame.style.display = "block";
+        genFrame.src = track.url;
     }
 }
 
@@ -1016,6 +1123,7 @@ function playLocal(index) {
     // Detect Type
     const ext = file.path.split('.').pop().toLowerCase();
     const isAudio = ['mp3', 'wav', 'flac', 'm4a', 'aac'].includes(ext);
+    const isVideo = ['mp4', 'mkv', 'webm', 'avi', 'mov'].includes(ext); // Added video extensions
 
     // Containers
     const videoContainer = document.getElementById("video-container");
@@ -1026,16 +1134,25 @@ function playLocal(index) {
     const genFrame = document.getElementById("generic-player");
     if (genFrame) genFrame.style.display = "none";
 
+    // GLOBAL STOP
+    stopAllMedia();
+
     const v = document.getElementById("html5-player");
+
+    // Clean Reset without triggering errors
+    v.onerror = null; // Remove listener before clearing
+    v.pause();
+    v.removeAttribute('src'); // Clean removal
+    v.load();
 
     if (isAudio) {
         // --- AUDIO MODE (Hide Video Container) ---
+        setMode("AUDIO", "Web Audio Local"); // Context Switch
+
         videoContainer.style.display = "none";
         audioContainer.style.display = "flex";
 
-        v.pause();
         v.style.display = "none";
-        // aContainer.style.display = "flex"; // Already done above
 
         // Update UI
         document.getElementById("audio-title").innerText = file.title;
@@ -1060,34 +1177,43 @@ function playLocal(index) {
 
         currentActivePlayer = 'waveform';
 
-    } else {
+    } else if (isVideo) {
         // --- VIDEO MODE (Show Video Container) ---
+        setMode("VIDEO", "Web Video Local"); // Context Switch
+
         videoContainer.style.display = "flex";
         audioContainer.style.display = "none";
-
-        if (wavesurfer) wavesurfer.pause();
-        // aContainer.style.display = "none"; // Done above
         v.style.display = "block";
 
-        const streamUrl = "/api/stream?path=" + encodeURIComponent(file.path);
-        console.log("PlayLocal Video:", file.path, streamUrl);
-        v.src = streamUrl;
-        v.load(); // Force reload
+        // STOP AUDIO
+        if (wavesurfer) {
+            wavesurfer.pause();
+        }
 
+        // IMPORTANT: Define error handler BEFORE setting src, 
+        // but ensure it ignores empty src errors (code 4)
         v.onerror = (e) => {
+            if (!v.getAttribute('src')) return; // Ignore errors when src is empty
             console.error("Video Error:", v.error);
             alert("Erreur lecture vidéo: " + (v.error ? v.error.message : "Code " + v.error.code));
         };
 
-        v.play().catch(e => {
-            console.error("Play Promise Error:", e);
-            alert("Erreur lecture auto: " + e.message);
-        });
+        // 1. Set Source
+        v.src = `/api/local/stream/${index}`;
+
+        // 2. Load (resets the media element and selects the new resource)
+        v.load();
+
+        // 3. Play when ready
+        // We use a one-time listener to avoid multiple path triggers
+        const startPlay = () => {
+            v.play().catch(e => console.warn("Auto-play aborted", e));
+            v.removeEventListener('canplay', startPlay);
+        };
+        v.addEventListener('canplay', startPlay);
 
         currentActivePlayer = 'local';
     }
-
-    setMode("WEB", "Local Media");
 }
 
 // --- AUDIO CONTROLS (On Screen) ---
@@ -1265,7 +1391,31 @@ function sortLocal(key) {
 
 
 // loadYouTubeAPI(); // Fix: Removed undefined call. API loaded via HTML script tag.
-connectWS();
+// --- INITIALIZATION ---
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("DOM Loaded");
+
+    // Initialize WebSockets
+    if (typeof connectVideoWebSocket === 'function') {
+        connectVideoWebSocket();
+    } else {
+        console.error("connectVideoWebSocket function not found!");
+    }
+
+    // CHECK YOUTUBE API MANUALLY
+    // If API loaded before we attached the callback, we must init manually.
+    if (window.YT && window.YT.Player && typeof onYouTubeIframeAPIReady === "function") {
+        console.log("YouTube API already loaded. Forcing manual init.");
+        try {
+            onYouTubeIframeAPIReady();
+        } catch (e) { console.error("Manual YT Init Error:", e); }
+    }
+
+    // Initial Loads
+    setTimeout(() => {
+        if (!localFiles || localFiles.length === 0) loadLocalFiles();
+    }, 1000);
+});
 
 function handleLocalCover(input) {
     if (input.files && input.files[0]) {

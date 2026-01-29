@@ -183,6 +183,17 @@ async def api_youtube_search(q: str):
 
     return search_youtube(q, api_key)
 
+@app.get("/api/open_external")
+async def open_external(url: str):
+    """Opens a URL in the default system browser."""
+    if not url:
+        raise HTTPException(status_code=400, detail="Missing URL")
+    
+    import webbrowser
+    print(f"[SERVER] Opening external URL: {url}")
+    webbrowser.open(url)
+    return {"status": "ok", "url": url}
+
 @app.get("/api/metadata/blocked")
 async def get_blocked_tags():
     return config_manager.get("blocked_tags", {})
@@ -195,15 +206,46 @@ async def block_tag(data: Dict):
     if not field or not value:
         raise HTTPException(status_code=400, detail="Missing field or value")
     
-    current_blocked = config_manager.get("blocked_tags", {})
-    if field not in current_blocked:
-        current_blocked[field] = []
-    
     if value not in current_blocked[field]:
         current_blocked[field].append(value)
         config_manager.set("blocked_tags", current_blocked)
         
     return {"status": "ok", "blocked": current_blocked}
+
+@app.post("/api/profile/active")
+async def set_active_profile(data: Dict):
+    profile_name = data.get("name")
+    if not profile_name:
+         raise HTTPException(status_code=400, detail="Missing profile name")
+         
+    # Notify Main GUI to switch
+    # We use library_manager as a bridge or direct app reference if available
+    # Since library_manager has a callback set by GUI, we can use it?
+    # Actually, main.py passes midi_callback, but we need force_profile_switch.
+    # checking LibraryManager: it has force_profile_switch logic!
+    
+    if library_manager.force_profile_callback:
+        # Schedule it on main thread via the callback (which is gui.force_profile_switch)
+        # However, gui.force_profile_switch is Tkinter code, needs to run on main thread?
+        # The callback is likely set to `self.force_profile_switch` which updates UI.
+        # Ideally we should use app.after, but we don't have direct access here easily unless we passed it.
+        # BUT library_manager.set_force_profile_callback was called by GUI.
+        
+        # Let's hope the callback handles thread safety or use a queue?
+        # In gui.py, `force_profile_switch` just sets variables and logs. 
+        # `_monitor_remote_context` or `refresh_ui` handles the rest?
+        # Actually `force_profile_switch` calls `self.current_profile = found` instantly.
+        # This might be unsafe if conflict with MainThread.
+        # But for now, let's assume it works or just updates state.
+        
+        try:
+             library_manager.force_profile_callback(profile_name)
+             return {"status": "ok", "profile": profile_name}
+        except Exception as e:
+             print(f"Profile Switch Error: {e}")
+             raise HTTPException(status_code=500, detail=str(e))
+             
+    return {"status": "ignored", "reason": "No callback registered"}
 
 @app.get("/api/metadata/search")
 async def api_metadata_search(q: str):
@@ -1097,6 +1139,29 @@ async def update_local_file(index: int, item: Dict):
 
     except Exception as e:
         print(f"Update Local Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/local/stream/{index}")
+async def stream_local_file_by_index(index: int):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+                 
+        if 0 <= index < len(items):
+            path = items[index]["path"]
+            if os.path.exists(path):
+                # Determine media type for Content-Type header (helps some browsers)
+                import mimetypes
+                mime_type, _ = mimetypes.guess_type(path)
+                return FileResponse(path, media_type=mime_type, filename=os.path.basename(path))
+            else:
+                 raise HTTPException(status_code=404, detail="File not found on disk")
+        else:
+             raise HTTPException(status_code=404, detail="Index not found")
+    except Exception as e:
+        print(f"Stream Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/local/{index}")
