@@ -21,29 +21,44 @@ class ContextMonitor(threading.Thread):
         # Override Logic
         self.manual_override_profile = None
 
+    def log_to_file(self, msg):
+        try:
+            with open("debug.log", "a", encoding="utf-8") as f:
+                timestamp = time.strftime("%H:%M:%S")
+                f.write(f"[CTX] [{timestamp}] {msg}\n")
+        except: pass
+
     def set_manual_override(self, profile_name):
         """
         Force un profil spécifique.
         Si None, reprend la détection automatique.
         """
+        self.log_to_file(f"SET OVERRIDE REQUEST: '{profile_name}'")
         if profile_name:
+            # Normalize for comparison
+            target_name = profile_name.strip()
+            # Debug: List available names
+            avail = [p.get("name") for p in self.profile_manager.profiles]
+            
             # Find the profile data
-            found = next((p for p in self.profile_manager.profiles if p.get("name") == profile_name), None)
+            found = next((p for p in self.profile_manager.profiles if p.get("name") == target_name), None)
+            
             if found:
                 self.manual_override_profile = found
-                print(f"[ContextMonitor] OVERRIDE SET: {profile_name}")
+                self.log_to_file(f"OVERRIDE SET SUCCESS: {target_name}")
                 # Force update immediately
                 self.last_profile_name = None # Reset to trigger change detection logic
             else:
-                print(f"[ContextMonitor] ERROR: Profile '{profile_name}' not found for override.")
+                self.log_to_file(f"ERROR: Profile '{target_name}' not found. Avail: {avail}")
+                self.manual_override_profile = None # Clear override if invalid
         else:
             self.manual_override_profile = None
-            print("[ContextMonitor] OVERRIDE CLEARED. Auto-detect resuming.")
+            self.log_to_file("OVERRIDE CLEARED. Auto-detect resuming.")
             self.last_profile_name = None # Reset
 
     def run(self):
         self.running = True
-        print("[ContextMonitor] Started monitoring active window...")
+        self.log_to_file("Started monitoring active window...")
 
         while self.running:
             try:
@@ -58,7 +73,8 @@ class ContextMonitor(threading.Thread):
                     active_title = self.action_handler.get_active_window_title().lower()
 
                     blacklist_apps = ["python.exe", "airstepsmartcontrol.exe", "airstepstudio.exe"]
-                    if (active_process in blacklist_apps) or ("airstep" in active_title):
+                    # Fix: Allow "Airstep Studio" (Web) but block "Airstep Smart Control" (Native)
+                    if (active_process in blacklist_apps) or ("airstep smart control" in active_title):
                         # Ignored self-focus. Keep previous profile.
                         time.sleep(self.interval)
                         continue
@@ -77,8 +93,9 @@ class ContextMonitor(threading.Thread):
 
                 # 4. Detect Change
                 if current_name != self.last_profile_name:
-                    print(f"[ContextMonitor] Profile Changed: {self.last_profile_name} -> {current_name}")
+                    self.log_to_file(f"Profile Changed: {self.last_profile_name} -> {current_name}")
                     self.last_profile_name = current_name
+
 
                     # 5. Callback Update
                     if self.callback:

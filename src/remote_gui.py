@@ -380,8 +380,10 @@ class RemoteControl(ctk.CTkToplevel):
         # Check if changed (by name)
         current_name = self.profile.get("name") if self.profile else ""
         new_name = new_profile.get("name")
-
+        print(f"[REMOTE DEBUG] set_profile called with: {new_name}")
+        
         if current_name != new_name:
+            print(f"[REMOTE DEBUG] Applying profile change: {current_name} -> {new_name}")
             self.profile = new_profile
             self.pedalboard_frame.set_profile(new_profile)
 

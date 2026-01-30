@@ -62,6 +62,7 @@ pyinstaller --noconfirm --onefile --windowed ^
  --hidden-import "websockets" ^
  --hidden-import "requests" ^
  --hidden-import "customtkinter" ^
+ --hidden-import "context_monitor" ^
  --hidden-import "pystray" ^
  --hidden-import "PIL" ^
  --hidden-import "mido.backends.rtmidi" ^

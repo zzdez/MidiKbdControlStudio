@@ -32,6 +32,16 @@ try:
     from action_handler import ActionHandler
     from library_manager import LibraryManager
     from remote_gui import RemoteControl, CompactPedalboardFrame
+    
+    # ContextMonitor Import with specific debug
+    try:
+        from context_monitor import ContextMonitor
+    except ImportError as e:
+        # If this fails in frozen app, it's fatal if fallback also fails. 
+        # But we let it bubble to outer except for now, 
+        # assuming --hidden-import fixed the missing file.
+        raise e
+
 except ImportError:
     from src.profile_manager import ProfileManager
     from src.device_manager import DeviceManager, DEFAULT_AIRSTEP_DEF
@@ -40,6 +50,7 @@ except ImportError:
     from src.action_handler import ActionHandler
     from src.library_manager import LibraryManager
     from src.remote_gui import RemoteControl, CompactPedalboardFrame
+    from src.context_monitor import ContextMonitor
 
 # Configuration de l'apparence
 ctk.set_appearance_mode("System")
@@ -525,6 +536,11 @@ class AirstepApp(ctk.CTk):
         self.action_handler = ActionHandler()
         self.settings = {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO"}
 
+        # --- Context Monitor ---
+        # Starts a background thread to detect active windows
+        self.context_monitor = ContextMonitor(self.profile_manager, self.action_handler, self.on_context_change)
+        self.context_monitor.start()
+
         self.midi_callback = None
 
         self.create_sidebar()
@@ -536,6 +552,36 @@ class AirstepApp(ctk.CTk):
         self.setup_tray()
         self.last_flash_time = 0
         self._revert_timer = None
+
+    def on_context_change(self, profile):
+        """Callback from ContextMonitor when window changes"""
+        # Update UI if allowed
+        if not profile: return
+
+        # Thread-safe UI update
+        def _update():
+            # Debug Log
+            prof_name = profile.get("name") if profile else "None"
+            self.log_debug(f"on_context_change callback triggered for: {prof_name}")
+            
+            # Avoid loop if same
+            if self.current_profile and self.current_profile.get("name") == prof_name:
+                 self.log_debug(f"Profile {prof_name} already active. Skipping UI refresh.")
+                 return
+
+            self.log_debug(f"Auto-Switch Profile: {prof_name}")
+            
+            # Select in Main UI
+            self.select_profile_by_name(prof_name)
+            
+            # Update Remote Control specifically if open
+            if hasattr(self, 'remote_win') and self.remote_win and self.remote_win.winfo_exists():
+                self.log_debug(f"Updating Remote Window to {prof_name}")
+                self.remote_win.set_profile(profile)
+            else:
+                self.log_debug(f"Remote window not open or invalid.")
+
+        self.after(0, _update)
 
     def log_debug(self, message):
         try:
@@ -805,8 +851,15 @@ class AirstepApp(ctk.CTk):
         self.profile_combo.configure(values=names)
 
     def select_profile_by_name(self, name):
+        self.log_debug(f"select_profile_by_name called: {name} (AppID: {id(self)})")
         self.profile_combo.set(name)
-        self.current_profile = next((p for p in self.profiles if p["name"] == name), None)
+        new_prof = next((p for p in self.profiles if p["name"] == name), None)
+        if new_prof:
+             self.log_debug(f"Found Profile Object: {new_prof.get('name')} (ID: {id(new_prof)})")
+        else:
+             self.log_debug(f"Profile Object NOT FOUND for: {name}")
+
+        self.current_profile = new_prof
         self.refresh_ui_for_profile()
 
     def on_profile_change(self, choice):
@@ -1354,9 +1407,11 @@ class AirstepApp(ctk.CTk):
         # On simule un message VALUE=127 (Press)
         # On force le profil actuel pour activer le "Focus Switch"
         if self.action_handler:
+            self.log_debug(f"SIMULATE PRESS: AppID={id(self)}, CurrentProfile={self.current_profile.get('name') if self.current_profile else 'None'}, ID={id(self.current_profile) if self.current_profile else 'None'}")
             self.action_handler.execute(cc, 127, 16, self.profiles, force_target_profile=self.current_profile)
 
     def quit_app(self, icon=None, item=None):
         if self.tray_icon: self.tray_icon.stop()
         if self.midi_engine: self.midi_engine.stop()
+        if self.context_monitor: self.context_monitor.stop()
         self.quit()

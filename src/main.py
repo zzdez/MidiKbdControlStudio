@@ -161,6 +161,36 @@ def main():
 
     fastapi_app.state.select_file_callback = select_file_wrapper
 
+    # 2e. State Injection (Profiles, Context, Action Handler)
+    # WARNING: app.action_handler might be initialized but ContextMonitor is created implicitly or needs access
+    # AirstepApp creates ActionHandler, but where is ContextMonitor? 
+    # Checking gui.py AirstepApp init...
+    # It seems AirstepApp doesn't store context_monitor in self.
+    # Wait, ContextMonitor is usually part of ActionHandler or separate?
+    # In src/context_monitor.py it takes action_handler.
+    # I need to create it or access it.
+    # Looking at gui.py imports... no ContextMonitor usage inside AirstepApp?
+    # Wait, RemoteControl uses it?
+    # Actually, the user requirement is that server.py calls context_monitor.set_manual_override.
+    # So it MUST exist.
+    # If AirstepApp doesn't create it, I must create it here or inside AirstepApp.
+    # Let's check gui.py again: AirstepApp creates ActionHandler.
+    # But does it create ContextMonitor?
+    # I didn't see it in AirstepApp.__init__.
+    # BUT, the remote_win creates a monitor loop `_monitor_remote_context`.
+    # That is NOT the real ContextMonitor class.
+    # The real ContextMonitor is a Thread.
+    # If it is missing from the app, I must add it to AirstepApp!
+    
+    # Let's assume for now I add it to AirstepApp (I will do that in next step).
+    # Here I just wire it assuming it exists.
+    fastapi_app.state.profile_manager = app.profile_manager
+    fastapi_app.state.action_handler = app.action_handler
+    
+    # We will instantiate ContextMonitor in AirstepApp and expose it.
+    if hasattr(app, 'context_monitor'):
+        fastapi_app.state.context_monitor = app.context_monitor
+
     # 3. Démarrage Serveur Web (Thread)
     server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)
     server_thread.start()

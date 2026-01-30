@@ -301,6 +301,7 @@ async def add_to_setlist(item: Dict):
     try:
         url = item.get("url", "")
         manual_mode = item.get("manual_mode", "auto")
+        target_profile = item.get("target_profile", "Auto")
         category = item.get("category", "Général")
 
         if not url:
@@ -360,7 +361,9 @@ async def add_to_setlist(item: Dict):
             "artist": item.get("artist", ""),
             "channel": item.get("channel", ""),
             "thumbnail": item.get("thumbnail", ""),
+            "thumbnail": item.get("thumbnail", ""),
             "youtube_description": item.get("youtube_description", ""),
+            "target_profile": target_profile,
             "user_notes": item.get("user_notes", "")
         }
 
@@ -410,6 +413,7 @@ async def update_setlist_item(index: int, item: Dict):
             # LOGIC REPLICATION FROM POST (Smart Processing)
             url = item.get("url", "")
             manual_mode = item.get("manual_mode", "auto")
+            target_profile = item.get("target_profile", "Auto")
             category = item.get("category", "Général")
             title = item.get("title", "Sans titre")
 
@@ -456,7 +460,9 @@ async def update_setlist_item(index: int, item: Dict):
                 "artist": item.get("artist", ""),
                 "channel": item.get("channel", ""),
                 "thumbnail": item.get("thumbnail", ""),
+                "thumbnail": item.get("thumbnail", ""),
                 "youtube_description": item.get("youtube_description", ""),
+                "target_profile": target_profile,
                 "user_notes": item.get("user_notes", "")
             }
 
@@ -1109,6 +1115,7 @@ async def update_local_file(index: int, item: Dict):
             current["genre"] = item.get("genre", current.get("genre", ""))
             current["category"] = item.get("category", current.get("category", "Général"))
             current["year"] = item.get("year", current.get("year", ""))
+            current["target_profile"] = item.get("target_profile", current.get("target_profile", "Auto"))
             current["user_notes"] = item.get("user_notes", current.get("user_notes", ""))
             
             # 1. Save JSON (Database Priority)
@@ -1183,10 +1190,14 @@ async def delete_local_file(index: int):
 
 # --- CONFIG MANAGER (Profiles/Devices) ---
 @app.get("/api/profiles")
-async def get_profiles():
-    # Access state or reload
-    if hasattr(app.state, "profiles"):
-        return app.state.profiles
+async def get_profiles(request: Request):
+    # Retrieve from ProfileManager via State
+    if hasattr(request.app.state, "profile_manager"):
+        return request.app.state.profile_manager.profiles
+    
+    # Fallback to old method (or empty)
+    if hasattr(request.app.state, "profiles"):
+        return request.app.state.profiles
     return []
 
 # Placeholder for device/profile management if needed by frontend
@@ -1203,6 +1214,20 @@ async def set_mode(request: Request):
         mode = body.get("mode")
         forced_profile_name = body.get("forced_profile_name")
 
+        print(f"[DEBUG API] Reçu demande set_mode: Mode={mode}, Profil={forced_profile_name}")
+    
+        # Debug to file
+        try:
+            with open("debug.log", "a", encoding="utf-8") as f:
+                import datetime
+                ts = datetime.datetime.now().strftime("%H:%M:%S")
+                f.write(f"[API] [{ts}] set_mode: Mode={mode}, Profil={forced_profile_name}\n")
+        except: pass
+
+        # Notify GUI Callback if registered
+        if hasattr(app.state, "set_mode_callback") and app.state.set_mode_callback:
+            app.state.set_mode_callback(mode, forced_profile_name)
+
         # Access Context Monitor
         if not hasattr(request.app.state, "context_monitor"):
              # Might happen if not fully initialized or wrong injection
@@ -1211,60 +1236,18 @@ async def set_mode(request: Request):
         else:
             context_monitor = request.app.state.context_monitor
 
-            if mode == "WEB" and forced_profile_name:
+            # Fix: app.js sends granular modes (YOUTUBE, AUDIO, VIDEO) which are all "WEB" contexts
+            web_modes = ["WEB", "YOUTUBE", "AUDIO", "VIDEO"]
+            
+            if mode in web_modes and forced_profile_name:
                 context_monitor.set_manual_override(forced_profile_name)
-            elif mode == "WIN" and forced_profile_name:
-                # Even in WIN mode, if we are "Hybrid" (External Browser),
-                # we want to force the profile so the user sees the right buttons
-                # without needing the window to be focused 100% of the time,
-                # OR we might want to let auto-detect work.
-                # Requirement: "Si mode == 'WIN' : Appelle context_monitor.set_manual_override(None)"?
-                # Actually requirement says:
-                # "Cas 2 (External) ... Mode WIN ... et forced_profile_name"
-                # "Si mode == 'WIN' : Appelle context_monitor.set_manual_override(forced_profile_name)" seems implied by "Verrouillage".
-                # But logic "B" says: "Si mode == 'WIN' : Appelle context_monitor.set_manual_override(None)."
-                # Wait, "Cas 2 ... Appelle /api/set_mode avec mode: WIN et forced_profile_name"
-                # So if I receive WIN + Name, I should probably override?
-                # Let's look closely at "B. Mise à jour de POST /api/set_mode":
-                # "Si mode == 'WEB' : Appelle ... set_manual_override(forced_profile_name)"
-                # "Si mode == 'WIN' : Appelle ... set_manual_override(None)"
-
-                # CONTRADICTION CHECK:
-                # Frontend Plan for Case 2 says: "Appelle /api/set_mode avec mode: WIN ... et forced_profile_name"
-                # Backend Plan for Set Mode says: "Si mode == WIN ... set_manual_override(None)"
-
-                # INTERPRETATION:
-                # If I open external, I am in Windows Mode. I rely on Auto-Detect (Active Window).
-                # So I should clear override.
-                # BUT the user might want to see the specific profile "Songsterr" even if they click away.
-                # However, sticking to the explicit instruction B: "Si mode == 'WIN' : Appelle ... set_manual_override(None)"
-
-                # WAIT, Case 2 in Frontend section says: "Appelle /api/set_mode avec mode: WIN ... et forced_profile_name"
-                # Maybe the backend instruction B was a simplification or referring to a "Reset" action?
-                # Let's follow the most robust path:
-                # If a profile name is provided, use it.
-                # If "WIN" is sent without profile, clear it.
-                # Actually, let's implement exactly what logic A and B combined imply:
-                # Frontend sends Name. Backend decides what to do.
-
-                # Let's follow Logic B strictly as requested:
-                # "Si mode == 'WEB' : set_manual_override(forced_profile_name)"
-                # "Si mode == 'WIN' : set_manual_override(None)"
-
-                # But wait, if I open Songsterr (External), I want the "Songsterr" buttons on my screen.
-                # If I set override to None, ContextMonitor will scan windows.
-                # If Songsterr is active, it will pick Songsterr profile.
-                # If I click back to the Web App to change settings, it will switch to Chrome/Web Generic.
-                # This seems correct for "WIN" mode (Context Sensitive).
-
-                # So I will follow Logic B strictly.
-                pass
-
-            if mode == "WEB":
-                context_monitor.set_manual_override(forced_profile_name)
-            else:
-                # WIN Mode -> Release Lock (Auto-Detect)
+            elif mode == "WIN":
+                # WIN Mode -> Release Lock (Auto-Detect) so ContextMonitor can track active window
                 context_monitor.set_manual_override(None)
+            else:
+                # Default safety: if unknown mode, maybe clear override? 
+                # Or do nothing. Doing nothing is safer.
+                pass
 
         return {"status": "ok", "mode": mode}
     except Exception as e:

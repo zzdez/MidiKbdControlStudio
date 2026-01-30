@@ -20,9 +20,24 @@ class ProfileManager:
     def ensure_web_profiles(self):
         """Creates default Web profiles if they don't exist."""
         defaults = [
-            {"name": "Web YouTube", "desc": "Controls for YouTube Player"},
-            {"name": "Web Audio Local", "desc": "Controls for Local Audio Files"},
-            {"name": "Web Video Local", "desc": "Controls for Local Video Files"}
+            {
+                "name": "Web YouTube", 
+                "desc": "Controls for YouTube Player",
+                "app_context": "chrome.exe",
+                "window_title_filter": "Airstep Studio"
+            },
+            {
+                "name": "Web Audio Local", 
+                "desc": "Controls for Local Audio Files",
+                "app_context": "",
+                "window_title_filter": "Airstep Studio"
+            },
+            {
+                "name": "Web Video Local", 
+                "desc": "Controls for Local Video Files",
+                "app_context": "",
+                "window_title_filter": "Airstep Studio"
+            }
         ]
         
         for d in defaults:
@@ -33,11 +48,10 @@ class ProfileManager:
                 # Create basic profile
                 profile = {
                     "name": d["name"],
-                    "app_context": "chrome.exe", # Default context
-                    "window_title_filter": "",
+                    "app_context": d.get("app_context", ""),
+                    "window_title_filter": d.get("window_title_filter", ""),
                     "mappings": []
                 }
-                # Pre-fill some defaults if needed (optional)
                 self.save_profile(profile)
                 print(f"Created default profile: {d['name']}")
 

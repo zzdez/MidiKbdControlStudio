@@ -2,9 +2,13 @@ let currentMode = "WIN";
 let websocket;
 let currentProfile = null;
 let currentActivePlayer = 'youtube';
+
+// --- CONTEXT AWARE PROFILES ---
+
 let wavesurfer = null;
 let player = null; // Fix: Explicit declaration to avoid ID collision
 let currentCoverData = null; // Fix: Explicit declaration
+let availableProfiles = []; // Cache for profiles
 
 // --- INIT ---
 function onYouTubeIframeAPIReady() {
@@ -215,8 +219,17 @@ function handleMidi(cc, value) {
 }
 
 function setMode(mode, forcedProfileName = null) {
+    if (currentMode === mode && !forcedProfileName) return; // Optimize
+
     currentMode = mode;
-    // Removed old button update logic
+
+    // --- CRITICAL: Update Window Title for ContextMonitor Auto-Detect ---
+    if (mode === "YOUTUBE") document.title = "Airstep Studio - YouTube";
+    else if (mode === "AUDIO") document.title = "Airstep Studio - Audio";
+    else if (mode === "VIDEO") document.title = "Airstep Studio - Video";
+    else document.title = "Airstep Studio";
+
+    // Notify Backend
     fetch("/api/set_mode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -637,6 +650,7 @@ function openAddModal() {
     genreInput.placeholder = "Divers";
 
     document.getElementById("edit-mode").value = "auto";
+    document.getElementById("edit-target-profile").value = "Auto"; // Default
     document.getElementById("youtube-desc-input").value = "";
     document.getElementById("user-notes-input").value = "";
 
@@ -664,6 +678,7 @@ function openEditModal(index) {
     document.getElementById("edit-category").value = track.category || "Général";
     document.getElementById("edit-genre").value = track.genre || "Divers";
     document.getElementById("edit-mode").value = track.open_mode || "auto";
+    document.getElementById("edit-target-profile").value = track.target_profile || "Auto";
 
     // Legacy support: if description exists but not youtube_description, assume it was generic description (or user note?)
     // Since we just migrated, we can put old description into user_notes if user_notes empty
@@ -767,6 +782,7 @@ async function saveItem() {
     const genre = document.getElementById("edit-genre").value || "Divers";
 
     const mode = document.getElementById("edit-mode").value;
+    const target_profile = document.getElementById("edit-target-profile").value;
     const youtube_description = document.getElementById("youtube-desc-input").value;
     const user_notes = document.getElementById("user-notes-input").value;
 
@@ -787,6 +803,7 @@ async function saveItem() {
         category: category,
         genre: genre,
         manual_mode: mode,
+        target_profile: target_profile,
         artist: artist,
         channel: channel,
         youtube_description: youtube_description,
@@ -910,12 +927,16 @@ function playTrack(track) {
     html5.pause(); html5.src = "";
     genFrame.src = "";
 
+    function getProfile(item, def) {
+        return (item.target_profile && item.target_profile !== "Auto") ? item.target_profile : def;
+    }
+
     if (track.open_mode === "external") {
         fetch(`/api/open_external?url=${encodeURIComponent(track.url)}`);
-        setMode("GENERIC", track.profile_name); // External apps don't have a web mode
+        setMode("GENERIC", getProfile(track, track.profile_name)); // External apps don't have a web mode
     } else if (track.open_mode === "iframe" && track.id) {
         // YouTube Iframe
-        setMode("YOUTUBE", "Web YouTube"); // Context Switch
+        setMode("YOUTUBE", getProfile(track, "Web YouTube")); // Context Switch
 
         ytDiv.style.display = "block";
         currentActivePlayer = 'youtube'; // Important for logic tracking
@@ -932,7 +953,7 @@ function playTrack(track) {
         }
     } else {
         // Generic / Direct URL (could be any iframeable content)
-        setMode("GENERIC", "Web Generic"); // Fallback
+        setMode("GENERIC", getProfile(track, "Web Generic")); // Fallback
 
         genFrame.style.display = "block";
         genFrame.src = track.url;
@@ -1120,10 +1141,19 @@ function playLocal(index) {
     const file = localFiles[index];
     if (!file) return;
 
+    // Helper
+    const getProfile = (item, def) => (item.target_profile && item.target_profile !== "Auto") ? item.target_profile : def;
+
     // Detect Type
     const ext = file.path.split('.').pop().toLowerCase();
     const isAudio = ['mp3', 'wav', 'flac', 'm4a', 'aac'].includes(ext);
-    const isVideo = ['mp4', 'mkv', 'webm', 'avi', 'mov'].includes(ext); // Added video extensions
+    const videoExts = ['mp4', 'mkv', 'avi', 'mov', 'webm']; // Explicit list from user request for log consistency
+    const isVideo = videoExts.includes(ext); // Note: original code checked ['mp4', 'mkv', 'webm', 'avi', 'mov']
+
+    console.log("[DEBUG JS] Extension détectée :", ext);
+    console.log("[DEBUG JS] Est-ce une vidéo ?", isVideo);
+    console.log("[DEBUG JS] Profil Cible (si Auto) :", isVideo ? "Web Video Local" : "Web Audio Local");
+    console.log("[DEBUG JS] Profil Forcé (Item) :", file.target_profile);
 
     // Containers
     const videoContainer = document.getElementById("video-container");
@@ -1147,7 +1177,9 @@ function playLocal(index) {
 
     if (isAudio) {
         // --- AUDIO MODE (Hide Video Container) ---
-        setMode("AUDIO", "Web Audio Local"); // Context Switch
+        const target = getProfile(file, "Web Audio Local");
+        console.log("[DEBUG JS] Envoi demande setMode (AUDIO) avec profil :", target);
+        setMode("AUDIO", target); // Context Switch
 
         videoContainer.style.display = "none";
         audioContainer.style.display = "flex";
@@ -1179,11 +1211,15 @@ function playLocal(index) {
 
     } else if (isVideo) {
         // --- VIDEO MODE (Show Video Container) ---
-        setMode("VIDEO", "Web Video Local"); // Context Switch
+        const target = getProfile(file, "Web Video Local");
+        console.log("[DEBUG JS] Envoi demande setMode (VIDEO) avec profil :", target);
+        setMode("VIDEO", target); // Context Switch
 
         videoContainer.style.display = "flex";
         audioContainer.style.display = "none";
         v.style.display = "block";
+
+
 
         // STOP AUDIO
         if (wavesurfer) {
@@ -1310,6 +1346,7 @@ function openEditLocalModal(index) {
     document.getElementById("local-genre").value = item.genre || "";
     document.getElementById("local-category").value = item.category || "Général";
     document.getElementById("local-year").value = item.year || "";
+    document.getElementById("local-target-profile").value = item.target_profile || "Auto";
     document.getElementById("local-notes").value = item.user_notes || "";
 
     // Load Art
@@ -1350,6 +1387,7 @@ async function saveLocalItem() {
         genre: document.getElementById("local-genre").value,
         category: document.getElementById("local-category").value || "Général",
         year: document.getElementById("local-year").value,
+        target_profile: document.getElementById("local-target-profile").value,
         user_notes: document.getElementById("local-notes").value,
         cover_data: currentCoverData // Send base64 data if changed
     };
@@ -1550,3 +1588,35 @@ function applyAutoTag(item) {
 
 // Ensure pendingCoverData is global or accessible
 // (It is, defined near addLocalFile)
+
+// --- PROFILES LOAD ---
+async function loadProfiles() {
+    try {
+        const res = await fetch("/api/profiles");
+        availableProfiles = await res.json();
+    } catch (e) { availableProfiles = []; }
+
+    populateProfileSelects();
+}
+
+function populateProfileSelects() {
+    const ids = ["edit-target-profile", "local-target-profile"];
+    ids.forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        // Keep "Auto"
+        sel.innerHTML = '<option value="Auto">Auto (Recommandé)</option>';
+        availableProfiles.forEach(p => {
+            const opt = document.createElement("option");
+            opt.value = p.name;
+            opt.innerText = p.name;
+            sel.appendChild(opt);
+        });
+    });
+}
+// Add to Init
+const originalOnLoad = window.onload;
+window.onload = () => {
+    if (originalOnLoad) originalOnLoad();
+    loadProfiles();
+};
