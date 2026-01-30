@@ -224,10 +224,16 @@ function setMode(mode, forcedProfileName = null) {
     currentMode = mode;
 
     // --- CRITICAL: Update Window Title for ContextMonitor Auto-Detect ---
-    if (mode === "YOUTUBE") document.title = "Airstep Studio - YouTube";
-    else if (mode === "AUDIO") document.title = "Airstep Studio - Audio";
-    else if (mode === "VIDEO") document.title = "Airstep Studio - Video";
-    else document.title = "Airstep Studio";
+    // Universal Logic: "Airstep Studio - [Profile Name]"
+    if (forcedProfileName) {
+        document.title = `Airstep Studio - ${forcedProfileName}`;
+    } else {
+        // Fallback for hardcoded modes if no profile name provided
+        if (mode === "YOUTUBE") document.title = "Airstep Studio - YouTube";
+        else if (mode === "AUDIO") document.title = "Airstep Studio - Audio";
+        else if (mode === "VIDEO") document.title = "Airstep Studio - Video";
+        else document.title = "Airstep Studio";
+    }
 
     // Notify Backend
     fetch("/api/set_mode", {
@@ -955,9 +961,34 @@ function playTrack(track) {
         // Generic / Direct URL (could be any iframeable content)
         setMode("GENERIC", getProfile(track, "Web Generic")); // Fallback
 
+        // SMART EMBED CONVERSION
+        // Automatically convert known platforms to Embed URL
+        const smartUrl = getEmbedUrl(track.url);
+
         genFrame.style.display = "block";
-        genFrame.src = track.url;
+        genFrame.src = smartUrl;
     }
+}
+
+// --- HELPERS ---
+function getEmbedUrl(url) {
+    if (!url) return "";
+
+    // Dailymotion: dailymotion.com/video/x123 -> dailymotion.com/embed/video/x123
+    // Supports: /video/ID only mainly.
+    if (url.includes("dailymotion.com/video/")) {
+        return url.replace("/video/", "/embed/video/");
+    }
+
+    // Vimeo: vimeo.com/123 -> player.vimeo.com/video/123
+    // Regex for ID
+    const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+    if (vimeoMatch && vimeoMatch[1]) {
+        return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+    }
+
+    // Default
+    return url;
 }
 
 // --- RENDER ---
