@@ -17,6 +17,8 @@
     *   **Éditeur de Métadonnées :** Modifiez physiquement vos fichiers (Titres, Artistes...) et gérez vos pochettes d'album directement depuis l'application.
     *   **UI Premium :** Interface modernisée avec **Phosphor Icons** pour une lisibilité parfaite.
     *   Organisez par Artiste, Genre, et ajoutez vos notes personnelles distinctes de la description YouTube.
+    *   **NOUVEAU ! Profils Web Universels :** Ajoutez n'importe quel site (Dailymotion, Vimeo...) et associez-lui un profil dédié. L'application détecte automatiquement le contexte grâce au titre de la fenêtre dynamique.
+    *   **Smart Embed :** Copiez/collez vos liens standards (Dailymotion, Vimeo) et le lecteur les convertit automatiquement en liens "Embed" compatibles.
 *   **Contrôle Hybride & Robuste :**
     *   **Mode WEB :** Pilotez le lecteur YouTube (Play, Pause, Vitesse, Seek) directement avec vos pédales.
     *   **Nouveau !** Injection native des commandes (Win32) pour piloter même les applications récalcitrantes (Moises, applis Electron).

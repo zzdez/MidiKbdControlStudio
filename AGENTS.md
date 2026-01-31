@@ -35,7 +35,7 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
 *   **Données Riches :** Le backend stocke désormais `genre`, `artist`, `channel`, `youtube_description` et `user_notes`.
 *   **Streaming Local :** Route `GET /api/stream` pour servir des fichiers locaux. Le frontend utilise un lecteur HTML5 standard pour ces fichiers.
 *   **ActionHandler Hardening :** Utilisation de `ctypes.keybd_event` (Win32 API) pour simuler les touches Espace/Flèches de manière bas-niveau, contournant les protections de focus des applis Electron (Moises).
-*   **Sécurité Frontend :** Le tri des tableaux utilise une propriété persistante `originalIndex` pour garantir que les actions (Edit/Delete) ciblent toujours le bon item, même après un `sort()`.
+*   **Sécurité Frontend :** Le tri des tableaux utilise une propriété persistante `originalIndex` pour garantir la compatibilité item/action.
 
 ## ⚠️ Règles de Développement V3
 
@@ -58,3 +58,11 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   Remplacement total des émojis par la librairie vectorielle **Phosphor Icons**.
     *   Intégration via CDN, icônes typées pour Audio (`ph-music-notes`) et Vidéo (`ph-film-strip`).
 
+### 8. Évolution V3.5 : Profils Web Universels & Smart Embed
+*   **Détection Universelle (`ContextMonitor` Hardening) :**
+    *   Problème résolu : "Airstep Studio V3" était un titre trop générique qui confondait le moniteur de contexte.
+    *   **Solution Frontend :** Injection dynamique du nom du profil cible dans `document.title` (`Airstep Studio - [Nom du Profil]`).
+    *   **Résultat :** `ContextMonitor` détecte nativement "Web Dailymotion", "Web Vimeo", etc., sans aucune logique hardcodée côté backend.
+*   **Smart Embed Logic (`app.js`) :**
+    *   Conversion automatique à la volée des URLs "Watch" (ex: `dailymotion.com/video/x...`) en URLs "Embed" (`/embed/video/...`) pour contourner les restrictions `X-Frame-Options`.
+    *   Support natif transparent pour Dailymotion et Vimeo ajoutés à la volée.
