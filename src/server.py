@@ -268,6 +268,13 @@ async def stream_file(path: str):
 async def get_status():
     return {"status": "ok"}
 
+@app.post("/api/debug_log")
+async def debug_log_endpoint(data: Dict):
+    """Endpoint for JS to print logs to Python console."""
+    msg = data.get("message", "")
+    print(f"[JS_CONSOLE] {msg}")
+    return {"status": "ok"}
+
 @app.get("/api/setlist")
 async def get_setlist():
     if os.path.exists(SETLIST_FILE):

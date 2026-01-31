@@ -74,6 +74,22 @@
                             style="font-size:14px;">🐇</button>
                     </div>
                 </div>
+
+                <!-- Pitch Control -->
+                <div
+                    style="margin-top:10px; padding:10px; background:#181818; border-radius:5px; display:flex; gap:15px; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <input type="checkbox" id="pitch-enable-toggle" onchange="togglePitchEngine(this.checked)">
+                        <label for="pitch-enable-toggle" style="font-size:0.8em; color:#aaa;">Pitch DSP</label>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:5px; flex-grow:1;">
+                        <span style="font-size:0.8em; color:#888;">Pitch:</span>
+                        <input type="range" id="pitch-slider" min="-12" max="12" step="1" value="0" disabled
+                            style="flex-grow:1; height:4px;" oninput="updatePitch(this.value)">
+                        <span id="pitch-value"
+                            style="font-size:0.8em; color:#ccc; min-width:30px; text-align:right;">0</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Video Controls (Overlay/Below) -->
@@ -94,6 +110,26 @@
                         style="font-size:14px; color:#ccc; min-width:40px; text-align:center;">1.0x</span>
                     <button class="btn-icon" onclick="videoControl('speed_up')" title="Accélérer"
                         style="font-size:14px;">🐇</button>
+                </div>
+            </div>
+
+            <!-- Pitch Control (Video) -->
+            <div id="video-pitch-control"
+                style="display:none; width:100%; margin-top:5px; padding:10px; background:#121212; justify-content:center; align-items:center; gap:20px;">
+                <div
+                    style="margin: auto; padding:10px; background:#181818; border-radius:5px; display:flex; gap:15px; align-items:center; width: 80%;">
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <input type="checkbox" id="pitch-enable-toggle-video"
+                            onchange="togglePitchEngine(this.checked)">
+                        <label for="pitch-enable-toggle-video" style="font-size:0.8em; color:#aaa;">Pitch DSP</label>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:5px; flex-grow:1;">
+                        <span style="font-size:0.8em; color:#888;">Pitch:</span>
+                        <input type="range" id="pitch-slider-video" min="-12" max="12" step="1" value="0" disabled
+                            style="flex-grow:1; height:4px;" oninput="updatePitch(this.value)">
+                        <span id="pitch-value-video"
+                            style="font-size:0.8em; color:#ccc; min-width:30px; text-align:right;">0</span>
+                    </div>
                 </div>
             </div>
 
@@ -510,7 +546,8 @@
         </div>
     </dialog>
 
-    <script src="app.js"></script>
+    <script src="lib/pitch_shifter.js?v=2"></script>
+    <script src="app.js?v=3"></script>
 </body>
 
 </html>

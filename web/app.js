@@ -10,6 +10,143 @@ let player = null; // Fix: Explicit declaration to avoid ID collision
 let currentCoverData = null; // Fix: Explicit declaration
 let availableProfiles = []; // Cache for profiles
 
+// --- PITCH SHIFT VARIABLES ---
+let audioCtx = null;
+let pitchShifter = null;
+let pitchSource = null;
+let isPitchEnabled = false;
+
+function initAudioContext() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+function togglePitchEngine(enabled) {
+    isPitchEnabled = enabled;
+    const slider = document.getElementById("pitch-slider");
+    const label = document.getElementById("pitch-value");
+
+    if (enabled) {
+        slider.disabled = false;
+        label.style.color = "#fff";
+        initAudioContext();
+        connectPitchEngine();
+    } else {
+        slider.disabled = true;
+        label.style.color = "#ccc";
+        disconnectPitchEngine();
+    }
+}
+
+function connectPitchEngine() {
+    logToBackend("[PITCH] Connecting Engine...");
+
+    // Determine source element (Video or Audio)
+    let mediaElement = null;
+    let targetSource = null;
+
+    if (currentWebMode === "VIDEO") {
+        mediaElement = document.getElementById("html5-player");
+    } else if (currentWebMode === "AUDIO") {
+        if (wavesurfer) mediaElement = wavesurfer.getMediaElement();
+    }
+
+    if (!mediaElement) { logToBackend("[PITCH] No Media Element found"); return; }
+    if (!audioCtx) { logToBackend("[PITCH] No AudioContext"); return; }
+
+    try {
+        // Init Shifter if needed
+        if (!pitchShifter) {
+            logToBackend("[PITCH] Creating Jungle PitchShifter instance");
+            pitchShifter = new Jungle(audioCtx);
+        }
+
+        // Get or Create Source Node
+        if (currentWebMode === "VIDEO") {
+            if (!sourceVideo) {
+                logToBackend("[PITCH] Creating CSS MediaElementSource for Video");
+                sourceVideo = audioCtx.createMediaElementSource(mediaElement);
+            }
+            targetSource = sourceVideo;
+        } else if (currentWebMode === "AUDIO") {
+            if (!sourceAudio) {
+                logToBackend("[PITCH] Creating CSS MediaElementSource for Audio");
+                sourceAudio = audioCtx.createMediaElementSource(mediaElement);
+            }
+            targetSource = sourceAudio;
+        }
+
+        // Re-route
+        logToBackend("[PITCH] Routing: Source -> Shifter -> Destination");
+
+        // 1. Disonnect source from everything
+        try { targetSource.disconnect(); } catch (e) { /* Ignore */ }
+
+        // 2. Connect Source -> Shifter -> Dest
+        if (pitchShifter) {
+            targetSource.connect(pitchShifter.input);
+            try { pitchShifter.output.disconnect(); } catch (e) { }
+            pitchShifter.output.connect(audioCtx.destination);
+
+            // Apply Pitch
+            const val = parseInt(document.getElementById("pitch-slider")?.value || "0");
+            logToBackend("[PITCH] Initial Value: " + val);
+            pitchShifter.setPitch(val);
+        }
+
+    } catch (e) {
+        logToBackend("[PITCH] Connection Error: " + e);
+        console.error("Pitch Engine Error:", e);
+    }
+}
+
+function disconnectPitchEngine() {
+    if (pitchSource) {
+        try {
+            pitchSource.disconnect();
+            pitchSource.connect(audioCtx.destination);
+        } catch (e) {
+            console.error("Disconnect Error:", e);
+        }
+    }
+}
+
+function updatePitch(val) {
+    // Update both labels
+    const l1 = document.getElementById("pitch-value");
+    const l2 = document.getElementById("pitch-value-video");
+    if (l1) l1.innerText = (val > 0 ? "+" : "") + val;
+    if (l2) l2.innerText = (val > 0 ? "+" : "") + val;
+
+    // Sync sliders values if dragged
+    const s1 = document.getElementById("pitch-slider");
+    const s2 = document.getElementById("pitch-slider-video");
+    // Avoid recursion loop if possible, but pure value assignment is fine
+    if (s1 && s1.value != val) s1.value = val;
+    if (s2 && s2.value != val) s2.value = val;
+
+    if (isPitchEnabled && pitchShifter) {
+        pitchShifter.setPitch(parseInt(val));
+    }
+}
+
+function changePitch(delta) {
+    if (!isPitchEnabled) {
+        console.log("Pitch Internal Disabled");
+        return;
+    }
+    // Get current value from whichever slider is valid
+    const slider = document.getElementById("pitch-slider"); // Primary source
+    let val = parseInt(slider.value) + delta;
+    val = Math.max(-12, Math.min(12, val));
+
+    updatePitch(val);
+}
+
 // --- INIT ---
 function onYouTubeIframeAPIReady() {
     player = new YT.Player('player', {
@@ -139,12 +276,15 @@ function executeWebAction(action, value) {
     // --- VIDEO LOCAL CONTEXT ---
     else if (currentWebMode === "VIDEO") {
         if (action === "media_play_pause") videoControl('playpause');
-        else if (action === "media_stop") { videoControl('restart'); videoControl('playpause'); } // Video Stop usually pauses + reset
+        else if (action === "media_stop") { videoControl('restart'); videoControl('playpause'); }
         else if (action === "media_seek_forward") videoControl('next');
         else if (action === "media_seek_backward") videoControl('prev');
         else if (action === "media_restart") videoControl('restart');
         else if (action === "media_speed_up") videoControl('speed_up');
         else if (action === "media_slow_down") videoControl('speed_down');
+        // PITCH (Shared Logic)
+        else if (action === "media_pitch_up") changePitch(1);
+        else if (action === "media_pitch_down") changePitch(-1);
     }
 
     // --- GENERIC FALLBACK (Same as before) ---
@@ -186,6 +326,8 @@ function handleMidi(cc, value) {
         else if (cc == 56) seekRelative(5); // D
         else if (cc == 50) executeWebAction("media_slow_down"); // A
         else if (cc == 58) executeWebAction("media_speed_up"); // E
+        else if (cc == 60) executeWebAction("media_pitch_down"); // Ext 1
+        else if (cc == 61) executeWebAction("media_pitch_up"); // Ext 2
         else if ((cc == 53 || cc == 55) && player) player.seekTo(0); // Long Press
         else executeWebAction(m.action_value); // Fallback to mapped value
     } else {
@@ -1239,6 +1381,8 @@ function playLocal(index) {
         videoContainer.style.display = "none";
         audioContainer.style.display = "flex";
         document.getElementById("video-controls-container").style.display = "none";
+        const vPitch = document.getElementById("video-pitch-control");
+        if (vPitch) vPitch.style.display = "none";
 
         v.style.display = "none";
 
@@ -1260,7 +1404,10 @@ function playLocal(index) {
         // Load WaveSurfer
         if (wavesurfer) {
             wavesurfer.load("/api/stream?path=" + encodeURIComponent(file.path));
-            wavesurfer.on('ready', () => wavesurfer.play());
+            wavesurfer.on('ready', () => {
+                wavesurfer.play();
+                if (isPitchEnabled) connectPitchEngine();
+            });
         }
 
         currentActivePlayer = 'waveform';
@@ -1275,6 +1422,8 @@ function playLocal(index) {
         audioContainer.style.display = "none";
         v.style.display = "block";
         document.getElementById("video-controls-container").style.display = "flex";
+        const vPitch = document.getElementById("video-pitch-control");
+        if (vPitch) vPitch.style.display = "flex";
 
 
 
@@ -1294,8 +1443,13 @@ function playLocal(index) {
         // 1. Set Source
         v.src = `/api/local/stream/${index}`;
 
-        // 2. Load (resets the media element and selects the new resource)
-        v.load();
+
+
+        // 3. Play when ready
+        v.oncanplay = () => {
+            v.play();
+            if (isPitchEnabled) connectPitchEngine();
+        };
 
         // 3. Play when ready
         // We use a one-time listener to avoid multiple path triggers
