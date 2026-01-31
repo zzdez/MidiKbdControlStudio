@@ -133,8 +133,8 @@ function executeWebAction(action, value) {
         else if (action === "media_stop") { wavesurfer.stop(); }
         // else if (action === "media_next") playNext(); // Not implemented yet
         // else if (action === "media_prev") playPrev(); // Not implemented yet
-        else if (action === "media_seek_forward") wavesurfer.skip(10);
-        else if (action === "media_seek_backward") wavesurfer.skip(-10);
+        else if (action === "media_seek_forward") wavesurfer.skip(5);
+        else if (action === "media_seek_backward") wavesurfer.skip(-5);
         else if (action === "media_restart") wavesurfer.seekTo(0);
         else if (action === "media_speed_up") {
             const rate = wavesurfer.getPlaybackRate();
@@ -157,8 +157,8 @@ function executeWebAction(action, value) {
         else if (action === "media_stop") { vid.pause(); vid.currentTime = 0; }
         // else if (action === "media_next") playNext(); // Not implemented yet
         // else if (action === "media_prev") playPrev(); // Not implemented yet
-        else if (action === "media_seek_forward") vid.currentTime += 10;
-        else if (action === "media_seek_backward") vid.currentTime -= 10;
+        else if (action === "media_seek_forward") vid.currentTime += 5;
+        else if (action === "media_seek_backward") vid.currentTime -= 5;
         else if (action === "media_restart") vid.currentTime = 0;
         else if (action === "media_speed_up") {
             vid.playbackRate = Math.min(vid.playbackRate + 0.25, 2.0);
@@ -928,6 +928,8 @@ function playTrack(track) {
     ytDiv.style.display = "none";
     genFrame.style.display = "none";
     html5.style.display = "none";
+    document.getElementById("video-controls-container").style.display = "none";
+    document.getElementById("video-controls-container").style.display = "none";
 
     if (player && player.stopVideo) player.stopVideo();
     html5.pause(); html5.src = "";
@@ -1041,7 +1043,7 @@ function initWaveSurfer() {
             barWidth: undefined,
             responsive: true,
             normalize: true,
-            backend: 'WebAudio'
+            backend: 'MediaElement'
         });
 
         wavesurfer.on('interaction', () => { wavesurfer.play(); });
@@ -1214,6 +1216,7 @@ function playLocal(index) {
 
         videoContainer.style.display = "none";
         audioContainer.style.display = "flex";
+        document.getElementById("video-controls-container").style.display = "none";
 
         v.style.display = "none";
 
@@ -1249,6 +1252,7 @@ function playLocal(index) {
         videoContainer.style.display = "flex";
         audioContainer.style.display = "none";
         v.style.display = "block";
+        document.getElementById("video-controls-container").style.display = "flex";
 
 
 
@@ -1288,12 +1292,51 @@ function audioControl(action) {
     if (!wavesurfer) return;
     switch (action) {
         case 'playpause': wavesurfer.playPause(); break;
-        case 'prev': wavesurfer.skip(-10); break;
-        case 'next': wavesurfer.skip(10); break;
+        case 'prev': wavesurfer.skip(-5); break;
+        case 'next': wavesurfer.skip(5); break;
+        case 'restart': wavesurfer.seekTo(0); break;
         case 'speed':
             let rate = wavesurfer.getPlaybackRate();
-            rate = rate >= 2 ? 0.5 : rate + 0.25;
+            // Steps: 0.5 -> 0.55 -> ... -> 1.0 -> ... -> 1.5 -> 2.0 -> 0.5
+            // Round to 2 decimals to avoid 0.600000001 issues
+            if (rate >= 2.0) rate = 0.5;
+            else if (rate >= 1.5) rate = 2.0; // Jump from 1.5 to 2.0 (standard limit)
+            else rate += 0.05;
+
+            rate = Math.round(rate * 100) / 100;
             wavesurfer.setPlaybackRate(rate);
+            document.getElementById("btn-audio-speed").innerText = rate + "x";
+            break;
+    }
+}
+
+// --- VIDEO CONTROLS (On Screen) ---
+function videoControl(action) {
+    const vid = document.getElementById("html5-player");
+    if (!vid) return;
+
+    switch (action) {
+        case 'playpause':
+            vid.paused ? vid.play() : vid.pause();
+            break;
+        case 'prev':
+            vid.currentTime -= 5;
+            break;
+        case 'next':
+            vid.currentTime += 5;
+            break;
+        case 'restart':
+            vid.currentTime = 0;
+            break;
+        case 'speed':
+            let rate = vid.playbackRate;
+            if (rate >= 2.0) rate = 0.5;
+            else if (rate >= 1.5) rate = 2.0;
+            else rate += 0.05;
+
+            rate = Math.round(rate * 100) / 100;
+            vid.playbackRate = rate;
+            document.getElementById("btn-video-speed").innerText = rate + "x";
             break;
     }
 }

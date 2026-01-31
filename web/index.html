@@ -55,13 +55,30 @@
 
                 <!-- On Screen Controls -->
                 <div class="audio-controls" style="margin-top:20px; display:flex; gap:20px; align-items:center;">
-                    <button class="btn-icon" onclick="audioControl('prev')" style="font-size:20px;">⏪</button>
+                    <button class="btn-icon" onclick="audioControl('restart')" title="Restart"
+                        style="font-size:20px;">⏮</button>
+                    <button class="btn-icon" onclick="audioControl('prev')" title="-5s"
+                        style="font-size:20px;">⏪</button>
                     <button class="btn-icon" onclick="audioControl('playpause')"
                         style="font-size:30px; color:var(--accent);">⏯</button>
-                    <button class="btn-icon" onclick="audioControl('next')" style="font-size:20px;">⏩</button>
-                    <button class="btn-icon" onclick="audioControl('speed')"
-                        style="font-size:16px; color:#888;">1x</button>
+                    <button class="btn-icon" onclick="audioControl('next')" title="+5s"
+                        style="font-size:20px;">⏩</button>
+                    <button class="btn-icon" id="btn-audio-speed" onclick="audioControl('speed')"
+                        style="font-size:16px; color:#888; width: 50px;">1.0x</button>
                 </div>
+            </div>
+
+            <!-- Video Controls (Overlay/Below) -->
+            <div id="video-controls-container"
+                style="display:none; width:100%; padding: 10px; background:#121212; justify-content:center; align-items:center; gap:20px;">
+                <button class="btn-icon" onclick="videoControl('restart')" title="Restart"
+                    style="font-size:20px;">⏮</button>
+                <button class="btn-icon" onclick="videoControl('prev')" title="-5s" style="font-size:20px;">⏪</button>
+                <button class="btn-icon" onclick="videoControl('playpause')"
+                    style="font-size:30px; color:var(--accent);">⏯</button>
+                <button class="btn-icon" onclick="videoControl('next')" title="+5s" style="font-size:20px;">⏩</button>
+                <button class="btn-icon" id="btn-video-speed" onclick="videoControl('speed')"
+                    style="font-size:16px; color:#888; width: 50px;">1.0x</button>
             </div>
 
             <!-- Pédalier Virtuel (Sync) -->
