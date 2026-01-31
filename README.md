@@ -20,9 +20,16 @@
     *   **NOUVEAU ! Profils Web Universels :** Ajoutez n'importe quel site (Dailymotion, Vimeo...) et associez-lui un profil dédié. L'application détecte automatiquement le contexte grâce au titre de la fenêtre dynamique.
     *   **Smart Embed :** Copiez/collez vos liens standards (Dailymotion, Vimeo) et le lecteur les convertit automatiquement en liens "Embed" compatibles.
 *   **Contrôle Hybride & Robuste :**
-    *   **Mode WEB :** Pilotez le lecteur YouTube (Play, Pause, Vitesse, Seek) directement avec vos pédales.
-    *   **Contrôle Media Avancé (V3.5) :** Lecteur Audio et Vidéo unifié avec :
-        *   **Contrôle Granulaire Vitesse :** Ajustez par pas de 0.05x (sans altération du Pitch/Tonalité).
+    *   **Mode WEB :** Pilotez le lecteur YouTube (Play, Pause, Vitesse, Seek)- **Lecteur Vidéo Local**
+    - Support MP4, MKV, AVI, MOV.
+    - Contrôle de vitesse (0.5x à 2.0x).
+    - **Nouveau** : Pitch Shifting (Changement de tonalité sans changer la vitesse) de -6 à +6 demi-tons.
+    - Navigation par sauts (+/- 5s).
+- **Lecteur Audio Local**
+    - Waveform interactive (WaveSurfer.js).
+    - Support MP3, WAV, FLAC, M4A, OGG.
+    - Pitch Shifting et contrôle de vitesse indépendants.
+    - Volume manuel et Normalisation automatique. **Contrôle Granulaire Vitesse :** Ajustez par pas de 0.05x (sans altération du Pitch/Tonalité).
         *   **Seek de Précision :** +/- 5 secondes.
         *   **Commandes Clavier Natives :** Support direct des flèches directionnelles et de la barre d'espace pour le mapping.
     *   **Nouveau !** Injection native des commandes (Win32) pour piloter même les applications récalcitrantes (Moises, applis Electron).

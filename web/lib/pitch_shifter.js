@@ -116,6 +116,10 @@ class Jungle {
         this.mod3.start(t);
         this.mod4.start(t + this.bufferTime / 2); // Phase offset 180 (0.5)
 
+        // IMPORTANTE: Set base delay to bufferTime so we can modulate NEGATIVELY (Pitch UP)
+        this.delay1.delayTime.value = this.bufferTime;
+        this.delay2.delayTime.value = this.bufferTime;
+
         this.setPitch(0);
     }
 

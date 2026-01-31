@@ -10,13 +10,16 @@ let player = null; // Fix: Explicit declaration to avoid ID collision
 let currentCoverData = null; // Fix: Explicit declaration
 let availableProfiles = []; // Cache for profiles
 
+let currentWebMode = "GENERIC"; // Track AUDIO, VIDEO or GENERIC explicitly
+
+
 // --- PITCH SHIFT VARIABLES ---
 let audioCtx = null;
 let pitchShifter = null;
 let pitchSource = null;
 let isPitchEnabled = false;
 
-//Store sources separately to avoid conflict/recreation errors
+// Store sources separately to avoid conflict/recreation errors
 let sourceAudio = null; // For WaveSurfer
 let sourceVideo = null; // For HTML5 Video
 
@@ -29,29 +32,37 @@ function logToBackend(msg) {
     }).catch(e => console.error("Log Send Error:", e));
 }
 
-
 function initAudioContext() {
+    logToBackend("[PITCH] initAudioContext triggered");
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        logToBackend("[PITCH] AudioContext Created: " + audioCtx.state);
     }
     if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
+        audioCtx.resume().then(() => logToBackend("[PITCH] AudioContext Resumed"));
     }
 }
 
 function togglePitchEngine(enabled) {
+    logToBackend("[PITCH] Toggle: " + enabled);
     isPitchEnabled = enabled;
-    const slider = document.getElementById("pitch-slider");
-    const label = document.getElementById("pitch-value");
+
+    // UI Sync (Sync all duplicate controls)
+    const els = [
+        { s: document.getElementById("pitch-slider"), l: document.getElementById("pitch-value"), c: document.getElementById("pitch-enable-toggle") },
+        { s: document.getElementById("pitch-slider-video"), l: document.getElementById("pitch-value-video"), c: document.getElementById("pitch-enable-toggle-video") }
+    ];
+
+    els.forEach(group => {
+        if (group.c && group.c.checked !== enabled) group.c.checked = enabled;
+        if (group.s) group.s.disabled = !enabled;
+        if (group.l) group.l.style.color = enabled ? "#fff" : "#ccc";
+    });
 
     if (enabled) {
-        slider.disabled = false;
-        label.style.color = "#fff";
         initAudioContext();
         connectPitchEngine();
     } else {
-        slider.disabled = true;
-        label.style.color = "#ccc";
         disconnectPitchEngine();
     }
 }
@@ -59,56 +70,71 @@ function togglePitchEngine(enabled) {
 function connectPitchEngine() {
     logToBackend("[PITCH] Connecting Engine...");
 
-    // Determine source element (Video or Audio)
     let mediaElement = null;
     let targetSource = null;
 
+    // Retry checking mode and elements
+    logToBackend("[PITCH] Mode: " + currentWebMode);
+
     if (currentWebMode === "VIDEO") {
         mediaElement = document.getElementById("html5-player");
+        if (mediaElement) logToBackend("[PITCH] Found Video Element: " + mediaElement.tagName);
     } else if (currentWebMode === "AUDIO") {
-        if (wavesurfer) mediaElement = wavesurfer.getMediaElement();
+        if (wavesurfer) {
+            mediaElement = wavesurfer.getMediaElement();
+            // Fallback for older WaveSurfer versions
+            if (!mediaElement && wavesurfer.backend) mediaElement = wavesurfer.backend.media;
+            if (!mediaElement && wavesurfer.media) mediaElement = wavesurfer.media;
+
+            if (mediaElement) logToBackend("[PITCH] Found Audio Element (WaveSurfer): " + mediaElement.tagName);
+        } else {
+            logToBackend("[PITCH] WaveSurfer not initialized");
+        }
     }
 
-    if (!mediaElement) { logToBackend("[PITCH] No Media Element found"); return; }
+    if (!mediaElement) {
+        logToBackend("[PITCH] No Media Element found in DOM for mode " + currentWebMode);
+        return;
+    }
+
+    if (!audioCtx) { initAudioContext(); }
     if (!audioCtx) { logToBackend("[PITCH] No AudioContext"); return; }
 
     try {
-        // Init Shifter if needed
         if (!pitchShifter) {
             logToBackend("[PITCH] Creating Jungle PitchShifter instance");
             pitchShifter = new Jungle(audioCtx);
         }
 
-        // Get or Create Source Node
         if (currentWebMode === "VIDEO") {
             if (!sourceVideo) {
-                logToBackend("[PITCH] Creating CSS MediaElementSource for Video");
+                logToBackend("[PITCH] Creating MediaElementSource (Video)");
                 sourceVideo = audioCtx.createMediaElementSource(mediaElement);
             }
             targetSource = sourceVideo;
         } else if (currentWebMode === "AUDIO") {
             if (!sourceAudio) {
-                logToBackend("[PITCH] Creating CSS MediaElementSource for Audio");
+                logToBackend("[PITCH] Creating MediaElementSource (Audio)");
                 sourceAudio = audioCtx.createMediaElementSource(mediaElement);
             }
             targetSource = sourceAudio;
         }
 
-        // Re-route
         logToBackend("[PITCH] Routing: Source -> Shifter -> Destination");
 
-        // 1. Disonnect source from everything
-        try { targetSource.disconnect(); } catch (e) { /* Ignore */ }
+        // Disconnect from default destination
+        try { targetSource.disconnect(); } catch (e) { }
 
-        // 2. Connect Source -> Shifter -> Dest
+        // Connect Graph
         if (pitchShifter) {
             targetSource.connect(pitchShifter.input);
             try { pitchShifter.output.disconnect(); } catch (e) { }
             pitchShifter.output.connect(audioCtx.destination);
 
-            // Apply Pitch
-            const val = parseInt(document.getElementById("pitch-slider")?.value || "0");
-            logToBackend("[PITCH] Initial Value: " + val);
+            // Set Initial Pitch
+            const slider = document.getElementById("pitch-slider") || document.getElementById("pitch-slider-video");
+            const val = parseFloat(slider?.value || "0");
+            logToBackend("[PITCH] Apply Pitch: " + val);
             pitchShifter.setPitch(val);
         }
 
@@ -143,7 +169,7 @@ function updatePitch(val) {
 
     if (isPitchEnabled && pitchShifter) {
         // logToBackend("Setting Pitch: " + val); // Optional: reduces spam
-        pitchShifter.setPitch(parseInt(val));
+        pitchShifter.setPitch(parseFloat(val));
     }
 }
 
@@ -184,7 +210,7 @@ function onPlayerReady() {
 }
 
 // --- CONTEXT AWARE PROFILES ---
-let currentWebMode = "GENERIC"; // GENERIC, YOUTUBE, AUDIO, VIDEO
+// currentWebMode is declared at the top of the file now.
 
 async function setMode(mode, profileName) {
     if (currentWebMode === mode) return;
@@ -296,8 +322,8 @@ function executeWebAction(action, value) {
         else if (action === "media_speed_up") videoControl('speed_up');
         else if (action === "media_slow_down") videoControl('speed_down');
         // PITCH (Shared Logic)
-        else if (action === "media_pitch_up") changePitch(1);
-        else if (action === "media_pitch_down") changePitch(-1);
+        else if (action === "media_pitch_up") changePitch(0.1);
+        else if (action === "media_pitch_down") changePitch(-0.1);
     }
 
     // --- GENERIC FALLBACK (Same as before) ---
@@ -1208,6 +1234,26 @@ window.onload = () => {
     if (typeof WaveSurfer !== 'undefined') initWaveSurfer();
 };
 
+function setMode(mode, targetProfile) {
+    console.log(`[DEBUG JS] setMode called with Mode=${mode}, Target=${targetProfile}`);
+    currentMode = mode;
+
+    // STRICTLY UPDATE WEB MODE STATE
+    if (mode === "AUDIO" || mode === "VIDEO") {
+        currentWebMode = mode;
+    } else {
+        currentWebMode = "GENERIC";
+    }
+
+    // Also notify backend
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify({
+            type: "set_mode",
+            mode: mode,
+            target_profile: targetProfile
+        }));
+    }
+}
 function initWaveSurfer() {
     try {
         wavesurfer = WaveSurfer.create({
@@ -1364,6 +1410,13 @@ function playLocal(index) {
     console.log("[DEBUG JS] Est-ce une vidéo ?", isVideo);
     console.log("[DEBUG JS] Profil Cible (si Auto) :", isVideo ? "Web Video Local" : "Web Audio Local");
     console.log("[DEBUG JS] Profil Forcé (Item) :", file.target_profile);
+
+    // AUTO-RESET PITCH
+    updatePitch(0);
+
+    // Reset Volume Slider
+    const volSlider = document.getElementById("audio-volume");
+    if (volSlider) volSlider.value = 1;
 
     // Containers
     const videoContainer = document.getElementById("video-container");

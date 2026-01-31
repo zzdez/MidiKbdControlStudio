@@ -67,6 +67,19 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   Conversion automatique à la volée des URLs "Watch" (ex: `dailymotion.com/video/x...`) en URLs "Embed" (`/embed/video/...`) pour contourner les restrictions `X-Frame-Options`.
     *   Support natif transparent pour Dailymotion et Vimeo ajoutés à la volée.
 
+### 3. Fonctionnalités Web (Airstep Interface)
+- **Interface** : HTML5 / CSS3 (Style sombre, "Cockpit").
+- **Players** :
+    - **YouTube** : Iframe API.
+    - **Audio Local** : WaveSurfer.js (Waveform, Spectrogramme).
+    - **Vidéo Local** : HTML5 Video Element.
+- **DSP / Audio Processing** :
+    - **Pitch Shifting** : Implémentation via `Jungle` (Time-Domain Pitch Shifter) utilisant `AudioContext`.
+    - **Signal Flow** : `MediaElementSource` -> `PitchShifter (Delay + Crossfade)` -> `Destination`.
+    - **Précision** : Pas de 0.1 demi-tons, plage +/- 6.
+    - **Sync Volume** : Gain de sortie synchronisé avec le volume du média source pour éviter les sauts de niveau.
+- **Communication** : WebSocket (Port 8000) pour feedback bi-directionnel (Python <-> JS).
+
 ### 9. Évolution V3.6 : Moteur Media Unifié & Clavier
 *   **Unified Speed Control Engine (`app.js`) :**
     *   **Backend MediaElement :** Migration de WaveSurfer vers `backend: 'MediaElement'` pour garantir le **Time Stretching natif sans Chipmunk Effect** (Pitch Lock).
