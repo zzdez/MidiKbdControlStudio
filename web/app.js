@@ -16,6 +16,20 @@ let pitchShifter = null;
 let pitchSource = null;
 let isPitchEnabled = false;
 
+//Store sources separately to avoid conflict/recreation errors
+let sourceAudio = null; // For WaveSurfer
+let sourceVideo = null; // For HTML5 Video
+
+function logToBackend(msg) {
+    console.log(msg);
+    fetch('/api/debug_log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg })
+    }).catch(e => console.error("Log Send Error:", e));
+}
+
+
 function initAudioContext() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -116,20 +130,19 @@ function disconnectPitchEngine() {
 }
 
 function updatePitch(val) {
-    // Update both labels
-    const l1 = document.getElementById("pitch-value");
-    const l2 = document.getElementById("pitch-value-video");
-    if (l1) l1.innerText = (val > 0 ? "+" : "") + val;
-    if (l2) l2.innerText = (val > 0 ? "+" : "") + val;
+    // UI Sync
+    ["pitch-value", "pitch-value-video"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = (val > 0 ? "+" : "") + val;
+    });
 
-    // Sync sliders values if dragged
-    const s1 = document.getElementById("pitch-slider");
-    const s2 = document.getElementById("pitch-slider-video");
-    // Avoid recursion loop if possible, but pure value assignment is fine
-    if (s1 && s1.value != val) s1.value = val;
-    if (s2 && s2.value != val) s2.value = val;
+    ["pitch-slider", "pitch-slider-video"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.value != val) el.value = val;
+    });
 
     if (isPitchEnabled && pitchShifter) {
+        // logToBackend("Setting Pitch: " + val); // Optional: reduces spam
         pitchShifter.setPitch(parseInt(val));
     }
 }
