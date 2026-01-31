@@ -63,8 +63,16 @@
                         style="font-size:30px; color:var(--accent);">⏯</button>
                     <button class="btn-icon" onclick="audioControl('next')" title="+5s"
                         style="font-size:20px;">⏩</button>
-                    <button class="btn-icon" id="btn-audio-speed" onclick="audioControl('speed')"
-                        style="font-size:16px; color:#888; width: 50px;">1.0x</button>
+
+                    <div
+                        style="display:flex; align-items:center; gap:5px; background:#222; border-radius:4px; padding:2px;">
+                        <button class="btn-icon" onclick="audioControl('speed_down')" title="Ralentir"
+                            style="font-size:14px;">🐢</button>
+                        <span id="btn-audio-speed"
+                            style="font-size:14px; color:#ccc; min-width:40px; text-align:center;">1.0x</span>
+                        <button class="btn-icon" onclick="audioControl('speed_up')" title="Accélérer"
+                            style="font-size:14px;">🐇</button>
+                    </div>
                 </div>
             </div>
 
@@ -77,8 +85,16 @@
                 <button class="btn-icon" onclick="videoControl('playpause')"
                     style="font-size:30px; color:var(--accent);">⏯</button>
                 <button class="btn-icon" onclick="videoControl('next')" title="+5s" style="font-size:20px;">⏩</button>
-                <button class="btn-icon" id="btn-video-speed" onclick="videoControl('speed')"
-                    style="font-size:16px; color:#888; width: 50px;">1.0x</button>
+
+                <div
+                    style="display:flex; align-items:center; gap:5px; background:#222; border-radius:4px; padding:2px;">
+                    <button class="btn-icon" onclick="videoControl('speed_down')" title="Ralentir"
+                        style="font-size:14px;">🐢</button>
+                    <span id="btn-video-speed"
+                        style="font-size:14px; color:#ccc; min-width:40px; text-align:center;">1.0x</span>
+                    <button class="btn-icon" onclick="videoControl('speed_up')" title="Accélérer"
+                        style="font-size:14px;">🐇</button>
+                </div>
             </div>
 
             <!-- Pédalier Virtuel (Sync) -->

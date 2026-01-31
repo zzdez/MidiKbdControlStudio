@@ -21,6 +21,10 @@
     *   **Smart Embed :** Copiez/collez vos liens standards (Dailymotion, Vimeo) et le lecteur les convertit automatiquement en liens "Embed" compatibles.
 *   **Contrôle Hybride & Robuste :**
     *   **Mode WEB :** Pilotez le lecteur YouTube (Play, Pause, Vitesse, Seek) directement avec vos pédales.
+    *   **Contrôle Media Avancé (V3.5) :** Lecteur Audio et Vidéo unifié avec :
+        *   **Contrôle Granulaire Vitesse :** Ajustez par pas de 0.05x (sans altération du Pitch/Tonalité).
+        *   **Seek de Précision :** +/- 5 secondes.
+        *   **Commandes Clavier Natives :** Support direct des flèches directionnelles et de la barre d'espace pour le mapping.
     *   **Nouveau !** Injection native des commandes (Win32) pour piloter même les applications récalcitrantes (Moises, applis Electron).
     *   **Mode WINDOWS :** Simulez des raccourcis clavier pour contrôler vos logiciels ou sites externes.
 *   **Overlay Persistant :** Une fenêtre "Always-on-Top" qui affiche l'état de votre pédalier, minimisable dans la barre des tâches.

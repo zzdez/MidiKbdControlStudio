@@ -66,3 +66,11 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
 *   **Smart Embed Logic (`app.js`) :**
     *   Conversion automatique à la volée des URLs "Watch" (ex: `dailymotion.com/video/x...`) en URLs "Embed" (`/embed/video/...`) pour contourner les restrictions `X-Frame-Options`.
     *   Support natif transparent pour Dailymotion et Vimeo ajoutés à la volée.
+
+### 9. Évolution V3.6 : Moteur Media Unifié & Clavier
+*   **Unified Speed Control Engine (`app.js`) :**
+    *   **Backend MediaElement :** Migration de WaveSurfer vers `backend: 'MediaElement'` pour garantir le **Time Stretching natif sans Chipmunk Effect** (Pitch Lock).
+    *   **Granularité Fine :** Implémentation d'une logique de pas de 0.05x pour la vitesse (Audio & Vidéo).
+*   **Native Keyboard Bridge :**
+    *   Support d'écouteurs d'événements `keydown` pour l'interface Web, permettant un mapping direct Clavier -> Action pour les profils AIRSTEP (plus besoin de WebSocket pour les actions simples).
+    *   Shortcuts : `Space` (Play/Pause), `ArrowLeft/Right` (Seek +/- 5s), `ArrowUp/Down` (Speed +/- 0.05x), `0` (Restart).
