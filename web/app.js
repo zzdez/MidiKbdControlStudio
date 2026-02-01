@@ -1180,54 +1180,148 @@ function renderPedalboard(profile) {
     });
 }
 
+// --- GLOBAL INPUT ROUTER ---
+// Central point for Keyboard and MIDI commands
+
 window.addEventListener('keydown', (e) => {
-    // Ignore input fields
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    // 1. IGNORE INPUT TEXT FIELDS
+    // We want the user to be able to type in Search, Notes, Rename, etc.
+    const tag = e.target.tagName.toUpperCase();
+    if (tag === 'INPUT' || tag === 'TEXTAREA') {
+        return;
+    }
 
-    if (currentMode === "WEB") {
-        let handled = false;
+    let command = null;
 
-        // 1. Play / Pause (Space, K)
-        if (e.code === 'Space' || e.code === 'KeyK') {
-            toggleVideo();
-            handled = true;
-        }
+    // 2. KEY MAPPING (Normalized)
+    switch (e.code) {
+        case 'Space':
+        case 'KeyK': // YouTube standard
+            command = 'media_play_pause';
+            break;
+        case 'ArrowLeft':
+        case 'KeyJ': // YouTube standard (-10s usually, we do -5s)
+            command = 'media_rewind';
+            break;
+        case 'ArrowRight':
+        case 'KeyL': // YouTube standard (+10s usually)
+            command = 'media_forward';
+            break;
+        case 'ArrowUp':
+            command = 'media_speed_up';
+            break;
+        case 'ArrowDown':
+            command = 'media_speed_down';
+            break;
+        case 'Digit0':
+        case 'Numpad0':
+        case 'Home':
+            command = 'media_restart';
+            break;
+        // Optional: Pitch access via Keyboard if needed later
+        // case 'PageUp': command = 'media_pitch_up'; break;
+        // case 'PageDown': command = 'media_pitch_down'; break;
+    }
 
-        // 2. Seek (Left/Right, J/L)
-        else if (e.code === 'ArrowLeft' || e.code === 'KeyJ') {
-            if (currentActivePlayer === 'local') videoControl('prev');
-            else if (currentActivePlayer === 'waveform') audioControl('prev');
-            handled = true;
-        }
-        else if (e.code === 'ArrowRight' || e.code === 'KeyL') {
-            if (currentActivePlayer === 'local') videoControl('next');
-            else if (currentActivePlayer === 'waveform') audioControl('next');
-            handled = true;
-        }
-
-        // 3. Speed (< > or Up/Down)
-        // Using Shift + ,/. for < > is standard, but Up/Down is easier for pedal mapping if emulated
-        else if (e.key === '<' || e.code === 'ArrowDown') {
-            if (currentActivePlayer === 'local') videoControl('speed_down');
-            else if (currentActivePlayer === 'waveform') audioControl('speed_down');
-            handled = true;
-        }
-        else if (e.key === '>' || e.code === 'ArrowUp') {
-            if (currentActivePlayer === 'local') videoControl('speed_up');
-            else if (currentActivePlayer === 'waveform') audioControl('speed_up');
-            handled = true;
-        }
-
-        // 4. Restart (0, Home)
-        else if (e.key === '0' || e.code === 'Home') {
-            if (currentActivePlayer === 'local') videoControl('restart');
-            else if (currentActivePlayer === 'waveform') audioControl('restart');
-            handled = true;
-        }
-
-        if (handled) e.preventDefault();
+    // 3. INTERCEPT & EXECUTE
+    if (command) {
+        e.preventDefault(); // STOP Scrolling, STOP Slider movement
+        e.stopPropagation(); // Stop bubbling
+        executeWebAction(command);
     }
 });
+
+function handleMidi(jsonData) {
+    if (!jsonData) return;
+    const m = JSON.parse(jsonData);
+
+    // logToBackend("[MIDI IN] " + JSON.stringify(m));
+
+    // If it's a specific web action command
+    if (m.action_type === 'web_action' || m.action_type === 'hotkey') {
+        // Use the value as the command (e.g. "media_play_pause")
+        // Some profiles might send "Space" as value for hotkey, we should normalize if needed,
+        // but ideally the profile sends abstract commands: "media_play_pause"
+        executeWebAction(m.action_value);
+    }
+}
+
+function executeWebAction(command) {
+    logToBackend("[ROUTER] Execute: " + command + " | Mode: " + currentWebMode);
+
+    // ROUTING LOGIC based on currentWebMode
+    // Modes: "AUDIO" (Local WaveSurfer), "VIDEO" (Local HTML5), "GENERIC" (YouTube/Iframe)
+
+    // A. GENERIC / YOUTUBE
+    if (currentWebMode === "GENERIC" || !currentWebMode) {
+        // Try YouTube API
+        if (player && typeof player.getPlayerState === 'function') {
+            switch (command) {
+                case 'media_play_pause':
+                    const state = player.getPlayerState();
+                    if (state === 1) player.pauseVideo();
+                    else player.playVideo();
+                    break;
+                case 'media_play': player.playVideo(); break;
+                case 'media_pause': player.pauseVideo(); break;
+                case 'media_rewind':
+                    const cur = player.getCurrentTime();
+                    player.seekTo(Math.max(0, cur - 5));
+                    break;
+                case 'media_forward':
+                    const curF = player.getCurrentTime();
+                    player.seekTo(curF + 5);
+                    break;
+                case 'media_restart': player.seekTo(0); break;
+                // YouTube lacks fine speed/pitch control via simple API, but we could add speed
+                case 'media_speed_up':
+                    const sU = player.getPlaybackRate();
+                    player.setPlaybackRate(Math.min(2.0, sU + 0.25));
+                    break;
+                case 'media_speed_down':
+                    const sD = player.getPlaybackRate();
+                    player.setPlaybackRate(Math.max(0.25, sD - 0.25));
+                    break;
+            }
+        }
+    }
+    // B. LOCAL AUDIO
+    else if (currentWebMode === "AUDIO") {
+        switch (command) {
+            case 'media_play_pause': audioControl('playpause'); break;
+            case 'media_play': if (wavesurfer) wavesurfer.play(); break;
+            case 'media_pause': if (wavesurfer) wavesurfer.pause(); break;
+            case 'media_rewind': audioControl('prev'); break;
+            case 'media_forward': audioControl('next'); break;
+            case 'media_restart': audioControl('restart'); break;
+            case 'media_speed_up': audioControl('speed_up'); break; // Arrow UP
+            case 'media_speed_down': audioControl('speed_down'); break; // Arrow DOWN
+
+            // Explicit Pitch Commands (via MIDI usually)
+            case 'media_pitch_up': changePitch(0.1); break;
+            case 'media_pitch_down': changePitch(-0.1); break;
+            case 'media_pitch_reset': updatePitch(0); break;
+        }
+    }
+    // C. LOCAL VIDEO
+    else if (currentWebMode === "VIDEO") {
+        switch (command) {
+            case 'media_play_pause': videoControl('playpause'); break;
+            case 'media_play': if (videoTarget) videoTarget.play(); break;
+            case 'media_pause': if (videoTarget) videoTarget.pause(); break;
+            case 'media_rewind': videoControl('prev'); break;
+            case 'media_forward': videoControl('next'); break;
+            case 'media_restart': videoControl('restart'); break;
+            case 'media_speed_up': videoControl('speed_up'); break; // Arrow UP
+            case 'media_speed_down': videoControl('speed_down'); break; // Arrow DOWN
+
+            // Explicit Pitch Commands
+            case 'media_pitch_up': changePitch(0.1); break;
+            case 'media_pitch_down': changePitch(-0.1); break;
+            case 'media_pitch_reset': updatePitch(0); break;
+        }
+    }
+}
 
 window.onload = () => {
     loadSetlist();
@@ -1243,6 +1337,14 @@ function setMode(mode, targetProfile) {
         currentWebMode = mode;
     } else {
         currentWebMode = "GENERIC";
+    }
+
+    // UPDATE DOCUMENT TITLE for ContextMonitor
+    // This ensures the native app detects the context change even if WS fails
+    if (targetProfile && targetProfile !== "Auto") {
+        document.title = "Airstep Studio - " + targetProfile;
+    } else {
+        document.title = "Airstep Studio - Web Generic";
     }
 
     // Also notify backend
