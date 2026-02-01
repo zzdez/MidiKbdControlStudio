@@ -588,6 +588,7 @@ class AirstepApp(ctk.CTk):
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
             with open("debug.log", "a", encoding="utf-8") as f:
                 f.write(f"[GUI] [{timestamp}] {message}\n")
+                f.flush()
         except: pass
 
     def create_sidebar(self):
@@ -852,18 +853,54 @@ class AirstepApp(ctk.CTk):
 
     def select_profile_by_name(self, name):
         self.log_debug(f"select_profile_by_name called: {name} (AppID: {id(self)})")
-        self.profile_combo.set(name)
         new_prof = next((p for p in self.profiles if p["name"] == name), None)
         if new_prof:
              self.log_debug(f"Found Profile Object: {new_prof.get('name')} (ID: {id(new_prof)})")
+             self.profile_combo.set(name) # Update combo box to reflect selection
         else:
              self.log_debug(f"Profile Object NOT FOUND for: {name}")
+             # Fallback to first profile if not found, or clear selection
+             if self.profiles:
+                 self.profile_combo.set(self.profiles[0]["name"])
+                 new_prof = self.profiles[0]
+             else:
+                 self.profile_combo.set("") # Clear selection if no profiles
 
         self.current_profile = new_prof
         self.refresh_ui_for_profile()
 
     def on_profile_change(self, choice):
         self.select_profile_by_name(choice)
+
+    def reload_and_refresh(self):
+        """Reloads profiles from manager (disk), re-syncs current profile, and refreshes UI."""
+        print("[GUI] Reloading profiles and refreshing UI...")
+        
+        # 1. Update List from Manager (Manager already reloaded from disk on save)
+        self.profiles = self.profile_manager.profiles
+        
+        # 2. Re-acquire Current Profile Object (Sync Memory)
+        if self.current_profile:
+            # FIX: Use NAME as key, because ID does not exist in our simple JSONs
+            current_name = self.current_profile.get("name")
+            found = next((p for p in self.profiles if p.get("name") == current_name), None)
+            
+            if found:
+                self.current_profile = found
+                self.log_debug(f"Synced current profile: {found.get('name')}")
+            else:
+                self.log_debug(f"Warning: Current profile '{current_name}' not found after reload (Renamed?)")
+                # Fallback: Don't change self.current_profile immediately, or handle gracefully
+                # If not found, it might have been deleted? But we just saved it.
+                # Just keep the old object reference as a fallback? No, that breaks sync.
+                # If save succeeded, it MUST be there.
+                pass
+        
+        # 3. Refresh UI
+        self.refresh_ui_for_profile()
+        
+        # 4. Notify Server (TODO: Add Broadcast Callback if needed)
+        # For now, UI refresh is key.
 
     def refresh_ui_for_profile(self):
         if not self.current_profile: return
@@ -1031,49 +1068,97 @@ class AirstepApp(ctk.CTk):
 
     # --- Actions Mappings ---
     def open_add_dialog(self):
-        if not self.current_profile:
-             CTkMessageBox.show_info("Attention", "Aucun profil sélectionné.")
-             return
+        self.log_debug("open_add_dialog called")
+        try:
+            if not self.current_profile:
+                 self.log_debug("No profile selected")
+                 CTkMessageBox.show_info("Attention", "Aucun profil sélectionné.")
+                 return
 
-        ctx = {
-            "app_context": self.current_profile.get("app_context", ""),
-            "window_title_filter": self.current_profile.get("window_title_filter", "")
-        }
-        MappingDialog(self, self.add_mapping_callback, self.current_device_def, profile_context=ctx, action_handler=self.action_handler)
+            # PAUSE MONITORING to prevent conflict
+            if hasattr(self, 'context_monitor') and self.context_monitor:
+                self.log_debug("Pausing Monitor...")
+                self.context_monitor.pause_monitoring(True)
+            else:
+                self.log_debug("Context Monitor NOT found or None")
+
+            ctx = {
+                "app_context": self.current_profile.get("app_context", ""),
+                "window_title_filter": self.current_profile.get("window_title_filter", "")
+            }
+            self.log_debug(f"Creating MappingDialog with ctx: {ctx}")
+            
+            dialog = MappingDialog(self, self.add_mapping_callback, self.current_device_def, profile_context=ctx, action_handler=self.action_handler)
+            
+            self.log_debug("MappingDialog created, binding protocol...")
+            dialog.protocol("WM_DELETE_WINDOW", lambda: self.on_mapping_dialog_close(dialog))
+            self.log_debug("Dialog open sequence complete.")
+            
+        except Exception as e:
+            import traceback
+            err_msg = traceback.format_exc()
+            self.log_debug(f"FATAL ERROR in open_add_dialog: {e}\n{err_msg}")
+            
+            # RESUME if error
+            if hasattr(self, 'context_monitor') and self.context_monitor:
+                self.context_monitor.pause_monitoring(False)
+            
+            CTkMessageBox.show_error("Erreur", f"Erreur lors de l'ouverture:\n{e}")
+
+    def on_mapping_dialog_close(self, dialog):
+        # RESUME MONITORING
+        if hasattr(self, 'context_monitor') and self.context_monitor:
+            self.context_monitor.pause_monitoring(False)
+        dialog.destroy()
 
     def add_mapping_callback(self, data):
         if self.current_profile:
             self.current_profile["mappings"].append(data)
             self.profile_manager.save_profile(self.current_profile)
-            self.refresh_ui_for_profile()
+            self.reload_and_refresh()
+            
+            # RESUME MONITORING (Success Case)
+            if hasattr(self, 'context_monitor') and self.context_monitor:
+                self.context_monitor.pause_monitoring(False)
 
     def edit_mapping(self, index):
         if not self.current_profile: return
         data = self.current_profile["mappings"][index]
+        
+        # PAUSE MONITORING
+        if hasattr(self, 'context_monitor') and self.context_monitor:
+            self.context_monitor.pause_monitoring(True)
+
         ctx = {
             "app_context": self.current_profile.get("app_context", ""),
             "window_title_filter": self.current_profile.get("window_title_filter", "")
         }
-        MappingDialog(self, lambda d: self.update_mapping(index, d), self.current_device_def, initial_data=data, profile_context=ctx, action_handler=self.action_handler)
+        dialog = MappingDialog(self, lambda d: self.update_mapping(index, d), self.current_device_def, initial_data=data, profile_context=ctx, action_handler=self.action_handler)
+        # Handle Cancel/Close via X
+        dialog.protocol("WM_DELETE_WINDOW", lambda: self.on_mapping_dialog_close(dialog))
 
     def update_mapping(self, index, data):
         if self.current_profile:
             self.current_profile["mappings"][index] = data
             self.profile_manager.save_profile(self.current_profile)
-            self.refresh_ui_for_profile()
+            self.reload_and_refresh()
+
+            # RESUME MONITORING (Success Case)
+            if hasattr(self, 'context_monitor') and self.context_monitor:
+                self.context_monitor.pause_monitoring(False)
 
     def delete_mapping(self, index):
         if self.current_profile:
             del self.current_profile["mappings"][index]
             self.profile_manager.save_profile(self.current_profile)
-            self.refresh_ui_for_profile()
+            self.reload_and_refresh()
 
     def move_mapping_up(self, index):
         if not self.current_profile or index <= 0: return
         mappings = self.current_profile["mappings"]
         mappings[index], mappings[index-1] = mappings[index-1], mappings[index]
         self.profile_manager.save_profile(self.current_profile)
-        self.refresh_ui_for_profile()
+        self.reload_and_refresh()
 
     def move_mapping_down(self, index):
         if not self.current_profile: return
@@ -1081,7 +1166,7 @@ class AirstepApp(ctk.CTk):
         if index >= len(mappings) - 1: return
         mappings[index], mappings[index+1] = mappings[index+1], mappings[index]
         self.profile_manager.save_profile(self.current_profile)
-        self.refresh_ui_for_profile()
+        self.reload_and_refresh()
 
     # --- Save ---
     def save_all(self, silent=False):

@@ -78,6 +78,14 @@ class ProfileManager:
         except Exception as e:
             return False, str(e)
 
+    def log_debug(self, msg):
+        try:
+            with open("debug.log", "a", encoding="utf-8") as f:
+                import datetime
+                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+                f.write(f"[PM] [{timestamp}] {msg}\n")
+        except: pass
+
     def load_all_profiles(self):
         self.profiles = []
         files = glob.glob(os.path.join(PROFILE_DIR, "*.json"))
@@ -85,10 +93,10 @@ class ProfileManager:
             try:
                 with open(fpath, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    # Basic validation
                     if "name" in data and "mappings" in data:
                         self.profiles.append(data)
             except Exception as e:
+                self.log_debug(f"Error loading profile {fpath}: {e}") # Log to file!
                 print(f"Error loading profile {fpath}: {e}")
 
         # Sort profiles by name
@@ -98,14 +106,13 @@ class ProfileManager:
     def save_profile(self, profile_data):
         """Saves a single profile to a JSON file."""
         name = profile_data.get("name", "Unknown")
-        # Sanitize filename
         safe_name = "".join([c for c in name if c.isalnum() or c in (' ', '-', '_')]).strip()
         if not safe_name: safe_name = "profile"
 
         filename = f"{safe_name}.json"
         filepath = os.path.join(PROFILE_DIR, filename)
 
-        # Update the list in memory
+        # Update the list in memory (Optimistic update)
         existing_idx = next((i for i, p in enumerate(self.profiles) if p.get("name") == name), -1)
         if existing_idx >= 0:
             self.profiles[existing_idx] = profile_data
@@ -114,9 +121,20 @@ class ProfileManager:
 
         try:
             with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(profile_data, f, indent=4)
+                json.dump(profile_data, f, indent=4, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno()) # Force write to disk
+            
+            self.log_debug(f"Saved profile '{name}' to {filepath}")
+            
+            # FORCE RELOAD 
+            # Add small delay to ensure OS release?
+            # time.sleep(0.05) 
+            self.load_all_profiles()
+            
             return True
         except Exception as e:
+            self.log_debug(f"Error saving profile {name}: {e}")
             print(f"Error saving profile {name}: {e}")
             return False
 

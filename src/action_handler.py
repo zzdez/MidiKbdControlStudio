@@ -271,14 +271,29 @@ class ActionHandler:
             except: continue
 
     def _send_native_key(self, vk_code):
-        """Simulate key press using native Windows API (keybd_event) with Virtual Key Code"""
+        """Simulate key press using native Windows API (keybd_event) with Virtual Key Code + ScanCode map"""
         if not hasattr(ctypes, 'windll'): return
         try:
+            # Map VK to ScanCode for robustness (Chrome needs this)
+            # 0 = MAPVK_VK_TO_VSC (Virtual Scan Code)
+            scancode = ctypes.windll.user32.MapVirtualKeyW(vk_code, 0)
+            
+            flags_down = 0
+            flags_up = 2 # KEYEVENTF_KEYUP
+            
+            # Extended Keys (Arrows, Home, End, PageUp, PageDown, Insert, Delete)
+            # VK_PRIOR(0x21)..VK_DOWN(0x28), VK_INSERT(0x2D), VK_DELETE(0x2E)
+            extended_keys = [0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E]
+            
+            if vk_code in extended_keys:
+                flags_down |= 0x0001 # KEYEVENTF_EXTENDEDKEY
+                flags_up |= 0x0001
+
             # Press
-            ctypes.windll.user32.keybd_event(vk_code, 0, 0, 0)
+            ctypes.windll.user32.keybd_event(vk_code, scancode, flags_down, 0)
             time.sleep(0.05)
-            # Release (0x0002 = KEYEVENTF_KEYUP)
-            ctypes.windll.user32.keybd_event(vk_code, 0, 2, 0)
+            # Release
+            ctypes.windll.user32.keybd_event(vk_code, scancode, flags_up, 0)
         except Exception as e:
             self.log(f"Native Key Error: {e}")
 
@@ -355,9 +370,18 @@ class ActionHandler:
 
                 # B. Appuyer sur la touche principale
                 # Exception pour Espace (57) ou Flèches (75, 77, 72, 80) qui nécessitent souvent du natif (Win32)
-                FORCE_NATIVE_CODES = [57, 75, 77, 72, 80]
-
-                if main_scan_code in FORCE_NATIVE_CODES:
+                FORCE_NATIVE_CODES = [57] # Space only here. Arrows handled explicitly below.
+                
+                # ARROW KEYS HANDLING (Redirect ScanCode -> VirtualKey for robustness)
+                # Left=75, Right=77, Up=72, Down=80
+                arrow_map = {75: VK_LEFT, 77: VK_RIGHT, 72: VK_UP, 80: VK_DOWN}
+                
+                if main_scan_code in arrow_map:
+                    vk = arrow_map[main_scan_code]
+                    self.log(f" -> Envoi NATIF VK {vk} pour SC {main_scan_code} (Robust Arrow)")
+                    self._send_native_key(vk)
+                    
+                elif main_scan_code in FORCE_NATIVE_CODES:
                     self.log(f" -> Envoi NATIF (Win32) pour SC {main_scan_code}")
                     self._send_native_scancode(main_scan_code)
                 else:

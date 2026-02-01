@@ -20,6 +20,10 @@ class ContextMonitor(threading.Thread):
 
         # Override Logic
         self.manual_override_profile = None
+        
+        # Sync & State
+        self.lock = threading.Lock()
+        self.paused = False
 
     def log_to_file(self, msg):
         try:
@@ -56,11 +60,22 @@ class ContextMonitor(threading.Thread):
             self.log_to_file("OVERRIDE CLEARED. Auto-detect resuming.")
             self.last_profile_name = None # Reset
 
+    def pause_monitoring(self, paused: bool):
+        """Pauses or resumes the context monitoring (useful during editing)."""
+        with self.lock:
+            self.paused = paused
+            print(f"[CTX] Monitoring {'PAUSED' if paused else 'RESUMED'}")
+
     def run(self):
         self.running = True
         self.log_to_file("Started monitoring active window...")
 
         while self.running:
+            # Check Pause
+            if self.paused:
+                time.sleep(1)
+                continue
+
             try:
                 matched_profile = None
 
