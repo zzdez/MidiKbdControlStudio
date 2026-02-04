@@ -689,6 +689,7 @@ async function openSettingsModal() {
 
             // Populate Fields
             document.getElementById("setting-youtube-key").value = currentSettings.YOUTUBE_API_KEY || "";
+            document.getElementById("setting-gemini-key").value = currentSettings.GEMINI_API_KEY || "";
             renderSettingsFolders();
 
             // Show Modal
@@ -768,6 +769,7 @@ async function addLibraryFolder() {
 async function saveSettings() {
     // Harvest Data
     currentSettings.YOUTUBE_API_KEY = document.getElementById("setting-youtube-key").value;
+    currentSettings.GEMINI_API_KEY = document.getElementById("setting-gemini-key").value;
 
     try {
         await fetch("/api/settings", {
@@ -2052,3 +2054,174 @@ window.onload = () => {
     if (originalOnLoad) originalOnLoad();
     loadProfiles();
 };
+
+// --- ULTIMATE IMPORT LOGIC ---
+
+function openUltimateImportModal() {
+    document.getElementById("ultimate-import-modal").showModal();
+    // Reset Form
+    document.getElementById("sim-url").value = "";
+    document.getElementById("sim-preview-frame").src = "";
+
+    document.getElementById("sim-title").value = "";
+    document.getElementById("sim-artist").value = "";
+    document.getElementById("sim-album").value = "";
+    document.getElementById("sim-year").value = "";
+    document.getElementById("sim-genre").value = "";
+    document.getElementById("sim-category").value = "Général";
+
+    // Default Tab
+    switchSimTab('download');
+
+    // Populate folders
+    const folderSelect = document.getElementById("sim-folder");
+    folderSelect.innerHTML = "";
+    if (currentSettings.media_folders && currentSettings.media_folders.length > 0) {
+        currentSettings.media_folders.forEach(f => {
+            const opt = document.createElement("option");
+            opt.value = f;
+            opt.innerText = f;
+            folderSelect.appendChild(opt);
+        });
+    } else {
+        const opt = document.createElement("option");
+        opt.innerText = "Aucun dossier configuré";
+        folderSelect.appendChild(opt);
+    }
+}
+
+function closeUltimateImportModal() {
+    document.getElementById("ultimate-import-modal").close();
+    document.getElementById("sim-preview-frame").src = ""; // Stop playback
+}
+
+function updateSimPreview() {
+    const url = document.getElementById("sim-url").value;
+    if (!url) return;
+
+    // Extract ID
+    let videoId = null;
+    const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
+    if (match) videoId = match[1];
+
+    if (videoId) {
+        document.getElementById("sim-preview-frame").src = `https://www.youtube.com/embed/${videoId}`;
+
+        // Auto-Fill Title/Channel if possible via API
+        fetch(`/api/youtube/search?q=${encodeURIComponent(url)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    const vid = data[0];
+                    if (!document.getElementById("sim-title").value) {
+                        document.getElementById("sim-title").value = vid.title;
+                        document.getElementById("sim-artist").value = vid.channel;
+                    }
+                }
+            })
+            .catch(e => console.log("Auto-fill failed", e));
+    }
+}
+
+function switchSimTab(tab) {
+    document.getElementById("sim-tab-download").style.display = tab === 'download' ? 'block' : 'none';
+    document.getElementById("sim-tab-translation").style.display = tab === 'translation' ? 'block' : 'none';
+
+    document.getElementById("tab-btn-download").classList.toggle("active", tab === 'download');
+    document.getElementById("tab-btn-translation").classList.toggle("active", tab === 'translation');
+}
+
+function toggleSimSubs(checked) {
+    const opts = document.getElementById("sim-subs-options");
+    opts.style.opacity = checked ? "1" : "0.5";
+    opts.style.pointerEvents = checked ? "auto" : "none";
+}
+
+function toggleSimTrans(checked) {
+    document.getElementById("sim-trans-options").style.display = checked ? "block" : "none";
+}
+
+async function browseForFolder() {
+    try {
+        const res = await fetch("/api/library/add_folder", { method: "POST" });
+        const data = await res.json();
+        if (data.status === "added") {
+            // Refresh settings cache
+            if (!currentSettings.media_folders.includes(data.path)) {
+                currentSettings.media_folders.push(data.path);
+            }
+
+            // Update select
+            const sel = document.getElementById("sim-folder");
+            const opt = document.createElement("option");
+            opt.value = data.path;
+            opt.innerText = data.path;
+            opt.selected = true;
+            sel.appendChild(opt);
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function executeSmartImport() {
+    const payload = {
+        url: document.getElementById("sim-url").value,
+        title: document.getElementById("sim-title").value,
+        artist: document.getElementById("sim-artist").value,
+        album: document.getElementById("sim-album").value,
+        year: document.getElementById("sim-year").value,
+        genre: document.getElementById("sim-genre").value,
+        category: document.getElementById("sim-category").value,
+
+        target_folder: document.getElementById("sim-folder").value,
+
+        mode: document.getElementById("sim-mode").value,
+        quality: document.getElementById("sim-quality").value,
+
+        download_subs: document.getElementById("sim-dl-subs").checked,
+        translate: document.getElementById("sim-translate").checked,
+
+        trans_source_lang: document.getElementById("sim-source-lang").value,
+        trans_target_lang: document.getElementById("sim-target-lang").value,
+        trans_context: document.getElementById("sim-context").value,
+        trans_remove_dupes: document.getElementById("sim-clean-dupes").checked,
+        trans_remove_non_speech: document.getElementById("sim-clean-sound").checked
+    };
+
+    if (!payload.url) { alert("URL manquante"); return; }
+    if (!payload.target_folder || payload.target_folder === "Aucun dossier configuré") {
+        alert("Veuillez sélectionner un dossier de destination."); return;
+    }
+
+    closeUltimateImportModal();
+    alert("Importation lancée en arrière-plan. Cela peut prendre du temps.");
+
+    try {
+        const res = await fetch("/api/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (data.status === "success") {
+            alert(`Import terminé !\nFichier: ${data.path}`);
+            loadLocalFiles(); // Refresh
+        } else {
+            alert("Erreur: " + data.message);
+        }
+    } catch (e) {
+        console.error("Import Error", e);
+        alert("Erreur technique lors de l'import.");
+    }
+}
+
+// --- SUBTITLE TOGGLE ---
+function toggleSubtitlePosition() {
+    const video = document.getElementById("html5-player");
+    const label = document.getElementById("subs-pos-label");
+    const isTop = video.classList.toggle("subs-top");
+
+    label.innerText = isTop ? "HAUT" : "BAS";
+}

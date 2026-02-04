@@ -9,6 +9,26 @@
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="lib/wavesurfer.min.js"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* CSS for Ultimate Import Modal Tabs */
+        .tab-btn {
+            background: #222;
+            border: 1px solid #444;
+            color: #888;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .tab-btn.active {
+            background: #444;
+            color: white;
+            border-bottom: 2px solid var(--accent);
+        }
+        /* Subtitle Positioning Helper (Experimental) */
+        video.subs-top::cue {
+            line: 0;
+            vertical-align: top;
+        }
+    </style>
 </head>
 
 <body>
@@ -29,12 +49,15 @@
         <!-- COLONNE GAUCHE (70%) -->
         <section class="media-zone">
             <!-- Lecteur -->
-            <div id="video-container">
+            <div id="video-container" style="position:relative;">
                 <div id="player"></div>
                 <iframe id="generic-player" style="width:100%; height:100%; display:none; border:none;"
                     allowfullscreen></iframe>
                 <video id="html5-player" controls
                     style="width:100%; height:100%; display:none; background:#000;"></video>
+
+                <!-- Subtitle Overlay (Custom implementation if native fails) -->
+                <div id="subtitle-overlay" style="display:none; position:absolute; bottom:10%; width:100%; text-align:center; color:white; text-shadow: 0 0 5px black; font-size:1.2em; pointer-events:none;"></div>
             </div>
 
             <!-- Audio Player (Waveform) - SEPARATE CONTAINER -->
@@ -121,6 +144,11 @@
                     <button class="btn-icon" onclick="videoControl('speed_up')" title="Accélérer"
                         style="font-size:14px;">🐇</button>
                 </div>
+
+                <!-- Subtitle Position Toggle -->
+                <button class="btn-icon" onclick="toggleSubtitlePosition()" title="Position Sous-titres (Haut/Bas)" style="margin-left:20px; font-size:14px;">
+                    📑 <span id="subs-pos-label">BAS</span>
+                </button>
             </div>
 
             <!-- Pitch Control (Video) -->
@@ -171,7 +199,7 @@
                 <div class="sidebar-section">
                     <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
                         Setlist
-                        <button class="btn-icon" onclick="openAddModal()">+</button>
+                        <button class="btn-icon" onclick="openUltimateImportModal()">+ (Smart)</button>
                     </div>
 
                     <!-- Search / Filters -->
@@ -475,6 +503,123 @@
         </div>
     </dialog>
 
+    <!-- ULTIMATE IMPORT MODAL -->
+    <dialog id="ultimate-import-modal" class="large-modal">
+        <div class="modal-header">
+            <h3>Importer depuis YouTube</h3>
+            <button onclick="closeUltimateImportModal()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:15px;">
+             <!-- TOP: URL & Preview -->
+             <div style="display:flex; gap:15px;">
+                 <div style="flex:1;">
+                     <label>URL Vidéo</label>
+                     <div class="input-group">
+                         <input type="text" id="sim-url" placeholder="https://youtube.com/..." onchange="updateSimPreview()">
+                         <button onclick="updateSimPreview()">Charger</button>
+                     </div>
+                     <div id="sim-preview-container" style="margin-top:10px; width:100%; aspect-ratio:16/9; background:black;">
+                         <iframe id="sim-preview-frame" style="width:100%; height:100%; border:none;"></iframe>
+                     </div>
+                 </div>
+                 <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+                     <label>Titre</label>
+                     <input type="text" id="sim-title">
+                     <div class="row-inputs">
+                         <div class="col"><label>Artiste</label><input type="text" id="sim-artist"></div>
+                         <div class="col"><label>Album</label><input type="text" id="sim-album"></div>
+                     </div>
+                     <div class="row-inputs">
+                         <div class="col"><label>Année</label><input type="text" id="sim-year"></div>
+                         <div class="col"><label>Genre</label><input type="text" id="sim-genre" list="genres"></div>
+                     </div>
+                     <label>Catégorie</label>
+                     <input type="text" id="sim-category" list="categories">
+                 </div>
+             </div>
+
+             <!-- TABS for Options -->
+             <div class="tabs-container" style="border-top:1px solid #444; padding-top:10px;">
+                 <div style="display:flex; gap:10px; margin-bottom:10px;">
+                     <button id="tab-btn-download" class="tab-btn active" onclick="switchSimTab('download')">Téléchargement</button>
+                     <button id="tab-btn-translation" class="tab-btn" onclick="switchSimTab('translation')">Sous-titres & Traduction</button>
+                 </div>
+
+                 <!-- DOWNLOAD OPTIONS -->
+                 <div id="sim-tab-download">
+                     <div class="row-inputs">
+                         <div class="col">
+                             <label>Mode</label>
+                             <select id="sim-mode">
+                                 <option value="video">Vidéo (MP4)</option>
+                                 <option value="audio">Audio (MP3)</option>
+                             </select>
+                         </div>
+                         <div class="col">
+                             <label>Qualité Vidéo</label>
+                             <select id="sim-quality">
+                                 <option value="1080p">1080p</option>
+                                 <option value="720p" selected>720p</option>
+                                 <option value="480p">480p</option>
+                             </select>
+                         </div>
+                     </div>
+                     <label style="margin-top:10px;">Dossier de destination</label>
+                     <div class="input-group">
+                         <select id="sim-folder"></select>
+                         <button onclick="browseForFolder()">...</button>
+                     </div>
+                 </div>
+
+                 <!-- TRANSLATION OPTIONS -->
+                 <div id="sim-tab-translation" style="display:none;">
+                     <div style="margin-bottom:10px;">
+                         <input type="checkbox" id="sim-dl-subs" onchange="toggleSimSubs(this.checked)">
+                         <label for="sim-dl-subs">Télécharger les sous-titres</label>
+                     </div>
+
+                     <div id="sim-subs-options" style="padding-left:20px; border-left:2px solid #444; opacity:0.5; pointer-events:none;">
+                         <div style="margin-bottom:10px;">
+                             <input type="checkbox" id="sim-translate" onchange="toggleSimTrans(this.checked)">
+                             <label for="sim-translate">Traduire avec Gemini AI</label>
+                         </div>
+
+                         <div id="sim-trans-options" style="display:none; padding:10px; background:#222; border-radius:5px;">
+                             <div class="row-inputs">
+                                 <div class="col">
+                                     <label>Langue Source</label>
+                                     <select id="sim-source-lang">
+                                         <option value="English">Anglais</option>
+                                         <option value="Spanish">Espagnol</option>
+                                         <option value="Japanese">Japonais</option>
+                                     </select>
+                                 </div>
+                                 <div class="col">
+                                     <label>Langue Cible</label>
+                                     <select id="sim-target-lang">
+                                         <option value="French" selected>Français</option>
+                                         <option value="English">Anglais</option>
+                                     </select>
+                                 </div>
+                             </div>
+                             <label>Contexte (Instrument, Style...)</label>
+                             <input type="text" id="sim-context" placeholder="Guitare, Rock, Tuto...">
+
+                             <div style="margin-top:10px; display:flex; gap:15px;">
+                                 <div><input type="checkbox" id="sim-clean-dupes" checked> <label for="sim-clean-dupes">Suppr. Doublons</label></div>
+                                 <div><input type="checkbox" id="sim-clean-sound" checked> <label for="sim-clean-sound">Suppr. Bruits [Music]</label></div>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+             </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-text" onclick="closeUltimateImportModal()">Annuler</button>
+            <button class="btn-primary" onclick="executeSmartImport()">IMPORTER</button>
+        </div>
+    </dialog>
+
     <!-- SETTINGS MODAL -->
     <dialog id="settings-modal">
         <div class="modal-header">
@@ -497,6 +642,10 @@
                     <label>YouTube Data API Key</label>
                     <input type="password" id="setting-youtube-key" placeholder="AIzaSy...">
                     <p class="hint">Nécessaire pour la recherche et les titres YouTube.</p>
+
+                    <label style="margin-top:15px;">Gemini API Key</label>
+                    <input type="password" id="setting-gemini-key" placeholder="AIzaSy...">
+                    <p class="hint">Nécessaire pour la traduction IA des sous-titres.</p>
                 </div>
 
                 <!-- TAB: LIBRARY -->
@@ -557,6 +706,11 @@
             <button class="btn-text" onclick="closeImportModal()">Annuler</button>
         </div>
     </dialog>
+
+    <!-- Shared Datalists -->
+    <datalist id="categories"></datalist>
+    <datalist id="genres"></datalist>
+    <datalist id="artists"></datalist>
 
     <script src="lib/pitch_shifter.js?v=2"></script>
     <script src="app.js?v=3"></script>
