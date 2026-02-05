@@ -980,6 +980,10 @@ async def trigger_action(request: Request):
 
 # --- DOWNLOADER ---
 
+@app.get("/api/dl/status")
+async def dl_status():
+    return {"ffmpeg": download_service.ffmpeg_available}
+
 @app.post("/api/dl/info")
 async def dl_info(data: Dict):
     url = data.get("url")

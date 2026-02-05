@@ -36,45 +36,10 @@ class DownloadService:
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-
-                formats = []
-
-                # 1. Audio Option
-                formats.append({
-                    "id": "audio_best",
-                    "label": "Audio (MP3 - Meilleure Qualité)",
-                    "type": "audio",
-                    "ext": "mp3"
-                })
-
-                # 2. Video Options
-                # We want to offer standard resolutions: 1080p, 720p, 480p
-                # yt-dlp format sorting usually gives best first.
-                # We can construct specific selectors.
-
-                available_formats = info.get('formats', [])
-                resolutions = set()
-
-                for f in available_formats:
-                    if f.get('vcodec') != 'none' and f.get('height'):
-                        resolutions.add(f.get('height'))
-
-                sorted_res = sorted(list(resolutions), reverse=True)
-
-                for res in sorted_res:
-                    if res < 360: continue # Skip very low quality
-                    formats.append({
-                        "id": f"video_{res}",
-                        "label": f"Vidéo {res}p (MP4)",
-                        "type": "video",
-                        "resolution": res,
-                        "ext": "mp4"
-                    })
-
                 return {
                     "title": info.get('title'),
                     "thumbnail": info.get('thumbnail'),
-                    "formats": formats
+                    "duration": info.get('duration')
                 }
 
         except Exception as e:
@@ -113,10 +78,46 @@ class DownloadService:
             'max_sleep_interval': 5,
         }
 
-        # Format Selection
-        if fmt_id == 'audio_best':
-            if self.ffmpeg_available:
-                ydl_opts.update({
+        # Format Selection Logic
+
+        # --- AUDIO MODES ---
+        if fmt_id == 'audio_original':
+            # Best audio, no conversion (M4A/Opus)
+            ydl_opts.update({
+                'format': 'bestaudio/best',
+            })
+
+        elif fmt_id.startswith('audio_mp3_'):
+            # Conversion required
+            quality = fmt_id.split('_')[2] # 320, 192, 128
+            ydl_opts.update({
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': quality,
+                }],
+            })
+
+        # --- VIDEO MODES ---
+        elif fmt_id == 'video_auto':
+            # Best Single File (No Merge)
+            ydl_opts.update({
+                'format': 'best[ext=mp4]/best',
+            })
+
+        elif fmt_id.startswith('video_'):
+            # Explicit Resolution (Merge Strategy)
+            res = fmt_id.split('_')[1] # 1080, 720, etc
+            ydl_opts.update({
+                'format': f'bestvideo[height<={res}][ext=mp4]+bestaudio[ext=m4a]/best[height<={res}][ext=mp4]/best[height<={res}]',
+                'merge_output_format': 'mp4'
+            })
+
+        # --- LEGACY FALLBACK ---
+        elif fmt_id == 'audio_best':
+             if self.ffmpeg_available:
+                 ydl_opts.update({
                     'format': 'bestaudio/best',
                     'postprocessors': [{
                         'key': 'FFmpegExtractAudio',
@@ -124,35 +125,15 @@ class DownloadService:
                         'preferredquality': '192',
                     }],
                 })
-            else:
-                # Fallback: Best Audio (usually m4a/opus) without conversion
-                ydl_opts.update({
-                    'format': 'bestaudio/best',
-                })
-
-        elif fmt_id.startswith('video_'):
-            res = fmt_id.split('_')[1]
-
-            if self.ffmpeg_available:
-                # Merge Strategy (Best Quality)
-                ydl_opts.update({
-                    'format': f'bestvideo[height<={res}][ext=mp4]+bestaudio[ext=m4a]/best[height<={res}][ext=mp4]/best[height<={res}]',
-                    'merge_output_format': 'mp4'
-                })
-            else:
-                # Single File Strategy (Fallback)
-                # Tries to find best pre-merged file
-                ydl_opts.update({
-                    'format': f'best[height<={res}][ext=mp4]/best[height<={res}]/best',
-                })
+             else:
+                 ydl_opts.update({'format': 'bestaudio/best'})
 
         # Subtitles
         if download_subs:
             ydl_opts.update({
                 'writesubtitles': True,
                 'writeautomaticsub': True,
-                # 'subtitleslangs': ['fr', 'en', 'all'], # REMOVED: Specific request triggers 429 (Translation API)
-                # We assume user wants them side-by-side (srt/vtt files)
+                # 'subtitleslangs': ['fr', 'en', 'all'], # REMOVED: Specific request triggers 429
                 'skip_download_archive': True,
             })
 
@@ -172,16 +153,21 @@ class DownloadService:
             final_filename = None
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
-                # Determine final filename
-                # If converted (mp3), filename extension changes.
 
                 if 'requested_downloads' in info:
                     final_filename = info['requested_downloads'][0]['filepath']
                 else:
-                    # Fallback
                     filename = ydl.prepare_filename(info)
-                    if fmt_id == 'audio_best':
-                        filename = os.path.splitext(filename)[0] + ".mp3"
+
+                    # Correction: prepare_filename returns the original filename before conversion.
+                    # If we converted to MP3, the extension changed.
+                    if 'postprocessors' in ydl_opts:
+                        for pp in ydl_opts['postprocessors']:
+                            if pp['key'] == 'FFmpegExtractAudio':
+                                base, _ = os.path.splitext(filename)
+                                filename = base + "." + pp['preferredcodec']
+                                break
+
                     final_filename = filename
 
             if final_filename and os.path.exists(final_filename):

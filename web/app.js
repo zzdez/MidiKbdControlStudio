@@ -976,6 +976,17 @@ function selectResult(video) {
 
 // --- DOWNLOADER LOGIC ---
 
+let ffmpegAvailable = false;
+
+async function checkDLStatus() {
+    try {
+        const res = await fetch("/api/dl/status");
+        const data = await res.json();
+        ffmpegAvailable = data.ffmpeg;
+        console.log("FFmpeg Status:", ffmpegAvailable);
+    } catch (e) { console.error("DL Status Check Failed", e); }
+}
+
 function checkDownloadAvailability(url) {
     const btn = document.getElementById("btn-show-dl");
     if (url && (url.includes("youtube.com") || url.includes("youtu.be"))) {
@@ -1019,11 +1030,36 @@ async function toggleDownloadOptions() {
         });
     }
 
-    // 2. Optional: Fetch formats via API?
-    // For now we rely on static options mapped to backend logic,
-    // because dynamic fetching takes time and we want UI responsivness.
-    // The backend `get_formats` is available at `/api/dl/info` if we want to be fancy.
-    // But static options (Best Audio, 1080p, 720p) are usually enough for YouTube.
+    // 2. Populate Formats based on Capabilities
+    const formatSelect = document.getElementById("dl-format");
+    formatSelect.innerHTML = "";
+
+    const addOpt = (val, text, enabled = true) => {
+        const o = document.createElement("option");
+        o.value = val;
+        o.innerText = text;
+        if (!enabled) {
+            o.disabled = true;
+            o.innerText += " (FFmpeg requis)";
+        }
+        formatSelect.appendChild(o);
+    };
+
+    // Audio Options
+    addOpt("audio_original", "🎵 Audio (Original / Meilleure Qualité)");
+    addOpt("audio_mp3_320", "🎵 Audio MP3 320kbps", ffmpegAvailable);
+    addOpt("audio_mp3_192", "🎵 Audio MP3 192kbps", ffmpegAvailable);
+
+    // Video Options
+    addOpt("video_auto", "🎬 Vidéo Auto (Meilleur fichier unique)");
+    addOpt("video_1080", "🎬 Vidéo 1080p (MP4)", ffmpegAvailable);
+    addOpt("video_720", "🎬 Vidéo 720p (MP4)", ffmpegAvailable);
+    addOpt("video_480", "🎬 Vidéo 480p (MP4)", ffmpegAvailable);
+
+    // Select default smart option if ffmpeg missing
+    if (!ffmpegAvailable) {
+        formatSelect.value = "video_auto";
+    }
 }
 
 async function startDownload() {
@@ -2188,4 +2224,5 @@ window.onload = () => {
     if (originalOnLoad) originalOnLoad();
     loadProfiles();
     loadSettings(); // Ensure settings are loaded on startup
+    checkDLStatus(); // Check FFmpeg status
 };
