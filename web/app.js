@@ -252,6 +252,49 @@ function connectVideoWebSocket() {
             renderPedalboard(currentProfile);
             const name = currentProfile ? currentProfile.name : "Global / Aucun";
             document.getElementById("active-profile").innerText = "Profil : " + name;
+        } else if (msg.type === "download_progress") {
+            // Update Import Modal
+            const d = msg.data;
+            if (d.status === "downloading") {
+                document.getElementById("yt-status-text").innerText = "Téléchargement: " + d.filename;
+                document.getElementById("yt-status-percent").innerText = d.percent + "%";
+                document.getElementById("yt-progress-bar").style.width = d.percent + "%";
+            } else if (d.status === "processing") {
+                document.getElementById("yt-status-text").innerText = "Traitement (FFmpeg)...";
+                document.getElementById("yt-progress-bar").style.width = "100%";
+                document.getElementById("yt-progress-bar").style.background = "#ffbb00"; // Yellow for processing
+            }
+        } else if (msg.type === "log") {
+            // Append Log
+            const logLine = msg.data + "\n";
+            const logBox = document.getElementById("yt-import-logs");
+            logBox.innerText += logLine;
+            logBox.scrollTop = logBox.scrollHeight; // Auto-scroll
+        } else if (msg.type === "download_complete") {
+            // Finish
+            document.getElementById("yt-status-text").innerText = "Terminé !";
+            document.getElementById("yt-progress-bar").style.background = "#03dac6"; // Success Green
+            document.getElementById("btn-start-import").innerText = "Terminé";
+            setTimeout(() => {
+                document.getElementById("youtube-import-modal").close();
+                // Optionally Auto-Add to Library? 
+                // The server sent us the file path in msg.data.path
+                // Let's reload the Local Files view if we are on it
+                if (document.getElementById("tab-local").classList.contains("active")) {
+                    loadLocalFiles(); // Refresh
+                }
+
+                // Also, let's propose to add it to the Setlist?
+                // For 'Clean Start', just Refresh Local Lib is safer. User can add it manually.
+
+                // If we want to be fancy:
+                alert("Importation réussie : " + msg.data.title);
+            }, 1000);
+        } else if (msg.type === "download_error") {
+            document.getElementById("yt-error-msg").innerText = msg.message;
+            document.getElementById("yt-error-msg").style.display = "block";
+            document.getElementById("btn-start-import").disabled = false;
+            document.getElementById("btn-start-import").innerText = "Réessayer";
         }
     };
 
@@ -793,7 +836,499 @@ async function openNativeEditor() {
     await fetch("/api/open_native_editor", { method: "POST" });
 }
 
-// --- MODAL & EDIT LOGIC ---
+// --- YOUTUBE IMPORT LOGIC ---
+// --- SMART IMPORT LOGIC ---
+
+let currentAnalysis = null; // Store analysis data
+
+async function startSmartAnalysis() {
+    const url = document.getElementById("yt-import-url").value;
+    if (!url) return;
+
+    // Show loading state in the small search modal (or repurpose it)
+    const btn = document.getElementById("btn-start-import");
+    const originalText = btn.innerText;
+    btn.innerText = "Analyse...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch("/api/import/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: url })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.detail || "Erreur Analyse");
+
+        // Close search modal and open Smart Wizard
+        // document.getElementById("youtube-import-modal").close(); // Keep it open or close? User preference. Let's close.
+        document.getElementById("youtube-import-modal").close();
+        openSmartImportModal(data);
+
+    } catch (e) {
+        alert("Erreur d'analyse: " + e.message);
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+
+function openSmartImportModal(analysis) {
+    currentAnalysis = analysis;
+    const m = document.getElementById("smart-import-modal");
+
+    // 1. Fill Media Info & Preview
+    // Extract ID for preview
+    const videoId = analysis.id;
+    if (videoId) {
+        document.getElementById("sim-preview-iframe").src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+    } else {
+        document.getElementById("sim-preview-iframe").src = "";
+    }
+
+    document.getElementById("sim-title").value = analysis.title;
+    document.getElementById("sim-artist").value = analysis.uploader;
+    document.getElementById("sim-duration").innerText = "Durée : " + formatDuration(analysis.duration);
+
+    // Default Empty Fields
+    document.getElementById("sim-album").value = "";
+    document.getElementById("sim-year").value = new Date().getFullYear();
+    document.getElementById("sim-genre").value = "";
+    document.getElementById("sim-category").value = "";
+    document.getElementById("sim-description").value = analysis.description || "";
+
+    // Populate Datalists with existing tags
+    populateSmartDropdowns();
+
+    // 2. Populate Folders
+    const folderSelect = document.getElementById("sim-folder-select");
+    folderSelect.innerHTML = "";
+    if (currentSettings && currentSettings.media_folders) {
+        currentSettings.media_folders.forEach(path => {
+            const opt = document.createElement("option");
+            opt.value = path;
+            opt.innerText = path.split('\\').pop(); // Show only folder name
+            opt.title = path;
+            folderSelect.appendChild(opt);
+        });
+        if (currentSettings.media_folders.length === 0) {
+            const opt = document.createElement("option");
+            opt.value = "";
+            opt.innerText = "Parcourir pour choisir...";
+            folderSelect.appendChild(opt);
+        }
+    }
+
+    // 3. Intelligent Language Config
+    configureSmartLanguage(analysis);
+
+    // 4. Quality Reset
+    document.getElementById("sim-quality").value = "best";
+    toggleQualityOptions();
+
+    m.showModal();
+}
+
+function populateSmartDropdowns() {
+    // Populate datalists from global existingTags
+    if (typeof existingTags !== 'undefined') {
+        const catList = document.getElementById("category-list");
+        catList.innerHTML = "";
+        if (existingTags.categories) {
+            existingTags.categories.forEach(c => {
+                const opt = document.createElement("option");
+                opt.value = c;
+                catList.appendChild(opt);
+            });
+        }
+
+        const genList = document.getElementById("genre-list");
+        genList.innerHTML = "";
+        if (existingTags.genres) {
+            existingTags.genres.forEach(g => {
+                const opt = document.createElement("option");
+                opt.value = g;
+                genList.appendChild(opt);
+            });
+        }
+    }
+}
+
+function toggleQualityOptions() {
+    const isAudio = document.querySelector('input[name="sim-format"][value="audio"]').checked;
+    const qualSelect = document.getElementById("sim-quality");
+
+    if (isAudio) {
+        qualSelect.disabled = true;
+    } else {
+        qualSelect.disabled = false;
+    }
+}
+
+
+async function executeSmartImport() {
+    if (!currentAnalysis) return;
+
+    const folderVal = document.getElementById("sim-folder-select").value;
+    if (!folderVal && (!currentSettings.media_folders || currentSettings.media_folders.length === 0)) {
+        alert("Veuillez d'abord ajouter un dossier de médiathèque via le bouton '...'.");
+        return;
+    }
+    // If folder select is empty but folders exist, user must pick one.
+    if (!folderVal) {
+        if (document.getElementById("sim-folder-select").options.length > 0)
+            document.getElementById("sim-folder-select").selectedIndex = 0;
+        else {
+            alert("Destination invalide.");
+            return;
+        }
+    }
+
+    const payload = {
+        url: currentAnalysis.webpage_url,
+        title: document.getElementById("sim-title").value,
+        artist: document.getElementById("sim-artist").value,
+        album: document.getElementById("sim-album").value,
+        year: document.getElementById("sim-year").value,
+        genre: document.getElementById("sim-genre").value,
+        category: document.getElementById("sim-category").value,
+        description: document.getElementById("sim-description").value,
+
+        format: document.querySelector('input[name="sim-format"]:checked').value,
+        quality: document.getElementById("sim-quality").value,
+
+        folder_path: document.getElementById("sim-folder-select").value || folderVal, // Fallback
+        organize_artist: document.getElementById("sim-org-artist").checked,
+        organize_title: document.getElementById("sim-org-title").checked,
+
+        dl_subs: document.getElementById("sim-dl-subs").checked,
+        sub_lang: document.getElementById("sim-subs-lang").value,
+
+        do_trans: document.getElementById("sim-do-trans").checked,
+        trans_lang: document.getElementById("sim-trans-lang").value,
+        trans_context: document.getElementById("sim-trans-context").value,
+
+        tag_file: document.getElementById("sim-tag-file").checked,
+        sub_position: document.getElementById("sim-sub-pos").value
+    };
+
+    // Stop Preview
+    document.getElementById("sim-preview-iframe").src = "about:blank";
+
+    // Visual Feedback
+    const btn = document.getElementById("btn-sim-import");
+    btn.innerText = "Lancement...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch("/api/import/execute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            document.getElementById("smart-import-modal").close();
+            alert("Importation lancée en arrière-plan !");
+        } else {
+            const err = await res.json();
+            alert("Erreur: " + err.detail);
+        }
+
+    } catch (e) {
+        alert("Erreur réseau: " + e.message);
+    } finally {
+        btn.innerText = "Importer & Traiter";
+        btn.disabled = false;
+    }
+}
+
+function configureSmartLanguage(analysis) {
+    const detectedLang = analysis.language || "en"; // Default to EN if unknown
+    const userLang = "fr"; // TODO: Get from Settings
+
+    const diag = document.getElementById("sim-lang-detection");
+    const subSelect = document.getElementById("sim-subs-lang");
+    subSelect.innerHTML = "";
+
+    // Fill available subs
+    // Combine manual and auto
+    const allSubs = [...(analysis.subtitles || []), ...(analysis.automatic_captions || [])];
+    const uniqueSubs = [...new Set(allSubs)].sort();
+
+    uniqueSubs.forEach(lang => {
+        const opt = document.createElement("option");
+        opt.value = lang;
+        opt.innerText = lang.toUpperCase();
+        subSelect.appendChild(opt);
+    });
+
+    // LOGIC
+    const isForeign = !detectedLang.startsWith(userLang);
+
+    if (isForeign) {
+        diag.innerText = `⚠️ Audio détecté : ${detectedLang.toUpperCase()}. Traduction recommandée.`;
+        document.getElementById("sim-do-trans").checked = true;
+        document.getElementById("sim-dl-subs").checked = true;
+
+        // Try to select best source sub (Manual EN > Auto EN > First)
+        if (uniqueSubs.includes('en')) subSelect.value = 'en';
+        else if (uniqueSubs.includes('en-orig')) subSelect.value = 'en-orig';
+    } else {
+        diag.innerText = `✅ Audio détecté : ${detectedLang.toUpperCase()}. (Langue maternelle).`;
+        document.getElementById("sim-do-trans").checked = false;
+        document.getElementById("sim-dl-subs").checked = false; // Optional
+    }
+}
+
+// Helper Duration
+function formatDuration(seconds) {
+    if (!seconds) return "--:--";
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// Old functions placeholders if needed to avoid breakage, or delete
+function openYoutubeImportModal() {
+    document.getElementById("youtube-import-modal").showModal();
+    document.getElementById("yt-import-url").value = "";
+    // Change button action to new analysis
+    const btn = document.getElementById("btn-start-import");
+    btn.onclick = startSmartAnalysis;
+    btn.innerText = "Analyser";
+
+    // Hide old progress bars in this modal as they move to the general UI or Smart Modal?
+    // Actually we keep simple search here.
+    resetImportUI();
+}
+
+
+async function executeSmartImport() {
+    if (!currentAnalysis) return;
+
+    const payload = {
+        url: currentAnalysis.webpage_url,
+        title: document.getElementById("sim-title").value,
+        artist: document.getElementById("sim-artist").value,
+        album: document.getElementById("sim-album").value,
+        year: document.getElementById("sim-year").value,
+        genre: document.getElementById("sim-genre").value,
+        category: document.getElementById("sim-category").value,
+
+        format: document.querySelector('input[name="sim-format"]:checked').value,
+        quality: document.getElementById("sim-quality").value,
+
+        folder_path: document.getElementById("sim-folder-select").value,
+        organize_artist: document.getElementById("sim-org-artist").checked,
+        organize_title: document.getElementById("sim-org-title").checked,
+
+        dl_subs: document.getElementById("sim-dl-subs").checked,
+        sub_lang: document.getElementById("sim-subs-lang").value,
+
+        do_trans: document.getElementById("sim-do-trans").checked,
+        trans_lang: document.getElementById("sim-trans-lang").value,
+        trans_context: document.getElementById("sim-trans-context").value,
+
+        tag_file: document.getElementById("sim-tag-file").checked,
+        sub_position: document.getElementById("sim-sub-pos").value
+    };
+
+    if (!payload.folder_path) {
+        alert("Veuillez choisir un dossier de destination.");
+        return;
+    }
+
+    // Stop Preview
+    document.getElementById("sim-preview-iframe").src = "about:blank";
+
+    // Visual Feedback
+    const btn = document.getElementById("btn-sim-import");
+    btn.innerText = "Lancement...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch("/api/import/execute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            document.getElementById("smart-import-modal").close();
+            alert("Importation lancée en arrière-plan !");
+        } else {
+            const err = await res.json();
+            alert("Erreur: " + err.detail);
+        }
+
+    } catch (e) {
+        alert("Erreur réseau: " + e.message);
+    } finally {
+        btn.innerText = "Importer & Traiter";
+        btn.disabled = false;
+    }
+}
+
+
+function resetImportUI() {
+    document.getElementById("yt-import-status").style.display = "none";
+    document.getElementById("yt-error-msg").innerText = "";
+    document.getElementById("yt-error-msg").style.display = "none";
+    document.getElementById("btn-start-import").disabled = false;
+    document.getElementById("btn-start-import").innerText = "Télécharger";
+    document.getElementById("yt-import-logs").innerText = ""; // Clear logs
+}
+
+async function browseForFolder() {
+    console.log("[BROWSE] Browse Requested");
+
+    // Check Settings first
+    if (!currentSettings) {
+        alert("Erreur: Paramètres non chargés.");
+        return;
+    }
+
+    try {
+        const res = await fetch("/api/dialog/folder", { method: "POST" });
+        if (!res.ok) {
+            throw new Error(`HTTP Error: ${res.status}`);
+        }
+
+        const data = await res.json();
+        console.log("[BROWSE] Response:", data);
+
+        if (data.status === "success" && data.path) {
+            const select = document.getElementById("sim-folder-select");
+
+            // Add to Settings (UI side only initially, saved via settings usually, 
+            // but here we just want to use it).
+            // Actually, we should check if it exists in list.
+            let exists = false;
+            for (let i = 0; i < select.options.length; i++) {
+                if (select.options[i].value === data.path) {
+                    select.selectedIndex = i;
+                    exists = true;
+                    break;
+                }
+            }
+
+            if (!exists) {
+                const opt = document.createElement("option");
+                opt.value = data.path;
+                opt.innerText = data.path.split('\\').pop(); // Show name
+                opt.title = data.path;
+                opt.selected = true;
+                select.insertBefore(opt, select.firstChild); // Add to top
+
+                // OPTIONAL: Persist this new folder to settings immediately?
+                // For now, just let them use it.
+            }
+        }
+    } catch (e) {
+        console.error("Browse Error", e);
+        alert("Impossible d'ouvrir le sélecteur: " + e.message);
+    }
+}
+
+async function startYoutubeImport() {
+    const url = document.getElementById("yt-import-url").value;
+    if (!url) return;
+
+    resetImportUI();
+    document.getElementById("yt-import-status").style.display = "block";
+    document.getElementById("btn-start-import").disabled = true;
+    document.getElementById("btn-start-import").innerText = "En cours...";
+    document.getElementById("yt-status-text").innerText = "Initialisation...";
+    document.getElementById("yt-progress-bar").style.width = "0%";
+
+    try {
+        const res = await fetch("/api/import/youtube", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: url })
+        });
+
+        const data = await res.json();
+        if (data.status !== "started") {
+            throw new Error(data.detail || "Erreur inconnue");
+        }
+
+    } catch (e) {
+        document.getElementById("yt-error-msg").innerText = "Erreur: " + e.message;
+        document.getElementById("yt-error-msg").style.display = "block";
+        document.getElementById("btn-start-import").disabled = false;
+        document.getElementById("btn-start-import").innerText = "Réessayer";
+    }
+}
+
+// --- TRANSLATION LOGIC ---
+const transStatus = document.getElementById("trans-status");
+const transError = document.getElementById("trans-error");
+const btnTrans = document.getElementById("btn-do-translate");
+
+function openTranslationModal(filepath) {
+    document.getElementById("translation-modal").showModal();
+    document.getElementById("trans-filepath").value = filepath;
+    document.getElementById("trans-filename").innerText = filepath.split('\\').pop().split('/').pop();
+
+    // Reset UI
+    transStatus.style.display = "none";
+    transError.style.display = "none";
+    btnTrans.disabled = false;
+    btnTrans.innerText = "Traduire";
+}
+
+async function submitTranslation() {
+    const filepath = document.getElementById("trans-filepath").value;
+    const source = document.getElementById("trans-source").value;
+    const target = document.getElementById("trans-target").value;
+    const context = document.getElementById("trans-context").value;
+    const cleanDupes = document.getElementById("trans-clean-dupes").checked;
+    const cleanNoise = document.getElementById("trans-clean-noise").checked;
+
+    if (!filepath) return;
+
+    // UI Busy
+    transStatus.style.display = "block";
+    transError.style.display = "none";
+    btnTrans.disabled = true;
+    btnTrans.innerText = "Traduction...";
+
+    try {
+        const res = await fetch("/api/subtitles/translate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                filepath: filepath,
+                source_lang: source,
+                target_lang: target,
+                context: context,
+                remove_duplicates: cleanDupes,
+                remove_non_speech: cleanNoise
+            })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.status === "success") {
+            alert("Traduction terminée !\nFichier : " + data.new_file.split('\\').pop());
+            document.getElementById("translation-modal").close();
+            loadLocalFiles(); // Refresh list to show new file
+        } else {
+            throw new Error(data.detail || "Erreur inconnue");
+        }
+
+    } catch (e) {
+        transStatus.style.display = "none";
+        transError.innerText = "Erreur: " + e.message;
+        transError.style.display = "block";
+        btnTrans.disabled = false;
+        btnTrans.innerText = "Réessayer";
+    }
+}
 
 function openAddModal() {
     document.getElementById("media-modal").showModal();
@@ -1465,6 +2000,16 @@ function renderLocalFiles() {
         }
 
         const tr = document.createElement("tr");
+
+        // Translate Button Logic
+        const isSub = file.path.endsWith('.vtt') || file.path.endsWith('.srt');
+        let translateBtn = '';
+        if (isSub) {
+            // Escape backslashes for JS string
+            const safePath = file.path.replace(/\\/g, '\\\\');
+            translateBtn = `<button class="btn-action" onclick="openTranslationModal('${safePath}')" title="Traduire (IA)">🌐</button>`;
+        }
+
         tr.innerHTML = `
             <td>${file.artist || ""}</td>
             <td style="cursor:pointer;" onclick="playLocal(${realIndex})">
@@ -1473,6 +2018,7 @@ function renderLocalFiles() {
             </td>
             <td>${file.category || "Général"}</td>
             <td style="text-align:right;">
+                ${translateBtn}
                 <button class="btn-action" onclick="openEditLocalModal(${realIndex})">✎</button>
                 <button class="btn-action" onclick="deleteLocalFile(${realIndex})" style="color:#cf6679;">×</button>
             </td>

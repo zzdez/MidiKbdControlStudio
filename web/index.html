@@ -171,7 +171,11 @@
                 <div class="sidebar-section">
                     <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
                         Setlist
-                        <button class="btn-icon" onclick="openAddModal()">+</button>
+                        <div style="display:flex; gap:5px;">
+                            <button class="btn-icon" onclick="openYoutubeImportModal()"
+                                title="Importer YouTube (Offline)">⬇️</button>
+                            <button class="btn-icon" onclick="openAddModal()">+</button>
+                        </div>
                     </div>
 
                     <!-- Search / Filters -->
@@ -558,8 +562,276 @@
         </div>
     </dialog>
 
+    <!-- YOUTUBE IMPORT MODAL -->
+    <dialog id="youtube-import-modal" class="small-modal">
+        <div class="modal-header">
+            <h3>Importer YouTube</h3>
+            <button onclick="document.getElementById('youtube-import-modal').close()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body">
+            <label>URL YouTube</label>
+            <input type="text" id="yt-import-url" placeholder="https://www.youtube.com/watch?v=...">
+
+            <!-- Progress Status -->
+            <div id="yt-import-status" style="margin-top:15px; display:none;">
+                <div style="display:flex; justify-content:space-between; font-size:0.8em; margin-bottom:5px;">
+                    <span id="yt-status-text">Téléchargement...</span>
+                    <span id="yt-status-percent">0%</span>
+                </div>
+                <div style="width:100%; height:8px; background:#333; border-radius:4px; overflow:hidden;">
+                    <div id="yt-progress-bar"
+                        style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
+                </div>
+
+                <!-- Debug Logs -->
+                <details style="margin-top:10px; border:1px solid #444; border-radius:4px;">
+                    <summary style="padding:5px; cursor:pointer; font-size:0.8em; color:#aaa;">Voir les logs (Debug)
+                    </summary>
+                    <div id="yt-import-logs"
+                        style="height:100px; overflow-y:auto; background:#111; color:#bbb; padding:5px; font-family:monospace; font-size:0.7em; white-space:pre-wrap;">
+                    </div>
+                </details>
+            </div>
+
+            <div id="yt-error-msg" style="color:var(--danger); font-size:0.8em; margin-top:10px; display:none;"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-text" onclick="document.getElementById('youtube-import-modal').close()">Fermer</button>
+            <button id="btn-start-import" class="btn-primary" onclick="startYoutubeImport()">Télécharger</button>
+        </div>
+    </dialog>
+
+    <!-- TRANSLATION MODAL -->
+    <dialog id="translation-modal" class="small-modal">
+        <div class="modal-header">
+            <h3>Traduction IA (Gemini)</h3>
+            <button onclick="document.getElementById('translation-modal').close()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="trans-filepath">
+
+            <div style="margin-bottom:10px;">
+                <label>Fichier :</label>
+                <div id="trans-filename" style="font-size:0.9em; color:#aaa; margin-bottom:10px;"></div>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <div style="flex:1;">
+                    <label>Source</label>
+                    <select id="trans-source" class="input-dark">
+                        <option value="English">Anglais</option>
+                        <option value="French">Français</option>
+                        <option value="Spanish">Espagnol</option>
+                    </select>
+                </div>
+                <div style="flex:1;">
+                    <label>Cible</label>
+                    <select id="trans-target" class="input-dark">
+                        <option value="French">Français</option>
+                        <option value="English">Anglais</option>
+                        <option value="Spanish">Espagnol</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-bottom:10px;">
+                <label>Contexte (Optionnel)</label>
+                <textarea id="trans-context" class="input-dark" rows="2"
+                    placeholder="Ex: Cours de guitare, Cuisine, Vlogs..."></textarea>
+            </div>
+
+            <div style="margin-bottom:10px;">
+                <label style="display:flex; align-items:center;">
+                    <input type="checkbox" id="trans-clean-dupes" checked>
+                    <span style="margin-left:5px;">Supprimer les répétitions/bégaiements</span>
+                </label>
+                <label style="display:flex; align-items:center;">
+                    <input type="checkbox" id="trans-clean-noise" checked>
+                    <span style="margin-left:5px;">Supprimer [Music], [Applause]...</span>
+                </label>
+            </div>
+
+            <div id="trans-status" style="display:none; margin-top:10px;">
+                <div id="trans-status-text" style="font-size:0.9em; color:var(--accent);">Traduction en cours...</div>
+                <div class="progress-bar-container" style="height:4px; margin-top:5px;">
+                    <div class="progress-bar-fill" style="width:100%; animation: pulse 1.5s infinite;"></div>
+                </div>
+            </div>
+            <div id="trans-error" style="color:var(--danger); font-size:0.8em; margin-top:10px; display:none;"></div>
+
+        </div>
+        <div class="modal-footer">
+            <button class="btn-text" onclick="document.getElementById('translation-modal').close()">Annuler</button>
+            <button id="btn-do-translate" class="btn-primary" onclick="submitTranslation()">Traduire</button>
+        </div>
+    </dialog>
+
     <script src="lib/pitch_shifter.js?v=2"></script>
     <script src="app.js?v=3"></script>
+
+    <!-- SMART IMPORT MODAL (ULTIMATE) -->
+    <dialog id="smart-import-modal" class="large-modal" style="min-width: 800px; max-height: 90vh;">
+        <div class="modal-header">
+            <h3>Studio d'Importation</h3>
+            <button onclick="document.getElementById('smart-import-modal').close()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body" style="display:flex; gap:20px; overflow-y:auto;">
+
+            <!-- LEFT: PREVIEW & MEDIA INFO -->
+            <div style="flex:1; display:flex; flex-direction:column; gap:10px; min-width: 320px;">
+                <!-- Video Preview -->
+                <div
+                    style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius:8px; border:1px solid #444;">
+                    <iframe id="sim-preview-iframe"
+                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen></iframe>
+                </div>
+
+                <div style="font-size:0.8em; color:#aaa; text-align:center;" id="sim-duration"></div>
+
+                <!-- Metadata Fields -->
+                <div class="panel-section">
+                    <label>Titre</label>
+                    <input type="text" id="sim-title" class="input-dark">
+                </div>
+                <div class="panel-section">
+                    <label>Artiste</label>
+                    <input type="text" id="sim-artist" class="input-dark">
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <div class="panel-section" style="flex:1;">
+                        <label>Album</label>
+                        <input type="text" id="sim-album" class="input-dark">
+                    </div>
+                    <div class="panel-section" style="width:80px;">
+                        <label>Année</label>
+                        <input type="text" id="sim-year" class="input-dark" maxlength="4">
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <div class="panel-section" style="flex:1;">
+                        <label>Genre</label>
+                        <input type="text" id="sim-genre" class="input-dark" list="genre-list">
+                    </div>
+                    <div class="panel-section" style="flex:1;">
+                        <label>Catégorie</label>
+                        <input type="text" id="sim-category" class="input-dark" list="category-list">
+                    </div>
+                </div>
+
+                <div class="panel-section"> <label>Description</label> <textarea id="sim-description" class="input-dark"
+                        rows="3" placeholder="Description de la vidéo..."></textarea> </div>
+                <div class="panel-section"> <label>Format & Qualité</label>
+                    <div style="display:flex; gap:10px; flex-direction:column;">
+                        <div style="display:flex; gap:10px;"> <label><input type="radio" name="sim-format" value="video"
+                                    checked onchange="toggleQualityOptions()"> Vidéo</label> <label><input type="radio"
+                                    name="sim-format" value="audio" onchange="toggleQualityOptions()"> Audio
+                                (MP3)</label> </div> <select id="sim-quality" class="input-dark">
+                            <option value="best">Meilleure (Auto)</option>
+                            <option value="1080p">1080p HD (FFmpeg requis)</option>
+                            <option value="720p">720p</option>
+                            <option value="480p">480p (Leger)</option>
+                        </select>
+                    </div>
+                </div>
+            </div> <!-- Hidden Datalists --> <datalist id="genre-list"></datalist> <datalist
+                id="category-list"></datalist>
+
+            <!-- RIGHT: CONFIGURATION & ACTIONS -->
+            <div style="flex:1; display:flex; flex-direction:column; gap:15px; min-width: 300px;">
+
+                <!-- 1. DESTINATION -->
+                <fieldset style="border:1px solid #444; padding:10px; border-radius:5px;">
+                    <legend>📂 Destination</legend>
+                    <div style="display:flex; gap:10px; margin-bottom:10px;">
+                        <select id="sim-folder-select" class="input-dark" style="flex:1;">
+                            <!-- Populated by JS -->
+                        </select>
+                        <button class="btn-secondary" onclick="browseForFolder()">...</button>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column; gap:5px;">
+                        <label title="Crée un dossier au nom de l'artiste">
+                            <input type="checkbox" id="sim-org-artist" checked>
+                            Créer sous-dossier Artiste
+                        </label>
+                        <label title="Crée un dossier au nom du titre">
+                            <input type="checkbox" id="sim-org-title" checked>
+                            Créer sous-dossier Titre (Contient tout)
+                        </label>
+                    </div>
+                </fieldset>
+
+                <!-- 2. LANGUES & TRADUCTION -->
+                <fieldset style="border:1px solid #444; padding:10px; border-radius:5px;">
+                    <legend>🗣️ Langues & Sous-titres</legend>
+
+                    <div id="sim-lang-detection" style="font-size:0.9em; color:var(--accent); margin-bottom:10px;">
+                        <!-- Diagnostic text -->
+                    </div>
+
+                    <div style="display:flex; gap:10px; flex-direction:column;">
+                        <!-- Source Subs -->
+                        <div>
+                            <label>
+                                <input type="checkbox" id="sim-dl-subs" checked>
+                                Télécharger Sous-titres
+                            </label>
+                            <select id="sim-subs-lang" class="input-dark" style="margin-top:5px; width:100%;">
+                                <!-- Auto populated -->
+                            </select>
+                        </div>
+
+                        <!-- Translation -->
+                        <div>
+                            <label>
+                                <input type="checkbox" id="sim-do-trans">
+                                Traduire (IA Gemini)
+                            </label>
+                            <div style="display:flex; gap:5px; margin-top:5px;">
+                                <select id="sim-trans-lang" class="input-dark" style="flex:1;">
+                                    <option value="French" selected>Français</option>
+                                    <option value="English">Anglais</option>
+                                    <option value="Spanish">Espagnol</option>
+                                </select>
+                                <input type="text" id="sim-trans-context" class="input-dark"
+                                    placeholder="Contexte (ex: Guitare)" style="flex:1;">
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- 3. OPTIONS AVANCEES -->
+                <fieldset style="border:1px solid #444; padding:10px; border-radius:5px;">
+                    <legend>🏷️ Options de Lecture</legend>
+                    <div style="display:flex; gap:10px; flex-direction:column;">
+                        <label>
+                            <input type="checkbox" id="sim-tag-file" checked>
+                            Incruster Tags (Titre, Artiste, Cover)
+                        </label>
+
+                        <div>
+                            <label>Position des sous-titres :</label>
+                            <select id="sim-sub-pos" class="input-dark" style="width:100%;">
+                                <option value="bottom">Bas (Standard)</option>
+                                <option value="top">Haut (Spécial Tablatures)</option>
+                            </select>
+                        </div>
+                    </div>
+                </fieldset>
+
+            </div>
+        </div>
+        <div class="modal-footer">
+            <div id="sim-status" style="flex:1; color:var(--accent); display:none;">Analyse en cours...</div>
+            <button class="btn-text"
+                onclick="document.getElementById('smart-import-modal').close(); document.getElementById('sim-preview-iframe').src='about:blank';">Annuler</button>
+            <button id="btn-sim-import" class="btn-primary" onclick="executeSmartImport()">Importer & Traiter</button>
+        </div>
+    </dialog>
 </body>
 
 </html>

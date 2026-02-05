@@ -15,3 +15,6 @@ requests
 customtkinter
 packaging
 mutagen
+yt-dlp
+google-genai
+python-dotenv

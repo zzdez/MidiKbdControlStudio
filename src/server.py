@@ -1,11 +1,13 @@
 import os
 import sys
 import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Response
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Response, BackgroundTasks
+import fastapi # For explicit type hinting if needed
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from typing import List, Dict
+from pydantic import BaseModel
+from typing import List, Dict, Optional
 import json
 import requests
 import re
@@ -38,14 +40,26 @@ try:
     from config_manager import ConfigManager
     from library_manager import LibraryManager
     from metadata_service import MetadataService
+    from youtube_downloader import YouTubeDownloader
+    from services.translator import parse_vtt, generate_vtt, translate_batch
+    from services.import_service import ImportService
 except ImportError:
-    from src.config_manager import ConfigManager
     from src.library_manager import LibraryManager
     from src.metadata_service import MetadataService
+    from src.youtube_downloader import YouTubeDownloader
+    from src.services.translator import parse_vtt, generate_vtt, translate_batch # Import service
+    from src.services.import_service import ImportService
+
+# Determine Download Path (User/Music/AirstepDownloads)
+DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), "Music", "AirstepDownloads")
+if not os.path.exists(DOWNLOAD_DIR):
+    os.makedirs(DOWNLOAD_DIR)
 
 app = FastAPI()
 library_manager = LibraryManager()
 metadata_service = MetadataService()
+youtube_downloader = YouTubeDownloader(DOWNLOAD_DIR)
+import_service = ImportService(DOWNLOAD_DIR)
 SETLIST_FILE = "setlist.json"
 APPS_FILE = "apps.json"
 LOCAL_LIB_FILE = "local_lib.json"
@@ -182,6 +196,91 @@ async def api_youtube_search(q: str):
         raise HTTPException(status_code=400, detail="Missing YOUTUBE_API_KEY")
 
     return search_youtube(q, api_key)
+
+@app.post("/api/import/youtube")
+async def import_youtube(data: Dict, background_tasks: fastapi.BackgroundTasks):
+    url = data.get("url")
+    if not url:
+        raise HTTPException(status_code=400, detail="Missing URL")
+    
+    # Define Background Task
+    def download_task(target_url):
+        
+        # Logger that broadcasts to Frontend
+        class BroadcastLogger:
+            def debug(self, msg):
+                if msg.startswith('[debug] '): msg = msg[8:]
+                broadcast_sync(json.dumps({"type": "log", "data": msg}))
+            def info(self, msg):
+                broadcast_sync(json.dumps({"type": "log", "data": msg}))
+            def warning(self, msg):
+                broadcast_sync(json.dumps({"type": "log", "data": f"WARNING: {msg}"}))
+            def error(self, msg):
+                broadcast_sync(json.dumps({"type": "log", "data": f"ERROR: {msg}"}))
+
+        logger = BroadcastLogger()
+
+        def progress_callback(d):
+            # yt-dlp progress hook
+            if d['status'] == 'downloading':
+                # Reduce chatty logs specifically for percentage to process bar
+                p = d.get('_percent_str', '0%').replace('%','')
+                try: 
+                    msg = json.dumps({
+                        "type": "download_progress", 
+                        "data": {
+                            "status": "downloading",
+                            "percent": p,
+                            "filename": d.get('filename', 'Unknown')
+                        }
+                    })
+                    broadcast_sync(msg)
+                except: pass
+            elif d['status'] == 'finished':
+                broadcast_sync(json.dumps({"type": "download_progress", "data": {"status": "processing"}}))
+
+        # Run Download
+        try:
+            logger.info(f"Starting download for: {target_url}")
+            result = youtube_downloader.download(target_url, progress_hook=progress_callback, logger=logger)
+            
+            # Notify Success
+            if result["status"] == "success":
+                # Add to Setlist AUTOMATICALLY
+                new_item = {
+                    "title": result["title"],
+                    "url": result["path"], # Local Path
+                    "manual_mode": "local",
+                    "category": "Téléchargements",
+                    "target_profile": "Auto"
+                }
+                
+                # We can't call async add_to_setlist easily from sync thread, 
+                # but we can replicate logic or just append to file. 
+                # Reusing helper would be best. 
+                # For now, let's just broadcast completion and let Frontend refresh or Add.
+                
+                broadcast_sync(json.dumps({
+                    "type": "download_complete", 
+                    "data": result
+                }))
+                
+            else:
+                 broadcast_sync(json.dumps({
+                    "type": "download_error", 
+                    "message": result.get("message", "Unknown Error")
+                }))
+                
+        except Exception as e:
+            print(f"BG Download Error: {e}")
+            broadcast_sync(json.dumps({
+                    "type": "download_error", 
+                    "message": str(e)
+                }))
+
+    background_tasks.add_task(download_task, url)
+        
+    return {"status": "started", "message": "Téléchargement lancé en arrière-plan"}
 
 @app.get("/api/open_external")
 async def open_external(url: str):
@@ -1293,6 +1392,164 @@ async def api_open_settings(request: Request):
     except Exception as e:
         print(f"OpenSettings Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- TRANSLATION API ---
+
+class TranslationRequest(BaseModel):
+    filepath: str
+    source_lang: str
+    target_lang: str
+    context: str = ""
+    remove_duplicates: bool = True
+    remove_non_speech: bool = True
+
+@app.post("/api/subtitles/translate")
+async def translate_subtitle_endpoint(request: TranslationRequest):
+    """
+    Traduit un fichier VTT local existant et sauvegarde la version traduite à côté.
+    """
+    if not os.path.exists(request.filepath):
+        raise HTTPException(status_code=404, detail="Fichier introuvable")
+
+    # Retrieve API Key from Config
+    api_key = config_manager.get("GEMINI_API_KEY")
+    if not api_key:
+         raise HTTPException(status_code=400, detail="Clé API Gemini manquante. Veuillez la configurer dans les réglages.")
+
+    try:
+        # 1. Lire le fichier
+        with open(request.filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # 2. Parser
+        cues = parse_vtt(content)
+        
+        # 3. Traduire par lots (Chunking)
+        CHUNK_SIZE = 20
+        translated_cues = []
+        
+        loop = asyncio.get_running_loop()
+
+        for i in range(0, len(cues), CHUNK_SIZE):
+            chunk = cues[i:i + CHUNK_SIZE]
+            
+            # Wrap standard sync call
+            def run_batch():
+                return translate_batch(
+                    cues=chunk, 
+                    source_lang=request.source_lang, 
+                    target_lang=request.target_lang, 
+                    api_key=api_key, 
+                    context=request.context, 
+                    remove_duplicates=request.remove_duplicates,
+                    remove_non_speech=request.remove_non_speech
+                )
+            
+            result = await loop.run_in_executor(None, run_batch)
+            translated_cues.extend(result)
+            
+            # Petit délai pour éviter le Rate Limit
+            await asyncio.sleep(1) 
+
+        # 4. Générer le nouveau VTT
+        new_content = generate_vtt(translated_cues)
+        
+        # 5. Sauvegarder
+        # ex: song.vtt -> song_French.vtt
+        lang_suffix = request.target_lang
+        base, ext = os.path.splitext(request.filepath)
+        new_filepath = f"{base}_{lang_suffix}{ext}"
+        
+        with open(new_filepath, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+
+        return {"status": "success", "new_file": new_filepath}
+
+    except Exception as e:
+        print(f"Translation Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/import/analyze")
+async def analyze_youtube_url(request: Request):
+    try:
+        data = await request.json()
+        url = data.get("url")
+        if not url:
+            raise HTTPException(status_code=400, detail="URL Missing")
+        
+        # Run analysis in executor to avoid blocking main loop
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, import_service.analyze_video, url
+        )
+        
+        if result["status"] == "error":
+             raise HTTPException(status_code=400, detail=result["detail"])
+             
+        return result["data"]
+        
+    except Exception as e:
+        print(f"Analyze Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/import/execute")
+async def execute_import(request: Request, background_tasks: BackgroundTasks):
+    try:
+        data = await request.json()
+        
+        # Define Scheduler Callback for Translation
+        async def translation_wrapper(filepath, target_lang, context=""):
+            api_key = config_manager.get("GEMINI_API_KEY")
+            if not api_key: return # Skip if no key
+            
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f: content = f.read()
+                cues = parse_vtt(content)
+                
+                translated_cues = []
+                chunk = 20
+                for i in range(0, len(cues), chunk):
+                    batch = cues[i:i+chunk]
+                    res = translate_batch(batch, "Auto", target_lang, api_key, context=context)
+                    translated_cues.extend(res)
+                    await asyncio.sleep(1) # Rate limit
+                
+                new_content = generate_vtt(translated_cues)
+                base, ext = os.path.splitext(filepath)
+                new_path = f"{base}_{target_lang}{ext}"
+                with open(new_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+                    
+            except Exception as e:
+                print(f"Background Translation Failed: {e}")
+
+        # Run Orchestration in Background
+        background_tasks.add_task(import_service.orchestrate_import, data, translation_wrapper)
+        
+        return {"status": "started", "message": "Import running in background"}
+
+    except Exception as e:
+        print(f"Execute Import Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/dialog/folder")
+async def open_folder_dialog():
+    try:
+        # Use Tkinter in thread-safe way (simple blocking call in executor)
+        def ask_dir():
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            path = filedialog.askdirectory()
+            root.destroy()
+            return path
+        
+        path = await asyncio.get_event_loop().run_in_executor(None, ask_dir)
+        if path:
+            return {"status": "success", "path": path}
+        return {"status": "cancelled"}
+    except Exception as e:
+        print(f"Dialog Error: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

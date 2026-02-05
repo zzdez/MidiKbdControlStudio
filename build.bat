@@ -29,6 +29,9 @@ mkdir _BUILD_TEMP
 copy src\*.py _BUILD_TEMP\ >nul
 copy config.json _BUILD_TEMP\ >nul
 
+mkdir _BUILD_TEMP\services
+copy src\services\*.py _BUILD_TEMP\services\ >nul
+
 if exist web (
     mkdir _BUILD_TEMP\web
     xcopy web _BUILD_TEMP\web /s /e /y >nul
@@ -75,8 +78,8 @@ pyinstaller --noconfirm --onefile --windowed ^
  --hidden-import "mutagen.wave" ^
  --hidden-import "mutagen.mp4" ^
  --hidden-import "mutagen.easymp4" ^
- --hidden-import "mutagen.matroska" ^
  --hidden-import "musicbrainzngs" ^
+ --hidden-import "yt_dlp" ^
  --collect-all "pygame" ^
  main.py
 
