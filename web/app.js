@@ -2069,6 +2069,10 @@ function openUltimateImportModal() {
     document.getElementById("sim-year").value = "";
     document.getElementById("sim-genre").value = "";
     document.getElementById("sim-category").value = "Général";
+    document.getElementById("sim-description").value = "";
+
+    // Refresh datalists
+    updateDatalists();
 
     // Default Tab
     switchSimTab('download');
@@ -2173,6 +2177,7 @@ async function executeSmartImport() {
         year: document.getElementById("sim-year").value,
         genre: document.getElementById("sim-genre").value,
         category: document.getElementById("sim-category").value,
+        description: document.getElementById("sim-description").value,
 
         target_folder: document.getElementById("sim-folder").value,
 

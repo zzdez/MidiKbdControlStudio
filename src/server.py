@@ -35,20 +35,17 @@ logging.basicConfig(
 )
 
 try:
+    # Production / Flat Build
     from config_manager import ConfigManager
     from library_manager import LibraryManager
     from metadata_service import MetadataService
     import import_service
 except ImportError:
-    # Development
+    # Development (src package available)
     from src.config_manager import ConfigManager
     from src.library_manager import LibraryManager
     from src.metadata_service import MetadataService
-    try:
-        from src import import_service
-    except ImportError:
-        # Fallback if 'src' is not a package but we are in dev
-        import import_service
+    from src import import_service
 
 app = FastAPI()
 library_manager = LibraryManager()
