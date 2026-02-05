@@ -3,6 +3,7 @@ import logging
 import yt_dlp
 import threading
 import time
+import shutil
 
 try:
     from metadata_service import MetadataService
@@ -13,6 +14,11 @@ class DownloadService:
     def __init__(self):
         self.metadata_service = MetadataService()
         self.active_downloads = {}
+        self.ffmpeg_available = self._check_ffmpeg()
+
+    def _check_ffmpeg(self):
+        """Checks if ffmpeg is available in PATH."""
+        return shutil.which("ffmpeg") is not None
 
     def get_formats(self, url):
         """
@@ -21,6 +27,10 @@ class DownloadService:
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+            },
         }
 
         try:
@@ -95,26 +105,46 @@ class DownloadService:
             'writethumbnail': False, # We handle cover manually via metadata service usually
             'quiet': True,
             'no_warnings': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+            },
+            'sleep_interval': 1,
+            'max_sleep_interval': 5,
         }
 
         # Format Selection
         if fmt_id == 'audio_best':
-            ydl_opts.update({
-                'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
-            })
+            if self.ffmpeg_available:
+                ydl_opts.update({
+                    'format': 'bestaudio/best',
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '192',
+                    }],
+                })
+            else:
+                # Fallback: Best Audio (usually m4a/opus) without conversion
+                ydl_opts.update({
+                    'format': 'bestaudio/best',
+                })
+
         elif fmt_id.startswith('video_'):
             res = fmt_id.split('_')[1]
-            # Select best video with height <= res + best audio
-            # Merge to MP4
-            ydl_opts.update({
-                'format': f'bestvideo[height<={res}][ext=mp4]+bestaudio[ext=m4a]/best[height<={res}][ext=mp4]/best[height<={res}]',
-                'merge_output_format': 'mp4'
-            })
+
+            if self.ffmpeg_available:
+                # Merge Strategy (Best Quality)
+                ydl_opts.update({
+                    'format': f'bestvideo[height<={res}][ext=mp4]+bestaudio[ext=m4a]/best[height<={res}][ext=mp4]/best[height<={res}]',
+                    'merge_output_format': 'mp4'
+                })
+            else:
+                # Single File Strategy (Fallback)
+                # Tries to find best pre-merged file
+                ydl_opts.update({
+                    'format': f'best[height<={res}][ext=mp4]/best[height<={res}]/best',
+                })
 
         # Subtitles
         if download_subs:
