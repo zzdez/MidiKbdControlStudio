@@ -22,11 +22,18 @@ if current_dir not in sys.path: sys.path.insert(0, current_dir)
 
 # --- IMPORTS ---
 # --- IMPORTS ---
-# Note: sys.path hack above ensures we can import modules directly
-from server import app as fastapi_app
-from config_manager import ConfigManager
-from midi_engine import MidiManager
-from gui import AirstepApp
+try:
+    # Flat / Frozen / Dev-with-path-hack
+    from server import app as fastapi_app
+    from config_manager import ConfigManager
+    from midi_engine import MidiManager
+    from gui import AirstepApp
+except ImportError:
+    # Dev (Package Mode)
+    from src.server import app as fastapi_app
+    from src.config_manager import ConfigManager
+    from src.midi_engine import MidiManager
+    from src.gui import AirstepApp
 
 # Globals
 server_thread = None
