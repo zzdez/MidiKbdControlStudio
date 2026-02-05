@@ -121,7 +121,7 @@ class DownloadService:
             ydl_opts.update({
                 'writesubtitles': True,
                 'writeautomaticsub': True,
-                'subtitleslangs': ['fr', 'en', 'all'], # Get FR and EN
+                # 'subtitleslangs': ['fr', 'en', 'all'], # REMOVED: Specific request triggers 429 (Translation API)
                 # We assume user wants them side-by-side (srt/vtt files)
                 'skip_download_archive': True,
             })
