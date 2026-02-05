@@ -688,10 +688,18 @@ async function launchApp(path) {
 }
 
 // --- SETTINGS LOGIC ---
-let currentSettings = {
-    YOUTUBE_API_KEY: "",
-    media_folders: []
-};
+let currentSettings = null;
+
+async function loadSettings() {
+    try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+            currentSettings = await res.json();
+        }
+    } catch (e) {
+        console.error("Settings Load Error", e);
+    }
+}
 
 async function openSettings() {
     // Deprecated Name, redirected to Modal
@@ -699,21 +707,16 @@ async function openSettings() {
 }
 
 async function openSettingsModal() {
-    try {
-        const res = await fetch("/api/settings");
-        if (res.ok) {
-            currentSettings = await res.json();
+    if (!currentSettings) await loadSettings();
 
-            // Populate Fields
-            document.getElementById("setting-youtube-key").value = currentSettings.YOUTUBE_API_KEY || "";
-            renderSettingsFolders();
+    if (currentSettings) {
+        // Populate Fields
+        document.getElementById("setting-youtube-key").value = currentSettings.YOUTUBE_API_KEY || "";
+        renderSettingsFolders();
 
-            // Show Modal
-            document.getElementById("settings-modal").showModal();
-            switchSettingsTab('general'); // Reset to first tab
-        }
-    } catch (e) {
-        console.error("Settings Load Error", e);
+        // Show Modal
+        document.getElementById("settings-modal").showModal();
+        switchSettingsTab('general'); // Reset to first tab
     }
 }
 
@@ -995,17 +998,12 @@ async function toggleDownloadOptions() {
     const folderSelect = document.getElementById("dl-folder");
     folderSelect.innerHTML = "";
 
-    // Fetch Settings to get folders (or use cached if available)
+    // Ensure settings are loaded
+    if (!currentSettings) await loadSettings();
+
     let folders = [];
     if (currentSettings && currentSettings.media_folders) {
         folders = currentSettings.media_folders;
-    } else {
-        // Fetch if missing
-        try {
-            const res = await fetch("/api/settings");
-            const data = await res.json();
-            folders = data.media_folders || [];
-        } catch (e) { console.error(e); }
     }
 
     if (folders.length === 0) {
@@ -2189,4 +2187,5 @@ const originalOnLoad = window.onload;
 window.onload = () => {
     if (originalOnLoad) originalOnLoad();
     loadProfiles();
+    loadSettings(); // Ensure settings are loaded on startup
 };
