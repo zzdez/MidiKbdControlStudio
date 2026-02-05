@@ -30,8 +30,7 @@ copy src\*.py _BUILD_TEMP\ >nul
 copy config.json _BUILD_TEMP\ >nul
 
 if exist src\services (
-    mkdir _BUILD_TEMP\services
-    copy src\services\*.py _BUILD_TEMP\services\ >nul
+    copy src\services\*.py _BUILD_TEMP\ >nul
 )
 
 if exist web (

@@ -6,13 +6,12 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 try:
-    # Production / Frozen (sys._MEIPASS) or Flat Build
-    # This tries to import 'services' as a top-level package, which exists in _BUILD_TEMP/services
-    from services.translator import parse_vtt, generate_vtt, translate_batch
-    # And 'config_manager' as a top-level module (since src/*.py are copied to root of _BUILD_TEMP)
+    # Production / Frozen / Flat Build
+    # Everything is flattened to the root (see build.bat)
+    from translator import parse_vtt, generate_vtt, translate_batch
     from config_manager import ConfigManager
 except ImportError:
-    # Development (running from repo root, where src is a package)
+    # Development (running from repo root)
     from src.services.translator import parse_vtt, generate_vtt, translate_batch
     from src.config_manager import ConfigManager
 
