@@ -252,6 +252,23 @@ function connectVideoWebSocket() {
             renderPedalboard(currentProfile);
             const name = currentProfile ? currentProfile.name : "Global / Aucun";
             document.getElementById("active-profile").innerText = "Profil : " + name;
+        } else if (msg.type === "dl_progress") {
+            const bar = document.getElementById("dl-progress-bar");
+            const status = document.getElementById("dl-status");
+            if (bar && status) {
+                bar.style.width = msg.percent + "%";
+                status.innerText = msg.status === "processing" ? "Finalisation..." : Math.round(msg.percent) + "%";
+            }
+        } else if (msg.type === "dl_complete") {
+            alert("Téléchargement terminé avec succès !");
+            document.getElementById("dl-status").innerText = "Terminé ✅";
+            document.getElementById("dl-progress-bar").style.width = "100%";
+            // Refresh local view if visible
+            loadLocalFiles();
+        } else if (msg.type === "dl_error") {
+            alert("Erreur de téléchargement : " + msg.error);
+            document.getElementById("dl-status").innerText = "Erreur ❌";
+            document.getElementById("dl-progress-bar").style.background = "#cf6679";
         }
     };
 
@@ -822,6 +839,12 @@ function openAddModal() {
 
     document.getElementById("preview-thumbnail").innerHTML = '<span style="font-size:30px;">🎵</span>';
 
+    // Reset Download UI
+    document.getElementById("dl-options-container").style.display = "none";
+    document.getElementById("btn-show-dl").style.display = "none";
+    document.getElementById("dl-progress-bar").style.width = "0%";
+    document.getElementById("dl-status").innerText = "Prêt";
+
     document.getElementById("yt-search-input").focus();
 }
 
@@ -857,6 +880,14 @@ function openEditModal(index) {
     } else {
         document.getElementById("preview-thumbnail").innerHTML = '<span style="font-size:30px;">🎵</span>';
     }
+
+    // Reset Download UI
+    document.getElementById("dl-options-container").style.display = "none";
+    document.getElementById("dl-progress-bar").style.width = "0%";
+    document.getElementById("dl-status").innerText = "Prêt";
+
+    // Check if URL is valid for download
+    checkDownloadAvailability(track.url);
 }
 
 function closeModal() {
@@ -910,6 +941,9 @@ function selectResult(video) {
     const url = video.id ? `https://www.youtube.com/watch?v=${video.id}` : "";
     if (url) document.getElementById("edit-url").value = url;
 
+    // Show Download Button if URL
+    if (url) checkDownloadAvailability(url);
+
     // 2. Channel & Description
     document.getElementById("edit-channel").value = video.channel || "";
     document.getElementById("youtube-desc-input").value = video.description || "";
@@ -935,6 +969,110 @@ function selectResult(video) {
 
     // 5. Auto-set mode
     document.getElementById("edit-mode").value = "iframe";
+}
+
+// --- DOWNLOADER LOGIC ---
+
+function checkDownloadAvailability(url) {
+    const btn = document.getElementById("btn-show-dl");
+    if (url && (url.includes("youtube.com") || url.includes("youtu.be"))) {
+        btn.style.display = "inline-block";
+    } else {
+        btn.style.display = "none";
+    }
+}
+
+async function toggleDownloadOptions() {
+    const container = document.getElementById("dl-options-container");
+    if (container.style.display === "block") {
+        container.style.display = "none";
+        return;
+    }
+
+    container.style.display = "block";
+
+    // 1. Populate Folders
+    const folderSelect = document.getElementById("dl-folder");
+    folderSelect.innerHTML = "";
+
+    // Fetch Settings to get folders (or use cached if available)
+    let folders = [];
+    if (currentSettings && currentSettings.media_folders) {
+        folders = currentSettings.media_folders;
+    } else {
+        // Fetch if missing
+        try {
+            const res = await fetch("/api/settings");
+            const data = await res.json();
+            folders = data.media_folders || [];
+        } catch (e) { console.error(e); }
+    }
+
+    if (folders.length === 0) {
+        const opt = document.createElement("option");
+        opt.innerText = "Aucun dossier configuré (Ajouter dans Paramètres)";
+        folderSelect.appendChild(opt);
+    } else {
+        folders.forEach(f => {
+            const opt = document.createElement("option");
+            opt.value = f;
+            opt.innerText = f;
+            folderSelect.appendChild(opt);
+        });
+    }
+
+    // 2. Optional: Fetch formats via API?
+    // For now we rely on static options mapped to backend logic,
+    // because dynamic fetching takes time and we want UI responsivness.
+    // The backend `get_formats` is available at `/api/dl/info` if we want to be fancy.
+    // But static options (Best Audio, 1080p, 720p) are usually enough for YouTube.
+}
+
+async function startDownload() {
+    const url = document.getElementById("edit-url").value;
+    const format = document.getElementById("dl-format").value;
+    const folder = document.getElementById("dl-folder").value;
+    const subs = document.getElementById("dl-subs").checked;
+
+    if (!url) return alert("URL manquante");
+    if (!folder || folder.includes("Aucun dossier")) return alert("Veuillez sélectionner un dossier valide.");
+
+    // Harvest Metadata
+    const metadata = {
+        title: document.getElementById("edit-title").value,
+        artist: document.getElementById("edit-artist").value,
+        album: "", // Not in setlist modal
+        category: document.getElementById("edit-category").value,
+        genre: document.getElementById("edit-genre").value,
+        cover_data: document.getElementById("preview-thumbnail").querySelector("img")?.src || ""
+    };
+
+    // UI Feedback
+    document.getElementById("dl-status").innerText = "Démarrage...";
+    document.getElementById("dl-progress-bar").style.width = "0%";
+    document.getElementById("dl-progress-bar").style.background = "var(--accent)";
+
+    try {
+        const payload = {
+            url: url,
+            format_id: format,
+            target_folder: folder,
+            subs: subs,
+            metadata: metadata
+        };
+
+        const res = await fetch("/api/dl/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Erreur serveur");
+
+    } catch (e) {
+        alert("Erreur: " + e.message);
+        document.getElementById("dl-status").innerText = "Erreur";
+    }
 }
 
 async function saveItem() {

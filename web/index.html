@@ -464,11 +464,55 @@
                     <textarea id="user-notes-input" rows="3"
                         placeholder="Mes notes personnelles, accords, structure..."></textarea>
                 </div>
+
+                <!-- DOWNLOAD OPTIONS (Hidden) -->
+                <div id="dl-options-container" style="display:none; background:#1a1a1a; padding:15px; margin-top:15px; border-radius:6px; border:1px solid #333;">
+                    <h4 style="margin:0 0 15px 0; color:var(--accent); display:flex; align-items:center; gap:10px;">
+                        <i class="ph ph-download-simple"></i> Téléchargement Local
+                    </h4>
+
+                    <div class="row-inputs">
+                        <div class="col">
+                            <label>Format & Qualité</label>
+                            <select id="dl-format">
+                                <option value="audio_best">🎵 Audio MP3 (Meilleure Qualité)</option>
+                                <option value="video_1080">🎬 Vidéo 1080p (MP4)</option>
+                                <option value="video_720">🎬 Vidéo 720p (MP4)</option>
+                                <option value="video_480">🎬 Vidéo 480p (MP4)</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                             <label>Dossier de Destination</label>
+                             <select id="dl-folder"></select>
+                        </div>
+                    </div>
+
+                    <div class="row-inputs" style="align-items:center; margin-top:10px;">
+                        <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="document.getElementById('dl-subs').click()">
+                            <input type="checkbox" id="dl-subs" checked style="width:18px; height:18px; cursor:pointer;">
+                            <label for="dl-subs" style="margin:0; cursor:pointer;">Télécharger les Sous-titres (SRT)</label>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:15px; margin-top:20px; align-items:center;">
+                        <button class="btn-primary" onclick="startDownload()" style="background:var(--accent); padding:10px 20px;">
+                            <i class="ph ph-download"></i> Lancer
+                        </button>
+                        <div id="dl-status" style="font-size:0.9em; color:#ccc; flex:1; text-align:right;">Prêt</div>
+                    </div>
+
+                    <!-- Progress Bar Container -->
+                    <div style="width:100%; background:#333; height:6px; border-radius:3px; margin-top:15px; overflow:hidden;">
+                        <div id="dl-progress-bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.2s ease;"></div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
         <div class="modal-footer">
             <button class="btn-secondary" onclick="previewItem()">Prévisualiser</button>
+            <button id="btn-show-dl" class="btn-secondary" onclick="toggleDownloadOptions()" style="display:none; margin-left:10px;">⬇️ Télécharger</button>
             <div style="flex:1"></div>
             <button class="btn-text" onclick="closeModal()">Annuler</button>
             <button class="btn-primary" onclick="saveItem()">Sauvegarder</button>
