@@ -38,7 +38,7 @@ try:
     from config_manager import ConfigManager
     from library_manager import LibraryManager
     from metadata_service import MetadataService
-    from src import import_service
+    import import_service
 except ImportError:
     from src.config_manager import ConfigManager
     from src.library_manager import LibraryManager
