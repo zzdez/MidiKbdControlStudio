@@ -6,11 +6,23 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 try:
+    # Production / Frozen (sys._MEIPASS)
+    # In frozen mode, everything is top-level or relative to the executable path
+    # Check if 'services' is importable directly
+    import services.translator
     from services.translator import parse_vtt, generate_vtt, translate_batch
     from config_manager import ConfigManager
 except ImportError:
-    from src.services.translator import parse_vtt, generate_vtt, translate_batch
-    from src.config_manager import ConfigManager
+    # Development (running from root)
+    try:
+        from src.services.translator import parse_vtt, generate_vtt, translate_batch
+        from src.config_manager import ConfigManager
+    except ImportError:
+        # Fallback for weird paths (e.g. running inside src/)
+        import sys
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from src.services.translator import parse_vtt, generate_vtt, translate_batch
+        from src.config_manager import ConfigManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
