@@ -206,12 +206,12 @@ class DownloadService:
 
         # 1. AUDIO MODES (Ignoring Multi-Lang selection as per request "Audio: langue par défaut")
         if fmt_id == 'audio_original':
-            ydl_opts.update({'format': 'bestaudio/best'})
+            ydl_opts.update({'format': 'bestaudio'})
 
         elif fmt_id.startswith('audio_mp3_'):
             quality = fmt_id.split('_')[2]
             ydl_opts.update({
-                'format': 'bestaudio/best',
+                'format': 'bestaudio',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
