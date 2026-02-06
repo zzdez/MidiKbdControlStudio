@@ -996,15 +996,16 @@ function checkDownloadAvailability(url) {
     }
 }
 
-async function toggleDownloadOptions() {
-    const container = document.getElementById("dl-options-container");
-    if (container.style.display === "block") {
-        container.style.display = "none";
-        return;
-    }
+function openDownloadModal() {
+    document.getElementById("modal-download").showModal();
+    initDownloadOptions();
+}
 
-    container.style.display = "block";
+function closeDownloadModal() {
+    document.getElementById("modal-download").close();
+}
 
+async function initDownloadOptions() {
     // 1. Populate Folders
     const folderSelect = document.getElementById("dl-folder");
     folderSelect.innerHTML = "";

@@ -265,6 +265,11 @@ class DownloadService:
                 'writeautomaticsub': True,
                 'skip_download_archive': True,
             })
+        else:
+            ydl_opts.update({
+                'writesubtitles': False,
+                'writeautomaticsub': False,
+            })
 
         # Progress Hook
         def hook(d):
