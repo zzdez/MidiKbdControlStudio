@@ -1,7 +1,6 @@
 import os
 import logging
 import yt_dlp
-import threading
 import time
 import shutil
 import sys
@@ -206,18 +205,35 @@ class DownloadService:
 
         # 1. AUDIO MODES (Ignoring Multi-Lang selection as per request "Audio: langue par défaut")
         if fmt_id == 'audio_original':
-            ydl_opts.update({'format': 'bestaudio'})
+            # Use /best fallback to catch video-only files.
+            # Only add extraction postprocessor if ffmpeg is available.
+            # Without ffmpeg, if it falls back to video, the user gets a video file (better than crash).
+            ydl_opts.update({'format': 'bestaudio/best'})
+
+            if self.ffmpeg_available:
+                ydl_opts.update({
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'best',
+                    }],
+                })
 
         elif fmt_id.startswith('audio_mp3_'):
-            quality = fmt_id.split('_')[2]
-            ydl_opts.update({
-                'format': 'bestaudio',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': quality,
-                }],
-            })
+            # This mode inherently requires conversion, so typically requires ffmpeg.
+            # But if ffmpeg missing, we shouldn't crash, just maybe fail or download bestaudio.
+            # However, UI disables mp3 options if no ffmpeg.
+            # We add safe check just in case.
+            ydl_opts.update({'format': 'bestaudio/best'})
+
+            if self.ffmpeg_available:
+                quality = fmt_id.split('_')[2]
+                ydl_opts.update({
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': quality,
+                    }],
+                })
 
         # 2. VIDEO MODES
         elif fmt_id.startswith('video_'):
@@ -234,15 +250,16 @@ class DownloadService:
 
             # Resolution Handling
             if fmt_id == 'video_auto':
-                # No merge if possible, just best file.
-                # BUT if user wants multi-audio, we MUST merge.
-                if use_multiaudio:
+                # IF FFMPEG IS AVAILABLE: Use Merge to get Best Quality (1080p+)
+                # Standard 'bestvideo+bestaudio'
+                if self.ffmpeg_available:
                     ydl_opts.update({
                         'format': f"bestvideo+({audio_str})/best",
                         'merge_output_format': container
                     })
                 else:
-                    # Classic Auto (Fallback)
+                    # Classic Auto (Fallback for no-ffmpeg)
+                    # Forces single file, usually 720p or 360p
                     ydl_opts.update({'format': f'best[ext={container}]/best'})
 
             else:
