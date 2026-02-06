@@ -88,26 +88,48 @@ class DownloadService:
                 langs_found = {}
                 formats = info.get('formats', [])
 
+                # Debug Log
+                logging.info(f"[DL-DEBUG] Formats found: {len(formats)}")
+
                 for f in formats:
-                    # Look for audio info
-                    lang = f.get('language')
-                    note = f.get('format_note')
+                    # Filter Audio Only formats (vcodec=none)
+                    if f.get('vcodec') == 'none' and f.get('acodec') != 'none':
 
-                    if lang:
-                        # Prefer format_note as label if available (e.g. "French", "Original")
-                        # Otherwise use lang code
-                        label = note if note else lang
+                        lang = f.get('language')
+                        note = f.get('format_note', '')
 
-                        # If we already found this lang, keep the "better" label (e.g. "French" > "fr")
-                        if lang not in langs_found or (note and not langs_found[lang]['is_note']):
-                            langs_found[lang] = {
-                                'code': lang,
-                                'name': label,
-                                'is_note': bool(note)
-                            }
+                        # Logging specific audio track details
+                        logging.info(f"[DL-DEBUG] Audio Track - ID: {f.get('format_id')}, Lang: {lang}, Note: {note}")
+
+                        # Heuristic: Clean Note (remove quality info like "low", "medium")
+                        clean_note = note.lower().replace("low", "").replace("medium", "").replace("high", "").strip()
+
+                        # Identifier: Lang Code OR Note (if Lang missing)
+                        # If both missing, it's usually "und" (Undefined/Default)
+
+                        # Skip pure quality tracks if we already have a better label for this language
+                        if not lang and not clean_note:
+                            continue
+
+                        # If lang code exists, use it as primary key
+                        if lang:
+                            key = lang
+                            label = note if note else lang
+                        else:
+                            # Use note as key if valid (e.g. "French")
+                            key = clean_note
+                            label = clean_note
+
+                        # Store/Update
+                        # We want to keep the most descriptive label
+                        if key not in langs_found:
+                            langs_found[key] = {'code': key, 'name': label}
+                        elif note and len(note) > len(langs_found[key]['name']):
+                             langs_found[key]['name'] = note
 
                 # Convert to sorted list
                 lang_list = sorted(langs_found.values(), key=lambda x: x['code'])
+                logging.info(f"[DL-DEBUG] Final Langs: {lang_list}")
 
                 return {
                     "title": info.get('title'),
