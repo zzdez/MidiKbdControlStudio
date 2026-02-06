@@ -308,8 +308,29 @@ class DownloadService:
                 if completion_callback:
                     completion_callback(True, {"path": final_filename, "meta": meta})
             else:
-                if completion_callback:
-                    completion_callback(False, "File not found after download")
+                logging.error(f"[DL-ERROR] File missing. Expected: {final_filename}")
+                # Fallback check: Look for any file with the title in the folder
+                # This handles cases where yt-dlp used a different extension than predicted
+                try:
+                    folder = os.path.dirname(filename)
+                    base_name = os.path.splitext(os.path.basename(filename))[0]
+                    found = None
+                    for f in os.listdir(folder):
+                        if f.startswith(base_name):
+                            found = os.path.join(folder, f)
+                            break
+
+                    if found:
+                        logging.info(f"Found alternative file: {found}")
+                        self.metadata_service.write_file_metadata(found, meta)
+                        if completion_callback:
+                            completion_callback(True, {"path": found, "meta": meta})
+                    else:
+                        if completion_callback:
+                            completion_callback(False, f"File not found: {final_filename}")
+                except Exception as ex:
+                    if completion_callback:
+                        completion_callback(False, f"File check error: {ex}")
 
         except Exception as e:
             logging.error(f"Download Failed: {e}")

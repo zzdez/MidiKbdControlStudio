@@ -843,8 +843,9 @@ function openAddModal() {
     document.getElementById("preview-thumbnail").innerHTML = '<span style="font-size:30px;">🎵</span>';
 
     // Reset Download UI
-    document.getElementById("dl-options-container").style.display = "none";
     document.getElementById("btn-show-dl").style.display = "none";
+
+    // Reset Download Modal State
     document.getElementById("dl-progress-bar").style.width = "0%";
     document.getElementById("dl-status").innerText = "Prêt";
 
@@ -885,7 +886,6 @@ function openEditModal(index) {
     }
 
     // Reset Download UI
-    document.getElementById("dl-options-container").style.display = "none";
     document.getElementById("dl-progress-bar").style.width = "0%";
     document.getElementById("dl-status").innerText = "Prêt";
 
