@@ -86,14 +86,13 @@ class DownloadService:
                 # Extract Audio Languages
                 languages = set()
                 formats = info.get('formats', [])
+
                 for f in formats:
-                    # Check for audio language
-                    if f.get('language'):
-                        # Store as tuple (code, name) if possible, or just code
+                    # Filter Audio Only formats
+                    if f.get('vcodec') == 'none' and f.get('acodec') != 'none':
                         lang_code = f.get('language')
-                        # Try to get display name if avail, else code
-                        lang_name = lang_code
-                        languages.add(lang_code)
+                        if lang_code:
+                            languages.add(lang_code)
 
                 # Clean list
                 lang_list = sorted(list(languages))

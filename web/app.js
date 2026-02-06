@@ -1114,7 +1114,18 @@ async function fetchDLLanguages() {
                 }
 
                 const lbl = document.createElement("label");
-                lbl.innerText = lang.toUpperCase();
+                // Display nicer name
+                const langNames = {
+                    'fr': 'Français', 'en': 'Anglais', 'es': 'Espagnol', 'de': 'Allemand',
+                    'it': 'Italien', 'pt': 'Portugais', 'ru': 'Russe', 'ja': 'Japonais',
+                    'ko': 'Coréen', 'zh': 'Chinois'
+                };
+                let displayName = lang.toUpperCase();
+                // Simple mapping attempt
+                const cleanCode = lang.split('-')[0];
+                if (langNames[cleanCode]) displayName = langNames[cleanCode] + ` (${lang})`;
+
+                lbl.innerText = displayName;
 
                 div.appendChild(chk);
                 div.appendChild(lbl);
