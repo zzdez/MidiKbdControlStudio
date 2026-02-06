@@ -63,13 +63,9 @@ class DownloadService:
 
         return None
 
-    def _check_ffmpeg(self):
-        """Deprecated, use self.ffmpeg_available."""
-        return self.ffmpeg_available
-
     def get_formats(self, url):
         """
-        Retrieves simplified format list for a URL.
+        Retrieves format list AND available audio languages.
         """
         ydl_opts = {
             'quiet': True,
@@ -86,10 +82,27 @@ class DownloadService:
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
+
+                # Extract Audio Languages
+                languages = set()
+                formats = info.get('formats', [])
+                for f in formats:
+                    # Check for audio language
+                    if f.get('language'):
+                        # Store as tuple (code, name) if possible, or just code
+                        lang_code = f.get('language')
+                        # Try to get display name if avail, else code
+                        lang_name = lang_code
+                        languages.add(lang_code)
+
+                # Clean list
+                lang_list = sorted(list(languages))
+
                 return {
                     "title": info.get('title'),
                     "thumbnail": info.get('thumbnail'),
-                    "duration": info.get('duration')
+                    "duration": info.get('duration'),
+                    "languages": lang_list
                 }
 
         except Exception as e:
@@ -101,13 +114,16 @@ class DownloadService:
         Blocking download function. Should be run in a thread.
         options: {
             url, format_id, target_folder,
-            subs (bool), metadata (dict)
+            subs (bool), metadata (dict),
+            container (mp4/mkv), audio_langs (list of codes)
         }
         """
         url = options.get('url')
         fmt_id = options.get('format_id')
         target_folder = options.get('target_folder')
         download_subs = options.get('subs', False)
+        container = options.get('container', 'mp4') # Default MP4
+        audio_langs = options.get('audio_langs', []) # List of selected lang codes
         meta = options.get('metadata', {})
 
         if not os.path.exists(target_folder):
@@ -117,7 +133,7 @@ class DownloadService:
         ydl_opts = {
             'outtmpl': os.path.join(target_folder, '%(title)s.%(ext)s'),
             'noplaylist': True,
-            'writethumbnail': False, # We handle cover manually via metadata service usually
+            'writethumbnail': False,
             'quiet': True,
             'no_warnings': True,
             'http_headers': {
@@ -128,27 +144,39 @@ class DownloadService:
             'max_sleep_interval': 5,
         }
 
-        # Inject Local FFmpeg
         if self.ffmpeg_path:
             ydl_opts['ffmpeg_location'] = self.ffmpeg_path
 
-        # Format Selection Logic
-        # Prioritize French Audio if available ([language^=fr]), fallback to best.
+        # --- AUDIO SELECTION BUILDER ---
+        # If user selected languages, we build a filter.
+        # If not (or for Audio Only mode), we use default behavior.
 
-        audio_fmt = 'bestaudio[language^=fr]/bestaudio/best'
+        def build_audio_filter():
+            if not audio_langs:
+                return "bestaudio"
 
-        # --- AUDIO MODES ---
+            # If multiple langs, we want to download ALL of them.
+            # yt-dlp syntax for multi audio is: bestaudio[language=fr],bestaudio[language=en]
+            # And enable --audio-multistreams
+            filters = []
+            for lang in audio_langs:
+                filters.append(f"bestaudio[language={lang}]")
+
+            # If ffmpeg available and MKV, we can merge.
+            # But the 'format' string in yt-dlp expects a logic like: video+audio1+audio2
+            # Join with +
+            return "+".join(filters)
+
+        # --- FORMAT LOGIC ---
+
+        # 1. AUDIO MODES (Ignoring Multi-Lang selection as per request "Audio: langue par défaut")
         if fmt_id == 'audio_original':
-            # Best audio, no conversion (M4A/Opus)
-            ydl_opts.update({
-                'format': audio_fmt,
-            })
+            ydl_opts.update({'format': 'bestaudio/best'})
 
         elif fmt_id.startswith('audio_mp3_'):
-            # Conversion required
-            quality = fmt_id.split('_')[2] # 320, 192, 128
+            quality = fmt_id.split('_')[2]
             ydl_opts.update({
-                'format': audio_fmt,
+                'format': 'bestaudio/best',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
@@ -156,45 +184,50 @@ class DownloadService:
                 }],
             })
 
-        # --- VIDEO MODES ---
-        elif fmt_id == 'video_auto':
-            # Best Single File (No Merge)
-            # Try to get French version if it exists as a pre-muxed format
-            ydl_opts.update({
-                'format': 'best[language^=fr][ext=mp4]/best[ext=mp4]/best',
-            })
-
+        # 2. VIDEO MODES
         elif fmt_id.startswith('video_'):
-            # Explicit Resolution (Merge Strategy)
-            res = fmt_id.split('_')[1] # 1080, 720, etc
-            # Merge Video + French Audio (if avail) OR Best Audio
-            audio_selector = 'bestaudio[language^=fr][ext=m4a]/bestaudio[ext=m4a]/bestaudio'
 
-            ydl_opts.update({
-                'format': f'bestvideo[height<={res}][ext=mp4]+{audio_selector}/best[height<={res}][ext=mp4]/best[height<={res}]',
-                'merge_output_format': 'mp4'
-            })
+            # Multi-Audio Handling
+            use_multiaudio = len(audio_langs) > 0 and self.ffmpeg_available
 
-        # --- LEGACY FALLBACK ---
-        elif fmt_id == 'audio_best':
-             if self.ffmpeg_available:
-                 ydl_opts.update({
-                    'format': audio_fmt,
-                    'postprocessors': [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    }],
+            if use_multiaudio:
+                ydl_opts['audio_multistreams'] = True
+                audio_str = build_audio_filter()
+            else:
+                # Default: Best available audio
+                audio_str = "bestaudio"
+
+            # Resolution Handling
+            if fmt_id == 'video_auto':
+                # No merge if possible, just best file.
+                # BUT if user wants multi-audio, we MUST merge.
+                if use_multiaudio:
+                    ydl_opts.update({
+                        'format': f"bestvideo+({audio_str})/best",
+                        'merge_output_format': container
+                    })
+                else:
+                    # Classic Auto (Fallback)
+                    ydl_opts.update({'format': f'best[ext={container}]/best'})
+
+            else:
+                # Specific Resolution (Requires Merge usually)
+                res = fmt_id.split('_')[1]
+
+                # Strict Format: Video stream <= RES + Selected Audio(s)
+                # Fallback to single file <= RES if merge fails or not possible
+                video_selector = f"bestvideo[height<={res}]"
+
+                ydl_opts.update({
+                    'format': f"{video_selector}+({audio_str})/best[height<={res}]",
+                    'merge_output_format': container
                 })
-             else:
-                 ydl_opts.update({'format': audio_fmt})
 
         # Subtitles
         if download_subs:
             ydl_opts.update({
                 'writesubtitles': True,
                 'writeautomaticsub': True,
-                # 'subtitleslangs': ['fr', 'en', 'all'], # REMOVED: Specific request triggers 429
                 'skip_download_archive': True,
             })
 
@@ -220,19 +253,15 @@ class DownloadService:
                 else:
                     filename = ydl.prepare_filename(info)
 
-                    # Correction: prepare_filename returns the original filename before conversion.
-                    # If we converted to MP3, the extension changed.
                     if 'postprocessors' in ydl_opts:
                         for pp in ydl_opts['postprocessors']:
                             if pp['key'] == 'FFmpegExtractAudio':
                                 base, _ = os.path.splitext(filename)
                                 filename = base + "." + pp['preferredcodec']
                                 break
-
                     final_filename = filename
 
             if final_filename and os.path.exists(final_filename):
-                # Tagging
                 logging.info(f"Tagging file: {final_filename}")
                 self.metadata_service.write_file_metadata(final_filename, meta)
 

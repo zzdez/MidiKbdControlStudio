@@ -1062,6 +1062,70 @@ async function toggleDownloadOptions() {
     if (!ffmpegAvailable) {
         formatSelect.value = "video_auto";
     }
+
+    // Listener for format change to show/hide Container & Languages
+    formatSelect.onchange = () => updateDLUI(formatSelect.value);
+
+    // Initial UI State
+    updateDLUI(formatSelect.value);
+
+    // Fetch Languages for this URL
+    fetchDLLanguages();
+}
+
+function updateDLUI(format) {
+    const isVideo = format.startsWith("video_");
+    document.getElementById("dl-container-opt").style.display = isVideo ? "flex" : "none";
+    document.getElementById("dl-audio-langs").style.display = isVideo ? "block" : "none";
+}
+
+async function fetchDLLanguages() {
+    const url = document.getElementById("edit-url").value;
+    const list = document.getElementById("dl-langs-list");
+    list.innerHTML = "Chargement...";
+
+    try {
+        const res = await fetch("/api/dl/info", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({url})
+        });
+        const info = await res.json();
+
+        list.innerHTML = "";
+
+        if (info.languages && info.languages.length > 0) {
+            info.languages.forEach(lang => {
+                const div = document.createElement("div");
+                div.style.display = "flex";
+                div.style.alignItems = "center";
+                div.style.gap = "5px";
+
+                // Checkbox
+                const chk = document.createElement("input");
+                chk.type = "checkbox";
+                chk.value = lang;
+                chk.name = "dl_lang";
+
+                // Auto-check logic: "Default" + "French"
+                // Assume 1st is default/original usually
+                if (lang === info.languages[0] || lang.startsWith("fr")) {
+                    chk.checked = true;
+                }
+
+                const lbl = document.createElement("label");
+                lbl.innerText = lang.toUpperCase();
+
+                div.appendChild(chk);
+                div.appendChild(lbl);
+                list.appendChild(div);
+            });
+        } else {
+            list.innerHTML = "<span style='color:#888'>Aucune piste audio alternative détectée (Langue par défaut uniquement).</span>";
+        }
+    } catch (e) {
+        list.innerHTML = "Erreur chargement langues.";
+    }
 }
 
 async function startDownload() {
@@ -1069,6 +1133,12 @@ async function startDownload() {
     const format = document.getElementById("dl-format").value;
     const folder = document.getElementById("dl-folder").value;
     const subs = document.getElementById("dl-subs").checked;
+
+    const container = document.getElementById("dl-container").value;
+
+    // Collect selected languages
+    const audio_langs = [];
+    document.querySelectorAll("input[name='dl_lang']:checked").forEach(c => audio_langs.push(c.value));
 
     if (!url) return alert("URL manquante");
     if (!folder || folder.includes("Aucun dossier")) return alert("Veuillez sélectionner un dossier valide.");
@@ -1094,6 +1164,8 @@ async function startDownload() {
             format_id: format,
             target_folder: folder,
             subs: subs,
+            container: container,
+            audio_langs: audio_langs,
             metadata: metadata
         };
 

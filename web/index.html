@@ -484,6 +484,26 @@
                         </div>
                     </div>
 
+                    <!-- Container Selection (MKV/MP4) - Hidden by default unless Video selected -->
+                    <div id="dl-container-opt" class="row-inputs" style="margin-top:10px; display:none;">
+                        <div class="col">
+                            <label>Conteneur Vidéo</label>
+                            <select id="dl-container">
+                                <option value="mp4">MP4 (Compatible)</option>
+                                <option value="mkv">MKV (Multi-Pistes / Robuste)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Audio Languages Selection -->
+                    <div id="dl-audio-langs" style="margin-top:10px; display:none;">
+                        <label>Langues Audio (Doublage)</label>
+                        <div id="dl-langs-list" style="display:flex; flex-wrap:wrap; gap:15px; background:#222; padding:10px; border-radius:4px;">
+                            <!-- Populated JS -->
+                        </div>
+                        <p style="font-size:0.8em; color:#888; margin-top:5px;">Si plusieurs langues sont cochées, le fichier contiendra toutes les pistes (MKV recommandé).</p>
+                    </div>
+
                     <div class="row-inputs" style="align-items:center; margin-top:10px;">
                         <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="document.getElementById('dl-subs').click()">
                             <input type="checkbox" id="dl-subs" checked style="width:18px; height:18px; cursor:pointer;">
