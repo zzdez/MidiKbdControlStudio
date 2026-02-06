@@ -1095,7 +1095,10 @@ async function fetchDLLanguages() {
         list.innerHTML = "";
 
         if (info.languages && info.languages.length > 0) {
-            info.languages.forEach(lang => {
+            info.languages.forEach(item => {
+                const langCode = item.code;
+                const langName = item.name;
+
                 const div = document.createElement("div");
                 div.style.display = "flex";
                 div.style.alignItems = "center";
@@ -1104,26 +1107,36 @@ async function fetchDLLanguages() {
                 // Checkbox
                 const chk = document.createElement("input");
                 chk.type = "checkbox";
-                chk.value = lang;
+                chk.value = langCode;
                 chk.name = "dl_lang";
 
                 // Auto-check logic: "Default" + "French"
-                // Assume 1st is default/original usually
-                if (lang === info.languages[0] || lang.startsWith("fr")) {
+                // Assume 1st is default/original usually, or check "original" in name
+                const isDefault = item === info.languages[0] || (langName && langName.toLowerCase().includes("original"));
+                const isFrench = langCode.startsWith("fr") || (langName && langName.toLowerCase().includes("français"));
+
+                if (isDefault || isFrench) {
                     chk.checked = true;
                 }
 
                 const lbl = document.createElement("label");
-                // Display nicer name
-                const langNames = {
-                    'fr': 'Français', 'en': 'Anglais', 'es': 'Espagnol', 'de': 'Allemand',
-                    'it': 'Italien', 'pt': 'Portugais', 'ru': 'Russe', 'ja': 'Japonais',
-                    'ko': 'Coréen', 'zh': 'Chinois'
-                };
-                let displayName = lang.toUpperCase();
-                // Simple mapping attempt
-                const cleanCode = lang.split('-')[0];
-                if (langNames[cleanCode]) displayName = langNames[cleanCode] + ` (${lang})`;
+
+                // Display: "French (fr)" or just "French" if name provided
+                let displayName = langName;
+                if (langName === langCode) {
+                    // Fallback mapping if name is just code
+                    const langNames = {
+                        'fr': 'Français', 'en': 'Anglais', 'es': 'Espagnol', 'de': 'Allemand',
+                        'it': 'Italien', 'pt': 'Portugais', 'ru': 'Russe', 'ja': 'Japonais',
+                        'ko': 'Coréen', 'zh': 'Chinois'
+                    };
+                    const clean = langCode.split('-')[0];
+                    if (langNames[clean]) displayName = langNames[clean] + ` (${langCode})`;
+                    else displayName = langCode.toUpperCase();
+                } else {
+                    // Name provided by backend (e.g. "French"), add code
+                    displayName = `${langName} (${langCode})`;
+                }
 
                 lbl.innerText = displayName;
 

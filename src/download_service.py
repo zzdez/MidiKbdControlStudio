@@ -84,18 +84,30 @@ class DownloadService:
                 info = ydl.extract_info(url, download=False)
 
                 # Extract Audio Languages
-                languages = set()
+                # Store as dict {code: name} to handle duplicates and prefer names
+                langs_found = {}
                 formats = info.get('formats', [])
 
                 for f in formats:
-                    # Filter Audio Only formats
-                    if f.get('vcodec') == 'none' and f.get('acodec') != 'none':
-                        lang_code = f.get('language')
-                        if lang_code:
-                            languages.add(lang_code)
+                    # Look for audio info
+                    lang = f.get('language')
+                    note = f.get('format_note')
 
-                # Clean list
-                lang_list = sorted(list(languages))
+                    if lang:
+                        # Prefer format_note as label if available (e.g. "French", "Original")
+                        # Otherwise use lang code
+                        label = note if note else lang
+
+                        # If we already found this lang, keep the "better" label (e.g. "French" > "fr")
+                        if lang not in langs_found or (note and not langs_found[lang]['is_note']):
+                            langs_found[lang] = {
+                                'code': lang,
+                                'name': label,
+                                'is_note': bool(note)
+                            }
+
+                # Convert to sorted list
+                lang_list = sorted(langs_found.values(), key=lambda x: x['code'])
 
                 return {
                     "title": info.get('title'),
