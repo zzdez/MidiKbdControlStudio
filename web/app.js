@@ -1052,6 +1052,8 @@ async function toggleDownloadOptions() {
 
     // Video Options
     addOpt("video_auto", "🎬 Vidéo Auto (Meilleur fichier unique)");
+    addOpt("video_2160", "🎬 Vidéo 4K (2160p) (MP4)", ffmpegAvailable);
+    addOpt("video_1440", "🎬 Vidéo 2K (1440p) (MP4)", ffmpegAvailable);
     addOpt("video_1080", "🎬 Vidéo 1080p (MP4)", ffmpegAvailable);
     addOpt("video_720", "🎬 Vidéo 720p (MP4)", ffmpegAvailable);
     addOpt("video_480", "🎬 Vidéo 480p (MP4)", ffmpegAvailable);
