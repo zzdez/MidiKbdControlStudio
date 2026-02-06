@@ -133,19 +133,22 @@ class DownloadService:
             ydl_opts['ffmpeg_location'] = self.ffmpeg_path
 
         # Format Selection Logic
+        # Prioritize French Audio if available ([language^=fr]), fallback to best.
+
+        audio_fmt = 'bestaudio[language^=fr]/bestaudio/best'
 
         # --- AUDIO MODES ---
         if fmt_id == 'audio_original':
             # Best audio, no conversion (M4A/Opus)
             ydl_opts.update({
-                'format': 'bestaudio/best',
+                'format': audio_fmt,
             })
 
         elif fmt_id.startswith('audio_mp3_'):
             # Conversion required
             quality = fmt_id.split('_')[2] # 320, 192, 128
             ydl_opts.update({
-                'format': 'bestaudio/best',
+                'format': audio_fmt,
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
@@ -156,15 +159,19 @@ class DownloadService:
         # --- VIDEO MODES ---
         elif fmt_id == 'video_auto':
             # Best Single File (No Merge)
+            # Try to get French version if it exists as a pre-muxed format
             ydl_opts.update({
-                'format': 'best[ext=mp4]/best',
+                'format': 'best[language^=fr][ext=mp4]/best[ext=mp4]/best',
             })
 
         elif fmt_id.startswith('video_'):
             # Explicit Resolution (Merge Strategy)
             res = fmt_id.split('_')[1] # 1080, 720, etc
+            # Merge Video + French Audio (if avail) OR Best Audio
+            audio_selector = 'bestaudio[language^=fr][ext=m4a]/bestaudio[ext=m4a]/bestaudio'
+
             ydl_opts.update({
-                'format': f'bestvideo[height<={res}][ext=mp4]+bestaudio[ext=m4a]/best[height<={res}][ext=mp4]/best[height<={res}]',
+                'format': f'bestvideo[height<={res}][ext=mp4]+{audio_selector}/best[height<={res}][ext=mp4]/best[height<={res}]',
                 'merge_output_format': 'mp4'
             })
 
@@ -172,7 +179,7 @@ class DownloadService:
         elif fmt_id == 'audio_best':
              if self.ffmpeg_available:
                  ydl_opts.update({
-                    'format': 'bestaudio/best',
+                    'format': audio_fmt,
                     'postprocessors': [{
                         'key': 'FFmpegExtractAudio',
                         'preferredcodec': 'mp3',
@@ -180,7 +187,7 @@ class DownloadService:
                     }],
                 })
              else:
-                 ydl_opts.update({'format': 'bestaudio/best'})
+                 ydl_opts.update({'format': audio_fmt})
 
         # Subtitles
         if download_subs:
