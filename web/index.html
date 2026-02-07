@@ -376,7 +376,7 @@
 
         <div class="modal-body">
             <!-- Search Zone -->
-            <div class="search-zone">
+            <div id="search-zone-container">
                 <div class="input-group">
                     <input type="text" id="yt-search-input" placeholder="Recherche YouTube ou URL..."
                         onkeydown="if(event.key==='Enter') searchYouTube()">
@@ -391,10 +391,16 @@
             <div class="edit-form edit-layout">
 
                 <!-- Zone 1: Title (Full Width) -->
-                <div class="zone-title">
-                    <label>Titre</label>
-                    <input type="text" id="edit-title" placeholder="Titre de la chanson"
-                        style="font-size:1.1em; font-weight:bold;">
+                <div class="zone-title" style="display:flex; gap:10px; align-items:center;">
+                    <button id="btn-back-search" class="btn-secondary" onclick="resetSearchMode()" style="display:none;"
+                        title="Retour Recherche">
+                        🔍 Retour
+                    </button>
+                    <div style="flex:1;">
+                        <label>Titre</label>
+                        <input type="text" id="edit-title" placeholder="Titre de la chanson"
+                            style="font-size:1.1em; font-weight:bold;">
+                    </div>
                 </div>
 
                 <!-- Zone 2: Split View (Image | Description) -->
@@ -466,7 +472,8 @@
                 </div>
 
                 <!-- DOWNLOAD OPTIONS (Hidden) -->
-                <div id="dl-options-container" style="display:none; background:#1a1a1a; padding:15px; margin-top:15px; border-radius:6px; border:1px solid #333;">
+                <div id="dl-options-container"
+                    style="display:none; background:#1a1a1a; padding:15px; margin-top:15px; border-radius:6px; border:1px solid #333;">
                     <h4 style="margin:0 0 15px 0; color:var(--accent); display:flex; align-items:center; gap:10px;">
                         <i class="ph ph-download-simple"></i> Téléchargement Local
                     </h4>
@@ -479,28 +486,34 @@
                             </select>
                         </div>
                         <div class="col">
-                             <label>Dossier de Destination</label>
-                             <select id="dl-folder"></select>
+                            <label>Dossier de Destination</label>
+                            <select id="dl-folder"></select>
                         </div>
                     </div>
 
                     <div class="row-inputs" style="align-items:center; margin-top:10px;">
-                        <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="document.getElementById('dl-subs').click()">
-                            <input type="checkbox" id="dl-subs" checked style="width:18px; height:18px; cursor:pointer;">
-                            <label for="dl-subs" style="margin:0; cursor:pointer;">Télécharger les Sous-titres (SRT)</label>
+                        <div style="display:flex; align-items:center; gap:10px; cursor:pointer;"
+                            onclick="document.getElementById('dl-subs').click()">
+                            <input type="checkbox" id="dl-subs" checked
+                                style="width:18px; height:18px; cursor:pointer;">
+                            <label for="dl-subs" style="margin:0; cursor:pointer;">Télécharger les Sous-titres
+                                (SRT)</label>
                         </div>
                     </div>
 
                     <div style="display:flex; gap:15px; margin-top:20px; align-items:center;">
-                        <button class="btn-primary" onclick="startDownload()" style="background:var(--accent); padding:10px 20px;">
+                        <button class="btn-primary" onclick="startDownload()"
+                            style="background:var(--accent); padding:10px 20px;">
                             <i class="ph ph-download"></i> Lancer
                         </button>
                         <div id="dl-status" style="font-size:0.9em; color:#ccc; flex:1; text-align:right;">Prêt</div>
                     </div>
 
                     <!-- Progress Bar Container -->
-                    <div style="width:100%; background:#333; height:6px; border-radius:3px; margin-top:15px; overflow:hidden;">
-                        <div id="dl-progress-bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.2s ease;"></div>
+                    <div
+                        style="width:100%; background:#333; height:6px; border-radius:3px; margin-top:15px; overflow:hidden;">
+                        <div id="dl-progress-bar"
+                            style="width:0%; height:100%; background:var(--accent); transition:width 0.2s ease;"></div>
                     </div>
                 </div>
 
@@ -509,7 +522,8 @@
 
         <div class="modal-footer">
             <button class="btn-secondary" onclick="previewItem()">Prévisualiser</button>
-            <button id="btn-show-dl" class="btn-secondary" onclick="toggleDownloadOptions()" style="display:none; margin-left:10px;">⬇️ Télécharger</button>
+            <button id="btn-show-dl" class="btn-secondary" onclick="toggleDownloadOptions()"
+                style="display:none; margin-left:10px;">⬇️ Télécharger</button>
             <div style="flex:1"></div>
             <button class="btn-text" onclick="closeModal()">Annuler</button>
             <button class="btn-primary" onclick="saveItem()">Sauvegarder</button>
@@ -596,6 +610,21 @@
         </div>
         <div class="modal-footer" style="justify-content:center; margin-top:10px;">
             <button class="btn-text" onclick="closeImportModal()">Annuler</button>
+        </div>
+    </dialog>
+
+    <!-- PREVIEW MODAL -->
+    <dialog id="preview-modal" class="preview-modal">
+        <div class="modal-header">
+            <h3>Prévisualisation</h3>
+            <button onclick="closePreviewModal()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body"
+            style="padding:0; overflow:hidden; background:black; display:flex; flex-direction:column; height:calc(100% - 50px);">
+            <div id="preview-container"
+                style="width:100%; height:100%; display:flex; justify-content:center; align-items:center;">
+                <!-- JS injected content -->
+            </div>
         </div>
     </dialog>
 

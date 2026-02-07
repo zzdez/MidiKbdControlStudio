@@ -848,6 +848,9 @@ function openAddModal() {
     document.getElementById("dl-progress-bar").style.width = "0%";
     document.getElementById("dl-status").innerText = "Prêt";
 
+    // Reset View: Show Search
+    resetSearchMode();
+
     document.getElementById("yt-search-input").focus();
 }
 
@@ -888,6 +891,10 @@ function openEditModal(index) {
     document.getElementById("dl-options-container").style.display = "none";
     document.getElementById("dl-progress-bar").style.width = "0%";
     document.getElementById("dl-status").innerText = "Prêt";
+
+    // Hide Search Zone in Edit Mode (Save Space)
+    document.getElementById("search-zone-container").classList.add("hidden");
+    document.getElementById("btn-back-search").style.display = "block"; // Start with "Back" button visible to allow new search
 
     // Check if URL is valid for download
     checkDownloadAvailability(track.url);
@@ -936,10 +943,16 @@ async function searchYouTube() {
     }
 }
 
+// --- SEARCH MODE LOGIC ---
+
 function selectResult(video) {
     console.log("Selected Data:", video); // Debug
 
-    // 1. Title & URL
+    // 1. Hide Search, Show Form
+    document.getElementById("search-zone-container").classList.add("hidden");
+    document.getElementById("btn-back-search").style.display = "block";
+
+    // 2. Title & URL
     document.getElementById("edit-title").value = video.title;
     const url = video.id ? `https://www.youtube.com/watch?v=${video.id}` : "";
     if (url) document.getElementById("edit-url").value = url;
@@ -947,31 +960,35 @@ function selectResult(video) {
     // Show Download Button if URL
     if (url) checkDownloadAvailability(url);
 
-    // 2. Channel & Description
+    // 3. Channel & Description
     document.getElementById("edit-channel").value = video.channel || "";
     document.getElementById("youtube-desc-input").value = video.description || "";
 
-    // 3. Thumbnail Preview
+    // 4. Thumbnail Preview
     if (video.thumbnail_url) {
         document.getElementById("preview-thumbnail").innerHTML = `<img src="${video.thumbnail_url}">`;
     } else {
         document.getElementById("preview-thumbnail").innerHTML = '<span style="font-size:40px;">🎵</span>';
     }
 
-    // 4. Try Parse Artist (Format "Artist - Title")
+    // 5. Try Parse Artist (Format "Artist - Title")
     if (video.title && video.title.includes("-")) {
         const parts = video.title.split("-");
         if (parts.length >= 2) {
             document.getElementById("edit-artist").value = parts[0].trim();
-            // Optionally clean title? No, keep original title usually safer or ask user.
         }
-    } else {
-        // Fallback: Use Channel as Artist? often true for VEVO etc
-        // document.getElementById("edit-artist").value = video.channel;
     }
 
-    // 5. Auto-set mode
+    // 6. Auto-set mode
     document.getElementById("edit-mode").value = "iframe";
+}
+
+function resetSearchMode() {
+    // Show Search, Hide Back Button
+    document.getElementById("search-zone-container").classList.remove("hidden");
+    document.getElementById("btn-back-search").style.display = "none";
+
+    // Optional: Clear form if desired? For now we keep it so user doesn't lose data if they misclicked.
 }
 
 // --- DOWNLOADER LOGIC ---
@@ -1004,6 +1021,13 @@ async function toggleDownloadOptions() {
     }
 
     container.style.display = "block";
+
+    // Auto-scroll to bottom of modal to show options
+    // Auto-scroll to bottom of modal to show options
+    // Use requestAnimationFrame to ensure DOM verify
+    requestAnimationFrame(() => {
+        container.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
 
     // 1. Populate Folders
     const folderSelect = document.getElementById("dl-folder");
@@ -1198,8 +1222,56 @@ function previewItem() {
         profile_name: "Preview" // Temporary
     };
 
-    // Play it
-    playTrack(track);
+    // Play it in Preview Modal
+    openPreviewModal(track);
+}
+
+function openPreviewModal(track) {
+    const dialog = document.getElementById("preview-modal");
+    const container = document.getElementById("preview-container");
+    const url = track.url || "";
+
+    // Clean previous
+    container.innerHTML = "";
+
+    console.log("Opening Preview for:", url);
+
+    // Determine type
+    if (url.includes("youtube.com") || url.includes("youtu.be")) {
+        // Extract ID or use existing if parsed
+        let id = track.id;
+        if (!id) {
+            const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
+            if (match) id = match[1];
+        }
+
+        if (id) {
+            // Use Embed Iframe for simplicity in preview
+            container.innerHTML = `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${id}?autoplay=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+        } else {
+            container.innerHTML = "<div style='color:white;'>ID YouTube invalide ou URL non reconnue.</div>";
+        }
+    } else {
+        // Generic Iframe or Video?
+        if (url.match(/\.(mp4|webm|ogv)$/i)) {
+            container.innerHTML = `<video src="${url}" controls autoplay style="width:100%; height:100%"></video>`;
+        } else {
+            // Generic Embed
+            const smartUrl = getEmbedUrl(url); // Existing helper
+            container.innerHTML = `<iframe width="100%" height="100%" src="${smartUrl}" frameborder="0" allowfullscreen></iframe>`;
+        }
+    }
+
+    dialog.showModal();
+}
+
+function closePreviewModal() {
+    const dialog = document.getElementById("preview-modal");
+    const container = document.getElementById("preview-container");
+
+    // Stop playback
+    container.innerHTML = "";
+    dialog.close();
 }
 
 // --- PLAYER ---

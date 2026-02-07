@@ -545,8 +545,8 @@ dialog::backdrop {
 .split-right textarea {
     flex: 1;
     /* Fill remaining vertical space */
-    min-height: 170px;
-    /* Approximate 16:9 of 320px width */
+    min-height: 100px;
+    /* Reduced from 170px */
 }
 
 .thumbnail-preview {
@@ -578,7 +578,10 @@ dialog::backdrop {
 
 .row-inputs {
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    /* Compact gap */
+    margin-bottom: 5px;
+    /* Compact margin */
 }
 
 .col {
@@ -612,7 +615,9 @@ dialog::backdrop {
     font-size: 0.8em;
     color: #aaa;
     background: #181818;
-    height: 120px;
+    height: 80px;
+    /* Reduced from 120px */
+    min-height: 80px;
 }
 
 /* BUTTONS */
@@ -885,4 +890,42 @@ dialog::backdrop {
 .suggestion-delete:hover {
     background: rgba(207, 102, 121, 0.2);
     color: #ff8a9f;
+}
+
+/* UTILITY CLASSES */
+.hidden {
+    display: none !important;
+}
+
+.visible {
+    display: block !important;
+}
+
+/* PREVIEW MODAL */
+.preview-modal {
+    width: 80vw;
+    max-width: 1000px;
+    background: black;
+    color: white;
+    border: 1px solid #444;
+    padding: 0;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+    position: fixed;
+    margin: auto;
+}
+
+
+.preview-modal .modal-body {
+    width: 100%;
+    height: auto !important;
+    aspect-ratio: 16/9;
+    background: black;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.preview-modal::backdrop {
+    background: rgba(0, 0, 0, 0.85);
 }
