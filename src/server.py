@@ -990,6 +990,12 @@ async def dl_info(data: Dict):
     if not url: raise HTTPException(status_code=400, detail="Missing URL")
     return download_service.get_formats(url)
 
+@app.post("/api/dl/stream_url")
+async def dl_stream_url(data: Dict):
+    url = data.get("url")
+    if not url: raise HTTPException(status_code=400, detail="Missing URL")
+    return download_service.get_direct_url(url)
+
 @app.post("/api/dl/start")
 async def dl_start(data: Dict):
     """

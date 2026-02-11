@@ -96,6 +96,35 @@ class DownloadService:
             logging.error(f"DL Info Error: {e}")
             return {"error": str(e)}
 
+    def get_direct_url(self, url):
+        """
+        Retrieves the direct stream URL for a video (fallback preview).
+        """
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'format': 'best[ext=mp4]/best', # Prefer MP4 for browser compatibility
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+            },
+        }
+
+        if self.ffmpeg_path:
+            ydl_opts['ffmpeg_location'] = self.ffmpeg_path
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                return {
+                    "url": info.get('url'), # The direct stream link
+                    "title": info.get('title'),
+                    "thumbnail": info.get('thumbnail')
+                }
+        except Exception as e:
+            logging.error(f"Get Direct URL Error: {e}")
+            return {"error": str(e)}
+
     def download(self, options, progress_callback=None, completion_callback=None):
         """
         Blocking download function. Should be run in a thread.

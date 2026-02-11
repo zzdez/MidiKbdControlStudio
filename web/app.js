@@ -260,11 +260,23 @@ function connectVideoWebSocket() {
                 status.innerText = msg.status === "processing" ? "Finalisation..." : Math.round(msg.percent) + "%";
             }
         } else if (msg.type === "dl_complete") {
-            alert("Téléchargement terminé avec succès !");
-            document.getElementById("dl-status").innerText = "Terminé ✅";
-            document.getElementById("dl-progress-bar").style.width = "100%";
-            // Refresh local view if visible
-            loadLocalFiles();
+            // Check auto-close preference
+            const autoClose = document.getElementById("dl-autoclose") && document.getElementById("dl-autoclose").checked;
+
+            if (autoClose) {
+                closeModal();
+                alert("Téléchargement terminé et ajouté aux Fichiers Locaux !");
+                // Refresh local view if visible
+                loadLocalFiles();
+            } else {
+                document.getElementById("dl-status").innerText = "Terminé ✅";
+                document.getElementById("dl-progress-bar").style.width = "100%";
+                // Refresh local view if visible
+                loadLocalFiles();
+                // Change Cancel button to "Fermer" to indicate it's safe to leave
+                // Note: we might need a specific ID for that button or simpler:
+                // The user can just click "Annuler" or cross.
+            }
         } else if (msg.type === "dl_error") {
             alert("Erreur de téléchargement : " + msg.error);
             document.getElementById("dl-status").innerText = "Erreur ❌";
@@ -1226,10 +1238,23 @@ function previewItem() {
     openPreviewModal(track);
 }
 
+let currentPreviewUrl = "";
+
 function openPreviewModal(track) {
     const dialog = document.getElementById("preview-modal");
     const container = document.getElementById("preview-container");
     const url = track.url || "";
+    currentPreviewUrl = url;
+
+    // Reset UI Elements
+    const fallbackBtn = document.getElementById("btn-preview-fallback");
+    if (fallbackBtn) {
+        fallbackBtn.style.display = "flex";
+        fallbackBtn.innerHTML = "<span>🔓</span> Forcer la Lecture (Débloquer)";
+        fallbackBtn.disabled = false;
+    }
+    const infoSpan = document.getElementById("preview-info");
+    if (infoSpan) infoSpan.innerText = "Mode Standard (YouTube Embed)";
 
     // Clean previous
     container.innerHTML = "";
@@ -1257,21 +1282,73 @@ function openPreviewModal(track) {
             container.innerHTML = `<video src="${url}" controls autoplay style="width:100%; height:100%"></video>`;
         } else {
             // Generic Embed
-            const smartUrl = getEmbedUrl(url); // Existing helper
-            container.innerHTML = `<iframe width="100%" height="100%" src="${smartUrl}" frameborder="0" allowfullscreen></iframe>`;
+            // Helper might be missing in context, check if getEmbedUrl exists or use simple iframe
+            // Assuming getEmbedUrl exists as per original code context, otherwise fallback
+            let src = url;
+            try { if (typeof getEmbedUrl === 'function') src = getEmbedUrl(url); } catch (e) { }
+
+            container.innerHTML = `<iframe width="100%" height="100%" src="${src}" frameborder="0" allowfullscreen></iframe>`;
         }
     }
 
+    dialog.style.display = "flex"; // FORCE VISIBILITY
     dialog.showModal();
+}
+
+async function unlockPreview() {
+    if (!currentPreviewUrl) return alert("Aucune vidéo détectée.");
+
+    const container = document.getElementById("preview-container");
+    const btn = document.getElementById("btn-preview-fallback");
+    const info = document.getElementById("preview-info");
+
+    btn.disabled = true;
+    btn.innerHTML = "<span>⌛</span> Chargement...";
+
+    try {
+        const payload = { url: currentPreviewUrl };
+        const res = await fetch("/api/dl/stream_url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.detail || "Erreur serveur");
+        if (data.error) throw new Error(data.error);
+
+        if (data.url) {
+            // Success: Switch to Video Tag
+            container.innerHTML = `
+                <video src="${data.url}" controls autoplay
+                       style="width:100%; height:100%; outline:none; background:black;"
+                       onerror="alert('Impossible de lire le flux direct (Expiré ou format non supporté).')">
+                </video>
+            `;
+            if (info) info.innerText = "Mode Débloqué (Flux Direct)";
+            btn.style.display = "none"; // Hide button on success
+        } else {
+            throw new Error("Aucun lien trouvé");
+        }
+
+    } catch (e) {
+        alert("Impossible de débloquer la vidéo : " + e.message);
+        btn.innerHTML = "<span>🔓</span> Forcer la Lecture (Débloquer)";
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 function closePreviewModal() {
     const dialog = document.getElementById("preview-modal");
     const container = document.getElementById("preview-container");
 
-    // Stop playback
+    // Stop video
     container.innerHTML = "";
+
     dialog.close();
+    dialog.style.display = "none"; // FORCE HIDE
 }
 
 // --- PLAYER ---
@@ -2016,6 +2093,15 @@ function openEditLocalModal(index) {
     editingLocalIndex = index;
     const item = localFiles[index];
     document.getElementById("modal-local").showModal();
+
+    // ASPECT RATIO LOGIC
+    const artContainer = document.getElementById("local-art-container");
+    // Simple check for video extensions
+    if (item.path.match(/\.(mp4|mkv|mov|avi|webm|m4v)$/i)) {
+        artContainer.classList.add("video-mode");
+    } else {
+        artContainer.classList.remove("video-mode");
+    }
 
     document.getElementById("local-path-display").innerText = item.path;
     document.getElementById("local-title").value = item.title;

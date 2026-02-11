@@ -542,6 +542,21 @@ dialog::backdrop {
 }
 
 /* Make Youtube Description fill height of image approx */
+/* LOCAL ART CONTAINER */
+.art-container {
+    width: 150px;
+    aspect-ratio: 1 / 1;
+    cursor: pointer;
+    position: relative;
+    border-radius: 8px;
+    /* transition: all 0.2s ease; */
+}
+
+.art-container.video-mode {
+    width: 270px;
+    aspect-ratio: 16 / 9;
+}
+
 .split-right textarea {
     flex: 1;
     /* Fill remaining vertical space */
