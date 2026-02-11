@@ -891,6 +891,30 @@ async def delete_local_file(index: int):
     except Exception as e:
          raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/local/art/{index}")
+async def get_local_art(index: int):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+                 
+        if 0 <= index < len(items):
+            path = items[index]["path"]
+            # Use Service
+            data, mime = metadata_service.get_file_cover(path)
+            
+            if data and mime:
+                 # Helper response with caching
+                 return Response(content=data, media_type=mime)
+            else:
+                 raise HTTPException(status_code=404, detail="No Art")
+        else:
+             raise HTTPException(status_code=404, detail="Index not found")
+    except Exception as e:
+        print(f"Art Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # --- CONFIG MANAGER (Profiles/Devices) ---
 @app.get("/api/profiles")

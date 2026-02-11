@@ -400,9 +400,90 @@ class MetadataService:
                     logging.error(f"Generic Write Error: {e}")
                     return False
 
-        except PermissionError:
-            raise PermissionError("File in use")
         except Exception as e:
             logging.error(f"Metadata Write Fatal Error: {e}")
 
         return False
+
+    def get_file_cover(self, path):
+        """
+        Extracts embedded cover art from file.
+        Returns (data: bytes, mime_type: str) or (None, None).
+        """
+        if not os.path.exists(path): return None, None
+        
+        ext = os.path.splitext(path)[1].lower()
+        
+        try:
+            # === MP3 (ID3) ===
+            if ext == ".mp3":
+                try:
+                    audio = ID3(path)
+                    for tag in audio.getall("APIC"):
+                        if tag.type == 3: # Front Cover
+                            return tag.data, tag.mime
+                    # Fallback: any picture
+                    if audio.getall("APIC"):
+                        tag = audio.getall("APIC")[0]
+                        return tag.data, tag.mime
+                except: pass
+
+            # === FLAC ===
+            elif ext == ".flac":
+                try:
+                    audio = FLAC(path)
+                    if audio.pictures:
+                        p = audio.pictures[0]
+                        return p.data, p.mime
+                except: pass
+
+            # === M4A / MP4 ===
+            elif ext in [".m4a", ".mp4", ".m4v"]:
+                try:
+                    audio = MP4(path)
+                    if "covr" in audio:
+                        covers = audio["covr"]
+                        if covers:
+                            data = covers[0]
+                            # MP4Cover is a bytes subclass, but might need formatting
+                            mime = "image/jpeg"
+                            if data.imageformat == MP4Cover.FORMAT_PNG: mime = "image/png"
+                            return bytes(data), mime
+                except: pass
+
+            # === OGG ===
+            elif ext == ".ogg":
+                 try:
+                    audio = OggVorbis(path)
+                    if "metadata_block_picture" in audio:
+                        # Block is base64 encoded
+                        for b64_data in audio["metadata_block_picture"]:
+                            try:
+                                raw = base64.b64decode(b64_data)
+                                pic = Picture(raw)
+                                if pic.type == 3: return pic.data, pic.mime
+                            except: pass
+                        
+                        # Fallback
+                        raw = base64.b64decode(audio["metadata_block_picture"][0])
+                        pic = Picture(raw)
+                        return pic.data, pic.mime
+                 except: pass
+
+            # === WAV (ID3 Chunk) ===
+            elif ext == ".wav":
+                try:
+                    audio = WAVE(path)
+                    if audio.tags:
+                         # Same as ID3
+                        for tag in audio.tags.getall("APIC"):
+                            if tag.type == 3: return tag.data, tag.mime
+                        if audio.tags.getall("APIC"):
+                            tag = audio.tags.getall("APIC")[0]
+                            return tag.data, tag.mime
+                except: pass
+
+        except Exception as e:
+            logging.error(f"Cover Read Error {path}: {e}")
+            
+        return None, None

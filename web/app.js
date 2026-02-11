@@ -1003,6 +1003,89 @@ function resetSearchMode() {
     // Optional: Clear form if desired? For now we keep it so user doesn't lose data if they misclicked.
 }
 
+function connectVideoWebSocket() {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}/ws`;
+
+    console.log("Connecting WebSocket:", wsUrl);
+    websocket = new WebSocket(wsUrl);
+
+    websocket.onopen = () => {
+        console.log("WebSocket OPEN");
+        // Re-send current mode to sync backend state
+        if (currentMode) {
+            websocket.send(JSON.stringify({
+                type: "set_mode",
+                mode: currentMode,
+                target_profile: document.title.replace("Airstep Studio - ", "")
+            }));
+        }
+    };
+
+    websocket.onmessage = (event) => {
+        try {
+            const msg = JSON.parse(event.data);
+
+            if (msg.type === "dl_progress") {
+                const percent = msg.percent;
+                const status = msg.status;
+                const bar = document.getElementById("dl-progress-bar");
+                const text = document.getElementById("dl-status");
+
+                if (bar) bar.style.width = percent + "%";
+                if (text) text.innerText = `${status} (${Math.round(percent)}%)`;
+
+            } else if (msg.type === "dl_complete") {
+                const text = document.getElementById("dl-status");
+                const bar = document.getElementById("dl-progress-bar");
+
+                if (text) text.innerText = "Téléchargement terminé !";
+                if (bar) {
+                    bar.style.width = "100%";
+                    bar.style.background = "#4caf50"; // Green
+                }
+
+                // Check Auto Close
+                const autoClose = document.getElementById("dl-auto-close").checked;
+                if (autoClose) {
+                    setTimeout(() => {
+                        document.getElementById("dl-options-container").style.display = "none";
+                        // Also clear the fields? Or keep them?
+                        // Usually we just hide the options, maybe user wants to dl another format.
+                    }, 1000);
+                }
+
+                // Refresh Lists
+                loadLocalFiles();
+                loadSetlist();
+
+            } else if (msg.type === "dl_error") {
+                alert("Erreur Téléchargement: " + msg.error);
+                const text = document.getElementById("dl-status");
+                const bar = document.getElementById("dl-progress-bar");
+                if (text) text.innerText = "Erreur";
+                if (bar) bar.style.background = "#cf6679"; // Red
+
+            } else if (msg.type === "log") {
+                console.log("[SERVER LOG]", msg.message);
+            }
+
+        } catch (e) {
+            console.error("WS Message Error", e);
+        }
+    };
+
+    websocket.onclose = () => {
+        console.warn("WebSocket Closed. Reconnecting in 3s...");
+        setTimeout(connectVideoWebSocket, 3000);
+    };
+
+    websocket.onerror = (e) => {
+        console.error("WebSocket Error", e);
+    };
+}
+
 // --- DOWNLOADER LOGIC ---
 
 let ffmpegAvailable = false;
