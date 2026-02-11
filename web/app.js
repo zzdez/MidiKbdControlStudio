@@ -1047,10 +1047,14 @@ function connectVideoWebSocket() {
                 }
 
                 // Check Auto Close
-                const autoClose = document.getElementById("dl-autoclose").checked;
+                const autoCloseCheckbox = document.getElementById("dl-autoclose");
+                const autoClose = autoCloseCheckbox ? autoCloseCheckbox.checked : false;
+                console.log("[DL] Complete. AutoClose Checked:", autoClose);
+
                 if (autoClose) {
+                    console.log("[DL] Auto-closing modal in 1s...");
                     setTimeout(() => {
-                        // document.getElementById("dl-options-container").style.display = "none";
+                        console.log("[DL] Closing modal now.");
                         closeModal(); // FULL CLOSE
                     }, 1000);
                 }
