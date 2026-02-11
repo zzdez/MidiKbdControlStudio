@@ -1047,12 +1047,11 @@ function connectVideoWebSocket() {
                 }
 
                 // Check Auto Close
-                const autoClose = document.getElementById("dl-auto-close").checked;
+                const autoClose = document.getElementById("dl-autoclose").checked;
                 if (autoClose) {
                     setTimeout(() => {
-                        document.getElementById("dl-options-container").style.display = "none";
-                        // Also clear the fields? Or keep them?
-                        // Usually we just hide the options, maybe user wants to dl another format.
+                        // document.getElementById("dl-options-container").style.display = "none";
+                        closeModal(); // FULL CLOSE
                     }, 1000);
                 }
 

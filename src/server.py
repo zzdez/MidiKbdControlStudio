@@ -1048,6 +1048,17 @@ async def dl_start(data: Dict):
                 # Check for cover art passed in metadata to force cached refresh if needed?
                 # Actually scan_file_metadata is enough usually.
 
+                # MERGE LOGICAL METADATA (Category, Notes, Profile)
+                # scan_file_metadata only gets physical tags. We want to keep what user entered.
+                original_meta = data.get("metadata", {})
+                if original_meta:
+                    if "category" in original_meta: file_data["category"] = original_meta["category"]
+                    if "user_notes" in original_meta: file_data["user_notes"] = original_meta["user_notes"]
+                    if "target_profile" in original_meta: file_data["target_profile"] = original_meta["target_profile"]
+                    # If physical title/artist empty, use input
+                    if not file_data.get("title") and "title" in original_meta: file_data["title"] = original_meta["title"]
+                    if not file_data.get("artist") and "artist" in original_meta: file_data["artist"] = original_meta["artist"]
+
                 items = []
                 if os.path.exists(LOCAL_LIB_FILE):
                     with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
