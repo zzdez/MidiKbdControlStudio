@@ -635,7 +635,7 @@ dialog::backdrop {
     min-height: 80px;
 }
 
-/* BUTTONS */
+/* BUTTONS & ICONS */
 .btn-primary {
     background: var(--accent);
     color: black;
@@ -660,16 +660,118 @@ dialog::backdrop {
     text-decoration: underline;
 }
 
+/* Original btn-icon kept for compatibility, but modern controls use specific classes below */
 .btn-icon {
     background: transparent;
     border: none;
     color: white;
     font-size: 1.2em;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
 }
 
 .btn-icon:hover {
     color: var(--accent);
+}
+
+/* --- MODERN MEDIA CONTROLS --- */
+.media-controls-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    background: #1e1e1e;
+    /* Slightly lighter than bg */
+    padding: 10px 20px;
+    border-radius: 50px;
+    /* Pill shape container */
+    margin-top: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.control-btn {
+    background: transparent;
+    border: none;
+    color: #eee;
+    font-size: 24px;
+    /* Standard size */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+}
+
+.control-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    transform: scale(1.1);
+}
+
+.control-btn:active {
+    transform: scale(0.95);
+}
+
+.control-btn-large {
+    font-size: 48px;
+    /* Big Play Button */
+    color: var(--accent);
+    width: 60px;
+    height: 60px;
+    padding: 0;
+}
+
+.control-btn-large:hover {
+    color: #d0aaff;
+    background: transparent;
+    /* No bg hover for large icon, just color/glow */
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 8px rgba(187, 134, 252, 0.4));
+}
+
+/* Speed Pill Container */
+.speed-pill {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: #2a2a2a;
+    border-radius: 20px;
+    padding: 0 5px;
+    height: 32px;
+    border: 1px solid #333;
+}
+
+.speed-pill button {
+    background: transparent;
+    border: none;
+    color: #aaa;
+    width: 24px;
+    height: 100%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.speed-pill button:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.speed-display {
+    font-size: 0.8em;
+    color: var(--accent);
+    font-weight: bold;
+    min-width: 40px;
+    text-align: center;
+    user-select: none;
 }
 
 /* SEARCH FILTERS */
@@ -796,6 +898,183 @@ dialog::backdrop {
     flex: 1;
     padding: 20px;
     min-height: 300px;
+}
+
+/* CHAPTERS */
+#chapter-container {
+    background: #181818;
+    margin-top: 10px;
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #333;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+    /* Hidden by default */
+}
+
+#chapter-list-title {
+    font-size: 0.8em;
+    color: #888;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+}
+
+.chapter-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    border-bottom: 1px solid #2a2a2a;
+    cursor: pointer;
+    border-radius: 4px;
+    color: #ccc;
+    font-size: 0.9em;
+}
+
+.chapter-item:hover {
+    background: #2a2a2a;
+    color: white;
+}
+
+.chapter-item.active {
+    background: #333;
+    color: var(--accent);
+    border-left: 3px solid var(--accent);
+}
+
+.chapter-time {
+    font-family: monospace;
+    opacity: 0.7;
+    font-size: 0.85em;
+    background: #222;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+/* CUSTOM VIDEO TIMELINE */
+#video-timeline-container {
+    display: flex;
+    /* Will be toggled by JS */
+    align-items: center;
+    justify-content: center;
+    margin-top: 5px;
+}
+
+#video-progress-bar-bg {
+    position: relative;
+    width: 100%;
+    height: 6px;
+    background: #333;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+#video-progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    /* Let clicks pass to slider */
+    transition: width 0.1s linear;
+}
+
+#video-seek-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    border: none;
+    z-index: 10;
+}
+
+#video-seek-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: white;
+    /* Visible thumb on hover? Or make opacity 0 unless active */
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+#video-timeline-container:hover #video-seek-slider::-webkit-slider-thumb {
+    opacity: 1;
+}
+
+/* CHAPTER MARKERS ON TIMELINE */
+/* CHAPTER MARKERS ON TIMELINE */
+.timeline-marker {
+    position: absolute;
+    top: -2px;
+    /* Slight overflow for hit area */
+    height: 10px;
+    /* Taller target */
+    width: 10px;
+    /* Wider target for easier hover */
+    background: transparent;
+    /* Invisible container */
+    pointer-events: auto;
+    z-index: 20;
+    transform: translateX(-50%);
+    /* Center on the exact time */
+    display: flex;
+    /* Centering helper */
+    justify-content: center;
+    align-items: center;
+}
+
+/* The visible line */
+.timeline-marker::before {
+    content: '';
+    width: 2px;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 1px;
+    transition: all 0.1s;
+}
+
+.timeline-marker:hover::before {
+    background: white;
+    transform: scaleY(1.4);
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
+}
+
+.timeline-marker:hover {
+    z-index: 30;
+    /* Bring to front on hover */
+}
+
+/* Tooltip for chapter name */
+.timeline-marker::after {
+    content: attr(data-title);
+    position: absolute;
+    bottom: 15px;
+    /* Higher up */
+    left: 50%;
+    transform: translateX(-50%);
+    /* Center text */
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 100;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+    border: 1px solid #444;
+}
+
+.timeline-marker:hover::after {
+    opacity: 1;
 }
 
 .settings-tab h4 {

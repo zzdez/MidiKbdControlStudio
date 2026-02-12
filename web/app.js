@@ -1610,11 +1610,19 @@ window.addEventListener('keydown', (e) => {
             break;
         case 'ArrowLeft':
         case 'KeyJ': // YouTube standard (-10s usually, we do -5s)
-            command = 'media_rewind';
+            if (e.ctrlKey) command = 'media_chapter_prev';
+            else command = 'media_rewind';
             break;
         case 'ArrowRight':
         case 'KeyL': // YouTube standard (+10s usually)
-            command = 'media_forward';
+            if (e.ctrlKey) command = 'media_chapter_next';
+            else command = 'media_forward';
+            break;
+        case 'MediaTrackPrevious':
+            command = 'media_chapter_prev';
+            break;
+        case 'MediaTrackNext':
+            command = 'media_chapter_next';
             break;
         case 'ArrowUp':
             command = 'media_speed_up';
@@ -1728,6 +1736,10 @@ function executeWebAction(command) {
             case 'media_pitch_up': changePitch(0.1); break;
             case 'media_pitch_down': changePitch(-0.1); break;
             case 'media_pitch_reset': updatePitch(0); break;
+
+            // Chapter Commands
+            case 'media_chapter_prev': videoControl('chapter_prev'); break;
+            case 'media_chapter_next': videoControl('chapter_next'); break;
         }
     }
 }
@@ -1786,7 +1798,13 @@ function initWaveSurfer() {
             const duration = wavesurfer.getDuration();
             const fmt = (s) => new Date(s * 1000).toISOString().substr(14, 5);
             document.getElementById("audio-time").innerText = fmt(currentTime) + " / " + fmt(duration);
+            updateActiveChapter(currentTime);
         });
+
+        // --- NEW: Icon Toggle ---
+        wavesurfer.on('play', () => updatePlayPauseIcon('audio', true));
+        wavesurfer.on('pause', () => updatePlayPauseIcon('audio', false));
+
     } catch (e) { console.error("WaveSurfer Init Error:", e); }
 }
 
@@ -1922,6 +1940,9 @@ function playLocal(index) {
     console.log("[DEBUG JS] Profil Cible (si Auto) :", isVideo ? "Web Video Local" : "Web Audio Local");
     console.log("[DEBUG JS] Profil Forcé (Item) :", file.target_profile);
 
+    // RENDER CHAPTERS
+    renderChapters(file.chapters);
+
     // AUTO-RESET PITCH
     updatePitch(0);
 
@@ -1958,6 +1979,10 @@ function playLocal(index) {
         videoContainer.style.display = "none";
         audioContainer.style.display = "flex";
         document.getElementById("video-controls-container").style.display = "none";
+        // Hide Custom Timeline
+        const valT = document.getElementById("video-timeline-container");
+        if (valT) valT.style.display = "none";
+
         const vPitch = document.getElementById("video-pitch-control");
         if (vPitch) vPitch.style.display = "none";
 
@@ -1999,6 +2024,14 @@ function playLocal(index) {
         audioContainer.style.display = "none";
         v.style.display = "block";
         document.getElementById("video-controls-container").style.display = "flex";
+
+        // Show Custom Timeline
+        const timeline = document.getElementById("video-timeline-container");
+        if (timeline) {
+            timeline.style.display = "flex";
+            setupVideoTimeline();
+        }
+
         const vPitch = document.getElementById("video-pitch-control");
         if (vPitch) vPitch.style.display = "flex";
 
@@ -2019,6 +2052,7 @@ function playLocal(index) {
 
         // 1. Set Source
         v.src = `/api/local/stream/${index}`;
+        v.ontimeupdate = () => updateActiveChapter(v.currentTime);
 
 
 
@@ -2075,38 +2109,80 @@ function videoControl(action) {
     if (!vid) return;
 
     switch (action) {
-        case 'playpause':
-            vid.paused ? vid.play() : vid.pause();
-            break;
         case 'prev':
             vid.currentTime -= 5;
+            updateTimelineUI(vid.currentTime);
             break;
+
         case 'next':
             vid.currentTime += 5;
+            updateTimelineUI(vid.currentTime);
             break;
+
+        case 'chapter_prev':
+            if (currentChapters.length > 0) {
+                let currentIdx = -1;
+                for (let i = 0; i < currentChapters.length; i++) {
+                    if (vid.currentTime >= currentChapters[i].start_time) currentIdx = i;
+                    else break;
+                }
+
+                if (currentIdx >= 0) {
+                    const chapStart = currentChapters[currentIdx].start_time;
+                    if (vid.currentTime - chapStart > 3) {
+                        vid.currentTime = chapStart;
+                    } else if (currentIdx > 0) {
+                        vid.currentTime = currentChapters[currentIdx - 1].start_time;
+                    } else {
+                        vid.currentTime = 0;
+                    }
+                    updateTimelineUI(vid.currentTime);
+                    return;
+                }
+            }
+            // Fallback
+            vid.currentTime = 0;
+            updateTimelineUI(0);
+            break;
+
+        case 'chapter_next':
+            if (currentChapters.length > 0) {
+                let currentIdx = -1;
+                for (let i = 0; i < currentChapters.length; i++) {
+                    if (vid.currentTime >= currentChapters[i].start_time) currentIdx = i;
+                    else break;
+                }
+
+                let nextChap = currentChapters.find(c => c.start_time > vid.currentTime + 0.5);
+                if (nextChap) {
+                    vid.currentTime = nextChap.start_time;
+                    updateTimelineUI(vid.currentTime);
+                    return;
+                }
+            }
+            break;
+
+        case 'playpause': vid.paused ? vid.play() : vid.pause(); break;
         case 'restart':
             vid.currentTime = 0;
+            updateTimelineUI(0);
             break;
         case 'speed_up':
-            {
-                let rate = vid.playbackRate;
-                rate = Math.min(rate + 0.05, 2.0);
-                rate = Math.round(rate * 100) / 100;
-                vid.playbackRate = rate;
-                document.getElementById("btn-video-speed").innerText = rate + "x";
-            }
+            let rateU = vid.playbackRate;
+            rateU = Math.min(rateU + 0.05, 2.0);
+            vid.playbackRate = rateU;
+            document.getElementById("btn-video-speed").innerText = rateU.toFixed(2) + "x";
             break;
         case 'speed_down':
-            {
-                let rate = vid.playbackRate;
-                rate = Math.max(rate - 0.05, 0.5);
-                rate = Math.round(rate * 100) / 100;
-                vid.playbackRate = rate;
-                document.getElementById("btn-video-speed").innerText = rate + "x";
-            }
+            let rateD = vid.playbackRate;
+            rateD = Math.max(rateD - 0.05, 0.5);
+            vid.playbackRate = rateD;
+            document.getElementById("btn-video-speed").innerText = rateD.toFixed(2) + "x";
             break;
     }
 }
+
+
 
 async function addLocalFile() {
     const res = await fetch("/api/local/add", { method: "POST" });
@@ -2472,3 +2548,166 @@ window.onload = () => {
     loadSettings(); // Ensure settings are loaded on startup
     checkDLStatus(); // Check FFmpeg status
 };
+let currentChapters = [];
+
+function renderChapters(chapters) {
+    currentChapters = chapters || [];
+
+    // 1. RENDER LIST (Hidden by default as per user request)
+    const listContainer = document.getElementById("chapter-container");
+    const list = document.getElementById("chapter-list");
+
+    if (currentChapters.length > 0) {
+        listContainer.style.display = "none";
+        list.innerHTML = "";
+        currentChapters.forEach((chap, idx) => {
+            const div = document.createElement("div");
+            div.className = "chapter-item";
+            div.id = `chapter-list-item-${idx}`;
+            div.onclick = () => seekToChapter(chap.start_time);
+            const fmt = (s) => new Date(s * 1000).toISOString().substr(14, 5);
+            div.innerHTML = `<span>${chap.title}</span><span class="chapter-time">${fmt(chap.start_time)}</span>`;
+            list.appendChild(div);
+        });
+    } else {
+        listContainer.style.display = "none";
+    }
+
+    // 2. RENDER MARKERS ON VIDEO TIMELINE
+    const markersContainer = document.getElementById("video-chapter-markers");
+    if (markersContainer) {
+        markersContainer.innerHTML = "";
+
+        const v = document.getElementById("html5-player");
+        if (v && currentChapters.length > 0) {
+            const drawMarkers = () => {
+                if (!v.duration || isNaN(v.duration)) return;
+                markersContainer.innerHTML = "";
+                currentChapters.forEach((chap) => {
+                    if (chap.start_time <= 0) return;
+                    const pct = (chap.start_time / v.duration) * 100;
+
+                    const marker = document.createElement("div");
+                    marker.className = "timeline-marker";
+                    marker.style.left = pct + "%";
+                    marker.setAttribute("data-title", chap.title);
+                    marker.onclick = (e) => {
+                        // Marker click logic if needed
+                    };
+                    markersContainer.appendChild(marker);
+                });
+            };
+
+            if (isNaN(v.duration)) {
+                // Wait for metadata
+            } else {
+                drawMarkers();
+            }
+        }
+    }
+}
+
+function updateTimelineUI(currentTime) {
+    const v = document.getElementById("html5-player");
+    const slider = document.getElementById("video-seek-slider");
+    const fill = document.getElementById("video-progress-fill");
+
+    if (v && v.duration && slider && fill) {
+        const pct = (currentTime / v.duration) * 100;
+        slider.value = pct;
+        fill.style.width = pct + "%";
+        // Also update active chapter in background (list)
+        updateActiveChapter(currentTime);
+    }
+}
+
+function setupVideoTimeline() {
+    const v = document.getElementById("html5-player");
+    const slider = document.getElementById("video-seek-slider");
+    const fill = document.getElementById("video-progress-fill");
+
+    if (!v || !slider || !fill) return;
+
+    // Time Update: Move Slider & Fill
+    v.ontimeupdate = () => {
+        updateTimelineUI(v.currentTime);
+    };
+
+    // Input: Seek
+    slider.oninput = () => {
+        if (!v.duration) return;
+        const time = (slider.value / 100) * v.duration;
+        v.currentTime = time;
+        fill.style.width = slider.value + "%";
+    };
+
+    // Duration Change: Re-render markers if needed
+    v.onloadedmetadata = () => {
+        if (currentChapters.length > 0) renderChapters(currentChapters);
+    };
+
+    // --- NEW: Play/Pause Icon Toggle ---
+    v.onplay = () => updatePlayPauseIcon('video', true);
+    v.onpause = () => updatePlayPauseIcon('video', false);
+}
+
+function updatePlayPauseIcon(type, isPlaying) {
+    const btnId = `btn-${type}-play-toggle`;
+    const icon = document.getElementById(btnId);
+    if (!icon) return;
+
+    // Use replace to swap the specific icon class, preserving 'ph' and 'ph-fill'
+    if (isPlaying) {
+        icon.classList.replace('ph-play-circle', 'ph-pause-circle');
+    } else {
+        icon.classList.replace('ph-pause-circle', 'ph-play-circle');
+    }
+}
+
+// Video Control Overrides for Chapters
+
+
+function seekToChapter(time) {
+    if (currentWebMode === "AUDIO" && wavesurfer) {
+        const duration = wavesurfer.getDuration();
+        if (duration > 0) {
+            wavesurfer.seekTo(time / duration);
+            wavesurfer.play();
+        }
+    } else if (currentWebMode === "VIDEO") {
+        const v = document.getElementById("html5-player");
+        if (v) {
+            v.currentTime = time;
+            v.play();
+            updateTimelineUI(time);
+        }
+    }
+}
+
+function updateActiveChapter(currentTime) {
+    if (!currentChapters || currentChapters.length === 0) return;
+
+    let activeIdx = -1;
+    for (let i = 0; i < currentChapters.length; i++) {
+        if (currentTime >= currentChapters[i].start_time) {
+            activeIdx = i;
+        } else {
+            break;
+        }
+    }
+
+    // Update List UI
+    const list = document.getElementById("chapter-list");
+    if (list) {
+        Array.from(list.children).forEach((child, idx) => {
+            if (idx === activeIdx) {
+                if (!child.classList.contains("active")) {
+                    child.classList.add("active");
+                    child.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                }
+            } else {
+                child.classList.remove("active");
+            }
+        });
+    }
+}

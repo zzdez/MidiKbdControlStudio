@@ -155,6 +155,7 @@ class DownloadService:
             },
             'sleep_interval': 1,
             'max_sleep_interval': 5,
+            'add_metadata': True, # Embed chapters/info into file
         }
 
         # Inject Local FFmpeg
@@ -258,8 +259,15 @@ class DownloadService:
                 logging.info(f"Tagging file: {final_filename}")
                 self.metadata_service.write_file_metadata(final_filename, meta)
 
+                # Extract Chapters if available
+                chapters = info.get('chapters', [])
+
                 if completion_callback:
-                    completion_callback(True, {"path": final_filename, "meta": meta})
+                    completion_callback(True, {
+                        "path": final_filename, 
+                        "meta": meta,
+                        "chapters": chapters
+                    })
             else:
                 if completion_callback:
                     completion_callback(False, "File not found after download")

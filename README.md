@@ -36,6 +36,18 @@
     *   **Mode WINDOWS :** Simulez des raccourcis clavier pour contrôler vos logiciels ou sites externes.
 *   **Overlay Persistant :** Une fenêtre "Always-on-Top" qui affiche l'état de votre pédalier, minimisable dans la barre des tâches.
 
+## ⌨️ Raccourcis Clavier & Navigation
+
+| Action | Raccourci |
+| :--- | :--- |
+| **Lecture / Pause** | `Espace` ou `K` |
+| **Reculer (-5s)** | `Flèche Gauche` ou `J` |
+| **Avancer (+5s)** | `Flèche Droite` ou `L` |
+| **Chapitre Précédent** | `Ctrl` + `Flèche Gauche` (ou Touche Média Précédent) |
+| **Chapitre Suivant** | `Ctrl` + `Flèche Droite` (ou Touche Média Suivant) |
+| **Vitesse** | `Flèche Haut` / `Flèche Bas` |
+| **Redémarrer** | `0` ou `Début` |
+
 ## 🛠️ Installation (Développeurs)
 
 1.  **Pré-requis :** Python 3.10+

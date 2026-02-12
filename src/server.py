@@ -1045,6 +1045,10 @@ async def dl_start(data: Dict):
                 file_data["path"] = path
                 file_data["added_at"] = time.time()
 
+                # Inject Chapters from Download Service
+                if "chapters" in result:
+                    file_data["chapters"] = result["chapters"]
+
                 # Check for cover art passed in metadata to force cached refresh if needed?
                 # Actually scan_file_metadata is enough usually.
 
