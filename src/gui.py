@@ -534,6 +534,8 @@ class AirstepApp(ctk.CTk):
         self.midi_engine = None
         self.midi_callback = None
         self.action_handler = ActionHandler()
+        self.action_handler.register_listener(self.on_data_received)
+        self.action_handler.start_monitoring()
         self.settings = {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO"}
 
         # --- Context Monitor ---
@@ -1390,6 +1392,14 @@ class AirstepApp(ctk.CTk):
             except: pass
 
             self.flash_mapping_row(cc)
+
+            # Flash Remote
+            if hasattr(self, 'remote_win') and self.remote_win and self.remote_win.winfo_exists():
+                self.remote_win.flash_button(cc)
+
+            # Flash Main UI
+            if hasattr(self, 'virtual_pedalboard'):
+                self.virtual_pedalboard.flash_button(cc)
 
     def flash_mapping_row(self, cc):
         indicators = self.mapping_indicators.get(cc, [])

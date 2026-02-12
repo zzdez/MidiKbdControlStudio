@@ -87,3 +87,17 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
 *   **Native Keyboard Bridge :**
     *   Support d'écouteurs d'événements `keydown` pour l'interface Web, permettant un mapping direct Clavier -> Action pour les profils AIRSTEP (plus besoin de WebSocket pour les actions simples).
     *   Shortcuts : `Space` (Play/Pause), `ArrowLeft/Right` (Seek +/- 5s), `ArrowUp/Down` (Speed +/- 0.05x), `0` (Restart).
+
+### 10. Évolution V4 : Chapitrage & Modernisation UI
+*   **Support Chapitres YouTube (`download_service.py`) :**
+    *   **Extraction :** `yt-dlp` configuré pour extraire les métadonnées de chapitres lors du téléchargement.
+    *   **Stockage :** Sauvegarde dans `local_lib.json`.
+    *   **UI Frontend (`app.js`) :**
+        *   **Timeline Interactive :** Marqueurs visuels sur la barre de progression vidéo.
+        *   **Tooltip :** Affichage du titre du chapitre au survol (Zone invisible 10px pour UX).
+        *   **Navigation :** Boutons dédiés `|◀` et `▶|` pour sauter de chapitre.
+*   **Modernisation UI (Phosphor Icons) :**
+    *   **Harmonisation :** Remplacement de tous les emojis par des icônes vectorielles Phosphor.
+    *   **Play/Pause Dynamique :** Toggle d'icône instantané sur événement `play/pause`.
+    *   **Speed Pill :** Nouveau contrôle de vitesse compact et précis.
+

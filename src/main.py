@@ -44,8 +44,7 @@ def on_midi_event(msg):
 
     if app:
         # 2. Feedback Visuel sur la Télécommande (LEDs)
-        # On utilise .after pour thread-safety Tkinter
-        app.after(0, lambda: app.on_data_received(msg.control, msg.channel + 1))
+        # Géré via ActionHandler listener (on_data_received) pour synchronisation totale
 
         # 3. EXECUTION DE L'ACTION (Le plus important)
         # On utilise l'ActionHandler intégré à l'app GUI

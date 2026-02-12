@@ -24,7 +24,9 @@
     - Support MP4, MKV, AVI, MOV.
     - Contrôle de vitesse (0.5x à 2.0x).
     - **Nouveau** : Pitch Shifting (Changement de tonalité sans changer la vitesse) de -6 à +6 demi-tons.
+    - **Nouveau** : Pitch Shifting (Changement de tonalité sans changer la vitesse) de -6 à +6 demi-tons.
     - Navigation par sauts (+/- 5s).
+    - **NOUVEAU ! Support des Chapitres :** Détection et affichage interactif des chapitres YouTube (Timeline Marker) pour une navigation ultra-rapide.
 - **Lecteur Audio Local**
     - Waveform interactive (WaveSurfer.js).
     - Support MP3, WAV, FLAC, M4A, OGG.

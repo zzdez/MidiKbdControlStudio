@@ -7,6 +7,7 @@ class CompactPedalboardFrame(ctk.CTkFrame):
         self.device_def = device_def
         self.profile = profile
         self.callback_press = callback_press
+        self.btn_map = {} # Map CC -> Button Widget
 
         self.update_layout()
 
@@ -17,6 +18,15 @@ class CompactPedalboardFrame(ctk.CTkFrame):
     def set_device_def(self, new_def):
         self.device_def = new_def
         self.update_layout()
+
+    def flash_button(self, cc):
+        """Simulate a visual flash on the specific button"""
+        if cc in self.btn_map:
+            btn = self.btn_map[cc]
+            original_color = btn.cget("fg_color")
+            # Flash Color: Bright Green/Cyan or White
+            btn.configure(fg_color="#00E5FF", text_color="black") 
+            self.after(150, lambda: btn.configure(fg_color=original_color, text_color="white"))
 
     def _get_icon_for_name(self, name):
         """Convertit les mots clés en icônes pour le mode Remote"""
@@ -54,9 +64,9 @@ class CompactPedalboardFrame(ctk.CTkFrame):
         # Clear existing buttons
         for w in self.winfo_children():
             w.destroy()
+        self.btn_map.clear()
 
         if not self.device_def or "buttons" not in self.device_def:
-            # Should not happen with new fallbacks, but useful for debug
             msg = "Aucune définition d'appareil"
             if self.device_def is None: msg += " (None)"
             elif "buttons" not in self.device_def: msg += " (No Buttons)"
@@ -73,93 +83,97 @@ class CompactPedalboardFrame(ctk.CTkFrame):
                 if cc is not None:
                     mapping_map[cc] = m
 
-        # Grid logic (Wider layout as requested)
-        # 10 columns allows displaying a full AIRSTEP + extras on fewer rows
-        cols = 10
+        # Grid logic
+        # Grid logic
+        cols = 10 # 10 Columns for standard AIRSTEP (5 Short + 5 Long)
+        if len(buttons_def) > 10:
+             cols = 10 # split into rows
 
         for i, btn_data in enumerate(buttons_def):
             cc = btn_data["cc"]
             default_label = btn_data["label"]
 
             # Clean Physical Index (Top Label)
-            # "Bouton A (Gauche)" -> "A"
-            # "Long Press A" -> "A (L)"
-            # "Footswitch 1" -> "1"
-            short_lbl = default_label
-            short_lbl = short_lbl.replace("Bouton ", "").replace("Button ", "").replace("Footswitch ", "")
-
-            # Remove parenthesis content like "(Gauche)"
-            if "(" in short_lbl:
-                short_lbl = short_lbl.split("(")[0].strip()
-
-            if "Long Press" in default_label:
-                # Extract letter if possible "Long Press A" -> "A"
+            short_lbl = default_label.replace("Bouton ", "").replace("Button ", "").replace("Footswitch ", "")
+            if "(" in short_lbl: short_lbl = short_lbl.split("(")[0].strip()
+            
+            # Handle Long Press Labels
+            is_long_press = "Long Press" in default_label
+            if is_long_press:
                 base = default_label.replace("Long Press ", "").strip()
                 if "(" in base: base = base.split("(")[0].strip()
-                short_lbl = f"{base}(L)"
+                short_lbl = f"{base} (Hold)"
 
-            # Determine Icon (Bottom Button)
+            # Determine Icon & State
             mapping_data = mapping_map.get(cc, None)
 
             if mapping_data:
                 action_name = mapping_data.get("name", "")
                 custom_icon = mapping_data.get("custom_icon")
-
-                # Priority: Custom > Auto > Fallback
-                if custom_icon:
-                    icon = custom_icon
-                else:
-                    icon = self._get_icon_for_name(action_name)
-
+                if custom_icon: icon = custom_icon
+                else: icon = self._get_icon_for_name(action_name)
+                
                 main_text = icon
-                btn_color = "#1f6aa5" # Blueish
-                hover_color = "#144a75"
+                # Premium Colors
+                btn_color = "#2B7DE9" # Modern Blue
+                hover_color = "#1A5CB8"
                 state = "normal"
+                text_color = "white"
             else:
-                main_text = "N/A"
-                btn_color = "#222222" # Darker
-                hover_color = "#222222"
+                main_text = ""
+                btn_color = "#2A2A2A" # Dark Grey
+                hover_color = "#2A2A2A"
                 state = "disabled"
+                text_color = "gray30"
 
+            # Layout Calculation
             row = i // cols
             col = i % cols
-
-            # Container for STACKED layout (Label on Top, Button Below)
+            
+            # Container
             container = ctk.CTkFrame(self, fg_color="transparent")
-            # Minimal padding to tighten layout
-            container.grid(row=row, column=col, padx=1, pady=1)
+            container.grid(row=row, column=col, padx=4, pady=4, sticky="nsew")
 
             # 1. Top Label (Physical Index)
             lbl_phy = ctk.CTkLabel(
                 container,
                 text=short_lbl,
-                font=ctk.CTkFont(size=10, weight="bold"),
-                text_color="gray70",
+                font=ctk.CTkFont(family="Segoe UI", size=9, weight="bold"),
+                text_color="gray60",
                 height=12
             )
-            lbl_phy.pack(side="top", pady=0)
+            lbl_phy.pack(side="top", pady=(0, 2))
 
             # 2. Main Button (Icon)
+            # Modern Look: Rounded, Larger Icon
             btn = ctk.CTkButton(
                 container,
                 text=main_text,
-                font=ctk.CTkFont(size=20),
+                font=ctk.CTkFont(family="Segoe UI Symbol", size=16), # Compact Icon
                 fg_color=btn_color,
                 hover_color=hover_color,
+                text_color=text_color,
                 state=state,
-                text_color_disabled="gray30",
-                height=40, # Ultra Compact 40x40
-                width=40,
+                height=32, 
+                width=36,
+                corner_radius=6,
                 command=lambda c=cc: self.on_btn_click(c)
             )
-            btn.pack(side="top")
+            btn.pack(side="top", fill="both", expand=True)
+            
+            # Store in map
+            self.btn_map[cc] = btn
 
-        # Configure columns weight
-        # Set weight to 0 to prevent stretching (compact mode)
+        # Configure columns weight for responsiveness
         for c in range(cols):
-            self.grid_columnconfigure(c, weight=0)
+            self.grid_columnconfigure(c, weight=1)
+        # Configure rows
+        rows = (len(buttons_def) - 1) // cols + 1
+        for r in range(rows):
+            self.grid_rowconfigure(r, weight=1)
 
     def on_btn_click(self, cc):
+        self.flash_button(cc) # Visual immediate feedback
         self.callback_press(cc)
 
 
@@ -361,6 +375,11 @@ class RemoteControl(ctk.CTkToplevel):
     def on_btn_click(self, cc):
         # Flash visual effect could be added here
         self.callback_press(cc)
+
+    def flash_button(self, cc):
+        """Delegates flash to the frame"""
+        if self.pedalboard_frame:
+            self.pedalboard_frame.flash_button(cc)
 
     def toggle_minimize(self):
         """Minimizes to Taskbar (Standard Behavior)"""

@@ -24,6 +24,18 @@ class ActionHandler:
         self.has_primed = False
         self.current_profile = None
         self.command_callback = None
+        self.listeners = [] # Callbacks for visual feedback (cc, value, channel)
+
+    def register_listener(self, callback):
+        if callback not in self.listeners:
+            self.listeners.append(callback)
+
+    def notify_listeners(self, cc, value, channel):
+        for callback in self.listeners:
+            try:
+                callback(cc, value, channel)
+            except Exception as e:
+                self.log(f"Listener Error: {e}")
 
     def set_command_callback(self, callback):
         """Définit le callback pour les commandes internes (ex: media_pause) -> WebSocket"""
@@ -158,6 +170,9 @@ class ActionHandler:
     def execute(self, cc, value, channel, profiles, force_target_profile=None):
         # On ignore le relâchement (Value 0)
         if value == 0: return
+
+        # FEEDBACK VISUEL IMMEDIAT (Tous les clients: GUI, Remote, Web...)
+        self.notify_listeners(cc, value, channel)
 
         # Gestion Anti-Rebond (Debounce)
         if self.debounce_timer:
@@ -312,109 +327,163 @@ class ActionHandler:
         except Exception as e:
             self.log(f"Native Scancode Error: {e}")
 
+    # --- MONITORING CLAVIER (Feedback Visuel) ---
+    def start_monitoring(self):
+        """Démarre l'écoute globale du clavier pour le feedback visuel"""
+        try:
+            keyboard.hook(self._on_key_event)
+            self.log("MONITORING: Hook clavier activé.")
+        except Exception as e:
+            self.log(f"MONITORING Erreur: {e}")
+
+    def stop_monitoring(self):
+        try:
+            keyboard.unhook_all()
+        except: pass
+
+    def _on_key_event(self, e):
+        """Appelé par le hook clavier global"""
+        if e.event_type != keyboard.KEY_DOWN: return
+        
+        # Eviter le feedback loop si c'est nous qui envoyons la touche
+        if getattr(self, 'is_sending_keys', False):
+            return
+
+        if not self.current_profile: return
+
+        # Recherche de correspondance dans le profil actif
+        # On optimise en cherchant d'abord par scan code si disponible
+        for m in self.current_profile.get('mappings', []):
+            match = False
+            
+            # 1. Match par Scan Code (Prioritaire)
+            m_scan = m.get('action_scan_code')
+            if m_scan and m_scan == e.scan_code:
+                match = True
+            
+            # 2. Match par Nom (Fallback)
+            if not match:
+                m_val = m.get('action_value')
+                if m_val:
+                    # Normalisation basique
+                    keys = m_val.lower().replace(" ", "").split('+')
+                    # Si c'est une touche simple
+                    if len(keys) == 1 and keys[0] == e.name.lower():
+                        match = True
+            
+            if match:
+                cc = m.get('midi_cc')
+                if cc is not None:
+                    # On notifie les listeners (GUI) pour qu'ils flashent
+                    # On utilise un channel fictif ou 16
+                    self.notify_listeners(cc, 127, 16)
+
     def trigger_keystroke(self, mapping):
         """
         Exécute la frappe clavier.
         Mode PERROQUET : Utilise les Scan Codes enregistrés si disponibles.
         """
-        
-        # Données enregistrées par le GUI (REC)
-        main_scan_code = mapping.get('action_scan_code')
-        modifier_scan_codes = mapping.get('action_modifier_scan_codes', [])
-        
-        # Données manuelles (Texte)
-        text_value = mapping.get('action_value', '')
+        self.is_sending_keys = True # Flag pour ignorer le feedback loop
+        try:
+            # Données enregistrées par le GUI (REC)
+            main_scan_code = mapping.get('action_scan_code')
+            modifier_scan_codes = mapping.get('action_modifier_scan_codes', [])
+            
+            # Données manuelles (Texte)
+            text_value = mapping.get('action_value', '')
 
-        # --- CAS SPECIAL : COMMANDES INTERNES (MEDIA) ---
-        if text_value and text_value.startswith("media_"):
-            self.log(f" -> COMMANDE INTERNE : {text_value}")
-            if self.command_callback:
-                self.command_callback(text_value)
-            return
-
-        # --- Shift Priming (Wake up Chrome/Windows Input Hook) ---
-        # if not self.has_primed:
-        #    self.log("PRIMING: Injection Shift pour réveiller l'input...")
-        #    try:
-        #        keyboard.press('shift')
-        #        time.sleep(0.05)
-        #        keyboard.release('shift')
-        #        self.has_primed = True
-        #        time.sleep(0.05)
-        #    except: pass
-
-        # --- CAS 0 : Native Arrows (Chrome/Songsterr Fix) ---
-        # Detection stricte des flèches pour utiliser keybd_event
-        if text_value:
-            t = text_value.lower().strip()
-            vk_target = None
-            if t in ['left', 'gauche', 'arrow left']: vk_target = VK_LEFT
-            elif t in ['right', 'droite', 'arrow right']: vk_target = VK_RIGHT
-            elif t in ['up', 'haut', 'arrow up']: vk_target = VK_UP
-            elif t in ['down', 'bas', 'arrow down']: vk_target = VK_DOWN
-
-            if vk_target:
-                self.log(f" -> NATIVE ARROW: {t} (VK={vk_target})")
-                self._send_native_key(vk_target)
+            # --- CAS SPECIAL : COMMANDES INTERNES (MEDIA) ---
+            if text_value and text_value.startswith("media_"):
+                self.log(f" -> COMMANDE INTERNE : {text_value}")
+                if self.command_callback:
+                    self.command_callback(text_value)
                 return
 
-        # --- CAS 1 : MODE PHYSIQUE (Scan Codes) ---
-        # C'est la méthode Prioritaire et Robuste pour AZERTY/QWERTY/VLC
-        if main_scan_code:
-            try:
-                # A. Appuyer sur les modifieurs (ex: Shift, Alt) via leurs codes physiques
-                if modifier_scan_codes:
-                    for mod_sc in modifier_scan_codes:
-                        keyboard.press(mod_sc)
-                    time.sleep(0.05) 
+            # --- Shift Priming (Wake up Chrome/Windows Input Hook) ---
+            # if not self.has_primed:
+            #    self.log("PRIMING: Injection Shift pour réveiller l'input...")
+            #    try:
+            #        keyboard.press('shift')
+            #        time.sleep(0.05)
+            #        keyboard.release('shift')
+            #        self.has_primed = True
+            #        time.sleep(0.05)
+            #    except: pass
 
-                # B. Appuyer sur la touche principale
-                # Exception pour Espace (57) ou Flèches (75, 77, 72, 80) qui nécessitent souvent du natif (Win32)
-                FORCE_NATIVE_CODES = [57] # Space only here. Arrows handled explicitly below.
-                
-                # ARROW KEYS HANDLING (Redirect ScanCode -> VirtualKey for robustness)
-                # Left=75, Right=77, Up=72, Down=80
-                arrow_map = {75: VK_LEFT, 77: VK_RIGHT, 72: VK_UP, 80: VK_DOWN}
-                
-                if main_scan_code in arrow_map:
-                    vk = arrow_map[main_scan_code]
-                    self.log(f" -> Envoi NATIF VK {vk} pour SC {main_scan_code} (Robust Arrow)")
-                    self._send_native_key(vk)
+            # --- CAS 0 : Native Arrows (Chrome/Songsterr Fix) ---
+            # Detection stricte des flèches pour utiliser keybd_event
+            if text_value:
+                t = text_value.lower().strip()
+                vk_target = None
+                if t in ['left', 'gauche', 'arrow left']: vk_target = VK_LEFT
+                elif t in ['right', 'droite', 'arrow right']: vk_target = VK_RIGHT
+                elif t in ['up', 'haut', 'arrow up']: vk_target = VK_UP
+                elif t in ['down', 'bas', 'arrow down']: vk_target = VK_DOWN
+
+                if vk_target:
+                    self.log(f" -> NATIVE ARROW: {t} (VK={vk_target})")
+                    self._send_native_key(vk_target)
+                    return
+
+            # --- CAS 1 : MODE PHYSIQUE (Scan Codes) ---
+            # C'est la méthode Prioritaire et Robuste pour AZERTY/QWERTY/VLC
+            if main_scan_code:
+                try:
+                    # A. Appuyer sur les modifieurs (ex: Shift, Alt) via leurs codes physiques
+                    if modifier_scan_codes:
+                        for mod_sc in modifier_scan_codes:
+                            keyboard.press(mod_sc)
+                        time.sleep(0.05) 
+
+                    # B. Appuyer sur la touche principale
+                    # Exception pour Espace (57) ou Flèches (75, 77, 72, 80) qui nécessitent souvent du natif (Win32)
+                    FORCE_NATIVE_CODES = [57] # Space only here. Arrows handled explicitly below.
                     
-                elif main_scan_code in FORCE_NATIVE_CODES:
-                    self.log(f" -> Envoi NATIF (Win32) pour SC {main_scan_code}")
-                    self._send_native_scancode(main_scan_code)
-                else:
-                    # Méthode standard via keyboard library
-                    keyboard.press(main_scan_code)
-                    time.sleep(0.1) # Increased press duration for reliability
-                    keyboard.release(main_scan_code)
-
-                # C. Relâcher les modifieurs
-                if modifier_scan_codes:
-                    time.sleep(0.05)
-                    for mod_sc in reversed(modifier_scan_codes):
-                        keyboard.release(mod_sc)
-                
-                self.log(f" -> Physique OK : SC {main_scan_code} + Mods {modifier_scan_codes}")
-                return # Succès, on quitte
-
-            except Exception as e:
-                self.log(f"ERREUR PHYSIQUE : {e}. Tentative fallback texte...")
-
-        # --- CAS 2 : MODE TEXTE (Fallback) ---
-        # Si pas de scan code (vieux mapping ou entrée manuelle)
-        if text_value:
-            try:
-                # On nettoie un peu
-                keys = text_value.lower().replace(" ", "")
-                
-                # Cas spécial pour les combos simples écrits à la main
-                if "+" in keys:
-                    keyboard.send(keys)
-                else:
-                    keyboard.send(keys)
+                    # ARROW KEYS HANDLING (Redirect ScanCode -> VirtualKey for robustness)
+                    # Left=75, Right=77, Up=72, Down=80
+                    arrow_map = {75: VK_LEFT, 77: VK_RIGHT, 72: VK_UP, 80: VK_DOWN}
                     
-                self.log(f" -> Texte OK : {keys}")
-            except Exception as e:
-                self.log(f"ERREUR TEXTE : {e}")
+                    if main_scan_code in arrow_map:
+                        vk = arrow_map[main_scan_code]
+                        self.log(f" -> Envoi NATIF VK {vk} pour SC {main_scan_code} (Robust Arrow)")
+                        self._send_native_key(vk)
+                        
+                    elif main_scan_code in FORCE_NATIVE_CODES:
+                        self.log(f" -> Envoi NATIF (Win32) pour SC {main_scan_code}")
+                        self._send_native_scancode(main_scan_code)
+                    else:
+                        # Méthode standard via keyboard library
+                        keyboard.press(main_scan_code)
+                        time.sleep(0.1) # Increased press duration for reliability
+                        keyboard.release(main_scan_code)
+
+                    # C. Relâcher les modifieurs
+                    if modifier_scan_codes:
+                        time.sleep(0.05)
+                        for mod_sc in reversed(modifier_scan_codes):
+                            keyboard.release(mod_sc)
+                    
+                    self.log(f" -> Physique OK : SC {main_scan_code} + Mods {modifier_scan_codes}")
+                    return # Succès, on quitte
+
+                except Exception as e:
+                    self.log(f"ERREUR PHYSIQUE : {e}. Tentative fallback texte...")
+
+            # --- CAS 2 : MODE TEXTE (Fallback) ---
+            # Si pas de scan code (vieux mapping ou entrée manuelle)
+            if text_value:
+                try:
+                    # On nettoie un peu
+                    keys = text_value.lower().replace(" ", "")
+                    
+                    # Cas spécial pour les combos simples écrits à la main
+                    if "+" in keys:
+                        keyboard.send(keys)
+                    else:
+                        keyboard.send(keys)
+                        
+                    self.log(f" -> Texte OK : {keys}")
+                except Exception as e:
+                    self.log(f"ERREUR TEXTE : {e}")
+        finally:
+            self.is_sending_keys = False
