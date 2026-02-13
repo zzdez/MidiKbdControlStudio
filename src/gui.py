@@ -1198,13 +1198,13 @@ class AirstepApp(ctk.CTk):
         self.withdraw()
 
         # Create Remote
+        # Create Remote
         self.remote_win = RemoteControl(
             self,
             self.current_device_def,
             self.current_profile,
             callback_press=self.simulate_midi_press,
             callback_close=self.on_remote_close,
-            library_manager=self.library_manager,
             callback_open_conf=lambda: (self.deiconify(), self.lift(), self.focus_force()),
             callback_open_web=self.open_web
         )
