@@ -101,3 +101,15 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **Play/Pause Dynamique :** Toggle d'icône instantané sur événement `play/pause`.
     *   **Speed Pill :** Nouveau contrôle de vitesse compact et précis.
 
+
+### 11. Évolution V5 : Connection Intelligence & Modernisation Remote
+*   **Connection Intelligence (`midi_engine.py`) :**
+    *   **BLE Fallback :** Algorithme de détection agnostique. Si les identifiants MIDI standards échouent, le moteur scanne tous les services et se connecte à la première caractéristique "Notify" disponible.
+    *   **Mode HID/Typing :** Support officiel du mode "Clavier" de l'AIRSTEP. Si le canal MIDI est bloqué par Windows (exclusivité), l'application bascule en mode "écoute seule" (LED Verte) pour garantir que les indicateurs visuels fonctionnent toujours via les hooks clavier.
+    *   **Status Monitor :** Boucle de surveillance dédiée dans `gui.py` pour garantir que l'état affiché (LED/Texte) est toujours synchronisé avec la réalité du hardware (Détection débranchement USB).
+*   **Remote Control Refactoring (`remote_gui.py`) :**
+    *   **Singleton Pattern :** Architecture robuste empêchant les instances multiples de la télécommande.
+    *   **Smart Close :** La fermeture de la télécommande ne rouvre plus la fenêtre principale (Workflow "Tray-First").
+    *   **Compact UI :** Redesign complet pour réduire l'empreinte écran (-40% hauteur), polices ajustées, et suppression du tiroir "Bibliothèque" (déporté sur le Web).
+*   **Fix Critique Feedback Visuel :**
+    *   Correction de la signature du callback `on_data_received` (`cc, value, channel`) qui empêchait le clignotement des boutons lors des appuis physiques.

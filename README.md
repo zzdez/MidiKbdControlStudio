@@ -36,7 +36,11 @@
         *   **Commandes Clavier Natives :** Support direct des flèches directionnelles et de la barre d'espace pour le mapping.
     *   **Nouveau !** Injection native des commandes (Win32) pour piloter même les applications récalcitrantes (Moises, applis Electron).
     *   **Mode WINDOWS :** Simulez des raccourcis clavier pour contrôler vos logiciels ou sites externes.
-*   **Overlay Persistant :** Une fenêtre "Always-on-Top" qui affiche l'état de votre pédalier, minimisable dans la barre des tâches.
+*   **Overlay Persistant (Remote Control) :**
+    *   **Nouveau Design Compact :** Optimisé pour prendre le moins de place possible sur l'écran.
+    *   **Mode Singleton :** Gestion intelligente des fenêtres (ne s'ouvre qu'une fois).
+    *   **Smart Close :** Fermez la remote sans être dérangé par la fenêtre principale (qui reste dans le Tray).
+    *   **Feedback Visuel Unifié :** Les boutons clignotent que l'action vienne du MIDI, du Clavier (HID) ou du clic souris.
 
 ## ⌨️ Raccourcis Clavier & Navigation
 
