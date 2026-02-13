@@ -537,6 +537,7 @@ class AirstepApp(ctk.CTk):
         self.action_handler.register_listener(self.on_data_received)
         self.action_handler.start_monitoring()
         self.settings = {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO"}
+        self.remote_win = None
 
         # --- Context Monitor ---
         # Starts a background thread to detect active windows
@@ -1194,10 +1195,24 @@ class AirstepApp(ctk.CTk):
             CTkMessageBox.show_error("Erreur", "Aucune définition d'appareil chargée.")
             return
 
+        # Singleton Check
+        if hasattr(self, 'remote_win') and self.remote_win:
+            try:
+                if self.remote_win.winfo_exists():
+                    # Déjà ouvert : on restaure
+                    self.withdraw() 
+                    self.remote_win.deiconify()
+                    self.remote_win.lift()
+                    self.remote_win.focus_force()
+                    return
+                else:
+                    self.remote_win = None # Cleaning up dead reference
+            except:
+                self.remote_win = None
+
         # Hide Main Window
         self.withdraw()
 
-        # Create Remote
         # Create Remote
         self.remote_win = RemoteControl(
             self,
@@ -1262,7 +1277,8 @@ class AirstepApp(ctk.CTk):
         self.after(500, self._monitor_remote_context)
 
     def on_remote_close(self):
-        self.deiconify()
+        # self.deiconify() # On ne ré-ouvre PAS le backend automatiquement
+        self.remote_win = None
         # Monitor loop stops automatically via winfo_exists check
 
     # --- Scan Tools ---
