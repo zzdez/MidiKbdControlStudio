@@ -544,10 +544,11 @@ class AirstepApp(ctk.CTk):
         self.context_monitor = ContextMonitor(self.profile_manager, self.action_handler, self.on_context_change)
         self.context_monitor.start()
 
-        self.midi_callback = None
-
         self.create_sidebar()
         self.create_main_area()
+
+        # Start Connection Monitor (AFTER UI creation)
+        self._monitor_connection_status()
 
         self.load_data()
         self.refresh_midi_ports()
@@ -647,10 +648,6 @@ class AirstepApp(ctk.CTk):
 
         self.lbl_conn_text = ctk.CTkLabel(self.conn_frame, text="Déconnecté", font=ctk.CTkFont(size=12, weight="bold"))
         self.lbl_conn_text.pack(side="left")
-
-        # Driver Info
-        self.lbl_driver = ctk.CTkLabel(self.status_frame, text="Driver: ...", font=ctk.CTkFont(size=10), text_color="gray")
-        self.lbl_driver.pack(anchor="w", pady=(0, 5))
 
         # LCD Monitor
         self.monitor_frame = ctk.CTkFrame(self.status_frame, fg_color=("gray90", "gray20"), corner_radius=5)
@@ -870,6 +867,9 @@ class AirstepApp(ctk.CTk):
                  self.profile_combo.set("") # Clear selection if no profiles
 
         self.current_profile = new_prof
+        if self.action_handler:
+            self.action_handler.set_current_profile(new_prof)
+            
         self.refresh_ui_for_profile()
 
     def on_profile_change(self, choice):
@@ -1391,7 +1391,21 @@ class AirstepApp(ctk.CTk):
         if self.midi_engine:
             self.midi_engine.restart(choice)
 
-    def on_data_received(self, cc=None, channel=None):
+    def midi_callback(self, msg):
+        """Callback principal du moteur MIDI"""
+        if not msg: return
+        
+        # On ne traite que les Control Change pour l'instant
+        if msg.type == 'control_change':
+            cc = msg.control
+            val = msg.value
+            chan = msg.channel + 1 # 1-based for display
+            
+            # Action Handler
+            if self.action_handler:
+                self.action_handler.execute(cc, val, chan, self.profiles, self.manual_override_profile)
+
+    def on_data_received(self, cc=None, value=None, channel=None):
         if cc is not None:
             # Update LCD
             self.lbl_monitor_cc.configure(text=f"CC: {cc}")
@@ -1425,10 +1439,36 @@ class AirstepApp(ctk.CTk):
                 self.after(200, lambda l=lbl: l.configure(text_color="#444444"))
              except: pass
 
+    def _monitor_connection_status(self):
+        """Vérifie périodiquement l'état de la connexion"""
+        if self.midi_engine:
+            connected = self.midi_engine.is_connected
+            self.update_status(connected)
+        else:
+            self.update_status(False)
+        
+        # Loop 1s
+        self.after(1000, self._monitor_connection_status)
+
     def update_status(self, connected, message=None):
         if connected:
             self.lbl_conn_led.configure(text_color="green")
-            self.lbl_conn_text.configure(text="Port Ouvert")
+            
+            # Récupération du mode et du device
+            mode = self.settings.get("connection_mode", "MIDO")
+            mode_str = "USB" if mode == "MIDO" else "Bluetooth"
+            
+            # Nom du device
+            dev_name = self.settings.get("midi_device_name", "Appareil")
+            if dev_name in ["Recherche...", ""]: dev_name = "Appareil"
+            
+            # Clean name (remove index port numbers if any)
+            if " " in dev_name: 
+                 # Often MIDI ports are named "AIRSTEP 0" or "1- AIRSTEP"
+                 # We try to keep it clean
+                 pass
+
+            self.lbl_conn_text.configure(text=f"{dev_name} ({mode_str})")
         else:
             self.lbl_conn_led.configure(text_color="red")
             self.lbl_conn_text.configure(text="Déconnecté")

@@ -242,8 +242,37 @@ class BleakProvider(MidiProvider):
                                 self.log(f"Subscription Error: {e}")
                                 await self.client.disconnect()
                         else:
-                            self.log("Error: No compatible MIDI characteristic found!")
-                            await self.client.disconnect()
+                            self.log("Error: No known MIDI characteristic found in candidates.")
+                            self.log("Dumping available services to debug log...")
+                            
+                            # Fallback & Debug: Try ANY notify characteristic
+                            fallback_char = None
+                            for s in self.client.services:
+                                for c in s.characteristics:
+                                    props = c.properties
+                                    self.log(f" - Char: {c.uuid} | Props: {props}")
+                                    if "notify" in props and not fallback_char:
+                                        fallback_char = c.uuid
+
+                            if fallback_char:
+                                self.log(f"Trying Fallback Notify Char: {fallback_char}")
+                                try:
+                                    await self.client.start_notify(fallback_char, self._on_notify)
+                                    self.is_connected = True
+                                    self.last_error = None
+                                    self.log("Connected (BLE - Fallback)!")
+                                except Exception as e:
+                                     self.log(f"Fallback Failed: {e}")
+                                     # HID MODE SUCCESS
+                                     self.is_connected = True
+                                     self.last_error = None
+                                     self.log("Connected (HID Mode - No Notify)")
+                            else:
+                                # HID MODE SUCCESS (No Notify Chars found, but connected)
+                                self.log("No Notify Char found. Assuming HID/Limited connection.")
+                                self.is_connected = True
+                                self.last_error = None
+
                     else:
                         self.log("Failed to connect (client.is_connected=False)")
             except Exception as e:
