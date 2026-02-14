@@ -126,8 +126,45 @@ class ShortcutsDialog(ctk.CTkToplevel):
         self.destroy()
 
 class SettingsDialog(ctk.CTkToplevel):
+    def populate_output_ports(self):
+        try:
+             # Use Mido directly here as simpler than passing engine just for listing
+             if hasattr(mido, 'get_output_names'):
+                 ports = mido.get_output_names()
+             else:
+                 ports = []
+                 
+             clean_ports = list(dict.fromkeys(ports)) # Dedup
+             clean_ports.insert(0, "Aucun")
+             
+             self.output_combo.configure(values=clean_ports)
+             
+             # Get current setting
+             if hasattr(self.parent, 'settings'):
+                 current = self.parent.settings.get("midi_output_name", "Aucun")
+                 if current in clean_ports:
+                     self.output_combo.set(current)
+                 else:
+                     self.output_combo.set("Aucun")
+        except:
+             self.output_combo.configure(values=["Erreur Mido"])
+
+    def change_output_port(self, choice):
+        # Save to main settings
+        if hasattr(self.parent, 'settings'):
+             self.parent.settings["midi_output_name"] = choice
+             if choice == "Aucun":
+                 choice = None
+             
+             # Apply immediately
+             if hasattr(self.parent, 'midi_engine') and self.parent.midi_engine:
+                 self.parent.midi_engine.start_output(choice)
+             
+             self.parent.save_all(silent=True)
+
     def __init__(self, parent, profile_manager, action_handler, env_manager):
         super().__init__(parent)
+        self.parent = parent # Store parent to access settings/engine
         self.title("Réglages")
         self.geometry("450x400")
         self.attributes("-topmost", True)
@@ -143,6 +180,16 @@ class SettingsDialog(ctk.CTkToplevel):
 
             # Tab General
             tab_gen = self.tabview.tab("Général")
+
+            # Output Port Selector
+            ctk.CTkLabel(tab_gen, text="Port de Sortie MIDI (Vers DAW/Synthé) :").pack(pady=(10, 5))
+            self.output_combo = ctk.CTkComboBox(tab_gen, command=self.change_output_port)
+            self.output_combo.pack(pady=5, padx=20, fill="x")
+            
+            # Populate Output Ports
+            self.populate_output_ports()
+
+            # Debounce
             ctk.CTkLabel(tab_gen, text="Délai Anti-Rebond (Burst Mode) :").pack(pady=(20, 5))
 
             current_val = action_handler.debounce_delay if action_handler else 0.15
@@ -216,30 +263,54 @@ class DeviceEditorDialog(ctk.CTkToplevel):
 
         self.rows = []
         for btn in self.definition.get("buttons", []):
-            self.add_row(btn["cc"], btn["label"])
+            cc = btn["cc"]
+            lbl = btn["label"]
+            m_type = btn.get("macro_type")
+            
+            if str(cc).startswith("-") or (isinstance(cc, int) and cc < 0):
+                self.add_row("VIRT", lbl, m_type)
+            else:
+                self.add_row(cc, lbl)
 
-        # Add Button
-        ctk.CTkButton(self, text="+ Ajouter Bouton", command=lambda: self.add_row("", "")).pack(pady=5)
+        # Add Buttons
+        f_btns = ctk.CTkFrame(self)
+        f_btns.pack(pady=5)
+        # Physical
+        ctk.CTkButton(f_btns, text="+ Bouton Physique", width=120, command=lambda: self.add_row("", "")).pack(side="left", padx=5)
+        
+        # Macros
+        ctk.CTkButton(f_btns, text="+ Macro Clavier", width=120, fg_color="#555", command=lambda: self.add_row("VIRT", "Macro Key", "hid")).pack(side="left", padx=5)
+        ctk.CTkButton(f_btns, text="+ Macro MIDI", width=120, fg_color="#444", command=lambda: self.add_row("VIRT", "Macro MIDI", "midi")).pack(side="left", padx=5)
 
         # Save
         ctk.CTkButton(self, text="Sauvegarder", fg_color="green", command=self.save).pack(pady=20, padx=20, fill="x")
 
-    def add_row(self, cc, label):
+    def add_row(self, cc, label, macro_type=None):
         row = ctk.CTkFrame(self.scroll_frame)
         row.pack(fill="x", pady=2)
+        
+        is_virtual = (cc == "VIRT") or (isinstance(cc, int) and cc < 0)
 
-        e_cc = ctk.CTkEntry(row, width=60, placeholder_text="CC")
-        e_cc.insert(0, str(cc))
+        # CC Field
+        e_cc = ctk.CTkEntry(row, width=80, placeholder_text="CC")
+        if is_virtual:
+             type_lbl = "MIDI" if macro_type == "midi" else "CLAVIER"
+             e_cc.insert(0, f"MACRO {type_lbl}")
+             e_cc.configure(state="disabled", fg_color="#333", text_color="gray")
+        else:
+             e_cc.insert(0, str(cc))
         e_cc.pack(side="left", padx=5)
 
-        e_lbl = ctk.CTkEntry(row, placeholder_text="Nom (ex: Bouton A)")
+        # Name Field
+        e_lbl = ctk.CTkEntry(row, placeholder_text="Nom")
         e_lbl.insert(0, str(label))
         e_lbl.pack(side="left", fill="x", expand=True, padx=5)
 
         btn_del = ctk.CTkButton(row, text="X", width=30, fg_color="red", command=lambda: self.delete_row(row))
         btn_del.pack(side="right", padx=5)
 
-        self.rows.append((row, e_cc, e_lbl))
+        # Store macro_type in widget for save
+        self.rows.append((row, e_cc, e_lbl, is_virtual, macro_type))
 
     def delete_row(self, row_widget):
         for i, r in enumerate(self.rows):
@@ -250,11 +321,28 @@ class DeviceEditorDialog(ctk.CTkToplevel):
 
     def save(self):
         new_buttons = []
+        virtual_id_counter = -1
+        
         for r in self.rows:
             try:
-                cc = int(r[1].get())
+                # r = (row, e_cc, e_lbl, is_virtual, macro_type)
+                is_virt = r[3]
+                m_type = r[4]
                 lbl = r[2].get()
-                new_buttons.append({"cc": cc, "label": lbl})
+                
+                if is_virt:
+                     cc = virtual_id_counter
+                     virtual_id_counter -= 1
+                else:
+                     cc_val = r[1].get()
+                     if not cc_val.strip(): continue
+                     cc = int(cc_val)
+                     m_type = None # Physical buttons don't have macro_type
+                     
+                entry = {"cc": cc, "label": lbl}
+                if m_type: entry["macro_type"] = m_type
+                
+                new_buttons.append(entry)
             except: pass
 
         data = {
@@ -282,7 +370,7 @@ class MappingDialog(ctk.CTkToplevel):
         self.action_handler = action_handler
 
         self.title("Modifier l'Action" if initial_data else "Ajouter une Action")
-        self.geometry("450x450")
+        self.geometry("500x600")
         self.attributes("-topmost", True)
 
         ctk.CTkLabel(self, text="Nom de l'action :").pack(pady=(10,0))
@@ -296,58 +384,183 @@ class MappingDialog(ctk.CTkToplevel):
         self.combo_cc = ctk.CTkComboBox(self)
         self.combo_cc.pack(pady=5, padx=20, fill="x")
 
-        # Populate values
+        # Map display name -> {cc, macro_type}
+        self.cc_map = {}
         values = []
+        
         if device_def:
             for b in device_def.get("buttons", []):
-                values.append(f"{b['cc']} - {b['label']}")
+                cc = b['cc']
+                lbl = b['label']
+                m_type = b.get("macro_type")
+                
+                if isinstance(cc, int) and cc < 0:
+                    type_str = "MIDI" if m_type == "midi" else "CLAVIER" if m_type == "hid" else "MACRO"
+                    display = f"[{type_str}] {lbl}"
+                else:
+                    display = f"{cc} - {lbl}"
+                
+                self.cc_map[display] = {"cc": cc, "macro_type": m_type}
+                values.append(display)
 
         if not values:
-            values = ["54", "55", "56", "57", "58"]
+            # Fallback
+            for i in range(54, 59):
+                d = f"{i} - Button {i}"
+                self.cc_map[d] = {"cc": i, "macro_type": None}
+                values.append(d)
 
-        self.combo_cc.configure(values=values)
+        self.combo_cc.configure(values=values, command=self.on_trigger_change)
 
         # Select Initial Value
         if initial_data:
             target_cc = initial_data.get("midi_cc")
-            # Find matching string
-            match = next((v for v in values if v.startswith(f"{target_cc} -") or v == str(target_cc)), str(target_cc))
+            # Find display name for this CC
+            match = next((k for k, v in self.cc_map.items() if v["cc"] == target_cc), None)
+            
+            # Fallback for manual legacy values
+            if not match:
+                 match = f"{target_cc} - Inconnu"
+                 self.cc_map[match] = {"cc": target_cc, "macro_type": None}
+                 
             self.combo_cc.set(match)
         elif values:
             self.combo_cc.set(values[0])
 
-        # Icon Selector
+        # --- Action Type Selector ---
+        ctk.CTkLabel(self, text="Action à exécuter :").pack(pady=(10,0))
+        self.seg_action_type = ctk.CTkSegmentedButton(self, values=["Clavier", "MIDI"], command=self.on_type_change)
+        self.seg_action_type.pack(pady=5)
+        self.seg_action_type.set("Clavier") 
+
+        # --- DYNAMIC CONTENT CONTAINER ---
+        # This frame reserves the space between the type selector and the bottom buttons
+        self.frame_dynamic = ctk.CTkFrame(self, fg_color="transparent")
+        self.frame_dynamic.pack(pady=5, padx=20, fill="x")
+
+        # 1. Hotkey Content (To be packed into frame_dynamic)
+        self.frame_hotkey = ctk.CTkFrame(self.frame_dynamic, fg_color="transparent")
+        
+        ctk.CTkLabel(self.frame_hotkey, text="Raccourci Clavier (Ex: k, space) :").pack(pady=(5,0))
+        f_k = ctk.CTkFrame(self.frame_hotkey, fg_color="transparent")
+        f_k.pack(fill="x")
+        
+        self.entry_key = ctk.CTkEntry(f_k, placeholder_text="space")
+        self.entry_key.pack(side="left", fill="x", expand=True)
+
+        self.btn_rec = ctk.CTkButton(f_k, text="REC", width=60, fg_color="#cc3300", hover_color="#992200", command=self.start_recording)
+        self.btn_rec.pack(side="right", padx=(5,0))
+        
+        self.btn_test = ctk.CTkButton(f_k, text="▶", width=30, fg_color="#444", hover_color="#666", command=self.test_mapping)
+        self.btn_test.pack(side="right", padx=(5,0))
+
+        # 2. MIDI Content (To be packed into frame_dynamic)
+        self.frame_midi = ctk.CTkFrame(self.frame_dynamic, fg_color="transparent")
+        
+        ctk.CTkLabel(self.frame_midi, text="Message MIDI :").pack(pady=(5,0))
+        self.midi_msg_type = ctk.CTkSegmentedButton(self.frame_midi, values=["Control Change", "Program Change", "Note On"])
+        self.midi_msg_type.pack(pady=2, fill="x")
+        self.midi_msg_type.set("Control Change")
+        
+        # Params Row
+        f_p = ctk.CTkFrame(self.frame_midi, fg_color="transparent")
+        f_p.pack(pady=5, fill="x")
+        
+        # Channel
+        f_ch = ctk.CTkFrame(f_p, fg_color="transparent")
+        f_ch.pack(side="left", expand=True)
+        ctk.CTkLabel(f_ch, text="Canal (1-16)").pack(side="top")
+        self.ent_midi_ch = ctk.CTkEntry(f_ch, width=50, justify="center")
+        self.ent_midi_ch.insert(0, "1")
+        self.ent_midi_ch.pack(side="top")
+
+        # Target
+        f_tgt = ctk.CTkFrame(f_p, fg_color="transparent")
+        f_tgt.pack(side="left", expand=True)
+        ctk.CTkLabel(f_tgt, text="Numéro (0-127)").pack(side="top")
+        self.ent_midi_target = ctk.CTkEntry(f_tgt, width=50, justify="center")
+        self.ent_midi_target.insert(0, "0")
+        self.ent_midi_target.pack(side="top")
+
+        # Value
+        f_val = ctk.CTkFrame(f_p, fg_color="transparent")
+        f_val.pack(side="left", expand=True)
+        ctk.CTkLabel(f_val, text="Valeur (0-127)").pack(side="top")
+        self.ent_midi_val = ctk.CTkEntry(f_val, width=50, justify="center")
+        self.ent_midi_val.insert(0, "127")
+        self.ent_midi_val.pack(side="top")
+
+        # Icon Selector (Shared, packed AFTER dynamic frame)
         ctk.CTkLabel(self, text="Icône (Optionnel) :").pack(pady=(10,0))
         self.combo_icon = ctk.CTkComboBox(self, values=["Auto", "▶", "⏸", "■", "●", "⏪", "⏩", "⟳", "🔇", "🔊", "↔", "⏱", "♪", "◴", "📍", "▲", "▼", "◄", "►", "✓", "↶", "↷", "⚡", "⚙", "📂", "🎸", "🎤", "🎹"])
         self.combo_icon.pack(pady=5, padx=20, fill="x")
 
-        if initial_data and initial_data.get("custom_icon"):
-            self.combo_icon.set(initial_data.get("custom_icon"))
+        # Initial Data Loading
+        if initial_data:
+            # Hotkey
+            self.entry_key.insert(0, initial_data.get("action_value", ""))
+            
+            # Action Type
+            a_type = initial_data.get("action_type", "hotkey")
+            if a_type == "midi":
+                self.seg_action_type.set("MIDI")
+                
+                # Load MIDI Data
+                m_type = initial_data.get("midi_out_type", "cc")
+                if m_type == "cc": self.midi_msg_type.set("Control Change")
+                elif m_type == "pc": self.midi_msg_type.set("Program Change")
+                elif m_type == "note": self.midi_msg_type.set("Note On")
+                
+                self.ent_midi_ch.delete(0, "end")
+                self.ent_midi_ch.insert(0, str(initial_data.get("midi_out_channel", 1)))
+                
+                self.ent_midi_target.delete(0, "end")
+                self.ent_midi_target.insert(0, str(initial_data.get("midi_out_target", 0)))
+                
+                self.ent_midi_val.delete(0, "end")
+                self.ent_midi_val.insert(0, str(initial_data.get("midi_out_velocity", 127)))
+            else:
+                self.seg_action_type.set("Clavier")
+
+            # Icon
+            if initial_data.get("custom_icon"):
+                self.combo_icon.set(initial_data.get("custom_icon"))
+            else:
+                self.combo_icon.set("Auto")
         else:
             self.combo_icon.set("Auto")
-
-        ctk.CTkLabel(self, text="Touche Clavier (Ex: k, space) :").pack(pady=(10,0))
-        self.frame_key = ctk.CTkFrame(self, fg_color="transparent")
-        self.frame_key.pack(pady=5, padx=20, fill="x")
-
-        self.entry_key = ctk.CTkEntry(self.frame_key, placeholder_text="space")
-        self.entry_key.pack(side="left", fill="x", expand=True)
-
-        # Test Button
-        self.btn_test = ctk.CTkButton(self.frame_key, text="▶", width=30, fg_color="#444", hover_color="#666", command=self.test_mapping)
-        self.btn_test.pack(side="right", padx=(5,0))
-
-        self.btn_rec = ctk.CTkButton(self.frame_key, text="REC", width=60, fg_color="#cc3300", hover_color="#992200", command=self.start_recording)
-        self.btn_rec.pack(side="right", padx=(5,0))
-
-        if initial_data:
-            self.entry_key.insert(0, initial_data.get("action_value", ""))
 
         self.lbl_scan_info = ctk.CTkLabel(self, text="", text_color="gray", font=("Arial", 10))
         self.lbl_scan_info.pack(pady=(0, 5))
 
         self.btn_save = ctk.CTkButton(self, text="Valider", fg_color="green", hover_color="darkgreen", command=self.save_mapping)
         self.btn_save.pack(pady=10, padx=20, fill="x")
+
+        # Trigger initial state
+        self.on_type_change(self.seg_action_type.get())
+    
+    def on_trigger_change(self, choice):
+        if choice in self.cc_map:
+            data = self.cc_map[choice]
+            m_type = data.get("macro_type")
+            
+            if m_type == "midi":
+                self.seg_action_type.set("MIDI")
+                self.on_type_change("MIDI")
+            elif m_type == "hid":
+                self.seg_action_type.set("Clavier")
+                self.on_type_change("Clavier")
+
+    def on_type_change(self, value):
+        self.frame_hotkey.pack_forget()
+        self.frame_midi.pack_forget()
+        
+        if value == "MIDI":
+            self.frame_midi.pack(fill="both", expand=True)
+        else:
+            self.frame_hotkey.pack(fill="both", expand=True)
+
+        self.lbl_scan_info.configure(text="")
 
     def start_recording(self):
         self.btn_rec.configure(text="...", state="disabled")
@@ -456,14 +669,23 @@ class MappingDialog(ctk.CTkToplevel):
 
     def _build_mapping_data_from_ui(self):
         val = self.combo_cc.get()
-        try:
-            if " - " in val:
-                cc = int(val.split(" - ")[0])
-            else:
-                cc = int(val)
-        except ValueError:
-            CTkMessageBox.show_error("Erreur", "Le MIDI CC doit être valide (Nombre).")
-            return None
+        
+        # Use map if available
+        if hasattr(self, 'cc_map') and val in self.cc_map:
+             cc = self.cc_map[val]["cc"]
+        else:
+            # Fallback parsing
+            try:
+                if " - " in val:
+                    cc = int(val.split(" - ")[0])
+                else:
+                    cc = int(val)
+            except ValueError:
+                 # Last resort (maybe it's a raw number entered manually?)
+                 try: cc = int(val)
+                 except: 
+                    CTkMessageBox.show_error("Erreur", "Le MIDI CC doit être valide.")
+                    return None
 
         scan_code = None
         modifiers = []
@@ -481,16 +703,48 @@ class MappingDialog(ctk.CTkToplevel):
         icon_val = self.combo_icon.get()
         custom_icon = icon_val if icon_val != "Auto" else None
 
+        # Determine Action Type
+        act_type = "midi" if self.seg_action_type.get() == "MIDI" else "hotkey"
+        
+        # Determine MIDI Data
+        midi_type = "cc"
+        t_str = self.midi_msg_type.get()
+        if "Program" in t_str: midi_type = "pc"
+        elif "Note" in t_str: midi_type = "note"
+        
+        try:
+             midi_ch = int(self.ent_midi_ch.get())
+        except: midi_ch = 1
+        
+        try:
+             midi_target = int(self.ent_midi_target.get())
+        except: midi_target = 0
+        
+        try:
+             midi_velocity = int(self.ent_midi_val.get())
+        except: midi_velocity = 127
+
         return {
             "name": self.entry_name.get() or "Sans nom",
             "midi_cc": cc,
-            "midi_channel": 16,
+            "midi_channel": 16, # Input Channel (Always 16/Omni for now for Airstep)
             "trigger_value": "any",
-            "action_type": "hotkey",
+            
+            # New Fields
+            "action_type": act_type,
+            
+            # Hotkey Data
             "action_value": self.entry_key.get(),
             "action_scan_code": scan_code,
             "action_modifiers": modifiers,
             "action_modifier_scan_codes": modifier_scan_codes,
+            
+            # MIDI Out Data
+            "midi_out_type": midi_type,
+            "midi_out_channel": midi_ch,
+            "midi_out_target": midi_target,     # CC# / PC# / Note#
+            "midi_out_velocity": midi_velocity, # Value / Velocity
+            
             "custom_icon": custom_icon
         }
 
@@ -536,7 +790,7 @@ class AirstepApp(ctk.CTk):
         self.action_handler = ActionHandler()
         self.action_handler.register_listener(self.on_data_received)
         self.action_handler.start_monitoring()
-        self.settings = {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO"}
+        self.settings = {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO", "midi_output_name": "Aucun"}
         self.remote_win = None
 
         # --- Context Monitor ---
@@ -552,6 +806,15 @@ class AirstepApp(ctk.CTk):
 
         self.load_data()
         self.refresh_midi_ports()
+        
+        # Init Output Port
+        out_port = self.settings.get("midi_output_name")
+        if self.midi_engine and out_port and out_port != "Aucun":
+             self.midi_engine.start_output(out_port)
+        
+        # Link ActionHandler to Engine (for Output)
+        if self.action_handler:
+            self.action_handler.set_midi_engine(self.midi_engine)
         
         self.setup_tray()
         self.last_flash_time = 0
@@ -598,7 +861,7 @@ class AirstepApp(ctk.CTk):
     def create_sidebar(self):
         self.sidebar_frame = ctk.CTkFrame(self, width=220, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, rowspan=4, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(7, weight=1) # Spacer
+        self.sidebar_frame.grid_rowconfigure(8, weight=1) # Spacer on Row 8 (below Status)
 
         # 1. Logo
         try:
@@ -772,7 +1035,7 @@ class AirstepApp(ctk.CTk):
             try:
                 with open("config.json", 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    self.settings = data.get("settings", {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO"})
+                    self.settings = data.get("settings", {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO", "midi_output_name": "Aucun"})
                     self.device_combo.set(self.settings["midi_device_name"])
 
                     mode = self.settings.get("connection_mode", "MIDO")
@@ -1350,7 +1613,16 @@ class AirstepApp(ctk.CTk):
 
         # Switch Engine
         self.midi_engine = MidiManager.create(mode, target, self.midi_callback)
+        self.midi_engine = MidiManager.create(mode, target, self.midi_callback)
         self.midi_engine.start()
+        
+        out_port = self.settings.get("midi_output_name")
+        if out_port and out_port != "Aucun":
+             self.midi_engine.start_output(out_port)
+             
+        # Update ActionHandler
+        if self.action_handler:
+            self.action_handler.set_midi_engine(self.midi_engine)
 
         # Refresh UI list
         self.refresh_midi_ports()

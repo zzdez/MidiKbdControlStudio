@@ -25,6 +25,10 @@ class ActionHandler:
         self.current_profile = None
         self.command_callback = None
         self.listeners = [] # Callbacks for visual feedback (cc, value, channel)
+        self.midi_engine = None
+
+    def set_midi_engine(self, engine):
+        self.midi_engine = engine
 
     def register_listener(self, callback):
         if callback not in self.listeners:
@@ -167,8 +171,11 @@ class ActionHandler:
         else:
             self.log(f"FOCUS SWITCH: Cible introuvable (App='{target_app}', Title='{target_title}')")
 
-    def execute(self, cc, value, channel, profiles, force_target_profile=None):
-        # On ignore le relâchement (Value 0)
+    def execute(self, cc, value, channel, force_profile=None):
+        """Exécute l'action associée au CC"""
+        
+        # Filter Release (0) unless configured properly (TODO: Support Note Off/Release triggers)
+        # For now, we only trigger on Press (Value > 0)
         if value == 0: return
 
         # FEEDBACK VISUEL IMMEDIAT (Tous les clients: GUI, Remote, Web...)
@@ -258,7 +265,11 @@ class ActionHandler:
                  try:
                     if int(m['midi_cc']) == cc:
                         self.log(f"ACTION : Déclenchement '{m.get('name')}' (Profil: {force_profile['name']})")
-                        self.trigger_keystroke(m)
+                        
+                        if m.get("action_type") == "midi":
+                            self.trigger_midi(m)
+                        else:
+                            self.trigger_keystroke(m)
                         return
                  except: continue
             return
@@ -273,15 +284,20 @@ class ActionHandler:
             best_profile = self.find_matching_profile(profiles)
 
         if not best_profile:
-            # self.log(f"IGNORÉ : Aucun profil trouvé (CC={cc})")
-            return
+             self.log(f"IGNORÉ : Aucun profil trouvé pour CC={cc} (Window: '{self.get_active_window_title()}')")
+             return
 
         # 3. Trouver le Mapping dans le profil
+        # self.log(f"Profil Candidat : {best_profile['name']}")
         for m in best_profile.get('mappings', []):
             try:
                 if int(m['midi_cc']) == cc:
                     self.log(f"ACTION : Déclenchement '{m.get('name')}' (Profil: {best_profile['name']})")
-                    self.trigger_keystroke(m)
+                    
+                    if m.get("action_type") == "midi":
+                        self.trigger_midi(m)
+                    else:
+                        self.trigger_keystroke(m)
                     return
             except: continue
 
@@ -377,6 +393,47 @@ class ActionHandler:
                     # On notifie les listeners (GUI) pour qu'ils flashent
                     # On utilise un channel fictif ou 16
                     self.notify_listeners(cc, 127, 16)
+
+    def trigger_midi(self, mapping):
+        """Exécute une action MIDI Sortante"""
+        if not self.midi_engine:
+            self.log("ERREUR MIDI: MidiEngine non lié à ActionHandler")
+            return
+            
+        try:
+            m_type = mapping.get("midi_out_type", "cc")
+            chan = mapping.get("midi_out_channel", 1) - 1 # 0-indexed for Mido
+            target = mapping.get("midi_out_target", 0)
+            velocity = mapping.get("midi_out_velocity", 127)
+            
+            import mido
+            msg = None
+            
+            if m_type == "cc":
+                msg = mido.Message('control_change', channel=chan, control=target, value=velocity)
+            elif m_type == "pc":
+                msg = mido.Message('program_change', channel=chan, program=target)
+            elif m_type == "note":
+                # Send Note On (and optionally Note Off after small delay?) 
+                # For now, just Trigger Note On. Typically synth handles Envelope.
+                # Or we can implement Note On/Off toggle logic later.
+                # Let's do a simple trigger (Note On -> 100ms -> Note Off)
+                msg = mido.Message('note_on', channel=chan, note=target, velocity=velocity)
+                self.midi_engine.send_message(msg)
+                
+                def _off():
+                    off = mido.Message('note_off', channel=chan, note=target, velocity=0)
+                    self.midi_engine.send_message(off)
+                
+                threading.Timer(0.1, _off).start()
+                msg = None # Already sent
+
+            if msg:
+                self.midi_engine.send_message(msg)
+                self.log(f" -> MIDI OUT: {msg}")
+
+        except Exception as e:
+            self.log(f"ERREUR MIDI ACTION: {e}")
 
     def trigger_keystroke(self, mapping):
         """

@@ -49,6 +49,15 @@ class MidiProvider(abc.ABC):
 
     @abc.abstractmethod
     def get_ports(self): return []
+    
+    @abc.abstractmethod
+    def get_output_ports(self): return []
+
+    @abc.abstractmethod
+    def start_output(self, port_name): pass
+
+    @abc.abstractmethod
+    def send_message(self, msg): pass
 
 # ==========================================
 # 1. MIDO PROVIDER (Legacy/USB)
@@ -57,11 +66,13 @@ class MidoProvider(MidiProvider):
     def __init__(self, device_name, callback):
         super().__init__(device_name, callback)
         self.input_port = None
+        self.output_port = None # NEW: Output
         self.running = False
         self.thread = None
         self.scanner_process = None
         self.scan_queue = None
         self.last_known_ports = []
+        self.last_known_outputs = [] # NEW
 
     def _internal_callback(self, msg):
         if self.callback: self.callback(msg)
@@ -84,10 +95,44 @@ class MidoProvider(MidiProvider):
             try: self.input_port.close()
             except: pass
             self.input_port = None
+        
+        # Close Output
+        if self.output_port:
+            try: self.output_port.close()
+            except: pass
+            self.output_port = None
+
         self.is_connected = False
 
     def get_ports(self):
         return self.last_known_ports
+        
+    def get_output_ports(self):
+        try: return mido.get_output_names()
+        except: return []
+
+    def start_output(self, port_name):
+        if self.output_port:
+            try: self.output_port.close()
+            except: pass
+            self.output_port = None
+            
+        if not port_name: return
+
+        try:
+            self.log(f"Opening Output: {port_name}")
+            self.output_port = mido.open_output(port_name)
+            self.log("Output Opened successfully.")
+        except Exception as e:
+            self.log(f"Failed to open Output {port_name}: {e}")
+
+    def send_message(self, msg):
+        if self.output_port:
+            try:
+                self.output_port.send(msg)
+                # self.log(f"SENT: {msg}")
+            except Exception as e:
+                self.log(f"Send Error: {e}")
 
     def _monitor_connection(self):
         self.log(f"Started. Target: '{self.target_name}'")
@@ -148,6 +193,7 @@ class BleakProvider(MidiProvider):
         self.running = False
         self.thread = None
         self.discovered_devices = []
+        self.char_uuid = None # Stored for writing if needed
 
     def start(self):
         self.log(f"Starting BleakProvider... (Available={BLEAK_AVAILABLE})")
@@ -166,6 +212,20 @@ class BleakProvider(MidiProvider):
 
     def get_ports(self):
         return [d.name for d in self.discovered_devices if d.name]
+        
+    def get_output_ports(self):
+        # BLE acts as input/output same device usually
+        return ["(BLE Device)"] 
+
+    def start_output(self, port_name):
+        # Implicitly handled by connection
+        pass
+
+    def send_message(self, msg):
+        # TODO: Implement BLE Write if needed
+        # Requires converting mido msg to bytes and writing to char_uuid
+        # For now, advanced routing mainly targets PC Soft (Mido)
+        pass
 
     def _run_async_loop(self):
         self.log("Async Loop Thread Entering...")
@@ -235,6 +295,7 @@ class BleakProvider(MidiProvider):
                             try:
                                 self.log(f"Subscribing to: {found_char}")
                                 await self.client.start_notify(found_char, self._on_notify)
+                                self.char_uuid = found_char # STORE UUID
                                 self.is_connected = True
                                 self.last_error = None
                                 self.log("Connected (BLE) & Subscribed!")
@@ -243,14 +304,13 @@ class BleakProvider(MidiProvider):
                                 await self.client.disconnect()
                         else:
                             self.log("Error: No known MIDI characteristic found in candidates.")
-                            self.log("Dumping available services to debug log...")
                             
                             # Fallback & Debug: Try ANY notify characteristic
                             fallback_char = None
                             for s in self.client.services:
                                 for c in s.characteristics:
                                     props = c.properties
-                                    self.log(f" - Char: {c.uuid} | Props: {props}")
+                                    # self.log(f" - Char: {c.uuid} | Props: {props}")
                                     if "notify" in props and not fallback_char:
                                         fallback_char = c.uuid
 
@@ -258,6 +318,7 @@ class BleakProvider(MidiProvider):
                                 self.log(f"Trying Fallback Notify Char: {fallback_char}")
                                 try:
                                     await self.client.start_notify(fallback_char, self._on_notify)
+                                    self.char_uuid = fallback_char # STORE UUID
                                     self.is_connected = True
                                     self.last_error = None
                                     self.log("Connected (BLE - Fallback)!")
