@@ -338,8 +338,54 @@ class BleakProvider(MidiProvider):
             self.log(f"Parse Error: {e}")
 
 class MidiManager:
+    _output_port = None
+    _output_port_name = None
+
     @staticmethod
     def create(mode, device_name, callback):
         if mode == "BLE":
             return BleakProvider(device_name, callback)
         return MidoProvider(device_name, callback)
+
+    @classmethod
+    def get_output_ports(cls):
+        try:
+            return mido.get_output_names()
+        except:
+            return []
+
+    @classmethod
+    def set_output_port(cls, port_name):
+        if cls._output_port:
+            try:
+                cls._output_port.close()
+            except: pass
+            cls._output_port = None
+            cls._output_port_name = None
+
+        if not port_name:
+            return
+
+        try:
+            cls._output_port = mido.open_output(port_name)
+            cls._output_port_name = port_name
+            print(f"[MidiManager] Output connected to: {port_name}")
+        except Exception as e:
+            print(f"[MidiManager] Error opening output {port_name}: {e}")
+
+    @classmethod
+    def send_message(cls, channel, cc, value):
+        if not cls._output_port:
+            return
+        
+        try:
+            # Clamp values
+            ch = max(0, min(15, int(channel) - 1)) # 1-16 -> 0-15
+            cc_val = max(0, min(127, int(cc)))
+            val = max(0, min(127, int(value)))
+            
+            msg = mido.Message('control_change', channel=ch, control=cc_val, value=val)
+            cls._output_port.send(msg)
+            # print(f"[MidiManager] Sent: {msg}")
+        except Exception as e:
+            print(f"[MidiManager] Send Error: {e}")

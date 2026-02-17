@@ -5,6 +5,7 @@ import datetime
 import threading
 import ctypes
 import os
+from midi_engine import MidiManager
 
 # Ctypes Constants for Key Events
 VK_LEFT = 0x25
@@ -258,7 +259,7 @@ class ActionHandler:
                  try:
                     if int(m['midi_cc']) == cc:
                         self.log(f"ACTION : Déclenchement '{m.get('name')}' (Profil: {force_profile['name']})")
-                        self.trigger_keystroke(m)
+                        self._trigger_any_action(m)
                         return
                  except: continue
             return
@@ -281,9 +282,35 @@ class ActionHandler:
             try:
                 if int(m['midi_cc']) == cc:
                     self.log(f"ACTION : Déclenchement '{m.get('name')}' (Profil: {best_profile['name']})")
-                    self.trigger_keystroke(m)
+                    self._trigger_any_action(m)
                     return
             except: continue
+
+    def _trigger_any_action(self, mapping):
+        """Dispatches action based on type"""
+        atype = mapping.get('action_type', 'hotkey')
+        
+        if atype == 'midi':
+            # MIDI OUT
+            try:
+                ch = mapping.get('output_channel', 1)
+                cc = mapping.get('output_cc', 0)
+                val = mapping.get('output_value', 127)
+                self.log(f" -> MIDI OUT: Ch{ch} CC{cc} Val{val}")
+                MidiManager.send_message(ch, cc, val)
+            except Exception as e:
+                self.log(f" -> MIDI OUT ERROR: {e}")
+        
+        elif atype == 'command':
+            # COMMAND
+            cmd = mapping.get('action_value', '')
+            self.log(f" -> COMMAND INTERNE : {cmd}")
+            if self.command_callback:
+                self.command_callback(cmd)
+                
+        else:
+            # HOTKEY (Default)
+            self.trigger_keystroke(mapping)
 
     def _send_native_key(self, vk_code):
         """Simulate key press using native Windows API (keybd_event) with Virtual Key Code + ScanCode map"""
