@@ -598,46 +598,46 @@ class AirstepApp(ctk.CTk):
     def create_sidebar(self):
         self.sidebar_frame = ctk.CTkFrame(self, width=220, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, rowspan=4, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(7, weight=1) # Spacer
+        self.sidebar_frame.grid_rowconfigure(8, weight=1) # Spacer is row 8
 
         # 1. Logo
         try:
              pil_img = Image.open(LOGO_PATH)
-             logo_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(180, 70))
+             logo_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(160, 62))
              self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="", image=logo_img)
         except Exception as e:
              self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="AIRSTEP\nControl", font=ctk.CTkFont(size=20, weight="bold"))
-        self.logo_label.grid(row=0, column=0, padx=10, pady=(20, 10))
+        self.logo_label.grid(row=0, column=0, padx=10, pady=(10, 5))
 
         # 2. MIDI Mode & Selector
         self.lbl_mode = ctk.CTkLabel(self.sidebar_frame, text="Mode de Connexion :", anchor="w")
         self.lbl_mode.grid(row=1, column=0, padx=20, pady=(5, 0), sticky="w")
 
-        self.mode_combo = ctk.CTkComboBox(self.sidebar_frame, values=["Windows (USB/Driver)", "Bluetooth (Direct)"], command=self.change_mode)
+        self.mode_combo = ctk.CTkComboBox(self.sidebar_frame, values=["Windows (USB/Driver)", "Bluetooth (Direct)"], command=self.change_mode, height=24)
         self.mode_combo.grid(row=2, column=0, padx=20, pady=(0, 5))
 
         self.lbl_device = ctk.CTkLabel(self.sidebar_frame, text="Périphérique :", anchor="w")
         self.lbl_device.grid(row=3, column=0, padx=20, pady=(5, 0), sticky="w")
 
-        self.device_combo = ctk.CTkComboBox(self.sidebar_frame, values=["Recherche..."], command=self.change_midi_device)
+        self.device_combo = ctk.CTkComboBox(self.sidebar_frame, values=["Recherche..."], command=self.change_midi_device, height=24)
         self.device_combo.grid(row=4, column=0, padx=20, pady=(0, 5))
 
-        self.btn_refresh = ctk.CTkButton(self.sidebar_frame, text="Rafraîchir", width=100, command=self.refresh_midi_ports)
+        self.btn_refresh = ctk.CTkButton(self.sidebar_frame, text="Rafraîchir", width=100, height=24, command=self.refresh_midi_ports)
         self.btn_refresh.grid(row=5, column=0, padx=20, pady=5)
 
         # 3. Device & Settings
         self.settings_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
-        self.settings_frame.grid(row=6, column=0, padx=10, pady=10)
+        self.settings_frame.grid(row=6, column=0, padx=10, pady=5)
 
-        self.btn_edit_device = ctk.CTkButton(self.settings_frame, text="⚙ Boutons", width=90, fg_color="#555", command=self.open_device_editor)
+        self.btn_edit_device = ctk.CTkButton(self.settings_frame, text="⚙ Boutons", width=90, height=24, fg_color="#555", command=self.open_device_editor)
         self.btn_edit_device.pack(side="left", padx=2)
 
-        self.btn_settings = ctk.CTkButton(self.settings_frame, text="🛠 Réglages", width=90, fg_color="#555", command=self.open_settings)
+        self.btn_settings = ctk.CTkButton(self.settings_frame, text="🛠 Réglages", width=90, height=24, fg_color="#555", command=self.open_settings)
         self.btn_settings.pack(side="left", padx=2)
 
         # 4. Status & Monitor
         self.status_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
-        self.status_frame.grid(row=7, column=0, padx=20, pady=10, sticky="ew")
+        self.status_frame.grid(row=7, column=0, padx=20, pady=5, sticky="ew")
 
         # Connection State
         self.conn_frame = ctk.CTkFrame(self.status_frame, fg_color="transparent")
@@ -660,12 +660,12 @@ class AirstepApp(ctk.CTk):
         self.lbl_monitor_ch.pack(side="right", padx=10, pady=5)
 
         # Auto-Scan Switch
-        self.switch_scan = ctk.CTkSwitch(self.status_frame, text="Auto-Scan", command=self.toggle_scan, font=ctk.CTkFont(size=11), width=80, height=20)
+        self.switch_scan = ctk.CTkSwitch(self.status_frame, text="Auto-Scan", command=self.toggle_scan, font=ctk.CTkFont(size=11), width=80, height=24)
         self.switch_scan.select()
         self.switch_scan.pack(pady=(5, 0), anchor="w")
 
         # Theme Switch
-        self.theme_switch = ctk.CTkSwitch(self.status_frame, text="Mode Sombre", command=self.toggle_theme, font=ctk.CTkFont(size=11), width=80, height=20)
+        self.theme_switch = ctk.CTkSwitch(self.status_frame, text="Mode Sombre", command=self.toggle_theme, font=ctk.CTkFont(size=11), width=80, height=24)
 
         # Load theme setting
         current_theme = self.settings.get("theme", "Dark")
@@ -678,7 +678,7 @@ class AirstepApp(ctk.CTk):
 
         self.theme_switch.pack(pady=(5, 0), anchor="w")
 
-        # Spacer
+        # Spacer (Row 8)
         ctk.CTkLabel(self.sidebar_frame, text="").grid(row=8, column=0)
 
         # 5. Startup
@@ -688,10 +688,10 @@ class AirstepApp(ctk.CTk):
         self.chk_startup.grid(row=9, column=0, padx=20, pady=10, sticky="w")
 
         # 6. Global Actions
-        self.btn_remote = ctk.CTkButton(self.sidebar_frame, text="Détacher Télécommande ⧉", command=self.open_remote_control, fg_color="#444", hover_color="#666")
-        self.btn_remote.grid(row=10, column=0, padx=20, pady=(20, 5))
+        self.btn_remote = ctk.CTkButton(self.sidebar_frame, text="Détacher Télécommande ⧉", command=self.open_remote_control, fg_color="#444", hover_color="#666", height=28)
+        self.btn_remote.grid(row=10, column=0, padx=20, pady=(10, 5))
 
-        self.save_button = ctk.CTkButton(self.sidebar_frame, text="Sauvegarder Tout", command=lambda: self.save_all(silent=False), fg_color="green", hover_color="darkgreen")
+        self.save_button = ctk.CTkButton(self.sidebar_frame, text="Sauvegarder Tout", command=lambda: self.save_all(silent=False), fg_color="green", hover_color="darkgreen", height=28)
         self.save_button.grid(row=11, column=0, padx=20, pady=(5, 20))
 
     def create_main_area(self):
