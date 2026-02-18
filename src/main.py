@@ -49,7 +49,8 @@ def on_midi_event(msg):
         # 3. EXECUTION DE L'ACTION (Le plus important)
         # On utilise l'ActionHandler intégré à l'app GUI
         if app.action_handler:
-            app.action_handler.execute(msg.control, msg.value, msg.channel + 1, app.profiles)
+            # CORRECTION : Pont Direct ActionHandler -> MidiManager (Class, pas Instance Input)
+            app.action_handler.execute(msg.control, msg.value, msg.channel + 1, app.profiles, midi_manager=MidiManager)
 
 def start_uvicorn(host, port):
     try:

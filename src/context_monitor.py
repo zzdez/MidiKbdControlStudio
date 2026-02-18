@@ -24,6 +24,7 @@ class ContextMonitor(threading.Thread):
         # Sync & State
         self.lock = threading.Lock()
         self.paused = False
+        self.global_debounce_count = 0
 
     def log_to_file(self, msg):
         try:
@@ -103,18 +104,31 @@ class ContextMonitor(threading.Thread):
                         # Fallback to "Global / Desktop"
                         matched_profile = next((p for p in profiles if p.get("name") == "Global / Desktop"), None)
 
-                # 3. Determine name
-                current_name = matched_profile.get('name') if matched_profile else "Global / Aucun"
+                # 3. Determine name & Debounce Logic
+                potential_name = matched_profile.get('name') if matched_profile else "Global / Aucun"
+                
+                # Debounce for "Global" to avoid flickering
+                if "Global" in potential_name or "Desktop" in potential_name:
+                    self.global_debounce_count += 1
+                    if self.global_debounce_count < 2:
+                        time.sleep(self.interval)
+                        continue
+                else:
+                    self.global_debounce_count = 0 # Instant switch for specific apps
 
-                # 4. Detect Change
-                if current_name != self.last_profile_name:
-                    self.log_to_file(f"Profile Changed: {self.last_profile_name} -> {current_name}")
-                    self.last_profile_name = current_name
+                # 4. Apply Change if different
+                if potential_name != self.last_profile_name:
+                    self.log_to_file(f"Profile Changed: {self.last_profile_name} -> {potential_name}")
+                    self.last_profile_name = potential_name
+                    
+                    # 4a. Update Action Handler IMMEDIATELY (Critical for Sync)
+                    if self.action_handler:
+                         self.action_handler.set_current_profile(matched_profile)
 
-
-                    # 5. Callback Update
+                    # 4b. Web/GUI Callback
                     if self.callback:
-                        self.callback(matched_profile) # Pass full object or None
+                        self.callback(matched_profile)
+
 
             except Exception as e:
                 # Avoid spamming logs if something goes wrong repeatedly

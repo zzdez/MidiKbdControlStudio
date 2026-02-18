@@ -44,9 +44,24 @@ class ActionHandler:
 
     def set_current_profile(self, profile):
         """Définit le profil actif manuellement (ex: via ContextMonitor)"""
-        self.current_profile = profile
-        if profile:
-            self.log(f"Profil Actif défini sur : {profile.get('name')}")
+        if self.current_profile != profile:
+            self.current_profile = profile
+            name = profile.get('name') if profile else "None"
+            self.log(f"[DEBUG] ActionHandler profile updated to: {name}")
+            
+            # INPUT PRIMING: Wake up Windows Input Hook
+            self._prime_input_system()
+
+    def _prime_input_system(self):
+        """Envoie une touche inoffensive pour réveiller le hook Windows après un changement de contexte."""
+        try:
+            # Envoi Shift Gauche (Down + Up) très rapide
+            # Code 0x10 = VK_SHIFT
+            if hasattr(ctypes, 'windll'):
+                ctypes.windll.user32.keybd_event(0x10, 0, 0, 0) # Down
+                time.sleep(0.01)
+                ctypes.windll.user32.keybd_event(0x10, 0, 2, 0) # Up (2=KEYUP)
+        except: pass
 
     def set_debounce_delay(self, seconds):
         self.debounce_delay = seconds
@@ -168,7 +183,7 @@ class ActionHandler:
         else:
             self.log(f"FOCUS SWITCH: Cible introuvable (App='{target_app}', Title='{target_title}')")
 
-    def execute(self, cc, value, channel, profiles, force_target_profile=None):
+    def execute(self, cc, value, channel, profiles, force_target_profile=None, midi_manager=None):
         # On ignore le relâchement (Value 0)
         if value == 0: return
 
@@ -179,7 +194,7 @@ class ActionHandler:
         if self.debounce_timer:
             self.debounce_timer.cancel()
 
-        self.pending_execution = (cc, channel, profiles, force_target_profile)
+        self.pending_execution = (cc, channel, profiles, force_target_profile, midi_manager)
         self.debounce_timer = threading.Timer(self.debounce_delay, self._process_execution)
         self.debounce_timer.start()
 
@@ -190,14 +205,18 @@ class ActionHandler:
         args = self.pending_execution
         self.pending_execution = None
 
-        if len(args) == 4:
+        if len(args) == 5:
+            cc, channel, profiles, force_profile, midi_mgr = args
+        elif len(args) == 4:
             cc, channel, profiles, force_profile = args
+            midi_mgr = None
         else:
             cc, channel, profiles = args[:3]
             force_profile = None
+            midi_mgr = None
 
         try:
-            self._do_execute(cc, channel, profiles, force_profile)
+            self._do_execute(cc, channel, profiles, force_profile, midi_mgr)
         except Exception as e:
             self.log(f"Erreur Execution : {e}")
 
@@ -244,7 +263,7 @@ class ActionHandler:
 
         return best_profile
 
-    def _do_execute(self, cc, channel, profiles, force_profile=None):
+    def _do_execute(self, cc, channel, profiles, force_profile=None, midi_mgr=None):
         # --- CAS FORCE (GUI / Dashboard) ---
         if force_profile:
             self.log(f"ACTION MANUELLE (GUI): Force Profil '{force_profile.get('name')}'")
@@ -259,7 +278,7 @@ class ActionHandler:
                  try:
                     if int(m['midi_cc']) == cc:
                         self.log(f"ACTION : Déclenchement '{m.get('name')}' (Profil: {force_profile['name']})")
-                        self._trigger_any_action(m)
+                        self._trigger_any_action(m, midi_mgr)
                         return
                  except: continue
             return
@@ -282,11 +301,11 @@ class ActionHandler:
             try:
                 if int(m['midi_cc']) == cc:
                     self.log(f"ACTION : Déclenchement '{m.get('name')}' (Profil: {best_profile['name']})")
-                    self._trigger_any_action(m)
+                    self._trigger_any_action(m, midi_mgr)
                     return
             except: continue
 
-    def _trigger_any_action(self, mapping):
+    def _trigger_any_action(self, mapping, midi_mgr=None):
         """Dispatches action based on type"""
         atype = mapping.get('action_type', 'hotkey')
         
@@ -297,7 +316,13 @@ class ActionHandler:
                 cc = mapping.get('output_cc', 0)
                 val = mapping.get('output_value', 127)
                 self.log(f" -> MIDI OUT: Ch{ch} CC{cc} Val{val}")
-                MidiManager.send_message(ch, cc, val)
+                
+                # USE PASSED MANAGER IF AVAILABLE
+                if midi_mgr:
+                    midi_mgr.send_message(ch, cc, val)
+                else:
+                    MidiManager.send_message(ch, cc, val)
+                    
             except Exception as e:
                 self.log(f" -> MIDI OUT ERROR: {e}")
         

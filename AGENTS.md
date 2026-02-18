@@ -113,3 +113,16 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **Compact UI :** Redesign complet pour réduire l'empreinte écran (-40% hauteur), polices ajustées, et suppression du tiroir "Bibliothèque" (déporté sur le Web).
 *   **Fix Critique Feedback Visuel :**
     *   Correction de la signature du callback `on_data_received` (`cc, value, channel`) qui empêchait le clignotement des boutons lors des appuis physiques.
+
+### 12. Évolution V6 : Multi-Output MIDI & Robustesse
+*   **Architecture Multi-Output (`midi_engine.py`) :**
+    *   **Router 1-to-N :** Le `MidiManager` gère désormais une liste active de ports de sortie. Un message entrant (AIRSTEP) est dupliqué vers toutes les sorties cochées (Fender + loopMIDI).
+    *   **Persistance Robuste :** Les ports configurés mais absents (ex: synthè éteint) sont marqués "Absent" (Orange) dans l'UI mais conservés en mémoire.
+    *   **Fail-Safe :** Chaque envoi est isolé dans un try/except. Si un port plante (buffer full), les autres continuent de fonctionner.
+*   **Intégration loopMIDI :**
+    *   Documentation explicite sur la nécessité de `loopMIDI` pour contourner l'exclusivité des drivers MIDI Windows.
+    *   Logs détaillés : `[MIDI OUT] Tentative d'envoi vers ['loopMIDI Port', 'Fender']` pour le débogage.
+*   **Polishing (Réactivité & Stabilité) :**
+    *   **Debounce (`context_monitor.py`) :** Le basculement vers le profil "Global / Desktop" nécessite désormais une confirmation de stabilité (2 cycles / ~1s) pour éviter le "flickering" lors des changements de focus rapides.
+    *   **Input Priming (`action_handler.py`) :** Injection d'une micro-impulsion "Shift" (Win32 API) lors de l'activation d'un profil pour forcer Windows à réveiller le hook d'input immédiatement. Élimine la latence du "premier appui".
+    *   **Direct Sync :** L'`ActionHandler` est mis à jour directement depuis le thread de monitoring contextuel pour une réactivité <100ms.

@@ -338,8 +338,8 @@ class BleakProvider(MidiProvider):
             self.log(f"Parse Error: {e}")
 
 class MidiManager:
-    _output_port = None
-    _output_port_name = None
+    _active_ports = [] # List of (name, mido_port) tuples
+    _target_port_names = [] # List of strings (config)
 
     @staticmethod
     def create(mode, device_name, callback):
@@ -348,44 +348,109 @@ class MidiManager:
         return MidoProvider(device_name, callback)
 
     @classmethod
-    def get_output_ports(cls):
+    def get_available_outputs(cls):
         try:
             return mido.get_output_names()
         except:
             return []
 
     @classmethod
-    def set_output_port(cls, port_name):
-        if cls._output_port:
+    def set_output_ports(cls, port_names):
+        """
+        Configures the list of output ports.
+        Attempt to open each port. If a port fails or is missing,
+        it is skipped for sending but WRITTEN to config/memory as 'target'.
+        """
+        if not isinstance(port_names, list):
+            port_names = [port_names] if port_names else []
+
+        # 1. Store the target configuration (Persistence Rule #2)
+        cls._target_port_names = port_names
+
+        # 2. Close existing ports
+        for name, port in cls._active_ports:
             try:
-                cls._output_port.close()
+                port.close()
             except: pass
-            cls._output_port = None
-            cls._output_port_name = None
+        cls._active_ports = []
 
-        if not port_name:
-            return
+        # 3. Open new ports (Robustness Rule #1)
+        available = cls.get_available_outputs()
+        
+        for name in port_names:
+            if not name: continue
+            
+            # Fuzzy match or exact match logic could go here, 
+            # for now we assume exact match or simple containment if needed, 
+            # but mido.open_output usually expects exact name or strict prefix.
+            
+            # Check if physically present (optional, but avoids mido error if we know it's gone)
+            # However, mido might handle "virtual" ports differently. 
+            # We try to open it inside a try/except.
+            
+            try:
+                # If name is not in available, mido might raise IOError
+                # We attempt to open it anyway.
+                out = mido.open_output(name)
+                cls._active_ports.append((name, out))
+                print(f"[MidiManager] Connected output: '{name}'")
+            except Exception as e:
+                # Robustness: Log and continue
+                print(f"[MidiManager] Could not open output '{name}': {e}")
 
-        try:
-            cls._output_port = mido.open_output(port_name)
-            cls._output_port_name = port_name
-            print(f"[MidiManager] Output connected to: {port_name}")
-        except Exception as e:
-            print(f"[MidiManager] Error opening output {port_name}: {e}")
+        print(f"[MidiManager] Active Outputs: {len(cls._active_ports)} / Configured: {len(cls._target_port_names)}")
 
     @classmethod
     def send_message(cls, channel, cc, value):
-        if not cls._output_port:
+        if not cls._active_ports:
+            print("[MIDI OUT] ERREUR : Tentative d'envoi mais aucun port de sortie n'est actif dans le Manager.")
             return
         
-        try:
-            # Clamp values
-            ch = max(0, min(15, int(channel) - 1)) # 1-16 -> 0-15
-            cc_val = max(0, min(127, int(cc)))
-            val = max(0, min(127, int(value)))
+        # Debug Log for Port List
+        port_names = [p[0] for p in cls._active_ports]
+        print(f"[MIDI OUT] Tentative d'envoi vers {port_names}")
+        
+        # Clamp values
+        ch = max(0, min(15, int(channel) - 1)) # 1-16 -> 0-15
+        cc_val = max(0, min(127, int(cc)))
+        val = max(0, min(127, int(value)))
+        
+        msg = mido.Message('control_change', channel=ch, control=cc_val, value=val)
+        
+        for name, port in cls._active_ports:
+            try:
+                port.send(msg)
+                # Logging Rule #3: Specific port log (User Requested Format)
+                print(f"[MIDI OUT] Message envoyé avec SUCCÈS vers le port : '{name}' (CC {cc_val}, Val {val}, Ch {int(channel)})")
+            except Exception as e:
+                print(f"[MIDI OUT] ÉCHEC d'envoi vers '{name}' : {e}")
+    
+    @classmethod
+    def get_ports_status(cls):
+        """
+        Returns a list of dicts for the GUI/API:
+        [
+            {"name": "LoopMIDI Port", "active": True, "connected": True},
+            {"name": "Fender", "active": True, "connected": False}, # specific case where we want to show it's missing?
+            {"name": "Microsoft GS", "active": False, "connected": True} 
+        ]
+        """
+        available = cls.get_available_outputs()
+        status_list = []
+        
+        # We want to list ALL available ports AND any configured ports that are missing
+        all_names = set(available) | set(cls._target_port_names)
+        
+        for name in sorted(list(all_names)):
+            is_configured = name in cls._target_port_names
+            is_connected = any(p[0] == name for p in cls._active_ports)
+            is_available = name in available
             
-            msg = mido.Message('control_change', channel=ch, control=cc_val, value=val)
-            cls._output_port.send(msg)
-            # print(f"[MidiManager] Sent: {msg}")
-        except Exception as e:
-            print(f"[MidiManager] Send Error: {e}")
+            status_list.append({
+                "name": name,
+                "selected": is_configured,
+                "connected": is_connected, # Successfully opened
+                "available": is_available  # Physically present
+            })
+            
+        return status_list

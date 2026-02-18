@@ -510,6 +510,16 @@ async def add_app(app_def: Dict):
 
 # --- SETTINGS & CONFIG ---
 
+@app.get("/api/midi/outputs")
+async def get_midi_outputs():
+    """Returns list of MIDI output ports with status."""
+    try:
+        from midi_engine import MidiManager
+        return MidiManager.get_ports_status()
+    except Exception as e:
+        # Fallback if method missing or error
+        return [{"name": "Error: " + str(e), "selected": False, "connected": False, "available": False}]
+
 @app.get("/api/settings")
 async def get_settings():
     """Returns all configuration settings."""
@@ -519,7 +529,9 @@ async def get_settings():
     # Construct settings object
     return {
         "YOUTUBE_API_KEY": config_manager.get("YOUTUBE_API_KEY", ""),
-        "media_folders": config_manager.get("media_folders", [])
+        "media_folders": config_manager.get("media_folders", []),
+        "midi_output_names": config_manager.get("midi_output_names", []),
+        "midi_output_name": config_manager.get("midi_output_name", "") # Legacy fallback
     }
 
 @app.post("/api/settings")
@@ -527,6 +539,19 @@ async def update_settings(settings: Dict):
     """Updates configuration."""
     for key, value in settings.items():
         config_manager.set(key, value)
+        
+    # Apply MIDI settings immediately if present
+    if "midi_output_names" in settings:
+        try:
+            from midi_engine import MidiManager
+            # Ensure it's a list
+            ports = settings["midi_output_names"]
+            if isinstance(ports, list):
+                 MidiManager.set_output_ports(ports)
+                 print(f"[SERVER] Applied new MIDI ports: {ports}")
+        except Exception as e:
+            print(f"[SERVER] Failed to apply MIDI ports: {e}")
+
     return {"status": "ok", "settings": settings}
 
 @app.post("/api/open_native_editor")

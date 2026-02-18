@@ -42,6 +42,27 @@
     *   **Smart Close :** Fermez la remote sans être dérangé par la fenêtre principale (qui reste dans le Tray).
     *   **Feedback Visuel Unifié :** Les boutons clignotent que l'action vienne du MIDI, du Clavier (HID) ou du clic souris.
 
+## 🎹 Configuration MIDI (Multi-Ouput & DAW)
+
+AirstepStudio V3 permet désormais de piloter **tous vos équipements en même temps**.
+
+### 1. Multi-Sorties Simultanées
+Dans *Réglages > MIDI Output*, vous pouvez cocher plusieurs sorties :
+*   **Hardware :** Synthétiseurs externes (ex: *Fender Tone Master*), Pédales...
+*   **Software :** DAWs (Reaper, Ableton, Cubase...) ou Plugins via un câble virtuel.
+
+### 2. Contrôler un Logiciel (Reaper, Ableton...)
+**IMPORTANT :** Windows ne permet pas à deux logiciels d'utiliser le même port MIDI en même temps.
+Pour contrôler votre DAW depuis AirstepStudio, vous **DEVEZ** utiliser un câble virtuel :
+1.  Installez **loopMIDI** (gratuit, Tobias Erichsen).
+2.  Créez un port nommé "loopMIDI Port".
+3.  Dans **AirstepStudio** : Cochez "loopMIDI Port" dans les sorties.
+4.  Dans **Reaper/DAW** : Activez "loopMIDI Port" en **Entrée (Input)** uniquement (Jamais en sortie, sinon boucle infinie !).
+
+### 3. Performance & Réactivité
+*   **Input Priming :** L'application "réveille" Windows à chaque changement de profil pour garantir que votre premier appui de pédale soit instantané.
+*   **Anti-Flicker :** Le retour au profil "Bureau" est stabilisé (0.5s) pour éviter les changements intempestifs.
+
 ## ⌨️ Raccourcis Clavier & Navigation
 
 | Action | Raccourci |

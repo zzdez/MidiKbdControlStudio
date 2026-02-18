@@ -31,6 +31,7 @@ try:
     from midi_engine import MidiManager
     from action_handler import ActionHandler
     from library_manager import LibraryManager
+    from config_manager import ConfigManager
     from remote_gui import RemoteControl, CompactPedalboardFrame
     
     # ContextMonitor Import with specific debug
@@ -166,24 +167,46 @@ class SettingsDialog(ctk.CTkToplevel):
             # Tab MIDI Output
             tab_midi = self.tabview.add("MIDI Output")
             
-            ctk.CTkLabel(tab_midi, text="Port de Sortie MIDI :").pack(pady=(20, 5))
+            ctk.CTkLabel(tab_midi, text="Ports de Sortie MIDI (Multi) :").pack(pady=(20, 5))
             
-            self.combo_midi_out = ctk.CTkComboBox(tab_midi, width=250)
-            self.combo_midi_out.pack(pady=5)
+            self.midi_checkboxes = []
+            self.scroll_midi = ctk.CTkScrollableFrame(tab_midi, width=300, height=200)
+            self.scroll_midi.pack(pady=5, fill="both", expand=True)
             
-            ports = MidiManager.get_output_ports()
-            self.combo_midi_out.configure(values=ports if ports else ["Aucun port trouvé"])
+            # Get Status (Available + Missing Configured)
+            ports_status = MidiManager.get_ports_status()
             
-            # Select current if valid
-            current_out = MidiManager._output_port_name
-            if current_out and current_out in ports:
-                self.combo_midi_out.set(current_out)
-            elif ports:
-                self.combo_midi_out.set(ports[0])
+            if not ports_status:
+                ctk.CTkLabel(self.scroll_midi, text="Aucun port MIDI détecté").pack()
+            
+            for p in ports_status:
+                name = p["name"]
+                is_selected = p["selected"]
+                is_connected = p["connected"]
+                is_available = p["available"]
+                
+                # Label text logic
+                lbl_text = name
+                text_color = "white" # default (or None)
+                
+                if not is_available:
+                    lbl_text += " (Absent)"
+                    text_color = "orange"
+                elif is_selected and not is_connected:
+                    lbl_text += " (Erreur)"
+                    text_color = "red"
+                
+                chk = ctk.CTkCheckBox(self.scroll_midi, text=lbl_text, text_color=text_color)
+                if is_selected:
+                    chk.select()
+                
+                chk.pack(anchor="w", pady=2, padx=5)
+                # Store (checkbox_widget, port_name)
+                self.midi_checkboxes.append((chk, name))
 
-            ctk.CTkButton(tab_midi, text="Connecter / Sauvegarder", command=self.save_midi_out).pack(pady=20)
+            ctk.CTkButton(tab_midi, text="Appliquer / Sauvegarder", command=self.save_midi_out).pack(pady=20)
             
-            ctk.CTkLabel(tab_midi, text="(Permet d'envoyer des CC vers LoopMIDI\nou un synthé externe)", text_color="gray", font=("Arial", 10)).pack()
+            ctk.CTkLabel(tab_midi, text="(Cochez plusieurs sorties pour envoyer\nles commandes simultanément)", text_color="gray", font=("Arial", 10)).pack()
 
         except Exception as e:
             with open("debug.log", "a") as f:
@@ -192,16 +215,25 @@ class SettingsDialog(ctk.CTkToplevel):
             CTkMessageBox.show_error("Erreur", f"Erreur lors de l'ouverture des réglages :\n{e}")
 
     def save_midi_out(self):
-        port = self.combo_midi_out.get()
-        if port and port != "Aucun port trouvé":
-            MidiManager.set_output_port(port)
-            # Save to global config immediately via callback or dirty hack
-            # We will rely on AirstepApp.save_all picking it up later, 
-            # BUT user might expect persistence now. 
-            # We don't have reference to app.settings easily here without passing it.
-            # But AirstepApp passes 'env_manager'. 
-            # Let's just set it in MidiManager and let App save it on exit/save action.
-            CTkMessageBox.show_info("Info", f"Sortie connectée à : {port}")
+        selected_ports = []
+        for chk, name in self.midi_checkboxes:
+            if chk.get() == 1:
+                selected_ports.append(name)
+        
+        # Apply to Engine
+        MidiManager.set_output_ports(selected_ports)
+        
+        # Persist to Config
+        try:
+            cm = ConfigManager()
+            cm.set("midi_output_names", selected_ports)
+            
+            # Legacy cleanup: clear single port config to avoid confusion? 
+            # Or just leave it. Let's leave it.
+            
+            CTkMessageBox.show_info("Info", f"Ports actifs : {len(selected_ports)}\n Configuration sauvegardée.")
+        except Exception as e:
+            CTkMessageBox.show_error("Erreur Sauvegarde", str(e))
 
     def update_label(self, value):
         self.lbl_debounce.configure(text=f"{int(value)} ms")
@@ -979,9 +1011,18 @@ class AirstepApp(ctk.CTk):
                     else: self.mode_combo.set("Windows (USB/Driver)")
                     
                     # LOAD MIDI OUTPUT
-                    out_port = self.settings.get("midi_output_port", None)
-                    if out_port:
-                        MidiManager.set_output_port(out_port)
+                    # LOAD MIDI OUTPUT (Multi-Port Support)
+                    out_ports = self.settings.get("midi_output_names", [])
+                    
+                    # Migration: If list empty but legacy single port exists
+                    if not out_ports:
+                        old_port = self.settings.get("midi_output_port", None)
+                        if old_port:
+                            out_ports = [old_port]
+                            # Auto-migrate config in memory (will be saved on exit)
+                            self.settings["midi_output_names"] = out_ports
+                            
+                    MidiManager.set_output_ports(out_ports)
 
             except: pass
 
@@ -1767,7 +1808,7 @@ class AirstepApp(ctk.CTk):
         # On force le profil actuel pour activer le "Focus Switch"
         if self.action_handler:
             self.log_debug(f"SIMULATE PRESS: AppID={id(self)}, CurrentProfile={self.current_profile.get('name') if self.current_profile else 'None'}, ID={id(self.current_profile) if self.current_profile else 'None'}")
-            self.action_handler.execute(cc, 127, 16, self.profiles, force_target_profile=self.current_profile)
+            self.action_handler.execute(cc, 127, 16, self.profiles, force_target_profile=self.current_profile, midi_manager=MidiManager)
 
     def quit_app(self, icon=None, item=None):
         if self.tray_icon: self.tray_icon.stop()
