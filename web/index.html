@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Airstep Studio V3</title>
+    <title>MIDI-KBD Control Studio</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="lib/wavesurfer.min.js"></script>
@@ -15,7 +15,9 @@
 
     <!-- HEADER -->
     <header>
-        <div class="logo">AIRSTEP STUDIO</div>
+        <div class="logo">
+            <img src="/assets/logo.png" alt="MidiKbd Control Studio" id="main-logo">
+        </div>
         <div class="status-bar">
             <span id="connection-status" class="status-dot">●</span>
             <span id="active-profile">Profil : Global</span>
@@ -564,8 +566,16 @@
 
         <div class="modal-footer">
             <button class="btn-secondary" onclick="previewItem()">Prévisualiser</button>
+
+            <!-- Dynamic Download / Offline Options -->
             <button id="btn-show-dl" class="btn-secondary" onclick="toggleDownloadOptions()"
-                style="display:none; margin-left:10px;">⬇️ Télécharger</button>
+                style="display:none; margin-left:10px;">⬇️ Ajout Hors ligne</button>
+            <a id="btn-offline-help"
+                href="https://github.com/zzdez/MidiKbdControlStudio/blob/main/README.md#offline-mode" target="_blank"
+                class="btn-text" style="display:none; margin-left:10px; color:#aaa; text-decoration:none;">
+                Options hors ligne ↗
+            </a>
+
             <div style="flex:1"></div>
             <button class="btn-text" onclick="closeModal()">Annuler</button>
             <button class="btn-primary" onclick="saveItem()">Ajouter à la Bibliothèque Web</button>

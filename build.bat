@@ -6,7 +6,7 @@ echo   COMPILATION AIRSTEP STUDIO (FULL MUTAGEN SUPPORT)
 echo ========================================================
 
 :: 1. TUER L'APPLICATION
-taskkill /F /IM "AirstepStudio.exe" >nul 2>&1
+taskkill /F /IM "MidiKbdControlStudio.exe" >nul 2>&1
 timeout /t 1 /nobreak >nul
 
 :: 2. VERIFICATION ENV
@@ -23,7 +23,7 @@ if exist _BUILD_TEMP rmdir /s /q _BUILD_TEMP
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 if exist *.spec del *.spec
-if exist AirstepStudio.exe del AirstepStudio.exe
+if exist MidiKbdControlStudio.exe del MidiKbdControlStudio.exe
 
 mkdir _BUILD_TEMP
 copy src\*.py _BUILD_TEMP\ >nul
@@ -43,7 +43,7 @@ cd _BUILD_TEMP
 
 :: COMMANDE AVEC TOUS LES MODULES MUTAGEN EXPLICITES
 pyinstaller --noconfirm --onefile --windowed ^
- --name "AirstepStudio" ^
+ --name "MidiKbdControlStudio" ^
  --add-data "config.json;." ^
  --add-data "web;web" ^
  --add-data "assets;assets" ^
@@ -79,13 +79,14 @@ pyinstaller --noconfirm --onefile --windowed ^
  --hidden-import "yt_dlp" ^
  --collect-all "pygame" ^
  main.py
+:: ... (Existing content skipped, ensuring Hidden Imports remain) ...
 
 :: 5. FINALISATION
 cd ..
-if exist "_BUILD_TEMP\dist\AirstepStudio.exe" (
-    move /Y "_BUILD_TEMP\dist\AirstepStudio.exe" "AirstepStudio.exe" >nul
+if exist "_BUILD_TEMP\dist\MidiKbdControlStudio.exe" (
+    move /Y "_BUILD_TEMP\dist\MidiKbdControlStudio.exe" "MidiKbdControlStudio.exe" >nul
     echo.
-    echo [SUCCES] AirstepStudio.exe est pret !
+    echo [SUCCES] MidiKbdControlStudio.exe est pret !
 ) else (
     echo [ECHEC] L'executable n'a pas ete cree.
     pause

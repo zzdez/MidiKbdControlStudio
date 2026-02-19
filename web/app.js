@@ -23,6 +23,59 @@ let isPitchEnabled = false;
 let sourceAudio = null; // For WaveSurfer
 let sourceVideo = null; // For HTML5 Video
 
+// --- CAPABILITIES ---
+let systemCapabilities = { can_download: false }; // Default safe value
+
+async function checkSystemCapabilities() {
+    try {
+        const res = await fetch("/api/system/capabilities");
+        if (res.ok) {
+            systemCapabilities = await res.json();
+            console.log("System Capabilities:", systemCapabilities);
+            applyCapabilities();
+        }
+    } catch (e) {
+        console.error("Failed to check capabilities:", e);
+    }
+}
+
+function applyCapabilities() {
+    const btnDl = document.getElementById('btn-show-dl');
+    const btnHelp = document.getElementById('btn-offline-help');
+
+    // Also check smart import button if it exists
+    const smartImportBtn = document.getElementById('btn-smart-import');
+
+    if (!systemCapabilities.can_download) {
+        // Hide Download features
+        if (btnDl) btnDl.style.display = 'none';
+        if (smartImportBtn) smartImportBtn.style.display = 'none';
+
+        // Show Alternative (only if logic requires it, usually controlled by specific context)
+        // For the modal, it's controlled by checkDownloadAvailability, but global checks help.
+    } else {
+        // Restore defaults if needed, though usually handled by visibility toggles
+    }
+
+    // Show Disclaimer in Settings if limited
+    const settingsContainer = document.querySelector('#settings-modal .modal-content');
+    if (settingsContainer && !systemCapabilities.can_download) {
+        if (!document.getElementById('dep-alert')) {
+            const alert = document.createElement('div');
+            alert.id = 'dep-alert';
+            alert.style.cssText = "background:#332200; color:#ffaa00; padding:10px; margin-bottom:15px; border-left:4px solid #ffaa00; font-size:0.9em;";
+            alert.innerHTML = `
+                <strong>⚠️ Mode Restreint</strong><br>
+                Les fonctions de téléchargement sont désactivées car <code>yt-dlp.exe</code> ou <code>ffmpeg.exe</code> sont absents.<br>
+                Pour les activer, placez ces outils dans le dossier de l'application conformément à la documentation.
+            `;
+            // Insert at top of settings
+            if (settingsContainer.firstChild) settingsContainer.insertBefore(alert, settingsContainer.firstChild);
+            else settingsContainer.appendChild(alert);
+        }
+    }
+}
+
 function logToBackend(msg) {
     console.log(msg);
     fetch('/api/debug_log', {
@@ -856,7 +909,13 @@ function openAddModal() {
 
     // Reset Download UI
     document.getElementById("dl-options-container").style.display = "none";
-    document.getElementById("btn-show-dl").style.display = "none";
+
+    // Explicitly hide both (will be re-evaluated by checkDownloadAvailability if URL entered)
+    const btnDl = document.getElementById("btn-show-dl");
+    const btnHelp = document.getElementById("btn-offline-help");
+    if (btnDl) btnDl.style.display = "none";
+    if (btnHelp) btnHelp.style.display = "none";
+
     document.getElementById("dl-progress-bar").style.width = "0%";
     document.getElementById("dl-status").innerText = "Prêt";
 
@@ -1103,11 +1162,25 @@ async function checkDLStatus() {
 }
 
 function checkDownloadAvailability(url) {
-    const btn = document.getElementById("btn-show-dl");
-    if (url && (url.includes("youtube.com") || url.includes("youtu.be"))) {
-        btn.style.display = "inline-block";
+    const btnDl = document.getElementById("btn-show-dl");
+    const btnHelp = document.getElementById("btn-offline-help");
+
+    const isYoutube = url && (url.includes("youtube.com") || url.includes("youtu.be"));
+
+    if (isYoutube) {
+        if (systemCapabilities && systemCapabilities.can_download) {
+            // Capability Present: Show Button, Hide Help
+            if (btnDl) btnDl.style.display = "inline-block";
+            if (btnHelp) btnHelp.style.display = "none";
+        } else {
+            // Capability Missing: Hide Button, Show Help
+            if (btnDl) btnDl.style.display = "none";
+            if (btnHelp) btnHelp.style.display = "inline-block";
+        }
     } else {
-        btn.style.display = "none";
+        // Not YouTube: Hide Both
+        if (btnDl) btnDl.style.display = "none";
+        if (btnHelp) btnHelp.style.display = "none";
     }
 }
 
@@ -2365,6 +2438,9 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
         console.error("connectVideoWebSocket function not found!");
     }
+
+    // CHECK CAPABILITIES
+    checkSystemCapabilities();
 
     // CHECK YOUTUBE API MANUALLY
     // If API loaded before we attached the callback, we must init manually.

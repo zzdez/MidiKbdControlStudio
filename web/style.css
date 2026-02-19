@@ -17,6 +17,12 @@ body {
     flex-direction: column;
 }
 
+#main-logo {
+    height: 35px;
+    width: auto;
+    display: block;
+}
+
 /* HEADER */
 header {
     background-color: #2c2c2c;

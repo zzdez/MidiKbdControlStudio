@@ -54,6 +54,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- ASSETS PATH HELPER ---
+def get_resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+# Mount Assets for Web Access (Logo etc)
+assets_path = get_resource_path("assets")
+if os.path.exists(assets_path):
+    app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+else:
+    print(f"Warning: Assets folder not found at {assets_path}")
+
 server_loop = None
 config_manager = ConfigManager()
 
@@ -263,6 +278,16 @@ async def stream_file(path: str):
 @app.get("/api/status")
 async def get_status():
     return {"status": "ok"}
+
+@app.get("/api/system/capabilities")
+async def get_system_capabilities():
+    """Returns availability of external tools (YT, FFmpeg)."""
+    try:
+        from dependency_manager import DependencyManager
+        return DependencyManager.check_availability()
+    except Exception as e:
+        # Fallback safe mode
+        return {"can_download": False, "error": str(e), "missing": ["unknown"]}
 
 @app.post("/api/debug_log")
 async def debug_log_endpoint(data: Dict):

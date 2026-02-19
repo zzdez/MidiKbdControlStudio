@@ -60,7 +60,17 @@ def start_uvicorn(host, port):
 def main():
     global app, midi_manager, server_thread
 
-    print("--- Démarrage AirstepStudio ---")
+    print("--- Démarrage MidiKbd Control Studio ---")
+    print("DISCLAIMER: MidiKbd Control Studio est un outil d'interopérabilité.")
+    print("L'utilisateur est seul responsable de l'usage des fonctions de téléchargement,")
+    print("conformément aux lois sur la copie privée et aux droits d'auteur de son pays.")
+
+    # 0. Light Mode Detection
+    light_mode_flag = os.path.join(os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.getcwd(), "light_mode.flag")
+    is_light_mode = os.path.exists(light_mode_flag)
+
+    if is_light_mode:
+        print(">>> MODE LIGHT ACTIVE (Serveur Web & Context Monitor DESACTIVES) <<<")
 
     # 1. Config
     config = ConfigManager()
@@ -68,10 +78,64 @@ def main():
 
     # 2. Interface Graphique (GUI) - Doit être créée dans le Main Thread
     app = AirstepApp()
-    app.withdraw() # Démarrage discret
-    # app.open_remote_control() # Affiche la télécommande immédiatement (Désactivé : Mode Service)
+    
+    if is_light_mode:
+        # Mode Light : On ouvre directement la Remote et on affiche le Tray
+        app.withdraw() # Main win hidden
+        print("Ouverture immédiate de la Remote (Light Mode)...")
+        app.after(500, lambda: app.open_remote_control())
+    else:
+        # Mode Studio : Démarrage discret (Tray only)
+        app.withdraw()
 
     # 2b. Wiring Web Settings Button -> Native GUI
+    # ... (Keep wiring, it won't hurt even if unused in Light Mode)
+
+    # ... (Callback definitions omitted for brevity, logic remains same) ...
+
+    # 2e. State Injection
+    # ... (Keep wiring)
+
+    # 3. Démarrage Serveur Web (Thread) - EXCLUDED IN LIGHT MODE
+    server_thread = None
+    if not is_light_mode:
+        server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)
+        server_thread.start()
+        print("Serveur Web démarré.")
+    
+        # Context Monitor start is inside AirstepApp.__init__. 
+        # We need to STOP it if light mode.
+        if hasattr(app, 'context_monitor') and app.context_monitor:
+            # Note: ContextMonitor was started in app.__init__. We should stop it here.
+            # Better architecture would be to start it here, but checking existing code...
+            # It IS started in AirstepApp.__init__.
+             pass 
+    else:
+        # Stop the monitor that started automatically in AirstepApp
+        if hasattr(app, 'context_monitor') and app.context_monitor:
+            print("Arrêt du ContextMonitor pour Light Mode.")
+            app.context_monitor.stop()
+
+    # 4. Démarrage MIDI (Thread) - ALWAYS ON
+    # On lance le MIDI maintenant !
+    def start_midi_engine():
+        time.sleep(1) # Petit délai pour laisser l'UI s'afficher
+        try:
+            device_name = config.get("midi_device_name", "AIRSTEP")
+            conn_mode = config.get("connection_mode", "BLE") # ou MIDO
+
+            print(f"Tentative connexion MIDI ({conn_mode}) sur : {device_name}")
+
+            midi_manager = MidiManager.create(conn_mode, device_name, on_midi_event)
+            # On stocke la ref dans l'app pour qu'elle puisse afficher le statut
+            app.midi_engine = midi_manager
+            # Hack/Fix: Le MidiManager est passé à l'ActionHandler via execute() mais on utilise l'instance ici
+            # Mais app.midi_engine est l'instance MidiManager
+            # Donc on est bon.
+            midi_manager.start()
+        except Exception as e:
+            print(f"Erreur Fatal MIDI: {e}")
+
     def open_settings_wrapper():
         # Utilise .after pour que l'appel vienne du Thread Principal Tkinter
         if app:
@@ -191,9 +255,7 @@ def main():
     if hasattr(app, 'context_monitor'):
         fastapi_app.state.context_monitor = app.context_monitor
 
-    # 3. Démarrage Serveur Web (Thread)
-    server_thread = threading.Thread(target=start_uvicorn, args=("127.0.0.1", port), daemon=True)
-    server_thread.start()
+
 
     # 4. Démarrage MIDI (Thread)
     # On lance le MIDI maintenant !

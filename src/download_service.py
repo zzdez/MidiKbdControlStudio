@@ -15,8 +15,19 @@ class DownloadService:
     def __init__(self):
         self.metadata_service = MetadataService()
         self.active_downloads = {}
+        
+        # Dependency Check (Strict Enforcement)
+        # Even if yt_dlp library is imported, we require the executable as a token of responsibility
+        try:
+            from dependency_manager import DependencyManager
+            status = DependencyManager.check_availability()
+            self.download_available = status["can_download"] # Requires yt-dlp.exe AND ffmpeg.exe
+        except:
+             self.download_available = False
+
         self.ffmpeg_path = self._find_ffmpeg()
         self.ffmpeg_available = self.ffmpeg_path is not None
+        
         if self.ffmpeg_available:
             logging.info(f"FFmpeg detected at: {self.ffmpeg_path}")
         else:
@@ -133,6 +144,11 @@ class DownloadService:
             subs (bool), metadata (dict)
         }
         """
+        if not self.download_available:
+            if completion_callback:
+                completion_callback(False, "Téléchargement désactivé : Outils externes manquants (yt-dlp/ffmpeg).")
+            return
+
         url = options.get('url')
         fmt_id = options.get('format_id')
         target_folder = options.get('target_folder')

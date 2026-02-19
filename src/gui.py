@@ -737,7 +737,7 @@ class MappingDialog(ctk.CTkToplevel):
 class AirstepApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Airstep Smart Control")
+        self.title("MIDI-KBD Control Studio")
         self.geometry("1000x750")
 
         self.tray_icon = None
@@ -834,10 +834,11 @@ class AirstepApp(ctk.CTk):
         # 1. Logo
         try:
              pil_img = Image.open(LOGO_PATH)
-             logo_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(160, 62))
+             logo_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(220, 40))
              self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="", image=logo_img)
         except Exception as e:
-             self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="AIRSTEP\nControl", font=ctk.CTkFont(size=20, weight="bold"))
+             print(f"Logo Load Error: {e}")
+             self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="MIDI-KBD\nControl", font=ctk.CTkFont(size=20, weight="bold"))
         self.logo_label.grid(row=0, column=0, padx=10, pady=(10, 5))
 
         # 2. MIDI Mode & Selector
