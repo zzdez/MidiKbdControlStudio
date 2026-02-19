@@ -126,3 +126,15 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **Debounce (`context_monitor.py`) :** Le basculement vers le profil "Global / Desktop" nécessite désormais une confirmation de stabilité (2 cycles / ~1s) pour éviter le "flickering" lors des changements de focus rapides.
     *   **Input Priming (`action_handler.py`) :** Injection d'une micro-impulsion "Shift" (Win32 API) lors de l'activation d'un profil pour forcer Windows à réveiller le hook d'input immédiatement. Élimine la latence du "premier appui".
     *   **Direct Sync :** L'`ActionHandler` est mis à jour directement depuis le thread de monitoring contextuel pour une réactivité <100ms.
+
+### 13. Évolution V7 : MidiKbd Control Studio (Universel)
+*   **Refonte "Device Agnostic" (`midi_engine.py`) :**
+    *   Suppression des filtres de noms ("Airstep only").
+    *   **Architecture Provider :** `MidoProvider` (USB) et `BleakProvider` (BLE) unifiés sous une interface `MidiProvider`.
+    *   **Scanner Indépendant (`midi_scanner.py`) :** Processus séparé (Multiprocessing) pour le scan USB (0.5s intervalle) afin d'éviter de geler l'interface graphique si le driver Windows MM bloque.
+*   **Discovery & Persistance :**
+    *   **Dynamic Device Definition :** Si un appareil inconnu est trouvé (ex: "Boss FS-1-WL"), un fichier JSON de définition est créé à la volée dans `devices/`.
+    *   **Smart Rescan :** Logique "Force Rescan" qui permet de scanner les nouveaux périphériques même si une connexion est déjà active (Bypass temporaire du flag `is_connected`).
+    *   **UX Sync :** La sélection du périphérique dans l'interface est intelligemment préservée après un rafraîchissement.
+*   **Logging :**
+    *   Logs détaillés sur le scanner (`debug.log` séparé pour le sous-processus) et le provider actif.

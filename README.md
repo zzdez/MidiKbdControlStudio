@@ -1,12 +1,18 @@
-# AirstepStudio (Hybrid V3 Edition)
+# MidiKbd Control Studio (Universal V4 Edition)
 
-**AirstepStudio** est la station de contrôle ultime pour musiciens, combinant le meilleur de deux mondes :
+**MidiKbd Control Studio** (anciennement AirstepStudio) est la station de contrôle ultime pour musiciens, désormais compatible avec **TOUS les contrôleurs MIDI** (USB et Bluetooth).
+
+Elle combine le meilleur de deux mondes :
 1.  **Dashboard Web ("Le Cockpit") :** Une interface riche pour gérer vos médias (YouTube, Setlist) et vos configurations.
 2.  **Overlay Natif ("La Remote") :** Une télécommande flottante ultra-compacte pour garder le contrôle sur vos logiciels (DAW) sans quitter l'écran des yeux.
 
 ## 🚀 Fonctionnalités Clés
 
-*   **Mode Service (Nouveau) :** L'application démarre discrètement dans la zone de notification (Tray). Ouvrez ce dont vous avez besoin, quand vous en avez besoin.
+*   **Support MIDI Universel (Nouveau) :**
+    *   Compatible avec **n'importe quel contrôleur MIDI** : Airstep, Boss FS-1-WL, Chocolate, Korg Nano, Claviers maîtres...
+    *   **Double Driver :** Support natif Bluetooth LE (Bleak) et USB (Mido/WinMM).
+    *   **Détection Automatique :** Branchez, scannez, c'est détecté.
+*   **Mode Service :** L'application démarre discrètement dans la zone de notification (Tray).
 *   **Bibliothèque & Smart Launcher :**
     *   Un tiroir ("Drawer") intégré à la télécommande pour lancer vos morceaux et vos applications favorites.
     *   Détection automatique des applications liées à vos profils (ex: lancez "Reaper" et le profil change automatiquement).
@@ -42,9 +48,9 @@
     *   **Smart Close :** Fermez la remote sans être dérangé par la fenêtre principale (qui reste dans le Tray).
     *   **Feedback Visuel Unifié :** Les boutons clignotent que l'action vienne du MIDI, du Clavier (HID) ou du clic souris.
 
-## 🎹 Configuration MIDI (Multi-Ouput & DAW)
+## 🎹 Configuration MIDI (Universel & Multi-Output)
 
-AirstepStudio V3 permet désormais de piloter **tous vos équipements en même temps**.
+MidiKbd Control Studio permet de piloter **tous vos équipements en même temps**, quel que soit le contrôleur d'entrée utilisé (Airstep, Boss, Korg...).
 
 ### 1. Multi-Sorties Simultanées
 Dans *Réglages > MIDI Output*, vous pouvez cocher plusieurs sorties :
