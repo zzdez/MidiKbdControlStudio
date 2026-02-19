@@ -1614,30 +1614,39 @@ class AirstepApp(ctk.CTk):
         self.refresh_midi_ports()
 
     def refresh_midi_ports(self):
+        self.log_debug(f"Refresh requested. Engine available: {self.midi_engine is not None}")
+        
         # Use Engine's non-blocking port list if available
         if self.midi_engine:
+            self.log_debug("Setting scanning=True")
             # Force scan on
             self.midi_engine.set_scanning(True)
             try: self.switch_scan.select()
             except: pass
             
-            # FORCE CLEAR CACHE (New)
+            # FORCE CLEAR CACHE
             if hasattr(self.midi_engine, 'force_rescan'):
+                self.log_debug("Calling force_rescan()")
                 self.midi_engine.force_rescan()
-                # BLE Mode: We must wait for the scan to complete (approx 2-3s)
-                self.device_combo.set("Recherche en cours...")
-                self.device_combo.configure(state="disabled")
-                self.btn_refresh.configure(state="disabled", text="Scan...")
-                
-                # Schedule UI update
-                self.after(3500, self._finalize_refresh)
-            else:
-                # Mido Mode (Instant)
-                self._finalize_refresh()
+            
+            # UI Feedback
+            self.log_debug("Updating UI to 'Recherche in cours...'")
+            self.device_combo.set("Recherche en cours...")
+            self.device_combo.configure(state="disabled")
+            self.btn_refresh.configure(state="disabled", text="Scan...")
+
+            # Schedule Finalization based on Mode
+            mode = self.settings.get("connection_mode", "MIDO")
+            delay = 4000 if mode == "BLE" else 1500 # 1.5s for USB to be safe/visible
+            
+            self.log_debug(f"Scheduling _finalize_refresh in {delay}ms (Mode={mode})")
+            self.after(delay, self._finalize_refresh)
         else:
+            self.log_debug("No MIDI Engine. Clearing values.")
             self.device_combo.configure(values=[])
 
     def _finalize_refresh(self):
+        self.log_debug("_finalize_refresh triggered.")
         # Restore UI State
         self.device_combo.configure(state="normal")
         self.btn_refresh.configure(state="normal", text="Rafraîchir")

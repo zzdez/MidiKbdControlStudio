@@ -259,20 +259,34 @@ def main():
 
     # 4. Démarrage MIDI (Thread)
     # On lance le MIDI maintenant !
+    # 4. Démarrage MIDI (Thread)
+    # On lance le MIDI maintenant !
     def start_midi_engine():
         time.sleep(1) # Petit délai pour laisser l'UI s'afficher
         try:
             device_name = config.get("midi_device_name", "AIRSTEP")
             conn_mode = config.get("connection_mode", "BLE") # ou MIDO
 
-            print(f"Tentative connexion MIDI ({conn_mode}) sur : {device_name}")
+            msg = f"Tentative connexion MIDI ({conn_mode}) sur : {device_name}"
+            print(msg)
+            # Log to file
+            with open("debug.log", "a", encoding="utf-8") as f:
+                f.write(f"[MAIN] {msg}\n")
 
             midi_manager = MidiManager.create(conn_mode, device_name, on_midi_event)
             # On stocke la ref dans l'app pour qu'elle puisse afficher le statut
             app.midi_engine = midi_manager
+            
+            # Log success assignment
+            with open("debug.log", "a", encoding="utf-8") as f:
+                f.write(f"[MAIN] MidiManager created and assigned to app. Starting...\n")
+            
             midi_manager.start()
         except Exception as e:
-            print(f"Erreur Fatal MIDI: {e}")
+            err = f"Erreur Fatal MIDI: {e}"
+            print(err)
+            with open("debug.log", "a", encoding="utf-8") as f:
+                f.write(f"[MAIN] CRITICAL ERROR: {err}\n")
 
     threading.Thread(target=start_midi_engine, daemon=True).start()
 

@@ -47,6 +47,10 @@ class MidiProvider(abc.ABC):
         self.target_name = new_name
         self.start()
 
+    def force_rescan(self):
+        """Optional method to force a hardware scan. Override if needed."""
+        self.log("Force rescan triggered (Base: No-op)")
+
     @abc.abstractmethod
     def get_ports(self): return []
 
@@ -85,6 +89,11 @@ class MidoProvider(MidiProvider):
             except: pass
             self.input_port = None
         self.is_connected = False
+
+    def force_rescan(self):
+        self.log("Forcing Rescan (Clearing Cache)...")
+        self.last_known_ports = []
+        # We don't need to restart the process, the loop will refill it soon.
 
     def get_ports(self):
         return self.last_known_ports
@@ -147,7 +156,6 @@ class BleakProvider(MidiProvider):
         self.client = None
         self.running = False
         self.thread = None
-        self.thread = None
         self.discovered_devices = []
         self.force_reset_scanner = False
 
@@ -155,6 +163,8 @@ class BleakProvider(MidiProvider):
         self.log("Forcing Rescan (Clearing Cache)...")
         self.discovered_devices = []
         self.force_reset_scanner = True
+
+    def start(self):
         self.log(f"Starting BleakProvider... (Available={BLEAK_AVAILABLE})")
         if not BLEAK_AVAILABLE:
             self.last_error = "Bleak (lib) manquant"
@@ -188,12 +198,16 @@ class BleakProvider(MidiProvider):
         scanner = BleakScanner()
         consecutive_adapter_errors = 0
 
+        force_scan_iteration = False
+
         while self.running:
             if self.force_reset_scanner:
                 self.log("Re-initializing BleakScanner...")
                 scanner = BleakScanner()
                 self.force_reset_scanner = False
-            if self.is_connected:
+                force_scan_iteration = True
+
+            if self.is_connected and not force_scan_iteration:
                 consecutive_adapter_errors = 0
                 if self.client and self.client.is_connected:
                     await asyncio.sleep(1.0)
@@ -201,24 +215,22 @@ class BleakProvider(MidiProvider):
                 else:
                     self.log("Disconnected")
                     self.is_connected = False
+            
+            # If we are here, we scan (either not connected, or forced iteration)
 
-            if not self.scanning_enabled:
+            if not self.scanning_enabled and not force_scan_iteration:
                 await asyncio.sleep(1.0)
                 continue
 
             try:
                 # Scan
                 # Increase delay to reduce load on adapter
-                await asyncio.sleep(2.0)
+                if force_scan_iteration:
+                     self.log("Forced Scan Iteration... (Fast Path)")
+                     await asyncio.sleep(0.1)
+                else:
+                     await asyncio.sleep(2.0)
 
-                # Force Rescan Flag? 
-                # Actually, scanner.discover always does a fresh scan on Windows if scanner is new.
-                # But we reuse 'scanner' instance? No, we create it once? 
-                # Wait: scanner = BleakScanner() is at top of _main_loop.
-                # So we reuse it.
-                # Creating a new scanner every loop might be safer for "refresh"?
-                # But discovery is method.
-                
                 devices = await scanner.discover(timeout=3.0)
                 
                 # Update Cache
@@ -226,6 +238,9 @@ class BleakProvider(MidiProvider):
                 
                 # Reset error count if scan succeeds
                 consecutive_adapter_errors = 0
+
+                # Consume force flag
+                force_scan_iteration = False
 
                 target_device = None
                 for d in devices:
@@ -258,7 +273,7 @@ class BleakProvider(MidiProvider):
                          break
 
 
-                if target_device:
+                if target_device and not self.is_connected:
                     self.log(f"Connecting BLE: {target_device.name} ({target_device.address})...")
                     self.client = BleakClient(target_device.address)
                     await self.client.connect()
