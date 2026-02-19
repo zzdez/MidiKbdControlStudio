@@ -862,12 +862,20 @@ class AirstepApp(ctk.CTk):
         self.settings_frame.grid(row=6, column=0, padx=10, pady=5)
 
         self.btn_edit_device = ctk.CTkButton(self.settings_frame, text="⚙ Boutons", width=90, height=24, fg_color="#555", command=self.open_device_editor)
+
+        # Update text update logic
+        if self.current_device_def:
+            self.btn_edit_device.configure(text=f"⚙ {self.current_device_def['name'][:10]}")
+        else:
+            self.btn_edit_device.configure(text="⚙ Configurer")
+        
+        # Missing Pack restored
         self.btn_edit_device.pack(side="left", padx=2)
 
+        # Missing Settings Button restored
         self.btn_settings = ctk.CTkButton(self.settings_frame, text="🛠 Réglages", width=90, height=24, fg_color="#555", command=self.open_settings)
         self.btn_settings.pack(side="left", padx=2)
 
-        # 4. Status & Monitor
         self.status_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
         self.status_frame.grid(row=7, column=0, padx=20, pady=5, sticky="ew")
 
@@ -1612,31 +1620,60 @@ class AirstepApp(ctk.CTk):
             self.midi_engine.set_scanning(True)
             try: self.switch_scan.select()
             except: pass
-
-            ports = self.midi_engine.get_ports()
-            self.device_combo.configure(values=ports)
-
-            # Debug Popup
-            mode = self.settings.get("connection_mode", "MIDO")
-            info = f"Mode Actuel : {mode}\n\n"
-            if ports:
-                info += f"{len(ports)} Appareil(s) détecté(s) :\n" + "\n".join([f"- {p}" for p in ports])
+            
+            # FORCE CLEAR CACHE (New)
+            if hasattr(self.midi_engine, 'force_rescan'):
+                self.midi_engine.force_rescan()
+                # BLE Mode: We must wait for the scan to complete (approx 2-3s)
+                self.device_combo.set("Recherche en cours...")
+                self.device_combo.configure(state="disabled")
+                self.btn_refresh.configure(state="disabled", text="Scan...")
+                
+                # Schedule UI update
+                self.after(3500, self._finalize_refresh)
             else:
-                info += "Aucun appareil détecté.\n"
-                if mode == "BLE":
-                    info += "Vérifiez le Bluetooth et l'alimentation.\n(Le scan BLE peut prendre quelques secondes)."
-                else:
-                    info += "Vérifiez le câble USB."
-
-            if mode == "BLE" and not ports:
-                info += "\n\n(Note : Le scan Bluetooth prend quelques secondes. Essayez de rafraîchir à nouveau dans 5s si l'appareil est allumé.)"
-
-            CTkMessageBox.show_info("Diagnostic Connexion", info)
+                # Mido Mode (Instant)
+                self._finalize_refresh()
         else:
             self.device_combo.configure(values=[])
 
+    def _finalize_refresh(self):
+        # Restore UI State
+        self.device_combo.configure(state="normal")
+        self.btn_refresh.configure(state="normal", text="Rafraîchir")
+
+        if not self.midi_engine: return
+
+        ports = self.midi_engine.get_ports()
+        self.device_combo.configure(values=ports)
+        if ports:
+             self.device_combo.set(ports[0])
+
+        # Debug Popup
+        mode = self.settings.get("connection_mode", "MIDO")
+        info = f"Mode Actuel : {mode}\n\n"
+        if ports:
+            info += f"{len(ports)} Appareil(s) détecté(s) :\n" + "\n".join([f"- {p}" for p in ports])
+        else:
+            info += "Aucun appareil détecté.\n"
+            if mode == "BLE":
+                info += "Vérifiez le Bluetooth et l'alimentation.\n(Le scan BLE peut prendre quelques secondes)."
+            else:
+                info += "Vérifiez le câble USB."
+
+        if mode == "BLE" and not ports:
+            info += "\n\n(Note : Le scan Bluetooth prend quelques secondes. Essayez de rafraîchir à nouveau dans 5s si l'appareil est allumé.)"
+
+        CTkMessageBox.show_info("Diagnostic Connexion", info)
+
     def change_midi_device(self, choice):
-        self.save_all(silent=True)
+        if not choice: return
+        self.settings["midi_device_name"] = choice
+        
+        # Persist immediately
+        cm = ConfigManager()
+        cm.set("midi_device_name", choice)
+        
         self.update_device_def()
         if self.midi_engine:
             self.midi_engine.restart(choice)

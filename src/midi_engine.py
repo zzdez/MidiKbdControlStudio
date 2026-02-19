@@ -147,9 +147,14 @@ class BleakProvider(MidiProvider):
         self.client = None
         self.running = False
         self.thread = None
+        self.thread = None
         self.discovered_devices = []
+        self.force_reset_scanner = False
 
-    def start(self):
+    def force_rescan(self):
+        self.log("Forcing Rescan (Clearing Cache)...")
+        self.discovered_devices = []
+        self.force_reset_scanner = True
         self.log(f"Starting BleakProvider... (Available={BLEAK_AVAILABLE})")
         if not BLEAK_AVAILABLE:
             self.last_error = "Bleak (lib) manquant"
@@ -184,6 +189,10 @@ class BleakProvider(MidiProvider):
         consecutive_adapter_errors = 0
 
         while self.running:
+            if self.force_reset_scanner:
+                self.log("Re-initializing BleakScanner...")
+                scanner = BleakScanner()
+                self.force_reset_scanner = False
             if self.is_connected:
                 consecutive_adapter_errors = 0
                 if self.client and self.client.is_connected:
@@ -202,16 +211,52 @@ class BleakProvider(MidiProvider):
                 # Increase delay to reduce load on adapter
                 await asyncio.sleep(2.0)
 
+                # Force Rescan Flag? 
+                # Actually, scanner.discover always does a fresh scan on Windows if scanner is new.
+                # But we reuse 'scanner' instance? No, we create it once? 
+                # Wait: scanner = BleakScanner() is at top of _main_loop.
+                # So we reuse it.
+                # Creating a new scanner every loop might be safer for "refresh"?
+                # But discovery is method.
+                
                 devices = await scanner.discover(timeout=3.0)
+                
+                # Update Cache
                 self.discovered_devices = devices
+                
                 # Reset error count if scan succeeds
                 consecutive_adapter_errors = 0
 
                 target_device = None
                 for d in devices:
+                    # Generic Discovery: We just list them. Connection happens if target matches.
+                    # But wait, this loop searches for target TO CONNECT.
+                    # We need to separate Scanning from Connecting? 
+                    # Actually, MidoProvider separates them. BleakProvider mixes them in _main_loop?
+                    # Let's see: `if target_device: connect`.
+                    # So we need to KEEP the target check for connection, 
+                    # BUT `self.discovered_devices = devices` ensures `get_ports` returns everything.
+                    # The filter was:
+                    # if d.name and self.target_name.lower() in d.name.lower(): target_device = d
+                    # This is correct for AUTO-CONNECTION to a specific target.
+                    # But for DISCOVERY (get_ports), we just need `devices`.
+                    # And `self.discovered_devices = devices` is already there!
+                    # So `get_ports` works.
+                    # The issue is `self.target_name` default "AIRSTEP" prevents connecting to others?
+                    # No, if user selects "Korg", `restart("Korg")` updates target_name.
+                    # So the loop is fine IF `get_ports` returns everything.
+                    # Let's verify `get_ports`. It returns `[d.name for d in self.discovered_devices]`.
+                    # BleakScanner.discover() returns all.
+                    # So what is the change?
+                    # The user said: "Supprime tous les filtres qui cherchent spécifiquement la chaîne de caractères Airstep".
+                    # Ah, `MidiScanner.scan_loop` (for USB) had filters. `bleak_provider` didn't really? 
+                    # Let's check the loop again.
                     if d.name and self.target_name.lower() in d.name.lower():
-                        target_device = d
-                        break
+                         # This IS the connection logic. It connects if name matches target.
+                         # This is fine. If target is "Korg", it connects to "Korg".
+                         target_device = d
+                         break
+
 
                 if target_device:
                     self.log(f"Connecting BLE: {target_device.name} ({target_device.address})...")

@@ -93,8 +93,7 @@ class DeviceManager:
 
     def get_definition_for_port(self, port_name):
         """
-        Finds the best matching definition for a given MIDI port name.
-        Logic: Case-insensitive substring match.
+        Finds or Creates a definition for a given MIDI port name.
         """
         if not port_name: return None
         port_lower = port_name.lower()
@@ -103,25 +102,26 @@ class DeviceManager:
         for d in self.definitions:
             if d.get("name", "").lower() in port_lower:
                 return d
-
-        return None
+        
+        # 2. If no match, we create a TEMPORARY default one in memory
+        # The user will have to save it to persist it.
+        # But we check if "Default" exists first? No, we create one for THIS port.
+        print(f"[DeviceManager] No known layout for '{port_name}'. Creating default.")
+        
+        new_def = {
+            "name": port_name, # Use the port name as the device name
+            "buttons": [] # Start empty
+        }
+        # Optionally pre-fill if it contains "AIRSTEP" (Legacy Support)
+        if "airstep" in port_lower:
+             new_def["buttons"] = DEFAULT_AIRSTEP_DEF["buttons"]
+        
+        # We Add it to definitions so it's live
+        self.definitions.append(new_def)
+        return new_def
 
     def create_default_airstep(self):
-        # Default AIRSTEP configuration (Mode Toggle OFF / Momentary)
-        # CC 52-56 corresponds to A-E usually on AIRSTEP
-        data = {
-            "name": "AIRSTEP",
-            "buttons": [
-                {"cc": 52, "label": "Bouton A (Gauche)"},
-                {"cc": 53, "label": "Bouton B (Milieu G)"},
-                {"cc": 54, "label": "Bouton C (Milieu)"},
-                {"cc": 55, "label": "Bouton D (Milieu D)"},
-                {"cc": 56, "label": "Bouton E (Droite)"},
-                {"cc": 57, "label": "Long Press A"},
-                {"cc": 58, "label": "Long Press B"},
-                {"cc": 59, "label": "Long Press C"},
-                {"cc": 60, "label": "Long Press D"},
-                {"cc": 61, "label": "Long Press E"}
-            ]
-        }
-        self.save_definition(data)
+        # We keep this for now as a fallback if folder is causing issues, 
+        # but usage is minimized.
+        self.save_definition(DEFAULT_AIRSTEP_DEF)
+
