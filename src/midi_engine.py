@@ -91,12 +91,14 @@ class MidoProvider(MidiProvider):
         self.is_connected = False
 
     def force_rescan(self):
-        self.log("Forcing Rescan (Clearing Cache)...")
+        self.log("Forcing Rescan (Clearing Cache and waiting for scanner process)...")
         self.last_known_ports = []
-        # We don't need to restart the process, the loop will refill it soon.
+        # We don't need to restart the process, the loop will refill it soon (0.5s).
 
     def get_ports(self):
-        return self.last_known_ports
+        ports = self.last_known_ports
+        self.log(f"get_ports called. Returning: {ports}")
+        return ports
 
     def _monitor_connection(self):
         self.log(f"Started. Target: '{self.target_name}'")
@@ -105,7 +107,10 @@ class MidoProvider(MidiProvider):
             if self.scan_queue:
                 try:
                     while not self.scan_queue.empty():
-                        self.last_known_ports = self.scan_queue.get_nowait()
+                        ports_list = self.scan_queue.get_nowait()
+                        if ports_list != self.last_known_ports:
+                            self.log(f"Scanner Update: {ports_list}")
+                        self.last_known_ports = ports_list
                 except: pass
 
             if self.is_connected:

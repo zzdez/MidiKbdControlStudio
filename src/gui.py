@@ -1429,8 +1429,8 @@ class AirstepApp(ctk.CTk):
     # --- Save ---
     def save_all(self, silent=False):
         self.settings["midi_device_name"] = self.device_combo.get()
-        if MidiManager._output_port_name:
-            self.settings["midi_output_port"] = MidiManager._output_port_name
+        # if MidiManager._output_port_name:
+        #     self.settings["midi_output_port"] = MidiManager._output_port_name
             
         full_config = {"settings": self.settings}
         try:
@@ -1598,17 +1598,34 @@ class AirstepApp(ctk.CTk):
         self.save_all(silent=True)
 
     def change_mode(self, choice):
+        self.log_debug(f"change_mode called with choice: '{choice}'")
         mode = "BLE" if "Bluetooth" in choice else "MIDO"
+        self.log_debug(f"Determined mode: {mode}")
+        
         self.settings["connection_mode"] = mode
-        self.save_all(silent=True)
+        try:
+            self.save_all(silent=True)
+            self.log_debug("Settings saved.")
+        except Exception as e:
+            self.log_debug(f"Error saving settings: {e}")
 
         target = self.device_combo.get()
         if self.midi_engine:
-            self.midi_engine.stop()
+            self.log_debug(f"Stopping current engine: {self.midi_engine.__class__.__name__}")
+            try:
+                self.midi_engine.stop()
+            except Exception as e:
+                 self.log_debug(f"Error stopping engine: {e}")
 
         # Switch Engine
-        self.midi_engine = MidiManager.create(mode, target, self.midi_callback)
-        self.midi_engine.start()
+        self.log_debug(f"Creating new MidiManager for mode {mode}...")
+        try:
+            self.midi_engine = MidiManager.create(mode, target, self.midi_callback)
+            self.log_debug(f"Engine created: {self.midi_engine}")
+            self.midi_engine.start()
+            self.log_debug("Engine started.")
+        except Exception as e:
+            self.log_debug(f"Error creating/starting engine: {e}")
 
         # Refresh UI list
         self.refresh_midi_ports()
@@ -1637,7 +1654,7 @@ class AirstepApp(ctk.CTk):
 
             # Schedule Finalization based on Mode
             mode = self.settings.get("connection_mode", "MIDO")
-            delay = 4000 if mode == "BLE" else 1500 # 1.5s for USB to be safe/visible
+            delay = 4000 if mode == "BLE" else 800 # 800ms for USB (Scanner is 500ms)
             
             self.log_debug(f"Scheduling _finalize_refresh in {delay}ms (Mode={mode})")
             self.after(delay, self._finalize_refresh)

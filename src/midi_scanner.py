@@ -1,15 +1,29 @@
 import mido
 import time
 
-def scan_loop(queue, interval=2.0):
+def scan_loop(queue, interval=0.5):
     """
     Processus indépendant pour scanner les ports MIDI.
     Évite de bloquer le thread principal si le driver (WinMM) gèle.
     """
+    # Log startup
+    try:
+        with open("debug.log", "a", encoding="utf-8") as f:
+            f.write(f"[SCANNER] Starting Subprocess loop (Interval={interval}s)...\n")
+    except: pass
+
     while True:
         try:
             # Cette opération peut bloquer si le driver est instable
             ports = mido.get_input_names()
+            
+            # Log ports if found (only occasionally or on change to avoid spam?)
+            # Let's log every 10th scan or if not empty? 
+            # Better: just put in queue. Subprocess logging is risky for perf.
+            # But we need to know if it works.
+            # Let's log only if ports are found.
+            if ports:
+                 pass # We rely on main process to log reception
 
             # On vide la queue pour ne garder que le dernier état
             while not queue.empty():
@@ -17,7 +31,10 @@ def scan_loop(queue, interval=2.0):
                 except: break
 
             queue.put(ports)
-        except Exception:
-            pass
-
+        except Exception as e:
+            try:
+                with open("debug.log", "a", encoding="utf-8") as f:
+                   f.write(f"[SCANNER] Error: {e}\n")
+            except: pass
+            
         time.sleep(interval)
