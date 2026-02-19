@@ -1655,14 +1655,52 @@ class AirstepApp(ctk.CTk):
 
         ports = self.midi_engine.get_ports()
         self.device_combo.configure(values=ports)
+        
+        current_selection = self.settings.get("midi_device_name", "")
+        new_selection = None
+
         if ports:
-             self.device_combo.set(ports[0])
+            # Smart Selection: Keep current if available, else pick first
+            if current_selection in ports:
+                new_selection = current_selection
+                info_selection = f"Périphérique actuel retrouvé : {new_selection}"
+            else:
+                new_selection = ports[0]
+                info_selection = f"Périphérique par défaut : {new_selection}"
+            
+            # Apply Selection & Update Definition Button
+            self.device_combo.set(new_selection)
+            # IMPORTANT: We must update the definition button manually because .set() doesn't trigger callback
+            # But we DON'T want to restart the engine yet (user might want to choose another).
+            # However, if we changed the selection (failover), we SHOULD likely update the internal state?
+            # User request: "The modal... allows to choose... and button updated".
+            # Compromise: We update the button to match what is shown in the box.
+            
+            # Update Config tracking (but maybe not save to disk yet until confirmed?)
+            # Actually, let's sync it.
+            if new_selection != current_selection:
+                 # If we switched devices, we should probably treat it as a change?
+                 # Or just visual? Let's just update the visual definition for now.
+                 pass
+
+            # We reuse the logic: find definition for the text in the box
+            # But we can't easily call 'change_midi_device' without triggering a restart.
+            # So we just call update_device_def() which reads the combo box!
+            self.update_device_def()
+            
+        else:
+            self.device_combo.set("Aucun")
+            info_selection = "Aucun sélectionné."
+            self.current_device_def = None
+            self.btn_edit_device.configure(text="⚙ Configurer")
+
 
         # Debug Popup
         mode = self.settings.get("connection_mode", "MIDO")
         info = f"Mode Actuel : {mode}\n\n"
         if ports:
             info += f"{len(ports)} Appareil(s) détecté(s) :\n" + "\n".join([f"- {p}" for p in ports])
+            info += "\n\n" + info_selection
         else:
             info += "Aucun appareil détecté.\n"
             if mode == "BLE":
