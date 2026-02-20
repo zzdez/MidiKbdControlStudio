@@ -26,6 +26,13 @@ function startDeviceStatusPolling() {
                 currentDeviceName = data.device_name || "Aucun";
                 currentConnectionMode = data.connection_mode || "MIDO";
                 currentIsConnected = data.is_connected || false;
+
+                const activeProfileName = data.active_profile_name || "Global / Aucun";
+                const profileLabel = document.getElementById("active-profile");
+                if (profileLabel) {
+                    profileLabel.innerText = "Profil : " + activeProfileName;
+                }
+
                 // If on empty state, force refresh to show new name immediately
                 if (!currentProfile || !currentProfile.mappings) {
                     renderPedalboard(currentProfile);

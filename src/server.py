@@ -282,11 +282,19 @@ async def get_status():
     if hasattr(app.state, "midi_manager") and app.state.midi_manager:
         is_connected = app.state.midi_manager.is_connected
 
+    active_profile_name = "Global / Aucun"
+    if hasattr(app.state, "action_handler") and app.state.action_handler.current_profile:
+         active_profile_name = app.state.action_handler.current_profile.get("name", "Global / Aucun")
+    elif hasattr(app.state, "profile_manager") and app.state.profile_manager:
+         # Fallback if needed, but ActionHandler tracks the live context
+         pass
+
     return {
         "status": "ok",
         "device_name": config_manager.get("midi_device_name", "Aucun"),
         "connection_mode": config_manager.get("connection_mode", "MIDO"),
-        "is_connected": is_connected
+        "is_connected": is_connected,
+        "active_profile_name": active_profile_name
     }
 
 @app.get("/api/system/capabilities")
