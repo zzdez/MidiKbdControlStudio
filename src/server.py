@@ -277,7 +277,17 @@ async def stream_file(path: str):
 
 @app.get("/api/status")
 async def get_status():
-    return {"status": "ok"}
+    config_manager._load_config()
+    is_connected = False
+    if hasattr(app.state, "midi_manager") and app.state.midi_manager:
+        is_connected = app.state.midi_manager.is_connected
+
+    return {
+        "status": "ok",
+        "device_name": config_manager.get("midi_device_name", "Aucun"),
+        "connection_mode": config_manager.get("connection_mode", "MIDO"),
+        "is_connected": is_connected
+    }
 
 @app.get("/api/system/capabilities")
 async def get_system_capabilities():

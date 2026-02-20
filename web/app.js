@@ -12,6 +12,32 @@ let availableProfiles = []; // Cache for profiles
 
 let currentWebMode = "GENERIC"; // Track AUDIO, VIDEO or GENERIC explicitly
 
+// --- GLOBAL DEVICE STATUS ---
+let currentDeviceName = "Aucun";
+let currentConnectionMode = "MIDO";
+let currentIsConnected = false;
+
+function startDeviceStatusPolling() {
+    setInterval(async () => {
+        try {
+            const res = await fetch("/api/status");
+            if (res.ok) {
+                const data = await res.json();
+                currentDeviceName = data.device_name || "Aucun";
+                currentConnectionMode = data.connection_mode || "MIDO";
+                currentIsConnected = data.is_connected || false;
+                // If on empty state, force refresh to show new name immediately
+                if (!currentProfile || !currentProfile.mappings) {
+                    renderPedalboard(currentProfile);
+                }
+            }
+        } catch (e) {
+            // Silently ignore connection errors here to not spam console when server restarts
+            currentIsConnected = false;
+        }
+    }, 2000);
+}
+startDeviceStatusPolling();
 
 // --- PITCH SHIFT VARIABLES ---
 let audioCtx = null;
@@ -1640,7 +1666,14 @@ function renderPedalboard(profile) {
     const grid = document.getElementById("pedalboard-grid");
     grid.innerHTML = "";
     if (!profile || !profile.mappings) {
-        grid.innerHTML = '<div class="empty-state">Aucun profil</div>';
+        let displayMode = currentConnectionMode === "BLE" ? "Bluetooth" : "USB";
+        if (currentDeviceName === "Aucun" || !currentDeviceName) {
+            grid.innerHTML = `<div class="empty-state">Pédalier : En attente...</div>`;
+        } else if (!currentIsConnected) {
+            grid.innerHTML = `<div class="empty-state">🔴 ${currentDeviceName} (${displayMode}) - Déconnecté</div>`;
+        } else {
+            grid.innerHTML = `<div class="empty-state">🟢 ${currentDeviceName} (${displayMode})</div>`;
+        }
         return;
     }
     profile.mappings.forEach(m => {

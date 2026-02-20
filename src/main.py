@@ -127,6 +127,7 @@ def main():
             app.after(0, lambda: [app.deiconify(), app.lift(), app.focus_force()])
 
     fastapi_app.state.open_settings_callback = open_settings_wrapper
+    fastapi_app.state.midi_manager = app.midi_manager
 
     # 2c. Wiring Folder Selection (Thread-Safe)
     def select_folder_wrapper():
