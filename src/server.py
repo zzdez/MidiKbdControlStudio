@@ -597,6 +597,14 @@ async def update_settings(settings: Dict):
 
     return {"status": "ok", "settings": settings}
 
+@app.post("/api/open_remote")
+async def open_remote():
+    """Opens the Native Remote Windows."""
+    if hasattr(app.state, "open_remote_callback"):
+        app.state.open_remote_callback()
+        return {"status": "opened"}
+    return {"status": "error", "message": "Callback not linked"}
+
 @app.post("/api/open_native_editor")
 async def open_native_editor():
     """Opens the Native Tkinter Window (Main App)."""

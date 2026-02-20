@@ -15,13 +15,26 @@
 
     <!-- HEADER -->
     <header>
-        <div class="logo">
+        <div class="logo" style="display: flex; align-items: center; gap: 15px;">
             <img src="/assets/logo.png" alt="MidiKbd Control Studio" id="main-logo">
+            <span id="header-device-status" style="font-size: 0.85em; color: #888; font-weight: normal;">○ En
+                attente...</span>
         </div>
-        <div class="status-bar">
-            <span id="connection-status" class="status-dot">●</span>
-            <span id="active-profile">Profil : Global</span>
-            <button id="btn-settings" onclick="openSettingsModal()">⚙️</button>
+        <div class="status-bar"
+            style="display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; min-width: max-content;">
+            <button id="btn-remote-native" class="btn-icon" onclick="openNativeRemote()"
+                title="Ouvrir la télécommande flottante" style="margin-right: 5px;">
+                <i class="ph ph-device-mobile"></i>
+            </button>
+            <button id="btn-toggle-theater" class="btn-icon" onclick="toggleTheaterMode()"
+                title="Mode Plein Écran (Théâtre)" style="margin-right: 5px;">
+                <i class="ph ph-corners-out"></i>
+            </button>
+            <span id="active-profile" style="white-space: nowrap; font-size: 0.9em; color: #ccc;">Profil : Global</span>
+            <button id="btn-settings" class="btn-icon" onclick="openSettingsModal()" title="Paramètres"
+                style="margin-left: 5px;">
+                <i class="ph ph-gear"></i>
+            </button>
         </div>
     </header>
 

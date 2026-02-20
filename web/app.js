@@ -33,6 +33,22 @@ function startDeviceStatusPolling() {
                     profileLabel.innerText = "Profil : " + activeProfileName;
                 }
 
+                // Update Header Device Status
+                const headerStatus = document.getElementById("header-device-status");
+                if (headerStatus) {
+                    let displayMode = currentConnectionMode === "BLE" ? "Bluetooth" : "USB";
+                    if (currentDeviceName === "Aucun" || !currentDeviceName) {
+                        headerStatus.innerHTML = `○ En attente...`;
+                        headerStatus.style.color = "#888";
+                    } else if (!currentIsConnected) {
+                        headerStatus.innerHTML = `🔴 ${currentDeviceName} (${displayMode}) - Déconnecté`;
+                        headerStatus.style.color = "#cf6679";
+                    } else {
+                        headerStatus.innerHTML = `🟢 ${currentDeviceName} (${displayMode})`;
+                        headerStatus.style.color = "#03dac6";
+                    }
+                }
+
                 // If on empty state, force refresh to show new name immediately
                 if (!currentProfile || !currentProfile.mappings) {
                     renderPedalboard(currentProfile);
@@ -1669,18 +1685,43 @@ function getEmbedUrl(url) {
 }
 
 // --- RENDER ---
+let isPedalboardVisible = true;
+
+async function openNativeRemote() {
+    try {
+        const res = await fetch("/api/open_remote", { method: "POST" });
+        if (!res.ok) console.error("Failed to open remote", await res.text());
+    } catch (e) {
+        console.error("Error opening remote", e);
+    }
+}
+
+let isTheaterMode = false;
+
+function toggleTheaterMode() {
+    isTheaterMode = !isTheaterMode;
+
+    // Elements to toggle
+    const sidebar = document.querySelector(".sidebar-zone");
+    const pedalboard = document.getElementById("pedalboard-container");
+    const mediaZone = document.querySelector(".media-zone");
+
+    if (isTheaterMode) {
+        if (sidebar) sidebar.style.display = "none";
+        if (pedalboard) pedalboard.style.display = "none";
+        if (mediaZone) mediaZone.style.borderRight = "none";
+    } else {
+        if (sidebar) sidebar.style.display = "flex"; // style.css uses flex for sidebar-zone
+        if (pedalboard) pedalboard.style.display = "block";
+        if (mediaZone) mediaZone.style.borderRight = "1px solid #333";
+    }
+}
+
 function renderPedalboard(profile) {
     const grid = document.getElementById("pedalboard-grid");
     grid.innerHTML = "";
     if (!profile || !profile.mappings) {
-        let displayMode = currentConnectionMode === "BLE" ? "Bluetooth" : "USB";
-        if (currentDeviceName === "Aucun" || !currentDeviceName) {
-            grid.innerHTML = `<div class="empty-state">Pédalier : En attente...</div>`;
-        } else if (!currentIsConnected) {
-            grid.innerHTML = `<div class="empty-state">🔴 ${currentDeviceName} (${displayMode}) - Déconnecté</div>`;
-        } else {
-            grid.innerHTML = `<div class="empty-state">🟢 ${currentDeviceName} (${displayMode})</div>`;
-        }
+        grid.innerHTML = `<div class="empty-state" style="padding: 5px; font-size: 0.8em; opacity: 0.3;">(Aucun bouton configuré)</div>`;
         return;
     }
     profile.mappings.forEach(m => {
