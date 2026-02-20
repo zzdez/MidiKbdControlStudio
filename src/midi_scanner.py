@@ -15,6 +15,7 @@ def scan_loop(queue, interval=0.5):
     while True:
         try:
             # Cette opération peut bloquer si le driver est instable
+            time.sleep(0.2) # Allow Windows to refresh inventory
             ports = mido.get_input_names()
             
             # Log ports if found (only occasionally or on change to avoid spam?)

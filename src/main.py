@@ -25,7 +25,7 @@ if current_dir not in sys.path: sys.path.insert(0, current_dir)
 # Note: sys.path hack above ensures we can import modules directly
 from server import app as fastapi_app
 from config_manager import ConfigManager
-from midi_engine import MidiManager
+from config_manager import ConfigManager
 from gui import AirstepApp
 
 # Globals
@@ -34,23 +34,7 @@ midi_manager = None
 app = None
 
 # --- CALLBACK MIDI (Le Pont Critique) ---
-def on_midi_event(msg):
-    """Appelé quand le pédalier envoie un signal"""
-    if msg.type != 'control_change': return
 
-    # 1. Envoi au Web (WebSocket)
-    # (Note: Le broadcast est géré dans server.py via polling ou queue,
-    # mais pour l'instant on se concentre sur l'action locale)
-
-    if app:
-        # 2. Feedback Visuel sur la Télécommande (LEDs)
-        # Géré via ActionHandler listener (on_data_received) pour synchronisation totale
-
-        # 3. EXECUTION DE L'ACTION (Le plus important)
-        # On utilise l'ActionHandler intégré à l'app GUI
-        if app.action_handler:
-            # CORRECTION : Pont Direct ActionHandler -> MidiManager (Class, pas Instance Input)
-            app.action_handler.execute(msg.control, msg.value, msg.channel + 1, app.profiles, midi_manager=MidiManager)
 
 def start_uvicorn(host, port):
     try:
@@ -58,7 +42,7 @@ def start_uvicorn(host, port):
     except: pass
 
 def main():
-    global app, midi_manager, server_thread
+    global app, server_thread
 
     print("--- Démarrage MidiKbd Control Studio ---")
     print("DISCLAIMER: MidiKbd Control Studio est un outil d'interopérabilité.")
@@ -257,38 +241,9 @@ def main():
 
 
 
-    # 4. Démarrage MIDI (Thread)
-    # On lance le MIDI maintenant !
-    # 4. Démarrage MIDI (Thread)
-    # On lance le MIDI maintenant !
-    def start_midi_engine():
-        time.sleep(1) # Petit délai pour laisser l'UI s'afficher
-        try:
-            device_name = config.get("midi_device_name", "AIRSTEP")
-            conn_mode = config.get("connection_mode", "BLE") # ou MIDO
+    # 4. MIDI Engine is now managed by AirstepApp internally automatically.
+    # See AirstepApp.start_engine() and AirstepApp.__init__()
 
-            msg = f"Tentative connexion MIDI ({conn_mode}) sur : {device_name}"
-            print(msg)
-            # Log to file
-            with open("debug.log", "a", encoding="utf-8") as f:
-                f.write(f"[MAIN] {msg}\n")
-
-            midi_manager = MidiManager.create(conn_mode, device_name, on_midi_event)
-            # On stocke la ref dans l'app pour qu'elle puisse afficher le statut
-            app.midi_engine = midi_manager
-            
-            # Log success assignment
-            with open("debug.log", "a", encoding="utf-8") as f:
-                f.write(f"[MAIN] MidiManager created and assigned to app. Starting...\n")
-            
-            midi_manager.start()
-        except Exception as e:
-            err = f"Erreur Fatal MIDI: {e}"
-            print(err)
-            with open("debug.log", "a", encoding="utf-8") as f:
-                f.write(f"[MAIN] CRITICAL ERROR: {err}\n")
-
-    threading.Thread(target=start_midi_engine, daemon=True).start()
 
     # 5. Ouverture Navigateur (Désactivé : Mode Service)
     # def open_browser():
@@ -304,7 +259,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        if midi_manager: midi_manager.stop()
+        pass
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()

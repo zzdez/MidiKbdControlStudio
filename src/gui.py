@@ -127,7 +127,7 @@ class ShortcutsDialog(ctk.CTkToplevel):
         self.destroy()
 
 class SettingsDialog(ctk.CTkToplevel):
-    def __init__(self, parent, profile_manager, action_handler, env_manager):
+    def __init__(self, parent, profile_manager, action_handler, env_manager, midi_manager):
         super().__init__(parent)
         self.title("Réglages")
         self.geometry("450x400")
@@ -135,6 +135,7 @@ class SettingsDialog(ctk.CTkToplevel):
         self.profile_manager = profile_manager
         self.action_handler = action_handler
         self.env_manager = env_manager
+        self.midi_manager = midi_manager
 
         try:
             self.tabview = ctk.CTkTabview(self)
@@ -174,7 +175,7 @@ class SettingsDialog(ctk.CTkToplevel):
             self.scroll_midi.pack(pady=5, fill="both", expand=True)
             
             # Get Status (Available + Missing Configured)
-            ports_status = MidiManager.get_ports_status()
+            ports_status = self.midi_manager.get_ports_status()
             
             if not ports_status:
                 ctk.CTkLabel(self.scroll_midi, text="Aucun port MIDI détecté").pack()
@@ -221,7 +222,7 @@ class SettingsDialog(ctk.CTkToplevel):
                 selected_ports.append(name)
         
         # Apply to Engine
-        MidiManager.set_output_ports(selected_ports)
+        self.midi_manager.set_output_ports(selected_ports)
         
         # Persist to Config
         try:
@@ -762,9 +763,12 @@ class AirstepApp(ctk.CTk):
         self.current_profile = None
         self.manual_override_profile = None # For Smart Launcher
         self.mapping_indicators = {}
-        self.midi_engine = None
-        self.midi_callback = None
+        self.mapping_indicators = {}
+        # New Stateful MidiManager (Radical Stabilization)
+        self.midi_manager = MidiManager(self.midi_callback)
+        
         self.action_handler = ActionHandler()
+        self.action_handler.set_midi_manager(self.midi_manager)
         self.action_handler.register_listener(self.on_data_received)
         self.action_handler.start_monitoring()
         self.settings = {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO"}
@@ -782,11 +786,34 @@ class AirstepApp(ctk.CTk):
         self._monitor_connection_status()
 
         self.load_data()
-        self.refresh_midi_ports()
+        # SILENT STARTUP: Removed explicit refresh
+        # self.refresh_midi_ports()
         
         self.setup_tray()
         self.last_flash_time = 0
         self._revert_timer = None
+        
+        # Start Engine (Delayed)
+        self.after(1000, self.start_engine)
+
+    def start_engine(self):
+        try:
+            mode = self.settings.get("connection_mode", "MIDO") # BLE or MIDO
+            
+            # SMART PERSISTENCE LOAD
+            target = ""
+            if mode == "BLE":
+                target = self.settings.get("midi_device_name_ble", "AIRSTEP")
+            else:
+                target = self.settings.get("midi_device_name_usb", "")
+
+            # Sync legacy field just in case
+            self.settings["midi_device_name"] = target
+
+            self.log_debug(f"Starting Engine (Silent): Mode={mode}, Target={target}")
+            self.midi_manager.switch_mode(mode, target)
+        except Exception as e:
+            self.log_debug(f"Startup Error: {e}")
 
     def on_context_change(self, profile):
         """Callback from ContextMonitor when window changes"""
@@ -1031,7 +1058,8 @@ class AirstepApp(ctk.CTk):
                             # Auto-migrate config in memory (will be saved on exit)
                             self.settings["midi_output_names"] = out_ports
                             
-                    MidiManager.set_output_ports(out_ports)
+                            
+                    self.midi_manager.set_output_ports(out_ports)
 
             except: pass
 
@@ -1052,6 +1080,15 @@ class AirstepApp(ctk.CTk):
 
     def update_device_def(self):
         port_name = self.device_combo.get()
+        
+        # If combo says "Recherche...", use the actual target for the current mode
+        if port_name in ["Recherche en cours...", "Recherche...", "Aucun", ""]:
+            mode = self.settings.get("connection_mode", "MIDO")
+            if mode == "BLE":
+                port_name = self.settings.get("midi_device_name_ble", "AIRSTEP")
+            else:
+                port_name = self.settings.get("midi_device_name_usb", "")
+
         new_def = self.device_manager.get_definition_for_port(port_name)
 
         # Fallback to AIRSTEP if nothing found (e.g. at startup or no device connected)
@@ -1069,17 +1106,17 @@ class AirstepApp(ctk.CTk):
         self.current_device_def = new_def
         self.log_debug(f"Device Definition set to: {self.current_device_def.get('name')}")
 
-        # Update btn text for confirmation?
+        # Update btn text for confirmation
         if self.current_device_def:
-            self.btn_edit_device.configure(text=f"⚙ Conf. {self.current_device_def['name']}")
+            self.btn_edit_device.configure(text=f"⚙ {self.current_device_def['name']}")
         else:
-            self.btn_edit_device.configure(text="⚙ Créer Conf.")
+            self.btn_edit_device.configure(text="⚙ Configurer")
 
     def open_device_editor(self):
         DeviceEditorDialog(self, self.device_manager, self.current_device_def, self.on_device_saved)
 
     def open_settings(self):
-        SettingsDialog(self, self.profile_manager, self.action_handler, self.env_manager)
+        SettingsDialog(self, self.profile_manager, self.action_handler, self.env_manager, self.midi_manager)
 
     def on_device_saved(self):
         # Reload definitions
@@ -1588,8 +1625,7 @@ class AirstepApp(ctk.CTk):
 
     # --- MIDI & System ---
     def toggle_scan(self):
-        if self.midi_engine:
-            self.midi_engine.set_scanning(bool(self.switch_scan.get()))
+        self.midi_manager.set_scanning(bool(self.switch_scan.get()))
 
     def toggle_theme(self):
         mode = "Dark" if self.theme_switch.get() else "Light"
@@ -1599,148 +1635,194 @@ class AirstepApp(ctk.CTk):
 
     def change_mode(self, choice):
         self.log_debug(f"change_mode called with choice: '{choice}'")
-        mode = "BLE" if "Bluetooth" in choice else "MIDO"
-        self.log_debug(f"Determined mode: {mode}")
         
-        self.settings["connection_mode"] = mode
+        # 1. SAVE CURRENT TARGET BEFORE SWITCHING
+        old_mode = self.settings.get("connection_mode", "MIDO")
+        current_target = self.settings.get("midi_device_name", "")
+        if old_mode == "BLE":
+             self.settings["midi_device_name_ble"] = current_target
+        else:
+             self.settings["midi_device_name_usb"] = current_target
+
+        # 2. DETERMINE NEW MODE
+        new_mode = "BLE" if "Bluetooth" in choice else "MIDO"
+        self.settings["connection_mode"] = new_mode
+        self.log_debug(f"Switching Mode: {old_mode} -> {new_mode}")
+        
+        # 3. RESTORE TARGET FOR NEW MODE
+        new_target = ""
+        if new_mode == "BLE":
+            new_target = self.settings.get("midi_device_name_ble", "AIRSTEP")
+        else:
+            new_target = self.settings.get("midi_device_name_usb", "")
+            
+        self.settings["midi_device_name"] = new_target
+        
+        # 4. SAVE SETTINGS
         try:
             self.save_all(silent=True)
-            self.log_debug("Settings saved.")
         except Exception as e:
             self.log_debug(f"Error saving settings: {e}")
 
-        target = self.device_combo.get()
-        if self.midi_engine:
-            self.log_debug(f"Stopping current engine: {self.midi_engine.__class__.__name__}")
-            try:
-                self.midi_engine.stop()
-            except Exception as e:
-                 self.log_debug(f"Error stopping engine: {e}")
+        # 5. EXECUTE SWITCH
+        self.midi_manager.switch_mode(new_mode, new_target)
 
-        # Switch Engine
-        self.log_debug(f"Creating new MidiManager for mode {mode}...")
-        try:
-            self.midi_engine = MidiManager.create(mode, target, self.midi_callback)
-            self.log_debug(f"Engine created: {self.midi_engine}")
-            self.midi_engine.start()
-            self.log_debug("Engine started.")
-        except Exception as e:
-            self.log_debug(f"Error creating/starting engine: {e}")
+        # 6. REFRESH UI (Passive & Silent)
+        self.refresh_midi_ports(silent=True)
 
-        # Refresh UI list
-        self.refresh_midi_ports()
-
-    def refresh_midi_ports(self):
-        self.log_debug(f"Refresh requested. Engine available: {self.midi_engine is not None}")
+    def refresh_midi_ports(self, silent=False):
+        self.log_debug(f"Refresh requested (Silent={silent}).")
         
-        # Use Engine's non-blocking port list if available
-        if self.midi_engine:
-            self.log_debug("Setting scanning=True")
-            # Force scan on
-            self.midi_engine.set_scanning(True)
-            try: self.switch_scan.select()
-            except: pass
-            
-            # FORCE CLEAR CACHE
-            if hasattr(self.midi_engine, 'force_rescan'):
-                self.log_debug("Calling force_rescan()")
-                self.midi_engine.force_rescan()
-            
-            # UI Feedback
-            self.log_debug("Updating UI to 'Recherche in cours...'")
-            self.device_combo.set("Recherche en cours...")
-            self.device_combo.configure(state="disabled")
-            self.btn_refresh.configure(state="disabled", text="Scan...")
+        # Use Manager's proxies
+        self.log_debug("Setting scanning=True")
+        self.midi_manager.set_scanning(True)
+        try: self.switch_scan.select()
+        except: pass
+        
+        # FORCE CLEAR CACHE
+        self.log_debug("Calling force_rescan()")
+        self.midi_manager.force_rescan()
+        
+        # UI Feedback
+        self.log_debug("Updating UI to 'Recherche in cours...'")
+        self.device_combo.set("Recherche en cours...")
+        self.device_combo.configure(state="disabled")
+        self.btn_refresh.configure(state="disabled", text="Scan...")
 
-            # Schedule Finalization based on Mode
-            mode = self.settings.get("connection_mode", "MIDO")
-            delay = 4000 if mode == "BLE" else 800 # 800ms for USB (Scanner is 500ms)
-            
-            self.log_debug(f"Scheduling _finalize_refresh in {delay}ms (Mode={mode})")
-            self.after(delay, self._finalize_refresh)
-        else:
-            self.log_debug("No MIDI Engine. Clearing values.")
-            self.device_combo.configure(values=[])
+        # Schedule Finalization based on Mode
+        mode = self.settings.get("connection_mode", "MIDO")
+        # Increase initial BLE wait time to give it a better chance
+        delay = 4000 if mode == "BLE" else 800 
+        
+        self.log_debug(f"Scheduling _finalize_refresh in {delay}ms (Mode={mode})")
+        # Pass silent flag to finalizer
+        self.after(delay, lambda: self._finalize_refresh(silent=silent))
 
-    def _finalize_refresh(self):
-        self.log_debug("_finalize_refresh triggered.")
+    def _finalize_refresh(self, silent=False, retry_count=0):
+        self.log_debug(f"_finalize_refresh triggered (Silent={silent}, Retry={retry_count}).")
+        
+        ports = self.midi_manager.get_ports()
+        mode = self.settings.get("connection_mode", "MIDO")
+        
+        # --- SMART RETRY LOGIC (BLE & USB) ---
+        # If no ports found and we haven't retried yet, wait a bit silently
+        if not ports and retry_count < 1:
+             retry_delay = 3000 if mode == "BLE" else 1500
+             self.log_debug(f"No {mode} devices found yet. Retrying in {retry_delay}ms...")
+             self.after(retry_delay, lambda: self._finalize_refresh(silent=silent, retry_count=retry_count+1))
+             return
+
+        # --- FINALIZATION ---
         # Restore UI State
         self.device_combo.configure(state="normal")
         self.btn_refresh.configure(state="normal", text="Rafraîchir")
 
-        if not self.midi_engine: return
-
-        ports = self.midi_engine.get_ports()
-        self.device_combo.configure(values=ports)
+        # SMART COMBOBOX HANDLING
+        # Retrieve the intended target for the CURRENT mode
+        if mode == "BLE":
+            target_name = self.settings.get("midi_device_name_ble", "")
+        else:
+            target_name = self.settings.get("midi_device_name_usb", "")
+            
+        # Fallback to general if empty
+        if not target_name:
+            target_name = self.settings.get("midi_device_name", "")
         
-        current_selection = self.settings.get("midi_device_name", "")
-        new_selection = None
+        display_ports = list(ports)
+        
+        # --- SMART INDEX MATCHING (GUI) ---
+        # If the exact target is missing, check if there is a version with a different trailing number
+        if target_name and target_name not in display_ports and target_name != "Aucun":
+            import re
+            base_target = re.sub(r'\s*\d+$', '', target_name).strip()
+            if base_target:
+                 for p in display_ports:
+                      base_p = re.sub(r'\s*\d+$', '', p).strip()
+                      if base_target.lower() == base_p.lower():
+                           # Found a sibling port! (e.g. target="FS1 1" but "FS1 2" exists)
+                           # We seamlessly UPDATE our target to match reality
+                           self.log_debug(f"GUI Smart Match: '{target_name}' -> updated to -> '{p}'")
+                           target_name = p
+                           
+                           # Update persistence immediately so the config button works
+                           self.settings["midi_device_name"] = p
+                           if mode == "BLE":
+                               self.settings["midi_device_name_ble"] = p
+                           else:
+                               self.settings["midi_device_name_usb"] = p
+                               
+                           cm = ConfigManager()
+                           cm.set("midi_device_name", p)
+                           if mode == "BLE": cm.set("midi_device_name_ble", p)
+                           else: cm.set("midi_device_name_usb", p)
+                           
+                           break
 
-        if ports:
-            # Smart Selection: Keep current if available, else pick first
-            if current_selection in ports:
-                new_selection = current_selection
-                info_selection = f"Périphérique actuel retrouvé : {new_selection}"
-            else:
-                new_selection = ports[0]
-                info_selection = f"Périphérique par défaut : {new_selection}"
-            
-            # Apply Selection & Update Definition Button
-            self.device_combo.set(new_selection)
-            # IMPORTANT: We must update the definition button manually because .set() doesn't trigger callback
-            # But we DON'T want to restart the engine yet (user might want to choose another).
-            # However, if we changed the selection (failover), we SHOULD likely update the internal state?
-            # User request: "The modal... allows to choose... and button updated".
-            # Compromise: We update the button to match what is shown in the box.
-            
-            # Update Config tracking (but maybe not save to disk yet until confirmed?)
-            # Actually, let's sync it.
-            if new_selection != current_selection:
-                 # If we switched devices, we should probably treat it as a change?
-                 # Or just visual? Let's just update the visual definition for now.
-                 pass
-
-            # We reuse the logic: find definition for the text in the box
-            # But we can't easily call 'change_midi_device' without triggering a restart.
-            # So we just call update_device_def() which reads the combo box!
-            self.update_device_def()
-            
-        else:
-            self.device_combo.set("Aucun")
-            info_selection = "Aucun sélectionné."
-            self.current_device_def = None
-            self.btn_edit_device.configure(text="⚙ Configurer")
-
-
-        # Debug Popup
-        mode = self.settings.get("connection_mode", "MIDO")
-        info = f"Mode Actuel : {mode}\n\n"
-        if ports:
-            info += f"{len(ports)} Appareil(s) détecté(s) :\n" + "\n".join([f"- {p}" for p in ports])
-            info += "\n\n" + info_selection
-        else:
-            info += "Aucun appareil détecté.\n"
+        # --- LIST INJECTION ---
+        # If still not found, inject it visually so user knows what we are looking for
+        if target_name and target_name not in display_ports and target_name != "Aucun":
             if mode == "BLE":
-                info += "Vérifiez le Bluetooth et l'alimentation.\n(Le scan BLE peut prendre quelques secondes)."
+                display_ports.insert(0, target_name) # Add text only
+            elif target_name not in display_ports:
+                 display_ports.insert(0, target_name)
+
+        if not display_ports:
+            display_ports = ["Aucun"]
+
+        self.device_combo.configure(values=display_ports)
+        
+        # Restore selection
+        if target_name in display_ports:
+            self.device_combo.set(target_name)
+        elif display_ports:
+            self.device_combo.set(display_ports[0])
+            
+        # VERY IMPORTANT: Update global settings so the rest of the app knows what's selected
+        self.settings["midi_device_name"] = self.device_combo.get()
+            
+        # Update definition based on what is selected/target
+        self.update_device_def()
+
+        # --- DIAGNOSTIC POPUP (ONLY IF NOT SILENT) ---
+        if not silent:
+            info = f"Mode Actuel : {mode}\n\n"
+            if ports:
+                info += f"{len(ports)} Appareil(s) détecté(s) :\n" + "\n".join([f"- {p}" for p in ports])
             else:
-                info += "Vérifiez le câble USB."
+                info += "Aucun appareil détecté.\n"
+                if mode == "BLE":
+                    info += "Vérifiez le Bluetooth et l'alimentation.\n(Le scan BLE peut prendre encore quelques secondes)."
+                else:
+                    info += "Vérifiez le câble USB."
 
-        if mode == "BLE" and not ports:
-            info += "\n\n(Note : Le scan Bluetooth prend quelques secondes. Essayez de rafraîchir à nouveau dans 5s si l'appareil est allumé.)"
-
-        CTkMessageBox.show_info("Diagnostic Connexion", info)
+            CTkMessageBox.show_info("Diagnostic Connexion", info)
 
     def change_midi_device(self, choice):
         if not choice: return
         self.settings["midi_device_name"] = choice
         
+        # SMART PERSISTENCE SAVE
+        mode = self.settings.get("connection_mode", "MIDO")
+        if mode == "BLE":
+            self.settings["midi_device_name_ble"] = choice
+        else:
+            self.settings["midi_device_name_usb"] = choice
+
         # Persist immediately
         cm = ConfigManager()
         cm.set("midi_device_name", choice)
+        cm.set("midi_device_name_ble", self.settings.get("midi_device_name_ble", ""))
+        cm.set("midi_device_name_usb", self.settings.get("midi_device_name_usb", ""))
         
         self.update_device_def()
-        if self.midi_engine:
-            self.midi_engine.restart(choice)
+
+        # Feedback UI
+        self.lbl_conn_text.configure(text=f"Connexion à {choice}...")
+        self.lbl_conn_led.configure(text_color="orange")
+        self.update_idletasks() # Force UI Update
+
+        # Switch via Manager (which handles restart)
+        self.midi_manager.switch_mode(mode, choice)
 
     def midi_callback(self, msg):
         """Callback principal du moteur MIDI"""
@@ -1754,7 +1836,8 @@ class AirstepApp(ctk.CTk):
             
             # Action Handler
             if self.action_handler:
-                self.action_handler.execute(cc, val, chan, self.profiles, self.manual_override_profile)
+                print(f"[MAIN] Message MIDI reçu de l'engine: {msg}") # Diagnostic Log
+                self.action_handler.execute(cc, val, chan, self.profiles, self.manual_override_profile, midi_manager=self.midi_manager)
 
     def on_data_received(self, cc=None, value=None, channel=None):
         if cc is not None:
@@ -1792,11 +1875,8 @@ class AirstepApp(ctk.CTk):
 
     def _monitor_connection_status(self):
         """Vérifie périodiquement l'état de la connexion"""
-        if self.midi_engine:
-            connected = self.midi_engine.is_connected
-            self.update_status(connected)
-        else:
-            self.update_status(False)
+        connected = self.midi_manager.is_connected
+        self.update_status(connected)
         
         # Loop 1s
         self.after(1000, self._monitor_connection_status)
@@ -1805,20 +1885,17 @@ class AirstepApp(ctk.CTk):
         if connected:
             self.lbl_conn_led.configure(text_color="green")
             
-            # Récupération du mode et du device
+            # Récupération du mode et du device REEL
             mode = self.settings.get("connection_mode", "MIDO")
             mode_str = "USB" if mode == "MIDO" else "Bluetooth"
             
             # Nom du device
-            dev_name = self.settings.get("midi_device_name", "Appareil")
+            dev_name = self.midi_manager.active_device_name
+            if not dev_name: 
+                 dev_name = self.settings.get("midi_device_name", "Appareil")
+
             if dev_name in ["Recherche...", ""]: dev_name = "Appareil"
             
-            # Clean name (remove index port numbers if any)
-            if " " in dev_name: 
-                 # Often MIDI ports are named "AIRSTEP 0" or "1- AIRSTEP"
-                 # We try to keep it clean
-                 pass
-
             self.lbl_conn_text.configure(text=f"{dev_name} ({mode_str})")
         else:
             self.lbl_conn_led.configure(text_color="red")
@@ -1910,10 +1987,13 @@ class AirstepApp(ctk.CTk):
         # On force le profil actuel pour activer le "Focus Switch"
         if self.action_handler:
             self.log_debug(f"SIMULATE PRESS: AppID={id(self)}, CurrentProfile={self.current_profile.get('name') if self.current_profile else 'None'}, ID={id(self.current_profile) if self.current_profile else 'None'}")
-            self.action_handler.execute(cc, 127, 16, self.profiles, force_target_profile=self.current_profile, midi_manager=MidiManager)
+            self.action_handler.execute(cc, 127, 16, self.profiles, force_target_profile=self.current_profile, midi_manager=self.midi_manager)
 
     def quit_app(self, icon=None, item=None):
         if self.tray_icon: self.tray_icon.stop()
-        if self.midi_engine: self.midi_engine.stop()
+        # Shutdown Manager
+        if self.midi_manager and self.midi_manager.current_provider:
+             self.midi_manager.current_provider.stop()
+             
         if self.context_monitor: self.context_monitor.stop()
         self.quit()

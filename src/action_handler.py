@@ -26,6 +26,10 @@ class ActionHandler:
         self.current_profile = None
         self.command_callback = None
         self.listeners = [] # Callbacks for visual feedback (cc, value, channel)
+        self.midi_manager = None # Reference to Stateful Manager
+
+    def set_midi_manager(self, manager):
+        self.midi_manager = manager
 
     def register_listener(self, callback):
         if callback not in self.listeners:
@@ -213,7 +217,12 @@ class ActionHandler:
         else:
             cc, channel, profiles = args[:3]
             force_profile = None
+            force_profile = None
             midi_mgr = None
+        
+        # Fallback to internal reference if not passed
+        if not midi_mgr and self.midi_manager:
+            midi_mgr = self.midi_manager
 
         try:
             self._do_execute(cc, channel, profiles, force_profile, midi_mgr)
@@ -320,8 +329,10 @@ class ActionHandler:
                 # USE PASSED MANAGER IF AVAILABLE
                 if midi_mgr:
                     midi_mgr.send_message(ch, cc, val)
+                elif self.midi_manager:
+                     self.midi_manager.send_message(ch, cc, val)
                 else:
-                    MidiManager.send_message(ch, cc, val)
+                    self.log("ERROR: No MidiManager available for MIDI OUT")
                     
             except Exception as e:
                 self.log(f" -> MIDI OUT ERROR: {e}")
