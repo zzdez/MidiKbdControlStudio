@@ -1040,11 +1040,16 @@ class AirstepApp(ctk.CTk):
                 with open("config.json", 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.settings = data.get("settings", {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO"})
-                    self.device_combo.set(self.settings["midi_device_name"])
-
+                    
                     mode = self.settings.get("connection_mode", "MIDO")
-                    if mode == "BLE": self.mode_combo.set("Bluetooth (Direct)")
-                    else: self.mode_combo.set("Windows (USB/Driver)")
+                    if mode == "BLE": 
+                        self.mode_combo.set("Bluetooth (Direct)")
+                        target = self.settings.get("midi_device_name_ble", self.settings.get("midi_device_name", "AIRSTEP"))
+                    else: 
+                        self.mode_combo.set("Windows (USB/Driver)")
+                        target = self.settings.get("midi_device_name_usb", self.settings.get("midi_device_name", ""))
+                        
+                    self.device_combo.set(target)
                     
                     # LOAD MIDI OUTPUT
                     # LOAD MIDI OUTPUT (Multi-Port Support)
@@ -1465,9 +1470,12 @@ class AirstepApp(ctk.CTk):
 
     # --- Save ---
     def save_all(self, silent=False):
-        self.settings["midi_device_name"] = self.device_combo.get()
-        # if MidiManager._output_port_name:
-        #     self.settings["midi_output_port"] = MidiManager._output_port_name
+        # We NO LONGER read from device_combo here!
+        # The combo box might still be showing "FS-1-WL" 
+        # while taking 800ms to switch to "AIRSTEP" after a mode change.
+        # Reading it here would aggressively overwrite the correct memory.
+        # self.settings["midi_device_name"] is already maintained by change_mode and _finalize_refresh.
+        pass
             
         full_config = {"settings": self.settings}
         try:
