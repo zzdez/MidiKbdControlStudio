@@ -126,11 +126,11 @@ def main():
             # CORRECTION : On ouvre la Fenêtre Principale, pas juste le dialogue settings
             app.after(0, lambda: [app.deiconify(), app.lift(), app.focus_force()])
 
-    def open_remote_wrapper():
+    def toggle_remote_wrapper():
         if app:
-            app.after(0, lambda: app.open_remote_control())
+            app.after(0, lambda: app.toggle_remote_control())
             
-    fastapi_app.state.open_remote_callback = open_remote_wrapper
+    fastapi_app.state.toggle_remote_callback = toggle_remote_wrapper
     fastapi_app.state.open_settings_callback = open_settings_wrapper
     fastapi_app.state.midi_manager = app.midi_manager
 

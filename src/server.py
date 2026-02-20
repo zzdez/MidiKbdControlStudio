@@ -597,12 +597,12 @@ async def update_settings(settings: Dict):
 
     return {"status": "ok", "settings": settings}
 
-@app.post("/api/open_remote")
-async def open_remote():
-    """Opens the Native Remote Windows."""
-    if hasattr(app.state, "open_remote_callback"):
-        app.state.open_remote_callback()
-        return {"status": "opened"}
+@app.post("/api/toggle_remote")
+async def toggle_remote():
+    """Toggles the Native Remote Windows."""
+    if hasattr(app.state, "toggle_remote_callback"):
+        app.state.toggle_remote_callback()
+        return {"status": "success"}
     return {"status": "error", "message": "Callback not linked"}
 
 @app.post("/api/open_native_editor")

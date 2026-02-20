@@ -1493,6 +1493,20 @@ class AirstepApp(ctk.CTk):
             if not silent: CTkMessageBox.show_error("Erreur", f"Erreur Profils: {e}")
 
     # --- Remote Control ---
+    def toggle_remote_control(self):
+        # If open, close it and show nothing (like on_remote_close)
+        if hasattr(self, 'remote_win') and self.remote_win:
+            try:
+                if self.remote_win.winfo_exists():
+                    self.remote_win.destroy()
+                    self.remote_win = None
+                    return
+            except:
+                self.remote_win = None
+        
+        # If closed, open it
+        self.open_remote_control()
+
     def open_remote_control(self):
         if not self.current_device_def:
             CTkMessageBox.show_error("Erreur", "Aucune définition d'appareil chargée.")

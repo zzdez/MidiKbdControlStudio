@@ -1687,12 +1687,12 @@ function getEmbedUrl(url) {
 // --- RENDER ---
 let isPedalboardVisible = true;
 
-async function openNativeRemote() {
+async function toggleNativeRemote() {
     try {
-        const res = await fetch("/api/open_remote", { method: "POST" });
-        if (!res.ok) console.error("Failed to open remote", await res.text());
+        const res = await fetch("/api/toggle_remote", { method: "POST" });
+        if (!res.ok) console.error("Failed to toggle remote", await res.text());
     } catch (e) {
-        console.error("Error opening remote", e);
+        console.error("Error toggling remote", e);
     }
 }
 
@@ -1721,7 +1721,7 @@ function renderPedalboard(profile) {
     const grid = document.getElementById("pedalboard-grid");
     grid.innerHTML = "";
     if (!profile || !profile.mappings) {
-        grid.innerHTML = `<div class="empty-state" style="padding: 5px; font-size: 0.8em; opacity: 0.3;">(Aucun bouton configuré)</div>`;
+        grid.innerHTML = `<div class="empty-state" style="padding: 5px; opacity: 0;"></div>`;
         return;
     }
     profile.mappings.forEach(m => {
