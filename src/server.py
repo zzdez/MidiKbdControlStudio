@@ -953,8 +953,39 @@ async def stream_local_file_by_index(index: int):
         print(f"Stream Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/local/subs_list/{index}")
+async def get_local_subs_list(index: int):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+                 
+        if 0 <= index < len(items):
+            video_path = items[index]["path"]
+            if os.path.exists(video_path):
+                import glob
+                base, _ = os.path.splitext(video_path)
+                
+                # Check for any matching subtitle
+                search_srt = glob.glob(glob.escape(base) + "*.srt")
+                search_vtt = glob.glob(glob.escape(base) + "*.vtt")
+                
+                all_subs = search_srt + search_vtt
+                # Return only the filenames, not the full path, for security and simpler UI mapping
+                sub_names = [os.path.basename(p) for p in all_subs]
+                return {"status": "ok", "subs": sub_names}
+                
+            else:
+                 raise HTTPException(status_code=404, detail="Video file not found")
+        else:
+             raise HTTPException(status_code=404, detail="Index not found")
+    except Exception as e:
+        print(f"Subs List Error: {e}")
+        return {"status": "error", "subs": []}
+
 @app.get("/api/local/subs/{index}")
-async def get_local_subs(index: int):
+async def get_local_subs(index: int, track: str = None):
     try:
         items = []
         if os.path.exists(LOCAL_LIB_FILE):
@@ -973,7 +1004,12 @@ async def get_local_subs(index: int):
                 
                 all_subs = search_srt + search_vtt
                 if all_subs:
-                    # Return the first match we find
+                    if track:
+                        # Find the specific track by basename
+                        for sub_path in all_subs:
+                            if os.path.basename(sub_path) == track:
+                                return FileResponse(sub_path, media_type="text/plain")
+                    # Fallback or default: Return the first match we find
                     return FileResponse(all_subs[0], media_type="text/plain")
                 
                 # No subs found

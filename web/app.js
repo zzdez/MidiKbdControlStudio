@@ -2414,16 +2414,7 @@ function updateSubtitle(time) {
 
 function toggleSubtitles() {
     subtitleEnabled = !subtitleEnabled;
-    const btnIcon = document.getElementById("icon-toggle-subs");
-    if (btnIcon) {
-        if (subtitleEnabled) {
-            btnIcon.classList.add("ph-fill");
-            btnIcon.style.color = "var(--accent)";
-        } else {
-            btnIcon.classList.remove("ph-fill");
-            btnIcon.style.color = "#eee";
-        }
-    }
+    updateCCIconState(subtitleEnabled, 'both');
 
     // Save to DB
     if (currentActivePlayer === 'local' && window.currentPlayingIndex !== undefined) {
@@ -2452,8 +2443,23 @@ function updateLiveSubtitlePos(sliderVal) {
 
 function toggleLiveSubtitles(checked) {
     subtitleEnabled = checked;
+    updateCCIconState(checked, 'both');
     const vid = document.getElementById("html5-player");
     if (vid) updateSubtitle(vid.currentTime);
+
+    // Keep memory sync for local active player
+    if (currentActivePlayer === 'local' && window.currentPlayingIndex !== undefined) {
+        const file = localFiles[window.currentPlayingIndex];
+        if (file) {
+            file.subtitle_enabled = checked;
+            // Also save to DB so it persists
+            fetch(`/api/local/${window.currentPlayingIndex}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(file)
+            }).catch(e => console.error("SRT Save State Error", e));
+        }
+    }
 }
 
 async function loadSubtitles(index, file) {
@@ -2471,7 +2477,33 @@ async function loadSubtitles(index, file) {
     overlay.style.top = posY + "%";
 
     try {
-        const res = await fetch(`/api/local/subs/${index}`);
+        // Fetch available lists first
+        const listRes = await fetch(`/api/local/subs_list/${index}`);
+        const listData = await listRes.json();
+
+        window.currentAvailableSubs = [];
+        if (listData && listData.status === "ok" && listData.subs.length > 0) {
+            window.currentAvailableSubs = listData.subs;
+        }
+
+        // Update CC button behavior based on available tracks
+        if (subBtn) {
+            // Remove previous onclick to prevent stale bindings
+            subBtn.onclick = null;
+            if (window.currentAvailableSubs.length >= 1) {
+                // Always open selector (gives access to "Aucun")
+                subBtn.onclick = () => openSubtitleTrackSelection('player');
+            }
+        }
+
+        let targetTrackUrl = `/api/local/subs/${index}`;
+        if (file.subtitle_track && window.currentAvailableSubs.includes(file.subtitle_track)) {
+            targetTrackUrl += `?track=${encodeURIComponent(file.subtitle_track)}`;
+        } else if (window.currentAvailableSubs.length > 0) {
+            targetTrackUrl += `?track=${encodeURIComponent(window.currentAvailableSubs[0])}`;
+        }
+
+        const res = await fetch(targetTrackUrl);
         const text = await res.text();
         if (text && text.trim().length > 0) {
             currentSubtitles = parseSubs(text);
@@ -2479,20 +2511,143 @@ async function loadSubtitles(index, file) {
 
             if (currentSubtitles.length > 0 && subBtn) {
                 subBtn.style.display = "flex";
-                const btnIcon = document.getElementById("icon-toggle-subs");
-                if (btnIcon) {
-                    if (subtitleEnabled) {
-                        btnIcon.classList.add("ph-fill");
-                        btnIcon.style.color = "var(--accent)";
-                    } else {
-                        btnIcon.classList.remove("ph-fill");
-                        btnIcon.style.color = "#eee";
-                    }
-                }
+                updateCCIconState(subtitleEnabled, 'player');
             }
         }
     } catch (e) {
         console.error("Erreur chargement SRT/VTT:", e);
+    }
+}
+
+function updateCCIconState(isEnabled, source = 'player') {
+    if (source === 'player' || source === 'both') {
+        const btnIcon = document.getElementById("icon-toggle-subs");
+        if (btnIcon) {
+            if (isEnabled) {
+                btnIcon.classList.add("ph-fill");
+                btnIcon.style.color = "var(--accent)";
+            } else {
+                btnIcon.classList.remove("ph-fill");
+                btnIcon.style.color = "#eee";
+            }
+        }
+    }
+    if (source === 'local' || source === 'both') {
+        const localIcon = document.getElementById("modal-cc-icon");
+        if (localIcon) {
+            if (isEnabled) {
+                localIcon.classList.add("ph-fill");
+                localIcon.style.color = "var(--accent)";
+            } else {
+                localIcon.classList.remove("ph-fill");
+                localIcon.style.color = "#888";
+            }
+        }
+    }
+}
+
+// Subtitle UI Dialog Logic
+function openSubtitleTrackSelection(source) {
+    if (!window.currentAvailableSubs || window.currentAvailableSubs.length === 0) return;
+
+    const listDiv = document.getElementById("subtitle-tracks-list");
+    listDiv.innerHTML = "";
+
+    const currentSelected = (source === 'local') ? window.tempModalSelectedTrack : (localFiles[window.currentPlayingIndex]?.subtitle_track || "");
+
+    const isNoneActive = (source === 'local')
+        ? (!window.tempModalSubEnabled)
+        : (!subtitleEnabled);
+
+    // Add "Aucun" option
+    const btnNone = document.createElement("button");
+    btnNone.className = "btn-secondary";
+    btnNone.style.width = "100%";
+    btnNone.style.textAlign = "left";
+    btnNone.style.padding = "8px";
+    btnNone.innerText = "Aucun / Désactiver";
+
+    if (isNoneActive) {
+        btnNone.style.background = "var(--accent)";
+        btnNone.style.color = "var(--bg-color)";
+        btnNone.innerText = "✓ " + btnNone.innerText;
+    }
+
+    btnNone.onclick = () => {
+        if (source === 'local') {
+            window.tempModalSubEnabled = false;
+            updateCCIconState(false, 'local');
+            toggleLiveSubtitles(false);
+        } else {
+            toggleLiveSubtitles(false);
+        }
+        document.getElementById('modal-subtitle-tracks').close();
+    };
+    listDiv.appendChild(btnNone);
+
+    window.currentAvailableSubs.forEach(sub => {
+        const btn = document.createElement("button");
+        btn.className = "btn-secondary";
+        btn.style.width = "100%";
+        btn.style.textAlign = "left";
+        btn.style.padding = "8px";
+        btn.innerText = sub.replace('.srt', '').replace('.vtt', '');
+
+        if (!isNoneActive && (sub === currentSelected || (currentSelected === "" && sub === window.currentAvailableSubs[0]))) {
+            btn.style.background = "var(--accent)";
+            btn.style.color = "var(--bg-color)";
+            btn.innerText = "✓ " + btn.innerText;
+        }
+
+        btn.onclick = () => {
+            if (source === 'local') {
+                window.tempModalSelectedTrack = sub;
+                window.tempModalSubEnabled = true;
+                updateCCIconState(true, 'local');
+            } else {
+                changeSubtitleTrack(sub);
+            }
+            document.getElementById('modal-subtitle-tracks').close();
+        };
+        listDiv.appendChild(btn);
+    });
+
+    document.getElementById("modal-subtitle-tracks").showModal();
+}
+
+async function changeSubtitleTrack(trackName) {
+    if (currentActivePlayer !== 'local' || window.currentPlayingIndex === undefined) return;
+
+    try {
+        const res = await fetch(`/api/local/subs/${window.currentPlayingIndex}?track=${encodeURIComponent(trackName)}`);
+        const text = await res.text();
+        if (text && text.trim().length > 0) {
+            currentSubtitles = parseSubs(text);
+            console.log("[DEBUG] Piste de sous-titres changée :", currentSubtitles.length, "blocs.");
+
+            // Ensure subtitles are enabled when a track is explicitly chosen
+            if (!subtitleEnabled) {
+                toggleLiveSubtitles(true);
+            }
+
+            // Force redraw immediately
+            const vid = document.getElementById("html5-player");
+            if (vid) updateSubtitle(vid.currentTime);
+
+            // Save as preference dynamically
+            const file = localFiles[window.currentPlayingIndex];
+            if (file) {
+                file.subtitle_track = trackName;
+                file.subtitle_enabled = true; // Ensure it updates in memory too
+                fetch(`/api/local/${window.currentPlayingIndex}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(file)
+                }).catch(e => console.error("Update Track Error", e));
+            }
+        }
+    } catch (e) {
+        console.error("Erreur changement piste SRT:", e);
     }
 }
 
@@ -2632,7 +2787,9 @@ function openEditLocalModal(index) {
         artContainer.classList.add("video-mode");
         subSettings.style.display = "flex";
         subSettings.style.flexDirection = "column";
-        document.getElementById("local-sub-enabled").checked = item.subtitle_enabled || false;
+        window.tempModalSubEnabled = item.subtitle_enabled || false;
+        updateCCIconState(window.tempModalSubEnabled, 'local');
+
         let posVal = item.subtitle_pos_y;
         if (posVal === undefined) posVal = 80;
         document.getElementById("local-sub-pos").value = 100 - posVal;
@@ -2640,9 +2797,27 @@ function openEditLocalModal(index) {
         if (currentActivePlayer === 'local' && window.currentPlayingIndex === index) {
             updateLiveSubtitlePos(100 - posVal);
         }
+
+        // Fetch list to enable context-menu support
+        fetch(`/api/local/subs_list/${index}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === "ok" && data.subs.length > 0) {
+                    window.currentAvailableSubs = data.subs;
+                    // Pre-fill the temporary track choice for the settings modal
+                    window.tempModalSelectedTrack = item.subtitle_track || "";
+                } else {
+                    window.currentAvailableSubs = [];
+                    window.tempModalSelectedTrack = "";
+                }
+            })
+            .catch(e => { console.error("Error fetching sub list", e); window.currentAvailableSubs = []; });
+
     } else {
         artContainer.classList.remove("video-mode");
         subSettings.style.display = "none";
+        window.currentAvailableSubs = [];
+        window.tempModalSelectedTrack = "";
     }
 
     document.getElementById("local-path-display").innerText = item.path;
@@ -2695,8 +2870,9 @@ async function saveLocalItem() {
         year: document.getElementById("local-year").value,
         target_profile: document.getElementById("local-target-profile").value,
         user_notes: document.getElementById("local-notes").value,
-        subtitle_enabled: document.getElementById("local-sub-enabled").checked,
+        subtitle_enabled: window.tempModalSubEnabled,
         subtitle_pos_y: 100 - parseInt(document.getElementById("local-sub-pos").value, 10),
+        subtitle_track: window.tempModalSelectedTrack || "",
         cover_data: currentCoverData // Send base64 data if changed
     };
 
