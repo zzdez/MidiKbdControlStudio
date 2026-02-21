@@ -710,15 +710,15 @@ dialog::backdrop {
     background: transparent;
     border: none;
     color: #eee;
-    font-size: 24px;
-    /* Standard size */
+    font-size: 22px;
+    /* Compact size */
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s ease;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
 }
 
@@ -733,11 +733,11 @@ dialog::backdrop {
 }
 
 .control-btn-large {
-    font-size: 48px;
-    /* Big Play Button */
+    font-size: 38px;
+    /* Big Play Button, slightly reduced */
     color: var(--accent);
-    width: 60px;
-    height: 60px;
+    width: 48px;
+    height: 48px;
     padding: 0;
 }
 
@@ -1236,4 +1236,44 @@ dialog::backdrop {
 
 .preview-modal::backdrop {
     background: rgba(0, 0, 0, 0.85);
+}
+
+/* CUSTOM VERTICAL SLIDER (Horizontal rotated) */
+.slider-container-v {
+    position: relative;
+    width: 20px;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.custom-vslider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100px;
+    /* This becomes the height when rotated */
+    height: 4px;
+    background: #444;
+    outline: none;
+    border-radius: 2px;
+    transform: rotate(-90deg);
+    transform-origin: center center;
+    cursor: pointer;
+}
+
+.custom-vslider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    transition: background .15s ease-in-out;
+}
+
+.custom-vslider::-webkit-slider-thumb:hover {
+    background: var(--accent);
 }

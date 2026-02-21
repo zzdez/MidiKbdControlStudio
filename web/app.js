@@ -2206,7 +2206,15 @@ function playLocal(index) {
 
         // 1. Set Source
         v.src = `/api/local/stream/${index}`;
-        v.ontimeupdate = () => updateActiveChapter(v.currentTime);
+        window.currentPlayingIndex = index; // Store for subtitle drag saving
+
+        v.ontimeupdate = () => {
+            updateActiveChapter(v.currentTime);
+            updateSubtitle(v.currentTime); // Custom SRT Engine
+        };
+
+        // 2. Load Subtitles
+        loadSubtitles(index, file);
 
 
 
@@ -2336,6 +2344,211 @@ function videoControl(action) {
     }
 }
 
+// --- SUBTITLE ENGINE ---
+let currentSubtitles = [];
+let subtitleEnabled = false;
+
+function parseSubs(data) {
+    const lines = data.replace(/\r/g, '').split('\n');
+    let _subtitles = [];
+    let idx = 0;
+
+    const pattern = /(?:(\d{2}):)?(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*(?:(\d{2}):)?(\d{2}):(\d{2})[.,](\d{3})/;
+
+    const toSec = (h, m, s, ms) => {
+        return (parseInt(h || "0") * 3600) + (parseInt(m) * 60) + parseInt(s) + (parseInt(ms) / 1000);
+    };
+
+    while (idx < lines.length) {
+        let line = lines[idx].trim();
+        if (line === '' || line.startsWith('WEBVTT') || line.startsWith('Kind:') || line.startsWith('Language:')) {
+            idx++;
+            continue;
+        }
+
+        let match = pattern.exec(line);
+        if (!match) {
+            if (idx + 1 < lines.length) {
+                match = pattern.exec(lines[idx + 1]);
+                if (match) idx++;
+            }
+        }
+
+        if (match) {
+            let start = toSec(match[1], match[2], match[3], match[4]);
+            let end = toSec(match[5], match[6], match[7], match[8]);
+            let text = [];
+            idx++;
+            while (idx < lines.length && lines[idx].trim() !== '') {
+                let t = lines[idx].trim();
+                t = t.replace(/<\d{2}:\d{2}:\d{2}[.,]\d{3}>/g, '');
+                t = t.replace(/<v [^>]+>/g, '').replace(/<\/v>/g, '');
+                t = t.replace(/<c[^>]*>/g, '').replace(/<\/c>/g, '');
+                text.push(t);
+                idx++;
+            }
+            _subtitles.push({ start, end, text: text.join('<br>') });
+        } else {
+            idx++;
+        }
+    }
+    return _subtitles;
+}
+
+function updateSubtitle(time) {
+    const textSpan = document.getElementById("subtitle-text");
+    const overlay = document.getElementById("subtitle-overlay");
+    if (!subtitleEnabled || currentSubtitles.length === 0) {
+        overlay.style.display = "none";
+        return;
+    }
+
+    const sub = currentSubtitles.find(s => time >= s.start && time <= s.end);
+    if (sub) {
+        textSpan.innerHTML = sub.text;
+        overlay.style.display = "block";
+    } else {
+        overlay.style.display = "none";
+    }
+}
+
+function toggleSubtitles() {
+    subtitleEnabled = !subtitleEnabled;
+    const btnIcon = document.getElementById("icon-toggle-subs");
+    if (btnIcon) {
+        if (subtitleEnabled) {
+            btnIcon.classList.add("ph-fill");
+            btnIcon.style.color = "var(--accent)";
+        } else {
+            btnIcon.classList.remove("ph-fill");
+            btnIcon.style.color = "#eee";
+        }
+    }
+
+    // Save to DB
+    if (currentActivePlayer === 'local' && window.currentPlayingIndex !== undefined) {
+        const file = localFiles[window.currentPlayingIndex];
+        if (file) {
+            file.subtitle_enabled = subtitleEnabled;
+            fetch(`/api/local/${window.currentPlayingIndex}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(file)
+            }).catch(e => console.error("SRT Save State Error", e));
+        }
+    }
+
+    // Force update overlay
+    const vid = document.getElementById("html5-player");
+    if (vid) updateSubtitle(vid.currentTime);
+}
+
+function updateLiveSubtitlePos(sliderVal) {
+    const overlay = document.getElementById("subtitle-overlay");
+    if (overlay) {
+        overlay.style.top = (100 - parseInt(sliderVal, 10)) + "%";
+    }
+}
+
+function toggleLiveSubtitles(checked) {
+    subtitleEnabled = checked;
+    const vid = document.getElementById("html5-player");
+    if (vid) updateSubtitle(vid.currentTime);
+}
+
+async function loadSubtitles(index, file) {
+    currentSubtitles = [];
+    subtitleEnabled = file.subtitle_enabled === true;
+
+    const overlay = document.getElementById("subtitle-overlay");
+    overlay.style.display = "none";
+
+    const subBtn = document.getElementById("btn-toggle-subs");
+    if (subBtn) subBtn.style.display = "none";
+
+    // Apply saved pos
+    const posY = file.subtitle_pos_y || 80;
+    overlay.style.top = posY + "%";
+
+    try {
+        const res = await fetch(`/api/local/subs/${index}`);
+        const text = await res.text();
+        if (text && text.trim().length > 0) {
+            currentSubtitles = parseSubs(text);
+            console.log("[DEBUG] Sous-titres chargés :", currentSubtitles.length, "blocs.");
+
+            if (currentSubtitles.length > 0 && subBtn) {
+                subBtn.style.display = "flex";
+                const btnIcon = document.getElementById("icon-toggle-subs");
+                if (btnIcon) {
+                    if (subtitleEnabled) {
+                        btnIcon.classList.add("ph-fill");
+                        btnIcon.style.color = "var(--accent)";
+                    } else {
+                        btnIcon.classList.remove("ph-fill");
+                        btnIcon.style.color = "#eee";
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Erreur chargement SRT/VTT:", e);
+    }
+}
+
+// Drag logic
+function setupSubtitleDrag() {
+    const overlay = document.getElementById("subtitle-overlay");
+    const container = document.getElementById("video-container");
+    let isDragging = false;
+    let startY, startTop;
+
+    overlay.onmousedown = (e) => {
+        isDragging = true;
+        startY = e.clientY;
+        startTop = overlay.offsetTop;
+        document.body.style.cursor = "grabbing";
+        e.preventDefault();
+    };
+
+    document.onmousemove = (e) => {
+        if (!isDragging) return;
+        const deltaY = e.clientY - startY;
+        let newTop = startTop + deltaY;
+
+        const containerHeight = container.clientHeight;
+        const overlayHeight = overlay.clientHeight;
+        if (newTop < 0) newTop = 0;
+        // Allow slightly more bottom room, but keep it constrained
+        if (newTop > containerHeight - (overlayHeight || 30)) newTop = containerHeight - (overlayHeight || 30);
+
+        const percent = (newTop / containerHeight) * 100;
+        overlay.style.top = percent + "%";
+    };
+
+    document.onmouseup = async () => {
+        if (isDragging) {
+            isDragging = false;
+            document.body.style.cursor = "default";
+
+            // Auto Save to current file if playing local
+            if (currentActivePlayer === 'local' && window.currentPlayingIndex !== undefined) {
+                const percent = Math.round((overlay.offsetTop / container.clientHeight) * 100);
+                const file = localFiles[window.currentPlayingIndex];
+                if (file) {
+                    file.subtitle_pos_y = percent;
+                    fetch(`/api/local/${window.currentPlayingIndex}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(file)
+                    }).catch(e => console.error("SRT Save Pos Error", e));
+                }
+            }
+        }
+    };
+}
+// Init drag once
+setTimeout(setupSubtitleDrag, 1000);
 
 
 async function addLocalFile() {
@@ -2410,13 +2623,26 @@ function openEditLocalModal(index) {
     const item = localFiles[index];
     document.getElementById("modal-local").showModal();
 
-    // ASPECT RATIO LOGIC
+    // ASPECT RATIO & SUBTITLES LOGIC
     const artContainer = document.getElementById("local-art-container");
+    const subSettings = document.getElementById("local-subtitle-settings");
+
     // Simple check for video extensions
     if (item.path.match(/\.(mp4|mkv|mov|avi|webm|m4v)$/i)) {
         artContainer.classList.add("video-mode");
+        subSettings.style.display = "flex";
+        subSettings.style.flexDirection = "column";
+        document.getElementById("local-sub-enabled").checked = item.subtitle_enabled || false;
+        let posVal = item.subtitle_pos_y;
+        if (posVal === undefined) posVal = 80;
+        document.getElementById("local-sub-pos").value = 100 - posVal;
+        // Update live preview if the edited video is currently playing
+        if (currentActivePlayer === 'local' && window.currentPlayingIndex === index) {
+            updateLiveSubtitlePos(100 - posVal);
+        }
     } else {
         artContainer.classList.remove("video-mode");
+        subSettings.style.display = "none";
     }
 
     document.getElementById("local-path-display").innerText = item.path;
@@ -2469,6 +2695,8 @@ async function saveLocalItem() {
         year: document.getElementById("local-year").value,
         target_profile: document.getElementById("local-target-profile").value,
         user_notes: document.getElementById("local-notes").value,
+        subtitle_enabled: document.getElementById("local-sub-enabled").checked,
+        subtitle_pos_y: 100 - parseInt(document.getElementById("local-sub-pos").value, 10),
         cover_data: currentCoverData // Send base64 data if changed
     };
 

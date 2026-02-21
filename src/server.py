@@ -896,6 +896,8 @@ async def update_local_file(index: int, item: Dict):
             current["year"] = item.get("year", current.get("year", ""))
             current["target_profile"] = item.get("target_profile", current.get("target_profile", "Auto"))
             current["user_notes"] = item.get("user_notes", current.get("user_notes", ""))
+            current["subtitle_enabled"] = item.get("subtitle_enabled", current.get("subtitle_enabled", False))
+            current["subtitle_pos_y"] = item.get("subtitle_pos_y", current.get("subtitle_pos_y", 80))
             
             # 1. Save JSON (Database Priority)
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
@@ -950,6 +952,39 @@ async def stream_local_file_by_index(index: int):
     except Exception as e:
         print(f"Stream Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/local/subs/{index}")
+async def get_local_subs(index: int):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+                 
+        if 0 <= index < len(items):
+            video_path = items[index]["path"]
+            if os.path.exists(video_path):
+                import glob
+                base, _ = os.path.splitext(video_path)
+                
+                # Check for any matching subtitle using glob to handle .en.vtt or .fr.srt
+                search_srt = glob.glob(glob.escape(base) + "*.srt")
+                search_vtt = glob.glob(glob.escape(base) + "*.vtt")
+                
+                all_subs = search_srt + search_vtt
+                if all_subs:
+                    # Return the first match we find
+                    return FileResponse(all_subs[0], media_type="text/plain")
+                
+                # No subs found
+                return Response(content="", media_type="text/plain")
+            else:
+                 raise HTTPException(status_code=404, detail="Video file not found")
+        else:
+             raise HTTPException(status_code=404, detail="Index not found")
+    except Exception as e:
+        print(f"Subs Error: {e}")
+        return Response(content="", media_type="text/plain")
 
 @app.delete("/api/local/{index}")
 async def delete_local_file(index: int):
