@@ -27,6 +27,10 @@ class ActionHandler:
         self.command_callback = None
         self.listeners = [] # Callbacks for visual feedback (cc, value, channel)
         self.midi_manager = None # Reference to Stateful Manager
+        self.profile_manager = None # Reference to ProfileManager
+
+    def set_profile_manager(self, manager):
+        self.profile_manager = manager
 
     def set_midi_manager(self, manager):
         self.midi_manager = manager
@@ -52,6 +56,10 @@ class ActionHandler:
             self.current_profile = profile
             name = profile.get('name') if profile else "None"
             self.log(f"[DEBUG] ActionHandler profile updated to: {name}")
+            
+            # Apply OS Master Volume if pycaw is setup
+            if self.profile_manager and profile:
+                self.profile_manager.apply_profile_volume(profile)
             
             # INPUT PRIMING: Wake up Windows Input Hook
             self._prime_input_system()

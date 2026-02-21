@@ -16,3 +16,5 @@ customtkinter
 packaging
 mutagen
 yt-dlp
+pycaw
+comtypes

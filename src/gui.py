@@ -768,6 +768,7 @@ class AirstepApp(ctk.CTk):
         self.midi_manager = MidiManager(self.midi_callback)
         
         self.action_handler = ActionHandler()
+        self.action_handler.set_profile_manager(self.profile_manager)
         self.action_handler.set_midi_manager(self.midi_manager)
         self.action_handler.register_listener(self.on_data_received)
         self.action_handler.start_monitoring()
@@ -1008,11 +1009,14 @@ class AirstepApp(ctk.CTk):
         self.btn_scan_title = ctk.CTkButton(self.rules_frame, text="Scan Titre", width=60, height=24, command=lambda: self.scan_window("title"))
         self.btn_scan_title.grid(row=0, column=4, padx=2)
 
+        self.entry_vol_rule = ctk.CTkEntry(self.rules_frame, placeholder_text="Vol. OS %", height=24, width=70)
+        self.entry_vol_rule.grid(row=0, column=5, padx=2)
+
         self.rules_frame.grid_columnconfigure(1, weight=1)
         self.rules_frame.grid_columnconfigure(3, weight=1)
 
         self.btn_apply_rules = ctk.CTkButton(self.rules_frame, text="✓", width=24, height=24, command=self.apply_rules_to_profile)
-        self.btn_apply_rules.grid(row=0, column=5, padx=2)
+        self.btn_apply_rules.grid(row=0, column=6, padx=2)
 
         # --- Zone 3: Header Mappings (New) ---
         self.mappings_header = ctk.CTkFrame(self, fg_color="transparent")
@@ -1137,6 +1141,7 @@ class AirstepApp(ctk.CTk):
             "name": "Global / Desktop",
             "app_context": "",
             "window_title_filter": "",
+            "target_volume": "",
             "mappings": []
         }
         self.profile_manager.save_profile(default)
@@ -1214,6 +1219,9 @@ class AirstepApp(ctk.CTk):
 
         self.entry_title_rule.delete(0, "end")
         self.entry_title_rule.insert(0, self.current_profile.get("window_title_filter", ""))
+        
+        self.entry_vol_rule.delete(0, "end")
+        self.entry_vol_rule.insert(0, self.current_profile.get("target_volume", ""))
 
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
@@ -1300,6 +1308,7 @@ class AirstepApp(ctk.CTk):
             "name": name,
             "app_context": context,
             "window_title_filter": "",
+            "target_volume": "",
             "mappings": []
         }
 
@@ -1351,6 +1360,7 @@ class AirstepApp(ctk.CTk):
         if not self.current_profile: return
         self.current_profile["app_context"] = self.entry_app_rule.get()
         self.current_profile["window_title_filter"] = self.entry_title_rule.get()
+        self.current_profile["target_volume"] = self.entry_vol_rule.get()
         self.profile_manager.save_profile(self.current_profile)
         self.btn_apply_rules.configure(fg_color="green")
         self.after(500, lambda: self.btn_apply_rules.configure(fg_color=["#3B8ED0", "#1F6AA5"]))

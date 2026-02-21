@@ -3,6 +3,16 @@ import json
 import shutil
 import glob
 import zipfile
+import threading
+
+# Pycaw imports for Volume Control
+try:
+    from ctypes import cast, POINTER
+    from comtypes import CLSCTX_ALL, CoInitialize, CoUninitialize
+    from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+    PYCAW_AVAILABLE = True
+except ImportError:
+    PYCAW_AVAILABLE = False
 
 PROFILE_DIR = "profiles"
 
@@ -234,3 +244,41 @@ class ProfileManager:
                 json.dump(config, f, indent=4)
         except Exception as e:
             print(f"Error updating config.json: {e}")
+
+    def apply_profile_volume(self, profile_data):
+        """Applies the target_volume of the profile to the Windows OS Master Volume."""
+        if not PYCAW_AVAILABLE:
+            return False
+            
+        target_vol = profile_data.get("target_volume")
+        if target_vol is None or target_vol == "":
+            return False # No target volume set for this profile
+            
+        try:
+            vol_percent = float(target_vol)
+            if vol_percent < 0: vol_percent = 0
+            if vol_percent > 100: vol_percent = 100
+            
+            # COM initialization is required per-thread for Pycaw
+            CoInitialize()
+            
+            devices = AudioUtilities.GetSpeakers()
+            interface = devices.Activate(
+                IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+            volume = cast(interface, POINTER(IAudioEndpointVolume))
+            
+            # Pycaw uses scalar 0.0 to 1.0 for SetMasterVolumeLevelScalar
+            scalar_vol = vol_percent / 100.0
+            volume.SetMasterVolumeLevelScalar(scalar_vol, None)
+            
+            self.log_debug(f"Volume systeme regle sur {vol_percent}% pour le profil '{profile_data.get('name')}'")
+            return True
+        except Exception as e:
+            self.log_debug(f"Erreur d'application du volume OS: {e}")
+            print(f"Erreur Pycaw Volume: {e}")
+            return False
+        finally:
+            try:
+                CoUninitialize()
+            except:
+                pass

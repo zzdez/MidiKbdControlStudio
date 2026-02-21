@@ -951,6 +951,7 @@ function openAddModal() {
 
     document.getElementById("edit-mode").value = "auto";
     document.getElementById("edit-target-profile").value = "Auto"; // Default
+    document.getElementById("edit-volume").value = 100;
     document.getElementById("youtube-desc-input").value = "";
     document.getElementById("user-notes-input").value = "";
 
@@ -994,6 +995,7 @@ function openEditModal(index) {
     document.getElementById("edit-genre").value = track.genre || "Divers";
     document.getElementById("edit-mode").value = track.open_mode || "auto";
     document.getElementById("edit-target-profile").value = track.target_profile || "Auto";
+    document.getElementById("edit-volume").value = (track.volume !== undefined) ? track.volume : 100;
 
     // Legacy support: if description exists but not youtube_description, assume it was generic description (or user note?)
     // Since we just migrated, we can put old description into user_notes if user_notes empty
@@ -1369,6 +1371,7 @@ async function saveItem() {
     const target_profile = document.getElementById("edit-target-profile").value;
     const youtube_description = document.getElementById("youtube-desc-input").value;
     const user_notes = document.getElementById("user-notes-input").value;
+    const volume = parseInt(document.getElementById("edit-volume").value) || 100;
 
     // Extract thumbnail from preview if it's an image
     let thumbnail = "";
@@ -1392,7 +1395,8 @@ async function saveItem() {
         channel: channel,
         youtube_description: youtube_description,
         user_notes: user_notes,
-        thumbnail: thumbnail
+        thumbnail: thumbnail,
+        volume: volume
     };
 
     if (editingIndex !== null) {
@@ -1615,6 +1619,16 @@ function playTrack(track) {
     videoContainer.style.display = "flex";
     audioContainer.style.display = "none";
 
+    // Volume Default logic
+    const trackVolume = (track.volume !== undefined) ? parseInt(track.volume, 10) : 100;
+    const normalizedVolume = trackVolume / 100;
+
+    // Reset Volume Slider
+    const audioVolSlider = document.getElementById("audio-volume");
+    if (audioVolSlider) audioVolSlider.value = normalizedVolume;
+    const videoVolSlider = document.getElementById("video-volume");
+    if (videoVolSlider) videoVolSlider.value = normalizedVolume;
+
     // Reset all Players
     ytDiv.style.display = "none";
     genFrame.style.display = "none";
@@ -1642,6 +1656,8 @@ function playTrack(track) {
 
         if (player && typeof player.loadVideoById === "function") {
             player.loadVideoById(track.id);
+            // Apply volume AFTER load, sometimes YT API needs a tick but usually loadVideoById is sync enough for state prep
+            player.setVolume(trackVolume);
             // playerState = 1; // Handled by API
         } else {
             console.warn("YouTube Player not ready yet. Video ID queued:", track.id);
@@ -2100,9 +2116,15 @@ function playLocal(index) {
     // AUTO-RESET PITCH
     updatePitch(0);
 
+    // Volume Default logic
+    const trackVolume = (file.volume !== undefined) ? parseInt(file.volume, 10) : 100;
+    const normalizedVolume = trackVolume / 100;
+
     // Reset Volume Slider
-    const volSlider = document.getElementById("audio-volume");
-    if (volSlider) volSlider.value = 1;
+    const audioVolSlider = document.getElementById("audio-volume");
+    if (audioVolSlider) audioVolSlider.value = normalizedVolume;
+    const videoVolSlider = document.getElementById("video-volume");
+    if (videoVolSlider) videoVolSlider.value = normalizedVolume;
 
     // Containers
     const videoContainer = document.getElementById("video-container");
@@ -2123,6 +2145,7 @@ function playLocal(index) {
     v.pause();
     v.removeAttribute('src'); // Clean removal
     v.load();
+    v.volume = normalizedVolume; // SET HTML5 VOLUME
 
     if (isAudio) {
         // --- AUDIO MODE (Hide Video Container) ---
@@ -2159,6 +2182,7 @@ function playLocal(index) {
 
         // Load WaveSurfer
         if (wavesurfer) {
+            wavesurfer.setVolume(normalizedVolume); // SET WAVESURFER VOLUME
             wavesurfer.load("/api/stream?path=" + encodeURIComponent(file.path));
             wavesurfer.on('ready', () => {
                 wavesurfer.play();
@@ -2341,6 +2365,123 @@ function videoControl(action) {
             vid.playbackRate = rateD;
             document.getElementById("btn-video-speed").innerText = rateD.toFixed(2) + "x";
             break;
+    }
+}
+
+// --- VOLUME LOGIC (Live Persistence) ---
+function updateVideoVolume(val) {
+    const numVal = parseFloat(val);
+    const percentVol = Math.round(numVal * 100);
+
+    // Apply physically
+    if (currentActivePlayer === 'local') {
+        const vid = document.getElementById("html5-player");
+        if (vid) vid.volume = numVal;
+    } else if (currentActivePlayer === 'youtube') {
+        if (player && typeof player.setVolume === "function") {
+            player.setVolume(percentVol);
+        }
+    }
+
+    // Save Persistently (Debounced physically if needed, but direct save is fine for discrete slider drops)
+    if (currentActivePlayer === 'local' && window.currentPlayingIndex !== undefined) {
+        const file = localFiles[window.currentPlayingIndex];
+        if (file) {
+            file.volume = percentVol;
+            fetch(`/api/local/${window.currentPlayingIndex}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(file)
+            }).catch(e => console.error("Volume Save Error (Local)", e));
+        }
+    } else if (currentActivePlayer === 'youtube' && document.getElementById("player").style.display !== "none") {
+        if (player && typeof player.getVideoData === "function") {
+            const vidData = player.getVideoData();
+            if (vidData && vidData.video_id) {
+                const track = currentTrackList.find(t => t.id === vidData.video_id);
+                if (track && track.originalIndex !== undefined) {
+                    track.volume = percentVol;
+                    fetch(`/api/setlist/${track.originalIndex}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(track)
+                    }).catch(e => console.error("Volume Save Error (YouTube)", e));
+                }
+            }
+        }
+    }
+}
+
+function liveUpdateModalVolume(type, val) {
+    const numVal = parseFloat(val);
+    const percentVol = Math.round(numVal);
+    const normalizedVolume = percentVol / 100;
+
+    if (type === 'local' && editingLocalIndex !== null && editingLocalIndex === currentPlayingIndex && (currentActivePlayer === 'local' || currentActivePlayer === 'waveform')) {
+        const vid = document.getElementById("html5-player");
+        if (vid) vid.volume = normalizedVolume;
+        if (wavesurfer && currentActivePlayer === 'waveform') wavesurfer.setVolume(normalizedVolume);
+
+        // Sync the main player UI slider too
+        const audioVolSlider = document.getElementById("audio-volume");
+        if (audioVolSlider) audioVolSlider.value = normalizedVolume;
+        const videoVolSlider = document.getElementById("video-volume");
+        if (videoVolSlider) videoVolSlider.value = normalizedVolume;
+
+    } else if (type === 'edit' && editingIndex !== null && currentActivePlayer === 'youtube') {
+        const track = currentTrackList.find(t => t.originalIndex === editingIndex);
+        if (track && player && typeof player.getVideoData === "function") {
+            const vidData = player.getVideoData();
+            if (vidData && vidData.video_id === track.id) {
+                player.setVolume(percentVol);
+
+                // Sync the main player UI slider too
+                const videoVolSlider = document.getElementById("video-volume");
+                if (videoVolSlider) videoVolSlider.value = normalizedVolume;
+            }
+        }
+    }
+}
+
+let isMuted = false;
+let preMuteVolume = 1.0;
+
+function toggleMute(type) {
+    isMuted = !isMuted;
+    const icons = [document.getElementById("audio-mute-icon"), document.getElementById("video-mute-icon")];
+
+    if (isMuted) {
+        icons.forEach(i => { if (i) { i.classList.remove("ph-speaker-high"); i.classList.add("ph-speaker-slash"); i.style.color = "#cf6679"; } });
+
+        if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+            const vid = document.getElementById("html5-player");
+            if (vid) { preMuteVolume = vid.volume; vid.volume = 0; }
+            if (wavesurfer) wavesurfer.setVolume(0);
+        } else if (currentActivePlayer === 'youtube') {
+            if (player && typeof player.getVolume === "function") {
+                preMuteVolume = player.getVolume() / 100;
+                player.setVolume(0);
+            }
+        }
+
+        const v1 = document.getElementById("audio-volume"); if (v1) { v1.value = 0; }
+        const v2 = document.getElementById("video-volume"); if (v2) { v2.value = 0; }
+
+    } else {
+        icons.forEach(i => { if (i) { i.classList.remove("ph-speaker-slash"); i.classList.add("ph-speaker-high"); i.style.color = "#888"; } });
+
+        if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+            const vid = document.getElementById("html5-player");
+            if (vid) vid.volume = preMuteVolume;
+            if (wavesurfer) wavesurfer.setVolume(preMuteVolume);
+        } else if (currentActivePlayer === 'youtube') {
+            if (player && typeof player.setVolume === "function") {
+                player.setVolume(preMuteVolume * 100);
+            }
+        }
+
+        const v1 = document.getElementById("audio-volume"); if (v1) v1.value = preMuteVolume;
+        const v2 = document.getElementById("video-volume"); if (v2) v2.value = preMuteVolume;
     }
 }
 
@@ -2828,6 +2969,7 @@ function openEditLocalModal(index) {
     document.getElementById("local-category").value = item.category || "Général";
     document.getElementById("local-year").value = item.year || "";
     document.getElementById("local-target-profile").value = item.target_profile || "Auto";
+    document.getElementById("local-volume").value = (item.volume !== undefined) ? item.volume : 100;
     document.getElementById("local-notes").value = item.user_notes || "";
 
     // Load Art
@@ -2873,7 +3015,8 @@ async function saveLocalItem() {
         subtitle_enabled: window.tempModalSubEnabled,
         subtitle_pos_y: 100 - parseInt(document.getElementById("local-sub-pos").value, 10),
         subtitle_track: window.tempModalSelectedTrack || "",
-        cover_data: currentCoverData // Send base64 data if changed
+        cover_data: currentCoverData, // Send base64 data if changed
+        volume: parseInt(document.getElementById("local-volume").value, 10) || 100
     };
 
     const res = await fetch(`/api/local/${editingLocalIndex}`, {

@@ -506,10 +506,10 @@ async def update_setlist_item(index: int, item: Dict):
                 "artist": item.get("artist", ""),
                 "channel": item.get("channel", ""),
                 "thumbnail": item.get("thumbnail", ""),
-                "thumbnail": item.get("thumbnail", ""),
                 "youtube_description": item.get("youtube_description", ""),
                 "target_profile": target_profile,
-                "user_notes": item.get("user_notes", "")
+                "user_notes": item.get("user_notes", ""),
+                "volume": item.get("volume", items[index].get("volume", 100))
             }
 
             items[index] = updated_item
@@ -898,6 +898,7 @@ async def update_local_file(index: int, item: Dict):
             current["user_notes"] = item.get("user_notes", current.get("user_notes", ""))
             current["subtitle_enabled"] = item.get("subtitle_enabled", current.get("subtitle_enabled", False))
             current["subtitle_pos_y"] = item.get("subtitle_pos_y", current.get("subtitle_pos_y", 80))
+            current["volume"] = item.get("volume", current.get("volume", 100))
             
             # 1. Save JSON (Database Priority)
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
