@@ -30,7 +30,8 @@ Elle combine le meilleur de deux mondes :
     - Support MP4, MKV, AVI, MOV.
     - Contrôle de vitesse (0.5x à 2.0x).
     - **Nouveau** : Pitch Shifting (Changement de tonalité sans changer la vitesse) de -6 à +6 demi-tons.
-    - **Nouveau** : Pitch Shifting (Changement de tonalité sans changer la vitesse) de -6 à +6 demi-tons.
+    - **Nouveau** : Support Multi-Sous-titres (SRT/VTT) avec sélection de piste en direct via une modale unifiée.
+    - **Nouveau** : Ajustement interactif et "Live Preview" de la position verticale des sous-titres depuis l'éditeur.
     - Navigation par sauts (+/- 5s).
     - **NOUVEAU ! Support des Chapitres :** Détection et affichage interactif des chapitres YouTube (Timeline Marker) pour une navigation ultra-rapide.
 - **Lecteur Audio Local**

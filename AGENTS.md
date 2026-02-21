@@ -138,3 +138,12 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **UX Sync :** La sélection du périphérique dans l'interface est intelligemment préservée après un rafraîchissement.
 *   **Logging :**
     *   Logs détaillés sur le scanner (`debug.log` séparé pour le sous-processus) et le provider actif.
+
+### 14. Évolution V8 : Support Multi-Sous-titres & UI Dynamique
+*   **Moteur de Sous-titres Locaux (`server.py` & `app.js`) :**
+    *   **Scanner Auto (`glob`) :** Détection automatique des fichiers `.srt` et `.vtt` associés à la vidéo via API REST (`/api/local/subs_list/{index}`).
+    *   **Track Switching "Live" :** Possibilité de changer de langue à la volée pendant la lecture vidéo sans rechargement, avec synchronisation immédiate en mémoire.
+*   **UI/UX Premium (`app.js`) :**
+    *   Création d'une modale universelle (`#modal-subtitle-tracks`) pour remplacer les menus déroulants (`<select>`) natifs peu esthétiques.
+    *   **Live Preview :** L'ajustement de la hauteur (`posY`) des sous-titres depuis l'éditeur modifie la position en direct sur le lecteur en arrière-plan.
+    *   Gestion intelligente du curseur `[CC]` : feedback couleur (Bleu/Gris) synchronisé pour indiquer précisément l'activation courante via `updateCCIconState`.
