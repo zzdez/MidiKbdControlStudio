@@ -135,7 +135,10 @@
                             style="color:#888; font-size:1em; cursor:pointer;" title="Mute/Unmute"
                             onclick="toggleMute('audio')"></i>
                         <input type="range" id="audio-volume" min="0" max="1" step="0.01" value="1"
-                            style="width:50px; height:4px;" oninput="if(wavesurfer) wavesurfer.setVolume(this.value)">
+                            style="width:50px; height:4px;"
+                            oninput="if(wavesurfer) wavesurfer.setVolume(this.value); document.getElementById('audio-volume-percent').innerText = Math.round(this.value * 100) + '%';">
+                        <span id="audio-volume-percent"
+                            style="font-size:0.75em; color:#aaa; min-width:28px; text-align:right;">100%</span>
                     </div>
                 </div>
 
@@ -190,7 +193,10 @@
                         style="color:#888; font-size:1em; cursor:pointer;" title="Mute/Unmute"
                         onclick="toggleMute('video')"></i>
                     <input type="range" id="video-volume" min="0" max="1" step="0.01" value="1"
-                        style="width:50px; height:4px;" oninput="updateVideoVolume(this.value)">
+                        style="width:50px; height:4px;"
+                        oninput="updateVideoVolume(this.value); document.getElementById('video-volume-percent').innerText = Math.round(this.value * 100) + '%';">
+                    <span id="video-volume-percent"
+                        style="font-size:0.75em; color:#aaa; min-width:28px; text-align:right;">100%</span>
                 </div>
 
                 <!-- Pitch Control (Compact Video) -->
@@ -369,8 +375,11 @@
                     </div>
                     <div class="slider-container-v" style="flex:1; margin-top: 15px;">
                         <input type="range" id="local-volume" class="custom-vslider" min="0" max="100" value="100"
-                            title="Volume" oninput="liveUpdateModalVolume('local', this.value)">
+                            title="Volume"
+                            oninput="liveUpdateModalVolume('local', this.value); document.getElementById('local-volume-percent').innerText = this.value + '%';">
                     </div>
+                    <span id="local-volume-percent"
+                        style="font-size:0.7em; color:#aaa; margin-top:8px; font-weight:bold;">100%</span>
                 </div>
 
                 <div id="local-art-container" class="art-container" title="Cliquez pour changer la pochette"
@@ -519,8 +528,11 @@
                             </div>
                             <div class="slider-container-v" style="flex:1; margin-top: 15px;">
                                 <input type="range" id="edit-volume" class="custom-vslider" min="0" max="100"
-                                    value="100" title="Volume" oninput="liveUpdateModalVolume('edit', this.value)">
+                                    value="100" title="Volume"
+                                    oninput="liveUpdateModalVolume('edit', this.value); document.getElementById('edit-volume-percent').innerText = this.value + '%';">
                             </div>
+                            <span id="edit-volume-percent"
+                                style="font-size:0.7em; color:#aaa; margin-top:8px; font-weight:bold;">100%</span>
                         </div>
 
                         <div id="preview-thumbnail" class="thumbnail-preview" style="flex:1;">

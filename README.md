@@ -38,7 +38,12 @@ Elle combine le meilleur de deux mondes :
     - Waveform interactive (WaveSurfer.js).
     - Support MP3, WAV, FLAC, M4A, OGG.
     - Pitch Shifting et contrôle de vitesse indépendants.
-    - Volume manuel et Normalisation automatique. **Contrôle Granulaire Vitesse :** Ajustez par pas de 0.05x (sans altération du Pitch/Tonalité).
+*   **Audio Master Plan (Nouveau !) :**
+    - **Volume Maître par Profil :** Chaque profil peut définir son propre volume système cible. Quand l'application détecte que vous ouvrez "Reaper", elle ajuste automatiquement le volume général de Windows pour vous !
+    - **Volume Persistant par Média :** Les lecteurs (Web et Local) mémorisent le volume exact de chaque piste individuellement. Ajustez la jauge en direct, c'est sauvegardé instantanément !
+    - Contrôle UX unifié avec pourcentage en temps réel et fonction *Mute* rapide.
+*   **Contrôle Hybride & Robuste :**
+    *   **Contrôle Granulaire Vitesse :** Ajustez par pas de 0.05x (sans altération du Pitch/Tonalité).
         *   **Seek de Précision :** +/- 5 secondes.
         *   **Commandes Clavier Natives :** Support direct des flèches directionnelles et de la barre d'espace pour le mapping.
     *   **Nouveau !** Injection native des commandes (Win32) pour piloter même les applications récalcitrantes (Moises, applis Electron).

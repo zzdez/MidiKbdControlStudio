@@ -384,6 +384,71 @@ class DeviceEditorDialog(ctk.CTkToplevel):
         self.destroy()
 
 
+class ProfileEditorDialog(ctk.CTkToplevel):
+    def __init__(self, parent, current_profile, callback):
+        super().__init__(parent)
+        self.callback = callback
+        self.current_profile = current_profile
+
+        self.title("Éditer Profil")
+        self.geometry("380x250")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        # Name
+        ctk.CTkLabel(self, text="Nom complet du Profil :").pack(pady=(20, 5), padx=20, anchor="w")
+        self.entry_name = ctk.CTkEntry(self, width=340)
+        self.entry_name.pack(padx=20)
+        self.entry_name.insert(0, current_profile.get("name", ""))
+
+        # Master Vol Frame
+        self.vol_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.vol_frame.pack(pady=(15, 5), padx=20, fill="x")
+        
+        # Label that will hold the percentage
+        self.lbl_vol = ctk.CTkLabel(self.vol_frame, text="Volume Master : 100%")
+        self.lbl_vol.pack(anchor="w")
+        
+        # Slider
+        self.slider_vol = ctk.CTkSlider(self.vol_frame, from_=0, to=100, number_of_steps=100, command=self.on_slider_change)
+        self.slider_vol.pack(fill="x", pady=5)
+        
+        # Init value
+        saved_vol = current_profile.get("target_volume", "")
+        if saved_vol:
+            try:
+                val = float(saved_vol)
+            except: val = 100.0
+        else:
+            val = 100.0
+            
+        self.slider_vol.set(val)
+        self.on_slider_change(val)
+
+        # Save Set
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.pack(pady=25, fill="x", padx=20)
+        
+        btn_cancel = ctk.CTkButton(btn_frame, text="Annuler", width=120, fg_color="#555", hover_color="#777", command=self.destroy)
+        btn_cancel.pack(side="left")
+        
+        btn_save = ctk.CTkButton(btn_frame, text="Sauvegarder", width=120, fg_color="green", hover_color="darkgreen", command=self.save)
+        btn_save.pack(side="right")
+
+    def on_slider_change(self, value):
+        self.lbl_vol.configure(text=f"Volume Master : {int(value)}%")
+
+    def save(self):
+        new_name = self.entry_name.get().strip()
+        new_val = str(int(self.slider_vol.get()))
+        
+        if not new_name:
+            CTkMessageBox.show_error("Erreur", "Le nom du profil ne peut pas être vide.")
+            return
+
+        self.callback(new_name, new_val)
+        self.destroy()
 
 
 class MappingDialog(ctk.CTkToplevel):
@@ -984,6 +1049,9 @@ class AirstepApp(ctk.CTk):
         self.btn_dup_profile = ctk.CTkButton(self.profile_frame, text="❐", width=24, height=24, fg_color="#555", hover_color="#777", command=self.duplicate_current_profile)
         self.btn_dup_profile.pack(side="left", padx=2, pady=2)
 
+        self.btn_edit_profile = ctk.CTkButton(self.profile_frame, text="✎", width=24, height=24, fg_color="#555", hover_color="#777", command=self.edit_current_profile)
+        self.btn_edit_profile.pack(side="left", padx=2, pady=2)
+
         self.btn_del_profile = ctk.CTkButton(self.profile_frame, text="Suppr", width=40, height=24, fg_color="red", hover_color="darkred", command=self.delete_current_profile)
         self.btn_del_profile.pack(side="left", padx=2, pady=2)
 
@@ -1343,6 +1411,33 @@ class AirstepApp(ctk.CTk):
             self.update_profile_combo()
             self.select_profile_by_name(new_name)
             CTkMessageBox.show_info("Succès", f"Profil dupliqué : {new_name}")
+
+    def edit_current_profile(self):
+        if not self.current_profile: return
+        ProfileEditorDialog(self, self.current_profile, self.on_profile_edited)
+
+    def on_profile_edited(self, new_name, new_vol):
+        old_name = self.current_profile.get("name")
+        
+        # Check name collision
+        if new_name != old_name:
+            for p in self.profiles:
+                if p["name"] == new_name:
+                    CTkMessageBox.show_error("Erreur", "Un profil avec ce nom existe déjà.")
+                    return
+        
+        self.current_profile["name"] = new_name
+        self.current_profile["target_volume"] = new_vol
+        
+        # Save new
+        if self.profile_manager.save_profile(self.current_profile):
+            # If renamed, delete the old file
+            if old_name and old_name != new_name:
+                self.profile_manager.delete_profile(old_name)
+            
+            self.profiles = self.profile_manager.load_all_profiles()
+            self.update_profile_combo()
+            self.select_profile_by_name(new_name)
 
     def delete_current_profile(self):
         if not self.current_profile: return

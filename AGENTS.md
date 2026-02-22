@@ -147,3 +147,14 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   Création d'une modale universelle (`#modal-subtitle-tracks`) pour remplacer les menus déroulants (`<select>`) natifs peu esthétiques.
     *   **Live Preview :** L'ajustement de la hauteur (`posY`) des sous-titres depuis l'éditeur modifie la position en direct sur le lecteur en arrière-plan.
     *   Gestion intelligente du curseur `[CC]` : feedback couleur (Bleu/Gris) synchronisé pour indiquer précisément l'activation courante via `updateCCIconState`.
+
+### 15. Évolution V9 : Audio Master Plan & Éditeur de Profils Natif
+*   **Moteur OS & Context Switch (`profile_manager.py`) :**
+    *   **Intégration `pycaw` :** Lors d'un changement de profil (soit par clic, soit par appel contextuel via le moniteur), le backend Windows modifie instantanément le volume maître du système si le `target_volume` (0-100) est défini.
+    *   **Seamless Switching :** Permet de passer de Reaper (100% volume OS) à YouTube (30%) sans endommager l'audition.
+*   **Contrôle Audio Fin (`app.js` & `server.py`) :**
+    *   **Volume Tracking :** Chaque Média Web (Youtube Iframe, Local Audio WaveSurfer, Local HTML5 Video) intègre son propre dictionnaire de sauvegarde live de la valeur `volume` (0..1).
+    *   **Save Auto :** Toute modification de curseur sur l'interface graphique renvoie avec un throttle une validation au backend pour rendre le volume persistant, afin d'éliminer la nécessité d'une modale de sauvegarde dédiée.
+*   **UI Modifications :**
+    *   **Modales Verticales :** Les Sliders dans les modales `index.html` ont été stylisés avec des `[type=range]` verticaux accompagnés d'un Label Pourcentage mis à jour par JavaScript.
+    *   **`gui.py` Profil Editor :** Fin des limitations d'interface, la version Native possède un `ProfileEditorDialog` qui lit/sauvegarde le profil ET supprime dynamiquement le nom `.json` précédent du disque lors d'un renommage en direct.

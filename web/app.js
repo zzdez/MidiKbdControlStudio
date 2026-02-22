@@ -952,6 +952,7 @@ function openAddModal() {
     document.getElementById("edit-mode").value = "auto";
     document.getElementById("edit-target-profile").value = "Auto"; // Default
     document.getElementById("edit-volume").value = 100;
+    const evp1 = document.getElementById("edit-volume-percent"); if (evp1) evp1.innerText = "100%";
     document.getElementById("youtube-desc-input").value = "";
     document.getElementById("user-notes-input").value = "";
 
@@ -995,7 +996,9 @@ function openEditModal(index) {
     document.getElementById("edit-genre").value = track.genre || "Divers";
     document.getElementById("edit-mode").value = track.open_mode || "auto";
     document.getElementById("edit-target-profile").value = track.target_profile || "Auto";
-    document.getElementById("edit-volume").value = (track.volume !== undefined) ? track.volume : 100;
+    let volValEdit = (track.volume !== undefined) ? track.volume : 100;
+    document.getElementById("edit-volume").value = volValEdit;
+    const evp2 = document.getElementById("edit-volume-percent"); if (evp2) evp2.innerText = volValEdit + "%";
 
     // Legacy support: if description exists but not youtube_description, assume it was generic description (or user note?)
     // Since we just migrated, we can put old description into user_notes if user_notes empty
@@ -1625,9 +1628,9 @@ function playTrack(track) {
 
     // Reset Volume Slider
     const audioVolSlider = document.getElementById("audio-volume");
-    if (audioVolSlider) audioVolSlider.value = normalizedVolume;
+    if (audioVolSlider) { audioVolSlider.value = normalizedVolume; const avp = document.getElementById("audio-volume-percent"); if (avp) avp.innerText = trackVolume + "%"; }
     const videoVolSlider = document.getElementById("video-volume");
-    if (videoVolSlider) videoVolSlider.value = normalizedVolume;
+    if (videoVolSlider) { videoVolSlider.value = normalizedVolume; const vvp = document.getElementById("video-volume-percent"); if (vvp) vvp.innerText = trackVolume + "%"; }
 
     // Reset all Players
     ytDiv.style.display = "none";
@@ -2424,9 +2427,9 @@ function liveUpdateModalVolume(type, val) {
 
         // Sync the main player UI slider too
         const audioVolSlider = document.getElementById("audio-volume");
-        if (audioVolSlider) audioVolSlider.value = normalizedVolume;
+        if (audioVolSlider) { audioVolSlider.value = normalizedVolume; const ap = document.getElementById("audio-volume-percent"); if (ap) ap.innerText = percentVol + "%"; }
         const videoVolSlider = document.getElementById("video-volume");
-        if (videoVolSlider) videoVolSlider.value = normalizedVolume;
+        if (videoVolSlider) { videoVolSlider.value = normalizedVolume; const vp = document.getElementById("video-volume-percent"); if (vp) vp.innerText = percentVol + "%"; }
 
     } else if (type === 'edit' && editingIndex !== null && currentActivePlayer === 'youtube') {
         const track = currentTrackList.find(t => t.originalIndex === editingIndex);
@@ -2437,7 +2440,7 @@ function liveUpdateModalVolume(type, val) {
 
                 // Sync the main player UI slider too
                 const videoVolSlider = document.getElementById("video-volume");
-                if (videoVolSlider) videoVolSlider.value = normalizedVolume;
+                if (videoVolSlider) { videoVolSlider.value = normalizedVolume; const vp2 = document.getElementById("video-volume-percent"); if (vp2) vp2.innerText = percentVol + "%"; }
             }
         }
     }
@@ -2464,8 +2467,8 @@ function toggleMute(type) {
             }
         }
 
-        const v1 = document.getElementById("audio-volume"); if (v1) { v1.value = 0; }
-        const v2 = document.getElementById("video-volume"); if (v2) { v2.value = 0; }
+        const v1 = document.getElementById("audio-volume"); if (v1) { v1.value = 0; const a1 = document.getElementById("audio-volume-percent"); if (a1) a1.innerText = "0%"; }
+        const v2 = document.getElementById("video-volume"); if (v2) { v2.value = 0; const v_2 = document.getElementById("video-volume-percent"); if (v_2) v_2.innerText = "0%"; }
 
     } else {
         icons.forEach(i => { if (i) { i.classList.remove("ph-speaker-slash"); i.classList.add("ph-speaker-high"); i.style.color = "#888"; } });
@@ -2480,8 +2483,8 @@ function toggleMute(type) {
             }
         }
 
-        const v1 = document.getElementById("audio-volume"); if (v1) v1.value = preMuteVolume;
-        const v2 = document.getElementById("video-volume"); if (v2) v2.value = preMuteVolume;
+        const v1 = document.getElementById("audio-volume"); if (v1) { v1.value = preMuteVolume; const a1 = document.getElementById("audio-volume-percent"); if (a1) a1.innerText = Math.round(preMuteVolume * 100) + "%"; }
+        const v2 = document.getElementById("video-volume"); if (v2) { v2.value = preMuteVolume; const v_2 = document.getElementById("video-volume-percent"); if (v_2) v_2.innerText = Math.round(preMuteVolume * 100) + "%"; }
     }
 }
 
@@ -2969,7 +2972,9 @@ function openEditLocalModal(index) {
     document.getElementById("local-category").value = item.category || "Général";
     document.getElementById("local-year").value = item.year || "";
     document.getElementById("local-target-profile").value = item.target_profile || "Auto";
-    document.getElementById("local-volume").value = (item.volume !== undefined) ? item.volume : 100;
+    let volValLoc = (item.volume !== undefined) ? item.volume : 100;
+    document.getElementById("local-volume").value = volValLoc;
+    const lvp = document.getElementById("local-volume-percent"); if (lvp) lvp.innerText = volValLoc + "%";
     document.getElementById("local-notes").value = item.user_notes || "";
 
     // Load Art
