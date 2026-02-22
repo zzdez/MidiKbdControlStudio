@@ -164,9 +164,20 @@
                             style="font-weight:bold; font-size:0.9em; padding:2px 6px;">A</button>
                         <button class="control-btn" id="btn-loop-b-audio" onclick="setLoopB()" title="Définir Point B"
                             style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
-                        <button class="control-btn" id="btn-loop-clear-audio" onclick="clearLoop()"
-                            title="Annuler Boucle" style="display:none; padding:2px 4px; color:#cf6679;"><i
-                                class="ph ph-x"></i></button>
+
+                        <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
+
+                        <button class="control-btn" id="btn-loop-prev-audio" onclick="navigateLoop(-1)"
+                            title="Boucle Précédente" style="display:none; padding:2px 2px;"><i
+                                class="ph ph-skip-back"></i></button>
+                        <button class="control-btn" id="btn-loop-toggle-audio" onclick="toggleLoopState()"
+                            title="Activer/Désactiver" style="display:none; padding:2px 4px; color:var(--accent);"><i
+                                class="ph ph-repeat"></i></button>
+                        <button class="control-btn" id="btn-loop-next-audio" onclick="navigateLoop(1)"
+                            title="Boucle Suivante" style="display:none; padding:2px 2px;"><i
+                                class="ph ph-skip-forward"></i></button>
+
+                        <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
                         <button class="control-btn" id="btn-loop-save-audio" onclick="openLoopModal()"
                             title="Sauvegarder Boucle" style="display:none; padding:2px 4px; color:var(--accent);"><i
                                 class="ph ph-floppy-disk"></i></button>
@@ -251,8 +262,20 @@
                         style="font-weight:bold; font-size:0.9em; padding:2px 6px;">A</button>
                     <button class="control-btn" id="btn-loop-b-video" onclick="setLoopB()" title="Définir Point B"
                         style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
-                    <button class="control-btn" id="btn-loop-clear-video" onclick="clearLoop()" title="Annuler Boucle"
-                        style="display:none; padding:2px 4px; color:#cf6679;"><i class="ph ph-x"></i></button>
+
+                    <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
+
+                    <button class="control-btn" id="btn-loop-prev-video" onclick="navigateLoop(-1)"
+                        title="Boucle Précédente" style="display:none; padding:2px 2px;"><i
+                            class="ph ph-skip-back"></i></button>
+                    <button class="control-btn" id="btn-loop-toggle-video" onclick="toggleLoopState()"
+                        title="Activer/Désactiver" style="display:none; padding:2px 4px; color:var(--accent);"><i
+                            class="ph ph-repeat"></i></button>
+                    <button class="control-btn" id="btn-loop-next-video" onclick="navigateLoop(1)"
+                        title="Boucle Suivante" style="display:none; padding:2px 2px;"><i
+                            class="ph ph-skip-forward"></i></button>
+
+                    <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
                     <button class="control-btn" id="btn-loop-save-video" onclick="openLoopModal()"
                         title="Sauvegarder Boucle" style="display:none; padding:2px 4px; color:var(--accent);"><i
                             class="ph ph-floppy-disk"></i></button>
@@ -267,13 +290,7 @@
                 <div id="chapter-list"></div>
             </div>
 
-            <!-- LOOPS LIST (New) -->
-            <div id="loop-container" style="display:none; margin-top:15px; width:100%;">
-                <div id="loop-list-title"
-                    style="font-weight:bold; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:5px; width:100%;">
-                    Boucles Sauvegardées</div>
-                <div id="loop-list" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
-            </div>
+
 
             <!-- Pédalier Virtuel (Sync) -->
             <div id="pedalboard-container">

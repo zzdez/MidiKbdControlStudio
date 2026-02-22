@@ -3354,7 +3354,7 @@ function updateTimelineUI(currentTime) {
         let displayDur = dur;
 
         // Si boucle en cours de création ou active
-        if (loopA !== null) {
+        if (loopA !== null && isLoopActive) {
             pctLeft = (loopA / dur) * 100;
             const curVisual = Math.max(loopA, currentTime);
             let endVisual = curVisual;
@@ -3367,7 +3367,7 @@ function updateTimelineUI(currentTime) {
             }
             pctWidth = ((endVisual - loopA) / dur) * 100;
         } else {
-            // Lecture normale
+            // Lecture normale ou boucle inactive
             pctLeft = 0;
             pctWidth = (currentTime / dur) * 100;
         }
@@ -3549,26 +3549,52 @@ function updateLoopUI() {
     // Audio UI
     const btnA_a = document.getElementById("btn-loop-a-audio");
     const btnB_a = document.getElementById("btn-loop-b-audio");
-    const btnClear_a = document.getElementById("btn-loop-clear-audio");
     const btnSave_a = document.getElementById("btn-loop-save-audio");
+    const btnToggle_a = document.getElementById("btn-loop-toggle-audio");
+    const btnPrev_a = document.getElementById("btn-loop-prev-audio");
+    const btnNext_a = document.getElementById("btn-loop-next-audio");
 
     // Video UI
     const btnA_v = document.getElementById("btn-loop-a-video");
     const btnB_v = document.getElementById("btn-loop-b-video");
-    const btnClear_v = document.getElementById("btn-loop-clear-video");
     const btnSave_v = document.getElementById("btn-loop-save-video");
+    const btnToggle_v = document.getElementById("btn-loop-toggle-video");
+    const btnPrev_v = document.getElementById("btn-loop-prev-video");
+    const btnNext_v = document.getElementById("btn-loop-next-video");
 
-    const activeMode = isLoopActive;
+    const activeMode = (loopA !== null || loopB !== null); // Some points are marked
 
     if (btnA_a) btnA_a.style.color = loopA !== null ? "var(--accent)" : "#fff";
     if (btnB_a) btnB_a.style.color = loopB !== null ? "var(--accent)" : "#555";
-    if (btnClear_a) btnClear_a.style.display = (loopA !== null || loopB !== null) ? "inline-block" : "none";
-    if (btnSave_a) btnSave_a.style.display = activeMode ? "inline-block" : "none";
+
+    // Prev/Next Navigation visibility
+    const hasSavedLoops = (currentLoops && currentLoops.length > 0);
+    const showToggle = (activeMode || hasSavedLoops);
+
+    // Toggle Button Logic
+    if (btnToggle_a) {
+        btnToggle_a.style.display = showToggle ? "inline-block" : "none";
+        btnToggle_a.style.color = isLoopActive ? "var(--accent)" : "#555";
+        btnToggle_a.innerHTML = isLoopActive ? '<i class="ph ph-repeat"></i>' : '<i class="ph ph-repeat-once"></i>';
+    }
 
     if (btnA_v) btnA_v.style.color = loopA !== null ? "var(--accent)" : "#fff";
     if (btnB_v) btnB_v.style.color = loopB !== null ? "var(--accent)" : "#555";
-    if (btnClear_v) btnClear_v.style.display = (loopA !== null || loopB !== null) ? "inline-block" : "none";
-    if (btnSave_v) btnSave_v.style.display = activeMode ? "inline-block" : "none";
+
+    if (btnToggle_v) {
+        btnToggle_v.style.display = showToggle ? "inline-block" : "none";
+        btnToggle_v.style.color = isLoopActive ? "var(--accent)" : "#555";
+        btnToggle_v.innerHTML = isLoopActive ? '<i class="ph ph-repeat"></i>' : '<i class="ph ph-repeat-once"></i>';
+    }
+
+    // Save Button Logic
+    if (btnSave_a) btnSave_a.style.display = (loopA !== null && loopB !== null && isLoopActive) ? "inline-block" : "none";
+    if (btnSave_v) btnSave_v.style.display = (loopA !== null && loopB !== null && isLoopActive) ? "inline-block" : "none";
+
+    if (btnPrev_a) btnPrev_a.style.display = hasSavedLoops ? "inline-block" : "none";
+    if (btnNext_a) btnNext_a.style.display = hasSavedLoops ? "inline-block" : "none";
+    if (btnPrev_v) btnPrev_v.style.display = hasSavedLoops ? "inline-block" : "none";
+    if (btnNext_v) btnNext_v.style.display = hasSavedLoops ? "inline-block" : "none";
 
     // Visual Timeline Markers for Local Video / Audio
     const markerA = document.getElementById("video-loop-marker-a");
@@ -3597,6 +3623,9 @@ function updateLoopUI() {
                 area.style.display = "block";
                 area.style.left = pctA + "%";
                 area.style.width = (pctB - pctA) + "%";
+                // UX Feedback: Make area semi-transparent if inactive
+                area.style.backgroundColor = isLoopActive ? "rgba(3, 218, 198, 0.4)" : "rgba(100, 100, 100, 0.3)";
+                area.style.border = isLoopActive ? "1px dashed var(--accent)" : "1px dashed #666";
             }
         } else {
             if (markerB) markerB.style.display = "none";
@@ -3651,7 +3680,18 @@ function openLoopModal() {
         currentLoops.forEach(l => {
             const div = document.createElement("div");
             div.style.cssText = "display:flex; justify-content:space-between; align-items:center; font-size:0.85em; background:#222; padding:4px 8px; border-radius:4px;";
-            div.innerHTML = `<span style="color:#fff;">${l.name}</span> <span style="color:#888;">[${formatTimeCustom(l.start)} - ${formatTimeCustom(l.end)}]</span>`;
+            div.innerHTML = `
+                <span id="loop-name-display-${l.id}" style="color:#fff; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${l.name}</span>
+                <input type="text" id="loop-name-input-${l.id}" value="${l.name}" style="display:none; flex:1; margin-right:5px; font-size:1em; padding:2px; box-sizing:border-box;">
+                
+                <span style="color:#888; font-family:monospace; margin:0 10px;">[${formatTimeCustom(l.start)}-${formatTimeCustom(l.end)}]</span>
+                
+                <div style="display:flex; gap:5px;">
+                    <button id="btn-edit-${l.id}" class="btn-icon" onclick="toggleEditLoop(${l.id})" style="padding:2px; font-size:1.2em; color:#fff;" title="Renommer"><i class="ph ph-pencil-simple"></i></button>
+                    <button id="btn-save-${l.id}" class="btn-icon" onclick="saveLoopName(${l.id})" style="display:none; padding:2px; font-size:1.2em; color:var(--accent);" title="Valider"><i class="ph ph-check"></i></button>
+                    <button class="btn-icon" onclick="deleteLoop(${l.id})" style="padding:2px; font-size:1.2em; color:#cf6679;" title="Supprimer"><i class="ph ph-trash"></i></button>
+                </div>
+            `;
             existingList.appendChild(div);
         });
     } else {
@@ -3667,27 +3707,33 @@ function closeLoopModal() {
     if (modal) modal.close();
 }
 
-async function confirmSaveLoop() {
-    if (!isLoopActive || loopA === null || loopB === null) {
-        closeLoopModal();
-        return;
+// Inline editing functions for the modal
+function toggleEditLoop(id) {
+    document.getElementById(`loop-name-display-${id}`).style.display = 'none';
+    document.getElementById(`btn-edit-${id}`).style.display = 'none';
+
+    document.getElementById(`loop-name-input-${id}`).style.display = 'block';
+    document.getElementById(`btn-save-${id}`).style.display = 'block';
+
+    document.getElementById(`loop-name-input-${id}`).focus();
+}
+
+function saveLoopName(id) {
+    const newName = document.getElementById(`loop-name-input-${id}`).value.trim() || 'Boucle sans nom';
+    const loop = currentLoops.find(l => l.id === id);
+    if (loop) {
+        loop.name = newName;
+        // Re-open/refresh modal to show changes
+        openLoopModal();
+        renderLoopsUI(); // Refresh markers just in case
+
+        // Save to Backend immediately
+        saveLoopsToBackend();
     }
+}
 
-    const nameInput = document.getElementById("loop-modal-name");
-    const name = nameInput.value.trim() || "Boucle sans nom";
-
-    const newLoop = {
-        id: Date.now(),
-        name: name,
-        start: loopA,
-        end: loopB
-    };
-
-    currentLoops.push(newLoop);
-    renderLoopsUI();
-    closeLoopModal();
-
-    // Save to backend
+// Reusable backend persist
+async function saveLoopsToBackend() {
     if (currentActivePlayer === 'youtube') {
         const track = currentTrackList.find(t => t.originalIndex === currentPlayingIndex);
         if (track) {
@@ -3711,42 +3757,133 @@ async function confirmSaveLoop() {
     }
 }
 
-function renderLoopsUI() {
-    const list = document.getElementById("loop-list");
-    const container = document.getElementById("loop-container");
-    if (!list || !container) return;
-
-    list.innerHTML = "";
-    if (!currentLoops || currentLoops.length === 0) {
-        container.style.display = "none";
+async function confirmSaveLoop() {
+    if (!isLoopActive || loopA === null || loopB === null) {
+        closeLoopModal();
         return;
     }
 
-    container.style.display = "flex";
+    const nameInput = document.getElementById("loop-modal-name");
+    const name = nameInput.value.trim() || "Boucle sans nom";
+
+    const newLoop = {
+        id: Date.now(),
+        name: name,
+        start: loopA,
+        end: loopB
+    };
+
+    currentLoops.push(newLoop);
+    renderLoopsUI();
+    closeLoopModal();
+
+    // Save to backend
+    saveLoopsToBackend();
+}
+
+function playSavedLoop(l, forceActive = true) {
+    loopA = l.start;
+    loopB = l.end;
+    if (forceActive) {
+        isLoopActive = true;
+    }
+    // else keep the current state of isLoopActive
+    updateLoopUI();
+    seekPlayerTo(loopA);
+
+    // Auto Play when triggering a loop
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && vid.style.display !== "none") vid.play();
+        if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none") wavesurfer.play();
+    } else if (currentActivePlayer === 'youtube' && player && typeof player.playVideo === "function") {
+        player.playVideo();
+    }
+}
+
+function renderLoopsUI() {
+    // We now render loops as small markers on the timeline instead of a vertical list
+    const timelineBg = document.getElementById("video-progress-bar-bg");
+    if (!timelineBg) return;
+
+    // Clear existing saved loop markers
+    document.querySelectorAll('.saved-loop-marker').forEach(el => el.remove());
+
+    if (!currentLoops || currentLoops.length === 0) return;
+
+    // Current player duration is needed to position markers accurately
+    let dur = 0;
+    if (currentActivePlayer === 'youtube' && player && typeof player.getDuration === "function") dur = player.getDuration();
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && !isNaN(vid.duration)) dur = vid.duration;
+    }
+
+    // Fallback if metadata is not loaded yet. Will re-render on first timeupdate.
+    if (dur === 0) return;
+
     currentLoops.forEach(l => {
-        const btn = document.createElement("button");
-        btn.className = "control-btn";
-        btn.style.cssText = "font-size: 0.85em; padding: 4px 10px; border-radius: 12px; background: #333; border: 1px solid #555; color: #fff; display:flex; align-items:center; gap:5px; cursor:pointer;";
-        btn.innerHTML = `<i class="ph ph-repeat" style="color:var(--accent);"></i> ${l.name} <span style="color:#888; font-size:0.8em;">[${l.start.toFixed(1)}s - ${l.end.toFixed(1)}s]</span> <i class="ph ph-trash" style="color:#cf6679; margin-left:5px; padding:2px; border-radius:4px;" onmouseover="this.style.background='#555'" onmouseout="this.style.background='transparent'" onclick="event.stopPropagation(); deleteLoop(${l.id})"></i>`;
+        // Create marker
+        const marker = document.createElement("div");
+        marker.className = "saved-loop-marker";
+        // Calculate position based on loop start
+        const pct = (l.start / dur) * 100;
 
-        btn.onclick = () => {
-            loopA = l.start;
-            loopB = l.end;
-            isLoopActive = true;
-            updateLoopUI();
-            seekPlayerTo(loopA);
+        marker.style.cssText = `
+            position: absolute;
+            bottom: -5px; /* Sits just below the main bar, like chapters */
+            left: ${pct}%;
+            width: 8px;
+            height: 8px;
+            background-color: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 10;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+            transform: translateX(-50%);
+        `;
 
-            // Auto Play when triggering a loop
-            if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
-                const vid = document.getElementById("html5-player");
-                if (vid && vid.style.display !== "none") vid.play();
-                if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none") wavesurfer.play();
-            } else if (currentActivePlayer === 'youtube' && player && typeof player.playVideo === "function") {
-                player.playVideo();
-            }
+        // Add tooltip
+        marker.title = `${l.name} [${formatTimeCustom(l.start)}]`;
+
+        // Click action
+        marker.onclick = (e) => {
+            e.stopPropagation();
+            playSavedLoop(l);
         };
-        list.appendChild(btn);
+
+        timelineBg.appendChild(marker);
     });
+}
+
+function toggleLoopState() {
+    isLoopActive = !isLoopActive;
+    updateLoopUI();
+}
+
+function navigateLoop(direction) {
+    if (!currentLoops || currentLoops.length === 0) return;
+
+    // Sort loops chronologically
+    const sortedLoops = [...currentLoops].sort((a, b) => a.start - b.start);
+
+    const currentTime = getCurrentPlayerTime();
+    let targetLoop = null;
+
+    if (direction === 1) { // Next
+        // Find the first loop that starts AFTER the current time (with a tiny buffer to avoid triggering the current loop)
+        targetLoop = sortedLoops.find(l => l.start > currentTime + 0.5);
+        if (!targetLoop) targetLoop = sortedLoops[0]; // Wrap around
+    } else { // Prev
+        // Find the last loop that starts BEFORE the current time
+        // Need to reverse to find the closest previous one
+        targetLoop = [...sortedLoops].reverse().find(l => l.start < currentTime - 1.0); // 1s buffer backwards so we don't just stay stuck
+        if (!targetLoop) targetLoop = sortedLoops[sortedLoops.length - 1]; // Wrap around
+    }
+
+    if (targetLoop) {
+        playSavedLoop(targetLoop, false); // Don't force active; preserve user's toggle state
+    }
 }
 
 function deleteLoop(id) {
@@ -3754,32 +3891,19 @@ function deleteLoop(id) {
     currentLoops = currentLoops.filter(l => l.id !== id);
     renderLoopsUI();
 
-    // Save to backend
-    if (currentActivePlayer === 'youtube') {
-        const track = currentTrackList.find(t => t.originalIndex === currentPlayingIndex);
-        if (track) {
-            track.loops = currentLoops;
-            fetch(`/api/setlist/${currentPlayingIndex}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(track)
-            });
-        }
-    } else {
-        const item = localFiles[currentPlayingIndex];
-        if (item) {
-            item.loops = currentLoops;
-            fetch(`/api/local/${currentPlayingIndex}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(item)
-            });
-        }
+    // Re-render modal to reflect deletion if we are doing this from inside the modal
+    const modal = document.getElementById("loop-modal");
+    if (modal && modal.open) {
+        openLoopModal();
     }
+
+    // Save to backend
+    saveLoopsToBackend();
 }
 
 function loadLoopsForTrack(trackOrItem) {
     clearLoop(); // Reset active loops when loading a new track
     currentLoops = trackOrItem.loops || [];
     renderLoopsUI();
+    updateLoopUI(); // Refresh Toolbar Buttons visibility
 }
