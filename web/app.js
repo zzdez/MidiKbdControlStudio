@@ -16,6 +16,7 @@ let currentWebMode = "GENERIC"; // Track AUDIO, VIDEO or GENERIC explicitly
 let loopA = null;
 let loopB = null;
 let isLoopActive = false;
+let isSequentialLoop = false; // Toggle between loop 1 or loop sequential
 let currentLoops = []; // Array of saved loops for the active track
 
 // --- GLOBAL DEVICE STATUS ---
@@ -3529,6 +3530,7 @@ function clearLoop() {
     loopA = null;
     loopB = null;
     isLoopActive = false;
+    isSequentialLoop = false;
     updateLoopUI();
 
     // Resume play if it was paused (bug fix)
@@ -3572,10 +3574,25 @@ function updateLoopUI() {
     const showToggle = (activeMode || hasSavedLoops);
 
     // Toggle Button Logic
+    let toggleHtml = '<i class="ph ph-repeat"></i>';
+    let toggleColor = "#555";
+    let toggleTooltip = "Mode Boucle: Désactivé (Lecture libre)";
+
+    if (isLoopActive && !isSequentialLoop) {
+        toggleHtml = '<i class="ph ph-repeat-once"></i>';
+        toggleColor = "var(--accent)";
+        toggleTooltip = "Mode Boucle: Unique (Répéter la boucle actuelle)";
+    } else if (isLoopActive && isSequentialLoop) {
+        toggleHtml = '<i class="ph ph-queue"></i>';
+        toggleColor = "var(--accent)";
+        toggleTooltip = "Mode Boucle: Séquentiel (Passer à la boucle suivante)";
+    }
+
     if (btnToggle_a) {
         btnToggle_a.style.display = showToggle ? "inline-block" : "none";
-        btnToggle_a.style.color = isLoopActive ? "var(--accent)" : "#555";
-        btnToggle_a.innerHTML = isLoopActive ? '<i class="ph ph-repeat"></i>' : '<i class="ph ph-repeat-once"></i>';
+        btnToggle_a.style.color = toggleColor;
+        btnToggle_a.innerHTML = toggleHtml;
+        btnToggle_a.title = toggleTooltip;
     }
 
     if (btnA_v) btnA_v.style.color = loopA !== null ? "var(--accent)" : "#fff";
@@ -3583,8 +3600,9 @@ function updateLoopUI() {
 
     if (btnToggle_v) {
         btnToggle_v.style.display = showToggle ? "inline-block" : "none";
-        btnToggle_v.style.color = isLoopActive ? "var(--accent)" : "#555";
-        btnToggle_v.innerHTML = isLoopActive ? '<i class="ph ph-repeat"></i>' : '<i class="ph ph-repeat-once"></i>';
+        btnToggle_v.style.color = toggleColor;
+        btnToggle_v.innerHTML = toggleHtml;
+        btnToggle_v.title = toggleTooltip;
     }
 
     // Save Button Logic
@@ -3642,7 +3660,23 @@ function updateLoopUI() {
 function checkLoop(currentTime) {
     if (!isLoopActive || loopA === null || loopB === null) return;
     if (currentTime >= loopB) {
-        seekPlayerTo(loopA);
+        if (!isSequentialLoop) {
+            seekPlayerTo(loopA);
+        } else {
+            // Find current loop to jump to next
+            if (!currentLoops || currentLoops.length === 0) {
+                seekPlayerTo(loopA);
+                return;
+            }
+            const sortedLoops = [...currentLoops].sort((a, b) => a.start - b.start);
+            let idx = sortedLoops.findIndex(l => Math.abs(l.start - loopA) < 0.1);
+            if (idx >= 0) {
+                idx = (idx + 1) % sortedLoops.length; // Next loop, wrap around
+                playSavedLoop(sortedLoops[idx], true);
+            } else {
+                seekPlayerTo(loopA);
+            }
+        }
     }
 }
 
@@ -3802,12 +3836,12 @@ function playSavedLoop(l, forceActive = true) {
 }
 
 function renderLoopsUI() {
-    // We now render loops as small markers on the timeline instead of a vertical list
+    // We now render loops as shaded regions on the timeline
     const timelineBg = document.getElementById("video-progress-bar-bg");
     if (!timelineBg) return;
 
-    // Clear existing saved loop markers
-    document.querySelectorAll('.saved-loop-marker').forEach(el => el.remove());
+    // Clear existing saved loop regions
+    document.querySelectorAll('.saved-loop-region').forEach(el => el.remove());
 
     if (!currentLoops || currentLoops.length === 0) return;
 
@@ -3819,45 +3853,82 @@ function renderLoopsUI() {
         if (vid && !isNaN(vid.duration)) dur = vid.duration;
     }
 
-    // Fallback if metadata is not loaded yet. Will re-render on first timeupdate.
-    if (dur === 0) return;
+    // Fallback if metadata is not loaded yet. Will re-render on next tick.
+    if (dur === 0) {
+        setTimeout(renderLoopsUI, 500); // Retry automatically
+        return;
+    }
 
     currentLoops.forEach(l => {
-        // Create marker
-        const marker = document.createElement("div");
-        marker.className = "saved-loop-marker";
-        // Calculate position based on loop start
-        const pct = (l.start / dur) * 100;
+        // Create region
+        const region = document.createElement("div");
+        region.className = "saved-loop-region";
 
-        marker.style.cssText = `
+        // Calculate position and width based on loop start and end
+        const pctLeft = Math.max(0, Math.min(100, (l.start / dur) * 100));
+        let pctWidth = ((l.end - l.start) / dur) * 100;
+        pctWidth = Math.max(0, Math.min(100 - pctLeft, pctWidth));
+
+        region.style.cssText = `
             position: absolute;
-            bottom: -5px; /* Sits just below the main bar, like chapters */
-            left: ${pct}%;
-            width: 8px;
-            height: 8px;
-            background-color: var(--accent);
-            border-radius: 50%;
+            bottom: 0;
+            left: ${pctLeft}%;
+            width: ${pctWidth}%;
+            height: 100%;
+            background-color: rgba(100, 100, 100, 0.4);
+            border-left: 1px dashed rgba(255, 255, 255, 0.4);
+            border-right: 1px dashed rgba(255, 255, 255, 0.4);
             cursor: pointer;
-            z-index: 10;
-            box-shadow: 0 0 4px rgba(0,0,0,0.5);
-            transform: translateX(-50%);
+            z-index: 5;
+            box-sizing: border-box;
         `;
 
         // Add tooltip
-        marker.title = `${l.name} [${formatTimeCustom(l.start)}]`;
+        region.title = `${l.name} [${formatTimeCustom(l.start)} - ${formatTimeCustom(l.end)}]`;
 
         // Click action
-        marker.onclick = (e) => {
+        region.onclick = (e) => {
             e.stopPropagation();
-            playSavedLoop(l);
+            playSavedLoop(l, true); // True = auto activate
         };
 
-        timelineBg.appendChild(marker);
+        timelineBg.appendChild(region);
     });
 }
 
 function toggleLoopState() {
-    isLoopActive = !isLoopActive;
+    if (!isLoopActive) {
+        // State 0 -> 1: OFF to SINGLE
+        const t = getCurrentPlayerTime();
+
+        // Check if we are currently inside a saved loop
+        const activeLoop = currentLoops.find(l => t >= l.start && t <= l.end);
+
+        if (activeLoop && loopA === null) {
+            // We are inside a loop, but no manual points set. Snap to this loop's boundaries!
+            loopA = activeLoop.start;
+            loopB = activeLoop.end;
+            isLoopActive = true;
+            isSequentialLoop = false;
+        } else if (!activeLoop && currentLoops.length > 0 && loopA === null) {
+            // Auto-start first loop if we are not currently in one and have no manual points
+            const sortedLoops = [...currentLoops].sort((a, b) => a.start - b.start);
+            playSavedLoop(sortedLoops[0], true);
+            isSequentialLoop = false;
+            return; // playSavedLoop already handles UI updates
+        } else {
+            // Manual loop points exist, or no saved loops exist. Just toggle state.
+            isLoopActive = true;
+            isSequentialLoop = false;
+        }
+    } else if (isLoopActive && !isSequentialLoop && currentLoops.length > 0) {
+        // State 1 -> 2: SINGLE to SEQUENTIAL
+        isSequentialLoop = true;
+    } else {
+        // State 2 -> 0: SEQUENTIAL (or SINGLE if no saved loops) to OFF
+        isLoopActive = false;
+        isSequentialLoop = false;
+    }
     updateLoopUI();
 }
 
