@@ -167,7 +167,7 @@
                         <button class="control-btn" id="btn-loop-clear-audio" onclick="clearLoop()"
                             title="Annuler Boucle" style="display:none; padding:2px 4px; color:#cf6679;"><i
                                 class="ph ph-x"></i></button>
-                        <button class="control-btn" id="btn-loop-save-audio" onclick="promptSaveLoop()"
+                        <button class="control-btn" id="btn-loop-save-audio" onclick="openLoopModal()"
                             title="Sauvegarder Boucle" style="display:none; padding:2px 4px; color:var(--accent);"><i
                                 class="ph ph-floppy-disk"></i></button>
                     </div>
@@ -253,7 +253,7 @@
                         style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
                     <button class="control-btn" id="btn-loop-clear-video" onclick="clearLoop()" title="Annuler Boucle"
                         style="display:none; padding:2px 4px; color:#cf6679;"><i class="ph ph-x"></i></button>
-                    <button class="control-btn" id="btn-loop-save-video" onclick="promptSaveLoop()"
+                    <button class="control-btn" id="btn-loop-save-video" onclick="openLoopModal()"
                         title="Sauvegarder Boucle" style="display:none; padding:2px 4px; color:var(--accent);"><i
                             class="ph ph-floppy-disk"></i></button>
                 </div>
@@ -721,6 +721,40 @@
             <div style="flex:1"></div>
             <button class="btn-text" onclick="closeModal()">Annuler</button>
             <button class="btn-primary" onclick="saveItem()">Ajouter à la Bibliothèque Web</button>
+        </div>
+    </dialog>
+
+    <!-- LOOP SAVE MODAL -->
+    <dialog id="loop-modal">
+        <div class="modal-header">
+            <h3>Sauvegarder la Boucle</h3>
+            <button onclick="closeLoopModal()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:15px; padding-bottom:10px;">
+            <div style="background:#222; padding:10px; border-radius:8px; border:1px solid #333; text-align:center;">
+                <span style="color:#888; font-size:0.9em;">Extrait de :</span>
+                <div id="loop-modal-timing"
+                    style="color:var(--accent); font-family:monospace; font-size:1.2em; font-weight:bold; margin-top:5px;">
+                    00:00 - 00:00</div>
+            </div>
+
+            <div>
+                <label>Nom de la boucle</label>
+                <input type="text" id="loop-modal-name" placeholder="Ex: Solo Intro, Riff Principal..."
+                    style="width:100%; box-sizing:border-box; font-size:1.1em; padding:8px;">
+            </div>
+
+            <div id="loop-modal-existing-container" style="display:none; margin-top:10px;">
+                <label style="color:#888;">Boucles existantes pour ce morceau :</label>
+                <div id="loop-modal-existing-list"
+                    style="max-height:100px; overflow-y:auto; background:#1e1e1e; border:1px solid #333; border-radius:5px; padding:5px; margin-top:5px; display:flex; flex-direction:column; gap:5px;">
+                    <!-- Injected via JS -->
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-text" onclick="closeLoopModal()">Annuler</button>
+            <button class="btn-primary" onclick="confirmSaveLoop()">Enregistrer</button>
         </div>
     </dialog>
 

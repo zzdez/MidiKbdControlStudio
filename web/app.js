@@ -3624,11 +3624,57 @@ setInterval(() => {
     }
 }, 50);
 
-async function promptSaveLoop() {
+// --- LOOP MODAL LOGIC ---
+function openLoopModal() {
     if (!isLoopActive || loopA === null || loopB === null) return;
 
-    const name = prompt("Nom de la boucle :", "Ma Boucle");
-    if (!name) return;
+    // 1. Pause the player while typing
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && !vid.paused) vid.pause();
+        if (wavesurfer && wavesurfer.isPlaying()) wavesurfer.pause();
+    } else if (currentActivePlayer === 'youtube' && player && typeof player.pauseVideo === "function") {
+        player.pauseVideo();
+    }
+
+    // 2. Setup UI
+    const modal = document.getElementById("loop-modal");
+    document.getElementById("loop-modal-timing").innerText = `${formatTimeCustom(loopA)} - ${formatTimeCustom(loopB)}`;
+    document.getElementById("loop-modal-name").value = "";
+
+    // 3. Populate existing loops for this track
+    const existingContainer = document.getElementById("loop-modal-existing-container");
+    const existingList = document.getElementById("loop-modal-existing-list");
+    existingList.innerHTML = "";
+    if (currentLoops && currentLoops.length > 0) {
+        existingContainer.style.display = "block";
+        currentLoops.forEach(l => {
+            const div = document.createElement("div");
+            div.style.cssText = "display:flex; justify-content:space-between; align-items:center; font-size:0.85em; background:#222; padding:4px 8px; border-radius:4px;";
+            div.innerHTML = `<span style="color:#fff;">${l.name}</span> <span style="color:#888;">[${formatTimeCustom(l.start)} - ${formatTimeCustom(l.end)}]</span>`;
+            existingList.appendChild(div);
+        });
+    } else {
+        existingContainer.style.display = "none";
+    }
+
+    modal.showModal();
+    document.getElementById("loop-modal-name").focus();
+}
+
+function closeLoopModal() {
+    const modal = document.getElementById("loop-modal");
+    if (modal) modal.close();
+}
+
+async function confirmSaveLoop() {
+    if (!isLoopActive || loopA === null || loopB === null) {
+        closeLoopModal();
+        return;
+    }
+
+    const nameInput = document.getElementById("loop-modal-name");
+    const name = nameInput.value.trim() || "Boucle sans nom";
 
     const newLoop = {
         id: Date.now(),
@@ -3639,6 +3685,7 @@ async function promptSaveLoop() {
 
     currentLoops.push(newLoop);
     renderLoopsUI();
+    closeLoopModal();
 
     // Save to backend
     if (currentActivePlayer === 'youtube') {
@@ -3652,7 +3699,7 @@ async function promptSaveLoop() {
             });
         }
     } else {
-        const item = currentLocalLibrary.find(i => i.originalIndex === currentPlayingIndex);
+        const item = localFiles[currentPlayingIndex];
         if (item) {
             item.loops = currentLoops;
             await fetch(`/api/local/${currentPlayingIndex}`, {
@@ -3719,7 +3766,7 @@ function deleteLoop(id) {
             });
         }
     } else {
-        const item = currentLocalLibrary.find(i => i.originalIndex === currentPlayingIndex);
+        const item = localFiles[currentPlayingIndex];
         if (item) {
             item.loops = currentLoops;
             fetch(`/api/local/${currentPlayingIndex}`, {
