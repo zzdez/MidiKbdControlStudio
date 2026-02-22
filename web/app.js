@@ -2248,6 +2248,7 @@ function playLocal(index) {
 
         v.ontimeupdate = () => {
             checkLoop(v.currentTime);
+            updateTimelineUI(v.currentTime);
             updateActiveChapter(v.currentTime);
             updateSubtitle(v.currentTime); // Custom SRT Engine
         };
@@ -2257,17 +2258,10 @@ function playLocal(index) {
 
 
 
-        // 3. Play when ready
-        v.oncanplay = () => {
-            v.play();
-            if (isPitchEnabled) connectPitchEngine();
-        };
-
-        // 3. Play when ready
-        // We use a one-time listener to avoid multiple path triggers
         const startPlay = () => {
             v.play().catch(e => console.warn("Auto-play aborted", e));
             v.removeEventListener('canplay', startPlay);
+            if (isPitchEnabled) connectPitchEngine();
         };
         v.addEventListener('canplay', startPlay);
 
@@ -3328,15 +3322,67 @@ function renderChapters(chapters) {
     }
 }
 
+function formatTimeCustom(s) {
+    if (isNaN(s) || s === Infinity || s === null) return "00:00";
+    const minutes = Math.floor(s / 60);
+    const seconds = Math.floor(s % 60);
+    return (minutes < 10 ? "0" + minutes : minutes) + ":" + (seconds < 10 ? "0" + seconds : seconds);
+}
+
 function updateTimelineUI(currentTime) {
     const v = document.getElementById("html5-player");
     const slider = document.getElementById("video-seek-slider");
     const fill = document.getElementById("video-progress-fill");
 
-    if (v && v.duration && slider && fill) {
-        const pct = (currentTime / v.duration) * 100;
-        slider.value = pct;
-        fill.style.width = pct + "%";
+    // Time Labels
+    const lblCur = document.getElementById("video-time-current");
+    const lblTot = document.getElementById("video-time-total");
+
+    // Only update Local Video/Audio Timeline if those are active
+    if (currentActivePlayer !== 'local' && currentActivePlayer !== 'waveform') return;
+
+    if (v && !isNaN(v.duration) && slider && fill) {
+        let dur = v.duration;
+        if (dur === 0 || isNaN(dur)) dur = 1;
+
+        // Base value for slider (always absolute to video length)
+        slider.value = (currentTime / dur) * 100;
+
+        let pctLeft = 0;
+        let pctWidth = 0;
+        let displayCur = currentTime;
+        let displayDur = dur;
+
+        // Si boucle en cours de création ou active
+        if (loopA !== null) {
+            pctLeft = (loopA / dur) * 100;
+            const curVisual = Math.max(loopA, currentTime);
+            let endVisual = curVisual;
+
+            if (loopB !== null) {
+                // Boucle complète
+                if (curVisual > loopB) endVisual = loopB;
+                displayDur = loopB - loopA;
+                displayCur = Math.max(0, currentTime - loopA);
+            }
+            pctWidth = ((endVisual - loopA) / dur) * 100;
+        } else {
+            // Lecture normale
+            pctLeft = 0;
+            pctWidth = (currentTime / dur) * 100;
+        }
+
+        // Clamp PCT
+        pctLeft = Math.max(0, Math.min(100, pctLeft));
+        pctWidth = Math.max(0, Math.min(100 - pctLeft, pctWidth));
+
+        fill.style.left = pctLeft + "%";
+        fill.style.width = pctWidth + "%";
+
+        // Update Time Labels
+        if (lblCur) lblCur.innerText = formatTimeCustom(displayCur);
+        if (lblTot) lblTot.innerText = formatTimeCustom(displayDur);
+
         // Also update active chapter in background (list)
         updateActiveChapter(currentTime);
     }
@@ -3349,18 +3395,20 @@ function setupVideoTimeline() {
 
     if (!v || !slider || !fill) return;
 
-    // Time Update: Move Slider & Fill
-    v.ontimeupdate = () => {
-        checkLoop(v.currentTime);
-        updateTimelineUI(v.currentTime);
-    };
+    // Time Update logic is now handled in playLocal and playTrack 
+    // to avoid overwriting the ontimeupdate handler.
+    // Slider movement is still handled here.
 
     // Input: Seek
     slider.oninput = () => {
         if (!v.duration) return;
+
+        // The slider's value is ALWAYS 0-100% of the entire video duration natively!
         const time = (slider.value / 100) * v.duration;
         v.currentTime = time;
-        fill.style.width = slider.value + "%";
+
+        // Let the updateTimelineUI handle visual representation reliably
+        updateTimelineUI(time);
     };
 
     // Duration Change: Re-render markers if needed
@@ -3482,6 +3530,19 @@ function clearLoop() {
     loopB = null;
     isLoopActive = false;
     updateLoopUI();
+
+    // Resume play if it was paused (bug fix)
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && vid.style.display !== "none" && vid.paused) {
+            vid.play().catch(e => console.log(e));
+        }
+        if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none" && !wavesurfer.isPlaying()) {
+            wavesurfer.play();
+        }
+    } else if (currentActivePlayer === 'youtube' && player && typeof player.playVideo === "function" && player.getPlayerState() !== 1) {
+        player.playVideo();
+    }
 }
 
 function updateLoopUI() {
@@ -3508,6 +3569,45 @@ function updateLoopUI() {
     if (btnB_v) btnB_v.style.color = loopB !== null ? "var(--accent)" : "#555";
     if (btnClear_v) btnClear_v.style.display = (loopA !== null || loopB !== null) ? "inline-block" : "none";
     if (btnSave_v) btnSave_v.style.display = activeMode ? "inline-block" : "none";
+
+    // Visual Timeline Markers for Local Video / Audio
+    const markerA = document.getElementById("video-loop-marker-a");
+    const markerB = document.getElementById("video-loop-marker-b");
+    const area = document.getElementById("video-loop-area");
+
+    let duration = 0;
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && vid.style.display !== "none") duration = vid.duration || 0;
+    }
+
+    if (duration > 0) {
+        if (loopA !== null) {
+            const pctA = (loopA / duration) * 100;
+            if (markerA) { markerA.style.display = "block"; markerA.style.left = pctA + "%"; }
+        } else {
+            if (markerA) markerA.style.display = "none";
+        }
+
+        if (loopB !== null && loopA !== null) {
+            const pctB = (loopB / duration) * 100;
+            const pctA = (loopA / duration) * 100;
+            if (markerB) { markerB.style.display = "block"; markerB.style.left = pctB + "%"; }
+            if (area) {
+                area.style.display = "block";
+                area.style.left = pctA + "%";
+                area.style.width = (pctB - pctA) + "%";
+            }
+        } else {
+            if (markerB) markerB.style.display = "none";
+            if (area) area.style.display = "none";
+        }
+    } else {
+        // Fallback or Youtube without timeline tracking
+        if (markerA) markerA.style.display = "none";
+        if (markerB) markerB.style.display = "none";
+        if (area) area.style.display = "none";
+    }
 }
 
 function checkLoop(currentTime) {
