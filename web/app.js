@@ -12,6 +12,12 @@ let availableProfiles = []; // Cache for profiles
 
 let currentWebMode = "GENERIC"; // Track AUDIO, VIDEO or GENERIC explicitly
 
+// --- A-B LOOPING SYSTEM ---
+let loopA = null;
+let loopB = null;
+let isLoopActive = false;
+let currentLoops = []; // Array of saved loops for the active track
+
 // --- GLOBAL DEVICE STATUS ---
 let currentDeviceName = "Aucun";
 let currentConnectionMode = "MIDO";
@@ -1611,6 +1617,7 @@ function playTrackAt(index) {
 function playTrack(track) {
     const ytDiv = document.getElementById("player");
     const genFrame = document.getElementById("generic-player");
+    loadLoopsForTrack(track);
     const html5 = document.getElementById("html5-player");
 
     // STOP ALL MEDIA first
@@ -1968,6 +1975,7 @@ function initWaveSurfer() {
         wavesurfer.on('interaction', () => { wavesurfer.play(); });
         wavesurfer.on('finish', () => { /* Loop or Next */ });
         wavesurfer.on('timeupdate', (currentTime) => {
+            checkLoop(currentTime);
             const duration = wavesurfer.getDuration();
             const fmt = (s) => new Date(s * 1000).toISOString().substr(14, 5);
             document.getElementById("audio-time").innerText = fmt(currentTime) + " / " + fmt(duration);
@@ -2133,6 +2141,9 @@ function playLocal(index) {
     const videoContainer = document.getElementById("video-container");
     const audioContainer = document.getElementById("audio-player-container");
 
+    // Load saved loops for this file
+    loadLoopsForTrack(file);
+
     // Common Resets
     document.getElementById("player").style.display = "none";
     const genFrame = document.getElementById("generic-player");
@@ -2236,6 +2247,7 @@ function playLocal(index) {
         window.currentPlayingIndex = index; // Store for subtitle drag saving
 
         v.ontimeupdate = () => {
+            checkLoop(v.currentTime);
             updateActiveChapter(v.currentTime);
             updateSubtitle(v.currentTime); // Custom SRT Engine
         };
@@ -3339,6 +3351,7 @@ function setupVideoTimeline() {
 
     // Time Update: Move Slider & Fill
     v.ontimeupdate = () => {
+        checkLoop(v.currentTime);
         updateTimelineUI(v.currentTime);
     };
 
@@ -3419,4 +3432,207 @@ function updateActiveChapter(currentTime) {
             }
         });
     }
+}
+
+// ==========================================
+// A-B LOOP ENGINE
+// ==========================================
+
+function getCurrentPlayerTime() {
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && vid.style.display !== "none") return vid.currentTime;
+        if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none") return wavesurfer.getCurrentTime();
+    } else if (currentActivePlayer === 'youtube' && player && typeof player.getCurrentTime === "function") {
+        return player.getCurrentTime();
+    }
+    return 0;
+}
+
+function seekPlayerTo(time) {
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && vid.style.display !== "none") vid.currentTime = time;
+        if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none") wavesurfer.seekTo(time / wavesurfer.getDuration());
+    } else if (currentActivePlayer === 'youtube' && player && typeof player.seekTo === "function") {
+        player.seekTo(time, true);
+    }
+}
+
+function setLoopA() {
+    loopA = getCurrentPlayerTime();
+    if (loopB !== null && loopA >= loopB) loopB = null; // Reset B if A is after B
+    isLoopActive = (loopA !== null && loopB !== null);
+    updateLoopUI();
+}
+
+function setLoopB() {
+    const t = getCurrentPlayerTime();
+    if (loopA !== null && t > loopA) {
+        loopB = t;
+        isLoopActive = true;
+    } else {
+        alert("Le point B doit être après le point A.");
+    }
+    updateLoopUI();
+}
+
+function clearLoop() {
+    loopA = null;
+    loopB = null;
+    isLoopActive = false;
+    updateLoopUI();
+}
+
+function updateLoopUI() {
+    // Audio UI
+    const btnA_a = document.getElementById("btn-loop-a-audio");
+    const btnB_a = document.getElementById("btn-loop-b-audio");
+    const btnClear_a = document.getElementById("btn-loop-clear-audio");
+    const btnSave_a = document.getElementById("btn-loop-save-audio");
+
+    // Video UI
+    const btnA_v = document.getElementById("btn-loop-a-video");
+    const btnB_v = document.getElementById("btn-loop-b-video");
+    const btnClear_v = document.getElementById("btn-loop-clear-video");
+    const btnSave_v = document.getElementById("btn-loop-save-video");
+
+    const activeMode = isLoopActive;
+
+    if (btnA_a) btnA_a.style.color = loopA !== null ? "var(--accent)" : "#fff";
+    if (btnB_a) btnB_a.style.color = loopB !== null ? "var(--accent)" : "#555";
+    if (btnClear_a) btnClear_a.style.display = (loopA !== null || loopB !== null) ? "inline-block" : "none";
+    if (btnSave_a) btnSave_a.style.display = activeMode ? "inline-block" : "none";
+
+    if (btnA_v) btnA_v.style.color = loopA !== null ? "var(--accent)" : "#fff";
+    if (btnB_v) btnB_v.style.color = loopB !== null ? "var(--accent)" : "#555";
+    if (btnClear_v) btnClear_v.style.display = (loopA !== null || loopB !== null) ? "inline-block" : "none";
+    if (btnSave_v) btnSave_v.style.display = activeMode ? "inline-block" : "none";
+}
+
+function checkLoop(currentTime) {
+    if (!isLoopActive || loopA === null || loopB === null) return;
+    if (currentTime >= loopB) {
+        seekPlayerTo(loopA);
+    }
+}
+
+// Ensure high frequency check for Youtube loops
+setInterval(() => {
+    if (currentActivePlayer === 'youtube' && isLoopActive) {
+        checkLoop(getCurrentPlayerTime());
+    }
+}, 50);
+
+async function promptSaveLoop() {
+    if (!isLoopActive || loopA === null || loopB === null) return;
+
+    const name = prompt("Nom de la boucle :", "Ma Boucle");
+    if (!name) return;
+
+    const newLoop = {
+        id: Date.now(),
+        name: name,
+        start: loopA,
+        end: loopB
+    };
+
+    currentLoops.push(newLoop);
+    renderLoopsUI();
+
+    // Save to backend
+    if (currentActivePlayer === 'youtube') {
+        const track = currentTrackList.find(t => t.originalIndex === currentPlayingIndex);
+        if (track) {
+            track.loops = currentLoops;
+            await fetch(`/api/setlist/${currentPlayingIndex}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(track)
+            });
+        }
+    } else {
+        const item = currentLocalLibrary.find(i => i.originalIndex === currentPlayingIndex);
+        if (item) {
+            item.loops = currentLoops;
+            await fetch(`/api/local/${currentPlayingIndex}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item)
+            });
+        }
+    }
+}
+
+function renderLoopsUI() {
+    const list = document.getElementById("loop-list");
+    const container = document.getElementById("loop-container");
+    if (!list || !container) return;
+
+    list.innerHTML = "";
+    if (!currentLoops || currentLoops.length === 0) {
+        container.style.display = "none";
+        return;
+    }
+
+    container.style.display = "flex";
+    currentLoops.forEach(l => {
+        const btn = document.createElement("button");
+        btn.className = "control-btn";
+        btn.style.cssText = "font-size: 0.85em; padding: 4px 10px; border-radius: 12px; background: #333; border: 1px solid #555; color: #fff; display:flex; align-items:center; gap:5px; cursor:pointer;";
+        btn.innerHTML = `<i class="ph ph-repeat" style="color:var(--accent);"></i> ${l.name} <span style="color:#888; font-size:0.8em;">[${l.start.toFixed(1)}s - ${l.end.toFixed(1)}s]</span> <i class="ph ph-trash" style="color:#cf6679; margin-left:5px; padding:2px; border-radius:4px;" onmouseover="this.style.background='#555'" onmouseout="this.style.background='transparent'" onclick="event.stopPropagation(); deleteLoop(${l.id})"></i>`;
+
+        btn.onclick = () => {
+            loopA = l.start;
+            loopB = l.end;
+            isLoopActive = true;
+            updateLoopUI();
+            seekPlayerTo(loopA);
+
+            // Auto Play when triggering a loop
+            if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+                const vid = document.getElementById("html5-player");
+                if (vid && vid.style.display !== "none") vid.play();
+                if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none") wavesurfer.play();
+            } else if (currentActivePlayer === 'youtube' && player && typeof player.playVideo === "function") {
+                player.playVideo();
+            }
+        };
+        list.appendChild(btn);
+    });
+}
+
+function deleteLoop(id) {
+    if (!confirm("Supprimer cette boucle ?")) return;
+    currentLoops = currentLoops.filter(l => l.id !== id);
+    renderLoopsUI();
+
+    // Save to backend
+    if (currentActivePlayer === 'youtube') {
+        const track = currentTrackList.find(t => t.originalIndex === currentPlayingIndex);
+        if (track) {
+            track.loops = currentLoops;
+            fetch(`/api/setlist/${currentPlayingIndex}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(track)
+            });
+        }
+    } else {
+        const item = currentLocalLibrary.find(i => i.originalIndex === currentPlayingIndex);
+        if (item) {
+            item.loops = currentLoops;
+            fetch(`/api/local/${currentPlayingIndex}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item)
+            });
+        }
+    }
+}
+
+function loadLoopsForTrack(trackOrItem) {
+    clearLoop(); // Reset active loops when loading a new track
+    currentLoops = trackOrItem.loops || [];
+    renderLoopsUI();
 }

@@ -140,6 +140,21 @@
                         <span id="audio-volume-percent"
                             style="font-size:0.75em; color:#aaa; min-width:28px; text-align:right;">100%</span>
                     </div>
+
+                    <!-- A-B LOOP AUDIO -->
+                    <div
+                        style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left: 5px;">
+                        <button class="control-btn" id="btn-loop-a-audio" onclick="setLoopA()" title="Définir Point A"
+                            style="font-weight:bold; font-size:0.9em; padding:2px 6px;">A</button>
+                        <button class="control-btn" id="btn-loop-b-audio" onclick="setLoopB()" title="Définir Point B"
+                            style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
+                        <button class="control-btn" id="btn-loop-clear-audio" onclick="clearLoop()"
+                            title="Annuler Boucle" style="display:none; padding:2px 4px; color:#cf6679;"><i
+                                class="ph ph-x"></i></button>
+                        <button class="control-btn" id="btn-loop-save-audio" onclick="promptSaveLoop()"
+                            title="Sauvegarder Boucle" style="display:none; padding:2px 4px; color:var(--accent);"><i
+                                class="ph ph-floppy-disk"></i></button>
+                    </div>
                 </div>
 
             </div>
@@ -212,6 +227,20 @@
                     <button class="btn-icon" onclick="updatePitch(0)" title="Reset"
                         style="font-size:12px; margin-left:2px; padding:0;">↺</button>
                 </div>
+
+                <!-- A-B LOOP VIDEO -->
+                <div
+                    style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left: 5px;">
+                    <button class="control-btn" id="btn-loop-a-video" onclick="setLoopA()" title="Définir Point A"
+                        style="font-weight:bold; font-size:0.9em; padding:2px 6px;">A</button>
+                    <button class="control-btn" id="btn-loop-b-video" onclick="setLoopB()" title="Définir Point B"
+                        style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
+                    <button class="control-btn" id="btn-loop-clear-video" onclick="clearLoop()" title="Annuler Boucle"
+                        style="display:none; padding:2px 4px; color:#cf6679;"><i class="ph ph-x"></i></button>
+                    <button class="control-btn" id="btn-loop-save-video" onclick="promptSaveLoop()"
+                        title="Sauvegarder Boucle" style="display:none; padding:2px 4px; color:var(--accent);"><i
+                            class="ph ph-floppy-disk"></i></button>
+                </div>
             </div>
 
             </div>
@@ -220,6 +249,14 @@
             <div id="chapter-container">
                 <div id="chapter-list-title">Chapitres</div>
                 <div id="chapter-list"></div>
+            </div>
+
+            <!-- LOOPS LIST (New) -->
+            <div id="loop-container" style="display:none; margin-top:15px; width:100%;">
+                <div id="loop-list-title"
+                    style="font-weight:bold; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:5px; width:100%;">
+                    Boucles Sauvegardées</div>
+                <div id="loop-list" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
             </div>
 
             <!-- Pédalier Virtuel (Sync) -->
