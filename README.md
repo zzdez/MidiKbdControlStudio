@@ -42,6 +42,10 @@ Elle combine le meilleur de deux mondes :
     - **Volume Maître par Profil :** Chaque profil peut définir son propre volume système cible. Quand l'application détecte que vous ouvrez "Reaper", elle ajuste automatiquement le volume général de Windows pour vous !
     - **Volume Persistant par Média :** Les lecteurs (Web et Local) mémorisent le volume exact de chaque piste individuellement. Ajustez la jauge en direct, c'est sauvegardé instantanément !
     - Contrôle UX unifié avec pourcentage en temps réel et fonction *Mute* rapide.
+*   **Système d'Entraînement Avancé (A-B Looping 3 États) :**
+    - **Boucles Multiples :** Définissez, nommez et sauvegardez plusieurs boucles (Points A & B) pour chaque morceau ou vidéo YouTube.
+    - **Mode Séquentiel Intelligent :** Activez "Boucle Unique" pour répéter la section, ou "Boucle Séquentielle" pour passer automatiquement à la suite d'accords suivante une fois le solo maîtrisé !
+    - **Rendu Visuel :** Les boucles s'affichent de façon persistante sous forme de zones grisées semi-transparentes sur la timeline, avec le nom de vos sections (Couplet, Refrain...) agissant comme une carte visuelle.
 *   **Contrôle Hybride & Robuste :**
     *   **Contrôle Granulaire Vitesse :** Ajustez par pas de 0.05x (sans altération du Pitch/Tonalité).
         *   **Seek de Précision :** +/- 5 secondes.

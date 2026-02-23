@@ -1046,15 +1046,16 @@ dialog::backdrop {
 /* The visible line */
 .timeline-marker::before {
     content: '';
-    width: 2px;
+    width: 3px;
     height: 100%;
-    background: rgba(255, 255, 255, 0.7);
+    background: #ff5555;
+    /* Changed from white to clearly distinguish from loop borders */
     border-radius: 1px;
     transition: all 0.1s;
 }
 
 .timeline-marker:hover::before {
-    background: white;
+    background: #ff7777;
     transform: scaleY(1.4);
     box-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
 }

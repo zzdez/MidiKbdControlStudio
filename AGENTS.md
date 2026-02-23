@@ -158,3 +158,14 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
 *   **UI Modifications :**
     *   **Modales Verticales :** Les Sliders dans les modales `index.html` ont été stylisés avec des `[type=range]` verticaux accompagnés d'un Label Pourcentage mis à jour par JavaScript.
     *   **`gui.py` Profil Editor :** Fin des limitations d'interface, la version Native possède un `ProfileEditorDialog` qui lit/sauvegarde le profil ET supprime dynamiquement le nom `.json` précédent du disque lors d'un renommage en direct.
+
+### 16. Évolution V10 : Système de Bouclage A-B Avancé & UX Séquentielle
+*   **A-B Loop Engine (`app.js`) :**
+    *   **Backend Storage :** Routes `/api/local/loops/{index}` et modification des payloads pour inclure un dictionnaire dynamique de "Boucles Sauvegardées" par morceau (avec nommage).
+    *   **Render UI (Regions) :** Fin des listes verticales. Les boucles sont maintenant dessinées directement sous forme de "Dom elements" (`.saved-loop-region`) persistants en gris sur la Timeline Vidéo (`updateTimelineUI` et `renderLoopsUI`).
+    *   **Textes Persistants :** Rendu des noms de boucles en sous-titre directement attachés aux régions pour cartographier visuellement la structure d'un morceau.
+    *   **Chapitres Indépendants :** Reprise du CSS des `.timeline-marker` (rouge corail) pour éviter tout conflit visuel avec les bordures de boucles.
+*   **3-State Toggle Engine :**
+    *   **State Machine (`toggleLoopState`) :** Le bouton d'activation boucle passe intelligemment par 3 états : 1. OFF -> 2. SINGLE (Répéter active) -> 3. SEQUENTIAL (Passer à la boucle suivante).
+    *   **Auto-Start Intelligence :** Si un utilisateur active la boucle alors qu'aucune boucle manuelle n'est tracée, l'Engine "snap" automatiquement à la boucle sauvegardée qui survole le curseur temporel, OU démarre la toute première boucle du morceau.
+    *   **Navigation & Piégeage (`checkLoop`) :** Le piège de progression prend en compte la globale `isSequentialLoop`. Au lieu d'un `seekPlayerTo(loopA)`, il lance un `playSavedLoop` sur l'index de la boucle suivante `+1 % length`.

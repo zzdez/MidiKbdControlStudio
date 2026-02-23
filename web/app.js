@@ -3883,10 +3883,22 @@ function renderLoopsUI() {
             box-sizing: border-box;
         `;
 
-        // Add tooltip
-        region.title = `${l.name} [${formatTimeCustom(l.start)} - ${formatTimeCustom(l.end)}]`;
+        // Add persistent label under the bar
+        const label = document.createElement("div");
+        label.innerText = l.name;
+        label.style.cssText = `
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+            font-size: 10px;
+            color: #bbb;
+            white-space: nowrap;
+            text-shadow: 1px 1px 2px #000;
+        `;
+        region.appendChild(label);
 
-        // Click action
+        // Click action on the region itself
         region.onclick = (e) => {
             e.stopPropagation();
             playSavedLoop(l, true); // True = auto activate
