@@ -1616,6 +1616,7 @@ function playTrackAt(index) {
 }
 
 function playTrack(track) {
+    window.currentPlayingIndex = track.originalIndex;
     const ytDiv = document.getElementById("player");
     const genFrame = document.getElementById("generic-player");
     loadLoopsForTrack(track);
@@ -1644,8 +1645,8 @@ function playTrack(track) {
     ytDiv.style.display = "none";
     genFrame.style.display = "none";
     html5.style.display = "none";
-    document.getElementById("video-controls-container").style.display = "none";
-    document.getElementById("video-controls-container").style.display = "none";
+    const controlsContainer = document.getElementById("video-controls-container");
+    if (controlsContainer) controlsContainer.style.display = "none";
 
     if (player && player.stopVideo) player.stopVideo();
     html5.pause(); html5.src = "";
@@ -1664,6 +1665,33 @@ function playTrack(track) {
 
         ytDiv.style.display = "block";
         currentActivePlayer = 'youtube'; // Important for logic tracking
+
+        // Display Custom Timeline for YouTube
+        const timeline = document.getElementById("video-timeline-container");
+        if (timeline) {
+            timeline.style.display = "flex";
+            // We attach a dynamic slider logic for youtube later relying on player.seekTo
+            const slider = document.getElementById("video-seek-slider");
+            if (slider) {
+                slider.oninput = () => {
+                    if (player && typeof player.getDuration === "function") {
+                        const dur = player.getDuration();
+                        if (dur > 0) {
+                            const time = (slider.value / 100) * dur;
+                            player.seekTo(time, true);
+                            updateTimelineUI(time);
+                        }
+                    }
+                };
+            }
+        }
+
+        // Display video controls
+        if (controlsContainer) controlsContainer.style.display = "flex";
+
+        // Hide Pitch for YouTube (Not Supported)
+        const vPitch = document.getElementById("video-pitch-control-inline");
+        if (vPitch) vPitch.style.display = "none";
 
         if (player && typeof player.loadVideoById === "function") {
             player.loadVideoById(track.id);
@@ -2175,7 +2203,7 @@ function playLocal(index) {
         const valT = document.getElementById("video-timeline-container");
         if (valT) valT.style.display = "none";
 
-        const vPitch = document.getElementById("video-pitch-control");
+        const vPitch = document.getElementById("video-pitch-control-inline");
         if (vPitch) vPitch.style.display = "none";
 
         v.style.display = "none";
@@ -2225,7 +2253,7 @@ function playLocal(index) {
             setupVideoTimeline();
         }
 
-        const vPitch = document.getElementById("video-pitch-control");
+        const vPitch = document.getElementById("video-pitch-control-inline");
         if (vPitch) vPitch.style.display = "flex";
 
 
@@ -2301,79 +2329,124 @@ function audioControl(action) {
 
 // --- VIDEO CONTROLS (On Screen) ---
 function videoControl(action) {
-    const vid = document.getElementById("html5-player");
-    if (!vid) return;
+    let vid = null;
+    let ytTime = 0;
+    const isYT = (currentActivePlayer === 'youtube');
+
+    if (isYT) {
+        if (!player) return;
+        ytTime = typeof player.getCurrentTime === "function" ? player.getCurrentTime() : 0;
+    } else {
+        vid = document.getElementById("html5-player");
+        if (!vid) return;
+    }
 
     switch (action) {
         case 'prev':
-            vid.currentTime -= 5;
-            updateTimelineUI(vid.currentTime);
+            if (isYT) {
+                player.seekTo(ytTime - 5, true);
+                updateTimelineUI(ytTime - 5);
+            } else {
+                vid.currentTime -= 5;
+                updateTimelineUI(vid.currentTime);
+            }
             break;
 
         case 'next':
-            vid.currentTime += 5;
-            updateTimelineUI(vid.currentTime);
+            if (isYT) {
+                player.seekTo(ytTime + 5, true);
+                updateTimelineUI(ytTime + 5);
+            } else {
+                vid.currentTime += 5;
+                updateTimelineUI(vid.currentTime);
+            }
             break;
 
         case 'chapter_prev':
             if (currentChapters.length > 0) {
                 let currentIdx = -1;
+                const cTime = isYT ? ytTime : vid.currentTime;
                 for (let i = 0; i < currentChapters.length; i++) {
-                    if (vid.currentTime >= currentChapters[i].start_time) currentIdx = i;
+                    if (cTime >= currentChapters[i].start_time) currentIdx = i;
                     else break;
                 }
 
                 if (currentIdx >= 0) {
                     const chapStart = currentChapters[currentIdx].start_time;
-                    if (vid.currentTime - chapStart > 3) {
-                        vid.currentTime = chapStart;
+                    let targetTime = 0;
+                    if (cTime - chapStart > 3) {
+                        targetTime = chapStart;
                     } else if (currentIdx > 0) {
-                        vid.currentTime = currentChapters[currentIdx - 1].start_time;
-                    } else {
-                        vid.currentTime = 0;
+                        targetTime = currentChapters[currentIdx - 1].start_time;
                     }
-                    updateTimelineUI(vid.currentTime);
+                    if (isYT) player.seekTo(targetTime, true); else vid.currentTime = targetTime;
+                    updateTimelineUI(targetTime);
                     return;
                 }
             }
             // Fallback
-            vid.currentTime = 0;
+            if (isYT) player.seekTo(0, true); else vid.currentTime = 0;
             updateTimelineUI(0);
             break;
 
         case 'chapter_next':
             if (currentChapters.length > 0) {
                 let currentIdx = -1;
+                const cTime = isYT ? ytTime : vid.currentTime;
                 for (let i = 0; i < currentChapters.length; i++) {
-                    if (vid.currentTime >= currentChapters[i].start_time) currentIdx = i;
+                    if (cTime >= currentChapters[i].start_time) currentIdx = i;
                     else break;
                 }
 
-                let nextChap = currentChapters.find(c => c.start_time > vid.currentTime + 0.5);
+                let nextChap = currentChapters.find(c => c.start_time > cTime + 0.5);
                 if (nextChap) {
-                    vid.currentTime = nextChap.start_time;
-                    updateTimelineUI(vid.currentTime);
+                    if (isYT) player.seekTo(nextChap.start_time, true); else vid.currentTime = nextChap.start_time;
+                    updateTimelineUI(nextChap.start_time);
                     return;
                 }
             }
             break;
 
-        case 'playpause': vid.paused ? vid.play() : vid.pause(); break;
+        case 'playpause':
+            if (isYT) {
+                const state = player.getPlayerState();
+                if (state === 1) player.pauseVideo(); else player.playVideo();
+            } else {
+                vid.paused ? vid.play() : vid.pause();
+            }
+            break;
+
         case 'restart':
-            vid.currentTime = 0;
+            if (isYT) player.seekTo(0, true); else vid.currentTime = 0;
             updateTimelineUI(0);
             break;
+
         case 'speed_up':
-            let rateU = vid.playbackRate;
-            rateU = Math.min(rateU + 0.05, 2.0);
-            vid.playbackRate = rateU;
-            document.getElementById("btn-video-speed").innerText = rateU.toFixed(2) + "x";
+            if (isYT) {
+                let rateU = player.getPlaybackRate();
+                rateU = Math.min(rateU + 0.05, 2.0);
+                player.setPlaybackRate(rateU);
+                document.getElementById("btn-video-speed").innerText = rateU.toFixed(2) + "x";
+            } else {
+                let rateU = vid.playbackRate;
+                rateU = Math.min(rateU + 0.05, 2.0);
+                vid.playbackRate = rateU;
+                document.getElementById("btn-video-speed").innerText = rateU.toFixed(2) + "x";
+            }
             break;
+
         case 'speed_down':
-            let rateD = vid.playbackRate;
-            rateD = Math.max(rateD - 0.05, 0.5);
-            vid.playbackRate = rateD;
-            document.getElementById("btn-video-speed").innerText = rateD.toFixed(2) + "x";
+            if (isYT) {
+                let rateD = player.getPlaybackRate();
+                rateD = Math.max(rateD - 0.05, 0.25);
+                player.setPlaybackRate(rateD);
+                document.getElementById("btn-video-speed").innerText = rateD.toFixed(2) + "x";
+            } else {
+                let rateD = vid.playbackRate;
+                rateD = Math.max(rateD - 0.05, 0.5);
+                vid.playbackRate = rateD;
+                document.getElementById("btn-video-speed").innerText = rateD.toFixed(2) + "x";
+            }
             break;
     }
 }
@@ -3291,33 +3364,54 @@ function renderChapters(chapters) {
 
     // 2. RENDER MARKERS ON VIDEO TIMELINE
     const markersContainer = document.getElementById("video-chapter-markers");
-    if (markersContainer) {
+    if (markersContainer && currentChapters.length > 0) {
         markersContainer.innerHTML = "";
 
-        const v = document.getElementById("html5-player");
-        if (v && currentChapters.length > 0) {
-            const drawMarkers = () => {
-                if (!v.duration || isNaN(v.duration)) return;
-                markersContainer.innerHTML = "";
-                currentChapters.forEach((chap) => {
-                    if (chap.start_time <= 0) return;
-                    const pct = (chap.start_time / v.duration) * 100;
+        let dur = 0;
+        if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+            const v = document.getElementById("html5-player");
+            if (v && !isNaN(v.duration)) dur = v.duration;
+        } else if (currentActivePlayer === 'youtube') {
+            if (player && typeof player.getDuration === "function") dur = player.getDuration();
+        }
 
-                    const marker = document.createElement("div");
-                    marker.className = "timeline-marker";
-                    marker.style.left = pct + "%";
-                    marker.setAttribute("data-title", chap.title);
-                    marker.onclick = (e) => {
-                        // Marker click logic if needed
-                    };
-                    markersContainer.appendChild(marker);
-                });
-            };
+        const drawMarkers = (duration) => {
+            if (!duration || isNaN(duration) || duration <= 0) return;
+            markersContainer.innerHTML = "";
+            currentChapters.forEach((chap) => {
+                if (chap.start_time <= 0) return;
+                const pct = (chap.start_time / duration) * 100;
 
-            if (isNaN(v.duration)) {
-                // Wait for metadata
-            } else {
-                drawMarkers();
+                const marker = document.createElement("div");
+                marker.className = "timeline-marker";
+                marker.style.left = pct + "%";
+                marker.setAttribute("data-title", chap.title);
+                marker.onclick = (e) => {
+                    // Marker click logic if needed
+                };
+                markersContainer.appendChild(marker);
+            });
+        };
+
+        if (dur > 0) {
+            drawMarkers(dur);
+        } else {
+            // Wait for metadata (especially useful for local video)
+            if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+                const v = document.getElementById("html5-player");
+                if (v) {
+                    v.addEventListener('loadedmetadata', () => {
+                        if (!isNaN(v.duration)) drawMarkers(v.duration);
+                    }, { once: true });
+                }
+            } else if (currentActivePlayer === 'youtube') {
+                // For YouTube, if duration isn't ready immediately, we might need a small timeout
+                setTimeout(() => {
+                    if (player && typeof player.getDuration === "function") {
+                        const lateDur = player.getDuration();
+                        if (lateDur > 0) drawMarkers(lateDur);
+                    }
+                }, 1000);
             }
         }
     }
@@ -3331,7 +3425,6 @@ function formatTimeCustom(s) {
 }
 
 function updateTimelineUI(currentTime) {
-    const v = document.getElementById("html5-player");
     const slider = document.getElementById("video-seek-slider");
     const fill = document.getElementById("video-progress-fill");
 
@@ -3339,13 +3432,18 @@ function updateTimelineUI(currentTime) {
     const lblCur = document.getElementById("video-time-current");
     const lblTot = document.getElementById("video-time-total");
 
-    // Only update Local Video/Audio Timeline if those are active
-    if (currentActivePlayer !== 'local' && currentActivePlayer !== 'waveform') return;
+    // We only update if we have a valid player context
+    if (currentActivePlayer !== 'local' && currentActivePlayer !== 'waveform' && currentActivePlayer !== 'youtube') return;
 
-    if (v && !isNaN(v.duration) && slider && fill) {
-        let dur = v.duration;
-        if (dur === 0 || isNaN(dur)) dur = 1;
+    let dur = 0;
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const v = document.getElementById("html5-player");
+        if (v && !isNaN(v.duration)) dur = v.duration;
+    } else if (currentActivePlayer === 'youtube') {
+        if (player && typeof player.getDuration === "function") dur = player.getDuration();
+    }
 
+    if (dur > 0 && slider && fill) {
         // Base value for slider (always absolute to video length)
         slider.value = (currentTime / dur) * 100;
 
@@ -3685,10 +3783,12 @@ function checkLoop(currentTime) {
     }
 }
 
-// Ensure high frequency check for Youtube loops
+// Ensure high frequency check for Youtube loops & timeline
 setInterval(() => {
-    if (currentActivePlayer === 'youtube' && isLoopActive) {
-        checkLoop(getCurrentPlayerTime());
+    if (currentActivePlayer === 'youtube') {
+        const time = getCurrentPlayerTime();
+        if (isLoopActive) checkLoop(time);
+        updateTimelineUI(time);
     }
 }, 50);
 
