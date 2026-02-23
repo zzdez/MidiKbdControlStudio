@@ -3615,14 +3615,19 @@ function updateLoopUI() {
     if (btnNext_v) btnNext_v.style.display = hasSavedLoops ? "inline-block" : "none";
 
     // Visual Timeline Markers for Local Video / Audio
-    const markerA = document.getElementById("video-loop-marker-a");
-    const markerB = document.getElementById("video-loop-marker-b");
-    const area = document.getElementById("video-loop-area");
+    const isAudio = (currentActivePlayer === 'waveform');
+    const markerA = isAudio ? document.getElementById("audio-loop-marker-a") : document.getElementById("video-loop-marker-a");
+    const markerB = isAudio ? document.getElementById("audio-loop-marker-b") : document.getElementById("video-loop-marker-b");
+    const area = isAudio ? document.getElementById("audio-loop-area") : document.getElementById("video-loop-area");
 
     let duration = 0;
-    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+    if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
         if (vid && vid.style.display !== "none") duration = vid.duration || 0;
+    } else if (currentActivePlayer === 'waveform') {
+        if (wavesurfer) duration = wavesurfer.getDuration() || 0;
+    } else if (currentActivePlayer === 'youtube' && player && typeof player.getDuration === "function") {
+        duration = player.getDuration() || 0;
     }
 
     if (duration > 0) {
@@ -3837,7 +3842,9 @@ function playSavedLoop(l, forceActive = true) {
 
 function renderLoopsUI() {
     // We now render loops as shaded regions on the timeline
-    const timelineBg = document.getElementById("video-progress-bar-bg");
+    const isAudio = (currentActivePlayer === 'waveform');
+    const timelineBg = isAudio ? document.getElementById("audio-loop-overlay") : document.getElementById("video-progress-bar-bg");
+
     if (!timelineBg) return;
 
     // Clear existing saved loop regions
@@ -3848,9 +3855,11 @@ function renderLoopsUI() {
     // Current player duration is needed to position markers accurately
     let dur = 0;
     if (currentActivePlayer === 'youtube' && player && typeof player.getDuration === "function") dur = player.getDuration();
-    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+    if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
         if (vid && !isNaN(vid.duration)) dur = vid.duration;
+    } else if (currentActivePlayer === 'waveform') {
+        if (wavesurfer && !isNaN(wavesurfer.getDuration())) dur = wavesurfer.getDuration();
     }
 
     // Fallback if metadata is not loaded yet. Will re-render on next tick.

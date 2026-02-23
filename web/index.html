@@ -104,7 +104,23 @@
                     <div id="audio-artist" style="font-size:1em; color:#bbb;">Artiste</div>
                     <div id="audio-album" style="font-size:0.8em; color:#888;">Album</div>
                 </div>
-                <div id="waveform" style="width:90%; height:100px;"></div>
+                <div id="audio-waveform-container" style="position:relative; width:90%; height:100px;">
+                    <div id="waveform" style="width:100%; height:100%;"></div>
+
+                    <!-- A-B LOOP VISUALIZATION FOR AUDIO -->
+                    <div id="audio-loop-overlay"
+                        style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:10; pointer-events:none;">
+                        <div id="audio-loop-area"
+                            style="display:none; position:absolute; top:0; height:100%; background:rgba(3, 218, 198, 0.4); border-left:1px dashed var(--accent); border-right:1px dashed var(--accent); pointer-events:none; z-index:5;">
+                        </div>
+                        <div id="audio-loop-marker-a"
+                            style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#fff; z-index:10; border-radius:1px; pointer-events:none;">
+                        </div>
+                        <div id="audio-loop-marker-b"
+                            style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#555; z-index:10; border-radius:1px; pointer-events:none;">
+                        </div>
+                    </div>
+                </div>
                 <div id="audio-time" style="margin-top:10px; color:#666; font-size:0.8em;">00:00 / 00:00</div>
 
                 <!-- On Screen Controls -->
