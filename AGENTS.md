@@ -169,3 +169,13 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **State Machine (`toggleLoopState`) :** Le bouton d'activation boucle passe intelligemment par 3 états : 1. OFF -> 2. SINGLE (Répéter active) -> 3. SEQUENTIAL (Passer à la boucle suivante).
     *   **Auto-Start Intelligence :** Si un utilisateur active la boucle alors qu'aucune boucle manuelle n'est tracée, l'Engine "snap" automatiquement à la boucle sauvegardée qui survole le curseur temporel, OU démarre la toute première boucle du morceau.
     *   **Navigation & Piégeage (`checkLoop`) :** Le piège de progression prend en compte la globale `isSequentialLoop`. Au lieu d'un `seekPlayerTo(loopA)`, il lance un `playSavedLoop` sur l'index de la boucle suivante `+1 % length`.
+
+### 17. Évolution V11 : Parité YouTube & Mémoire Subtitles (Drag & Drop)
+*   **A-B Loop pour YouTube (`app.js`) :**
+    *   **Timeline Unifiée :** Les vidéos YouTube affichent désormais leur propre `video-timeline-container` avec un rendu complet des régions de boucles sauvegardées et des marqueurs de temps, assurant une parité parfaite avec le lecteur local.
+    *   **Backend Sync Fix :** La fonction `saveLoopsToBackend()` utilise désormais `currentPlayingIndex` mappé depuis `track.originalIndex` lors du lecteur YouTube, garantissant que les boucles YouTube survivent aux rafraîchissements de page.
+*   **Mémoire Sous-titres Globale (`localStorage`) :**
+    *   **UX Drag & Drop :** L'événement `mouseup` du conteneur de sous-titres (`#subtitle-overlay`) enregistre désormais un pourcentage d'offset Y (`lastSubtitlePosY`) dans le navigateur.
+    *   **Héritage Dynamique :** Lors du chargement d'une nouvelle vidéo locale, si aucune position n'est assignée dans le fichier JSON (`subtitle_pos_y`), le lecteur injecte par défaut la hauteur préférée globale à la place de la valeur statique de `80%`.
+*   **Isolation des Lecteurs :**
+    *   **Flush State :** La fonction `playTrack()` a été durcie. Le moteur natif iframe (YouTube CC) et le moteur de sous-titres Airstep.js sont strictement isolés (flush des tableaux `currentSubtitles` et masquage du bouton UI) pour prévenir les « fuites » de texte d'une vidéo locale vers un stream.

@@ -30,10 +30,10 @@ Elle combine le meilleur de deux mondes :
     - Support MP4, MKV, AVI, MOV.
     - Contrôle de vitesse (0.5x à 2.0x).
     - **Nouveau** : Pitch Shifting (Changement de tonalité sans changer la vitesse) de -6 à +6 demi-tons.
-    - **Nouveau** : Support Multi-Sous-titres (SRT/VTT) avec sélection de piste en direct via une modale unifiée.
-    - **Nouveau** : Ajustement interactif et "Live Preview" de la position verticale des sous-titres depuis l'éditeur.
+    - **Nouveau** : Support Multi-Sous-titres (SRT/VTT) avec sélection de piste en direct via modale.
+    - **Nouveau** : Ajustement interactif (Drag & Drop) de la hauteur des sous-titres, avec sauvegarde globale persistante pour vos prochains visionnages !
     - Navigation par sauts (+/- 5s).
-    - **NOUVEAU ! Support des Chapitres :** Détection et affichage interactif des chapitres YouTube (Timeline Marker) pour une navigation ultra-rapide.
+    - **NOUVEAU ! Support des Chapitres :** Détection et affichage interactif des chapitres YouTube (Timeline Marker).
 - **Lecteur Audio Local**
     - Waveform interactive (WaveSurfer.js).
     - Support MP3, WAV, FLAC, M4A, OGG.
@@ -43,9 +43,9 @@ Elle combine le meilleur de deux mondes :
     - **Volume Persistant par Média :** Les lecteurs (Web et Local) mémorisent le volume exact de chaque piste individuellement. Ajustez la jauge en direct, c'est sauvegardé instantanément !
     - Contrôle UX unifié avec pourcentage en temps réel et fonction *Mute* rapide.
 *   **Système d'Entraînement Avancé (A-B Looping 3 États) :**
-    - **Boucles Multiples :** Définissez, nommez et sauvegardez plusieurs boucles (Points A & B) pour chaque morceau ou vidéo YouTube.
-    - **Mode Séquentiel Intelligent :** Activez "Boucle Unique" pour répéter la section, ou "Boucle Séquentielle" pour passer automatiquement à la suite d'accords suivante une fois le solo maîtrisé !
-    - **Rendu Visuel :** Les boucles s'affichent de façon persistante sous forme de zones grisées semi-transparentes sur la timeline, avec le nom de vos sections (Couplet, Refrain...) agissant comme une carte visuelle.
+    - **Boucles Multiples :** Définissez, nommez et sauvegardez plusieurs boucles (Points A & B) pour chaque morceau, incluant **désormais un support total et visuel pour les vidéos YouTube en streaming**.
+    - **Mode Séquentiel Intelligent :** Activez "Boucle Unique" pour répéter la section, ou "Boucle Séquentielle" pour passer automatiquement à la suite d'accords suivante une fois le solo maîtrisé.
+    - **Rendu Visuel :** Les boucles s'affichent sous forme de zones sur la timeline (Audio, HTML5 et YouTube), avec le nom de vos sections (Couplet, Refrain...) agissant comme une carte visuelle persistante.
 *   **Contrôle Hybride & Robuste :**
     *   **Contrôle Granulaire Vitesse :** Ajustez par pas de 0.05x (sans altération du Pitch/Tonalité).
         *   **Seek de Précision :** +/- 5 secondes.
