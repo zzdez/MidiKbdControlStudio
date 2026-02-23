@@ -83,12 +83,16 @@ Pour contrôler votre DAW depuis AirstepStudio, vous **DEVEZ** utiliser un câbl
 
 | Action | Raccourci |
 | :--- | :--- |
-| **Lecture / Pause** | `Espace` ou `K` |
+| **Lecture / Pause** | `Espace` ou `K` (ou Clic sur la vidéo) |
 | **Reculer (-5s)** | `Flèche Gauche` ou `J` |
 | **Avancer (+5s)** | `Flèche Droite` ou `L` |
 | **Chapitre Précédent** | `Ctrl` + `Flèche Gauche` (ou Touche Média Précédent) |
 | **Chapitre Suivant** | `Ctrl` + `Flèche Droite` (ou Touche Média Suivant) |
 | **Vitesse** | `Flèche Haut` / `Flèche Bas` |
+| **Pitch Shifting** | `Shift` + `Flèche Haut` / `Flèche Bas` |
+| **Boucle Suivante** | `Shift` + `Flèche Droite` |
+| **Boucle Précédente** | `Shift` + `Flèche Gauche` |
+| **Activer/Désactiver Boucle** | `R` (Toggle 3 États) |
 | **Redémarrer** | `0` ou `Début` |
 
 ## 🛠️ Installation (Développeurs)

@@ -86,7 +86,7 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **Granularité Fine :** Implémentation d'une logique de pas de 0.05x pour la vitesse (Audio & Vidéo).
 *   **Native Keyboard Bridge :**
     *   Support d'écouteurs d'événements `keydown` pour l'interface Web, permettant un mapping direct Clavier -> Action pour les profils AIRSTEP (plus besoin de WebSocket pour les actions simples).
-    *   Shortcuts : `Space` (Play/Pause), `ArrowLeft/Right` (Seek +/- 5s), `ArrowUp/Down` (Speed +/- 0.05x), `0` (Restart).
+    *   Shortcuts : `Space/K` (Play/Pause), `ArrowLeft/Right` (Seek +/- 5s), `ArrowUp/Down` (Speed +/- 0.05x), `Shift+Up/Down` (Pitch +/-), `Shift+Left/Right` (Loop Prev/Next), `R` (Loop Toggle), `0` (Restart).
 
 ### 10. Évolution V4 : Chapitrage & Modernisation UI
 *   **Support Chapitres YouTube (`download_service.py`) :**

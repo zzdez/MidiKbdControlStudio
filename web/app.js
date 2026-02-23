@@ -1828,12 +1828,14 @@ window.addEventListener('keydown', (e) => {
             break;
         case 'ArrowLeft':
         case 'KeyJ': // YouTube standard (-10s usually, we do -5s)
-            if (e.ctrlKey) command = 'media_chapter_prev';
+            if (e.shiftKey) command = 'media_loop_prev';
+            else if (e.ctrlKey) command = 'media_chapter_prev';
             else command = 'media_rewind';
             break;
         case 'ArrowRight':
         case 'KeyL': // YouTube standard (+10s usually)
-            if (e.ctrlKey) command = 'media_chapter_next';
+            if (e.shiftKey) command = 'media_loop_next';
+            else if (e.ctrlKey) command = 'media_chapter_next';
             else command = 'media_forward';
             break;
         case 'MediaTrackPrevious':
@@ -1843,10 +1845,15 @@ window.addEventListener('keydown', (e) => {
             command = 'media_chapter_next';
             break;
         case 'ArrowUp':
-            command = 'media_speed_up';
+            if (e.shiftKey) command = 'media_pitch_up';
+            else command = 'media_speed_up';
             break;
         case 'ArrowDown':
-            command = 'media_speed_down';
+            if (e.shiftKey) command = 'media_pitch_down';
+            else command = 'media_speed_down';
+            break;
+        case 'KeyR':
+            command = 'media_loop_toggle';
             break;
         case 'Digit0':
         case 'Numpad0':
@@ -1917,6 +1924,9 @@ function executeWebAction(command) {
                     const sD = player.getPlaybackRate();
                     player.setPlaybackRate(Math.max(0.25, sD - 0.25));
                     break;
+                case 'media_loop_toggle': toggleLoopState(); break;
+                case 'media_loop_prev': navigateLoop(-1); break;
+                case 'media_loop_next': navigateLoop(1); break;
             }
         }
     }
@@ -1936,6 +1946,10 @@ function executeWebAction(command) {
             case 'media_pitch_up': changePitch(0.1); break;
             case 'media_pitch_down': changePitch(-0.1); break;
             case 'media_pitch_reset': updatePitch(0); break;
+
+            case 'media_loop_toggle': toggleLoopState(); break;
+            case 'media_loop_prev': navigateLoop(-1); break;
+            case 'media_loop_next': navigateLoop(1); break;
         }
     }
     // C. LOCAL VIDEO
@@ -1958,6 +1972,10 @@ function executeWebAction(command) {
             // Chapter Commands
             case 'media_chapter_prev': videoControl('chapter_prev'); break;
             case 'media_chapter_next': videoControl('chapter_next'); break;
+
+            case 'media_loop_toggle': toggleLoopState(); break;
+            case 'media_loop_prev': navigateLoop(-1); break;
+            case 'media_loop_next': navigateLoop(1); break;
         }
     }
 }
@@ -3548,6 +3566,12 @@ function setupVideoTimeline() {
     // --- NEW: Play/Pause Icon Toggle ---
     v.onplay = () => updatePlayPauseIcon('video', true);
     v.onpause = () => updatePlayPauseIcon('video', false);
+
+    // Make local video clickable for play/pause like YouTube
+    v.onclick = () => {
+        if (v.paused) v.play();
+        else v.pause();
+    };
 }
 
 function updatePlayPauseIcon(type, isPlaying) {
