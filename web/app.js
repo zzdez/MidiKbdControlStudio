@@ -1652,6 +1652,15 @@ function playTrack(track) {
     html5.pause(); html5.src = "";
     genFrame.src = "";
 
+    // Clear and hide subtitles (streaming handles own CC natively)
+    subtitleEnabled = false;
+    currentSubtitles = [];
+    if (typeof updateCCIconState === "function") updateCCIconState(false, 'both');
+    const overlay = document.getElementById("subtitle-overlay");
+    if (overlay) overlay.style.display = "none";
+    const subBtn = document.getElementById("btn-toggle-subs");
+    if (subBtn) subBtn.style.display = "none";
+
     function getProfile(item, def) {
         return (item.target_profile && item.target_profile !== "Auto") ? item.target_profile : def;
     }
@@ -2409,24 +2418,32 @@ function videoControl(action) {
 
         case 'playpause':
             if (isYT) {
-                const state = player.getPlayerState();
-                if (state === 1) player.pauseVideo(); else player.playVideo();
+                if (player && typeof player.getPlayerState === "function") {
+                    const state = player.getPlayerState();
+                    if (state === 1) player.pauseVideo(); else player.playVideo();
+                }
             } else {
                 vid.paused ? vid.play() : vid.pause();
             }
             break;
 
         case 'restart':
-            if (isYT) player.seekTo(0, true); else vid.currentTime = 0;
+            if (isYT) {
+                if (player && typeof player.seekTo === "function") player.seekTo(0, true);
+            } else {
+                vid.currentTime = 0;
+            }
             updateTimelineUI(0);
             break;
 
         case 'speed_up':
             if (isYT) {
-                let rateU = player.getPlaybackRate();
-                rateU = Math.min(rateU + 0.05, 2.0);
-                player.setPlaybackRate(rateU);
-                document.getElementById("btn-video-speed").innerText = rateU.toFixed(2) + "x";
+                if (player && typeof player.getPlaybackRate === "function") {
+                    let rateU = player.getPlaybackRate();
+                    rateU = Math.min(rateU + 0.05, 2.0);
+                    player.setPlaybackRate(rateU);
+                    document.getElementById("btn-video-speed").innerText = rateU.toFixed(2) + "x";
+                }
             } else {
                 let rateU = vid.playbackRate;
                 rateU = Math.min(rateU + 0.05, 2.0);
@@ -2437,10 +2454,12 @@ function videoControl(action) {
 
         case 'speed_down':
             if (isYT) {
-                let rateD = player.getPlaybackRate();
-                rateD = Math.max(rateD - 0.05, 0.25);
-                player.setPlaybackRate(rateD);
-                document.getElementById("btn-video-speed").innerText = rateD.toFixed(2) + "x";
+                if (player && typeof player.getPlaybackRate === "function") {
+                    let rateD = player.getPlaybackRate();
+                    rateD = Math.max(rateD - 0.05, 0.25);
+                    player.setPlaybackRate(rateD);
+                    document.getElementById("btn-video-speed").innerText = rateD.toFixed(2) + "x";
+                }
             } else {
                 let rateD = vid.playbackRate;
                 rateD = Math.max(rateD - 0.05, 0.5);
@@ -2661,7 +2680,9 @@ function toggleSubtitles() {
 function updateLiveSubtitlePos(sliderVal) {
     const overlay = document.getElementById("subtitle-overlay");
     if (overlay) {
-        overlay.style.top = (100 - parseInt(sliderVal, 10)) + "%";
+        const percent = (100 - parseInt(sliderVal, 10));
+        overlay.style.top = percent + "%";
+        localStorage.setItem('lastSubtitlePosY', percent); // Save as global default
     }
 }
 
@@ -2696,8 +2717,13 @@ async function loadSubtitles(index, file) {
     const subBtn = document.getElementById("btn-toggle-subs");
     if (subBtn) subBtn.style.display = "none";
 
-    // Apply saved pos
-    const posY = file.subtitle_pos_y || 80;
+    // Apply saved pos - fallback to global last pos if no specific file pos set
+    let posY = file.subtitle_pos_y;
+    if (posY === undefined || posY === null) {
+        posY = localStorage.getItem('lastSubtitlePosY');
+        if (posY !== null) posY = parseInt(posY, 10);
+        else posY = 80;
+    }
     overlay.style.top = posY + "%";
 
     try {
@@ -2910,9 +2936,13 @@ function setupSubtitleDrag() {
             isDragging = false;
             document.body.style.cursor = "default";
 
+            const percent = Math.round((overlay.offsetTop / container.clientHeight) * 100);
+
+            // Save globally for next viewing of new files
+            localStorage.setItem('lastSubtitlePosY', percent);
+
             // Auto Save to current file if playing local
             if (currentActivePlayer === 'local' && window.currentPlayingIndex !== undefined) {
-                const percent = Math.round((overlay.offsetTop / container.clientHeight) * 100);
                 const file = localFiles[window.currentPlayingIndex];
                 if (file) {
                     file.subtitle_pos_y = percent;
