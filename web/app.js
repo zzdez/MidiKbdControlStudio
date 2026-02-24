@@ -522,15 +522,15 @@ function setMode(mode, forcedProfileName = null) {
     currentMode = mode;
 
     // --- CRITICAL: Update Window Title for ContextMonitor Auto-Detect ---
-    // Universal Logic: "Airstep Studio - [Profile Name]"
+    // Universal Logic: "Midi-Kbd Control Studio - [Profile Name]"
     if (forcedProfileName) {
-        document.title = `Airstep Studio - ${forcedProfileName}`;
+        document.title = `Midi-Kbd Control Studio - ${forcedProfileName}`;
     } else {
         // Fallback for hardcoded modes if no profile name provided
-        if (mode === "YOUTUBE") document.title = "Airstep Studio - YouTube";
-        else if (mode === "AUDIO") document.title = "Airstep Studio - Audio";
-        else if (mode === "VIDEO") document.title = "Airstep Studio - Video";
-        else document.title = "Airstep Studio";
+        if (mode === "YOUTUBE") document.title = "Midi-Kbd Control Studio - YouTube";
+        else if (mode === "AUDIO") document.title = "Midi-Kbd Control Studio - Audio";
+        else if (mode === "VIDEO") document.title = "Midi-Kbd Control Studio - Video";
+        else document.title = "Midi-Kbd Control Studio";
     }
 
     // Notify Backend
@@ -723,11 +723,6 @@ function setupCustomAutocomplete(inputId, boxId, field) {
                 blockTag(field, val);
                 input.focus(); // Keep focus
                 showSuggestions(); // Refresh list immediately
-            };
-
-            div.onclick = () => {
-                input.value = val;
-                box.style.display = "none";
             };
 
             div.appendChild(textSpan);
@@ -980,7 +975,21 @@ function openAddModal() {
     // Reset View: Show Search
     resetSearchMode();
 
-    document.getElementById("yt-search-input").focus();
+    // Check API Key
+    const searchInput = document.getElementById("yt-search-input");
+    const searchBtn = document.getElementById("yt-search-btn");
+    const noKeyMsg = document.getElementById("no-api-key-msg");
+
+    if (!currentSettings || !currentSettings.YOUTUBE_API_KEY) {
+        if (searchInput) searchInput.style.display = "none";
+        if (searchBtn) searchBtn.style.display = "none";
+        if (noKeyMsg) noKeyMsg.style.display = "block";
+    } else {
+        if (searchInput) searchInput.style.display = "inline-block";
+        if (searchBtn) searchBtn.style.display = "inline-block";
+        if (noKeyMsg) noKeyMsg.style.display = "none";
+        if (searchInput) searchInput.focus();
+    }
 }
 
 function openEditModal(index) {
@@ -1138,7 +1147,7 @@ function connectVideoWebSocket() {
             websocket.send(JSON.stringify({
                 type: "set_mode",
                 mode: currentMode,
-                target_profile: document.title.replace("Airstep Studio - ", "")
+                target_profile: document.title.replace("Midi-Kbd Control Studio - ", "")
             }));
         }
     };
@@ -1998,10 +2007,10 @@ function setMode(mode, targetProfile) {
 
     // UPDATE DOCUMENT TITLE for ContextMonitor
     // This ensures the native app detects the context change even if WS fails
-    if (targetProfile && targetProfile !== "Auto") {
-        document.title = "Airstep Studio - " + targetProfile;
+    if (targetProfile) {
+        document.title = "Midi-Kbd Control Studio - " + targetProfile;
     } else {
-        document.title = "Airstep Studio - Web Generic";
+        document.title = "Midi-Kbd Control Studio - Web Generic"; // Fallback
     }
 
     // Also notify backend

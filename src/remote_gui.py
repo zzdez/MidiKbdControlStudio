@@ -196,7 +196,7 @@ class RemoteControl(ctk.CTkToplevel):
         self.hover_color = "#3a3a3a"
 
         # Window Setup
-        self.title("Airstep Remote")
+        self.title("Midi-Kbd Remote")
         self.overrideredirect(True) # Frameless
         self.attributes("-topmost", True)
         self.configure(fg_color=self.bg_color)
@@ -229,7 +229,7 @@ class RemoteControl(ctk.CTkToplevel):
         self.header.bind("<B1-Motion>", self.do_move)
 
         # Title / Handle
-        title_text = f"Remote - {self.profile.get('name', 'Profile')}" if self.profile else "Airstep Remote"
+        title_text = f"Remote - {self.profile.get('name', 'Profile')}" if self.profile else "Midi-Kbd Remote"
         if len(title_text) > 25: title_text = title_text[:25] + "..."
 
         self.lbl_title = ctk.CTkLabel(self.header, text=title_text, text_color="gray", width=120, anchor="w", font=ctk.CTkFont(size=11))

@@ -1,7 +1,7 @@
 {
     "name": "Web Generic",
     "app_context": "chrome.exe",
-    "window_title_filter": "Airstep Smart Control",
+    "window_title_filter": "Midi-Kbd Control Studio",
     "mappings": [
         {
             "name": "Play/Pause",

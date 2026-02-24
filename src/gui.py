@@ -226,6 +226,7 @@ class SettingsDialog(ctk.CTkToplevel):
         
         # Persist to Config
         try:
+            self.master.settings["midi_output_names"] = selected_ports
             cm = ConfigManager()
             cm.set("midi_output_names", selected_ports)
             
@@ -390,7 +391,7 @@ class ProfileEditorDialog(ctk.CTkToplevel):
         self.callback = callback
         self.current_profile = current_profile
 
-        self.title("Éditer Profil")
+        self.title("Midi-Kbd Control Studio")
         self.geometry("380x250")
         self.resizable(False, False)
         self.transient(parent)
@@ -800,7 +801,7 @@ class MappingDialog(ctk.CTkToplevel):
 
 # VirtualPedalboard replaced by CompactPedalboardFrame from remote_gui.py
 
-class AirstepApp(ctk.CTk):
+class MidiKbdApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("MIDI-KBD Control Studio")
@@ -822,7 +823,7 @@ class AirstepApp(ctk.CTk):
         self.library_manager = LibraryManager()
 
         self.device_manager = DeviceManager()
-        self.current_device_def = DEFAULT_AIRSTEP_DEF
+        self.current_device_def = None
 
         self.profiles = []
         self.current_profile = None
@@ -837,7 +838,7 @@ class AirstepApp(ctk.CTk):
         self.action_handler.set_midi_manager(self.midi_manager)
         self.action_handler.register_listener(self.on_data_received)
         self.action_handler.start_monitoring()
-        self.settings = {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO"}
+        self.settings = {"midi_device_name": "", "connection_mode": "MIDO"}
         self.remote_win = None
 
         # --- Context Monitor ---
@@ -869,7 +870,7 @@ class AirstepApp(ctk.CTk):
             # SMART PERSISTENCE LOAD
             target = ""
             if mode == "BLE":
-                target = self.settings.get("midi_device_name_ble", "AIRSTEP")
+                target = self.settings.get("midi_device_name_ble", "")
             else:
                 target = self.settings.get("midi_device_name_usb", "")
 
@@ -1111,12 +1112,17 @@ class AirstepApp(ctk.CTk):
             try:
                 with open("config.json", 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    self.settings = data.get("settings", {"midi_device_name": "AIRSTEP", "connection_mode": "MIDO"})
+                    self.settings = data.get("settings", {"midi_device_name": "", "connection_mode": "MIDO"})
                     
+                    if "midi_output_names" not in self.settings:
+                        from config_manager import ConfigManager
+                        cm = ConfigManager()
+                        self.settings["midi_output_names"] = cm.get("midi_output_names", [])
+
                     mode = self.settings.get("connection_mode", "MIDO")
                     if mode == "BLE": 
                         self.mode_combo.set("Bluetooth (Direct)")
-                        target = self.settings.get("midi_device_name_ble", self.settings.get("midi_device_name", "AIRSTEP"))
+                        target = self.settings.get("midi_device_name_ble", self.settings.get("midi_device_name", ""))
                     else: 
                         self.mode_combo.set("Windows (USB/Driver)")
                         target = self.settings.get("midi_device_name_usb", self.settings.get("midi_device_name", ""))
@@ -1162,15 +1168,15 @@ class AirstepApp(ctk.CTk):
         if port_name in ["Recherche en cours...", "Recherche...", "Aucun", ""]:
             mode = self.settings.get("connection_mode", "MIDO")
             if mode == "BLE":
-                port_name = self.settings.get("midi_device_name_ble", "AIRSTEP")
+                port_name = self.settings.get("midi_device_name_ble", "")
             else:
                 port_name = self.settings.get("midi_device_name_usb", "")
 
         new_def = self.device_manager.get_definition_for_port(port_name)
 
         # Fallback to AIRSTEP if nothing found (e.g. at startup or no device connected)
-        if not new_def:
-             new_def = self.device_manager.get_definition_for_port("AIRSTEP")
+        # if not new_def:
+        #      new_def = self.device_manager.get_definition_for_port("AIRSTEP")
 
         # Ultimate Fallback: Just take the first one available
         if not new_def and self.device_manager.definitions:
@@ -1178,7 +1184,7 @@ class AirstepApp(ctk.CTk):
 
         # Absolute Last Resort: Hardcoded default
         if not new_def:
-            new_def = DEFAULT_AIRSTEP_DEF
+            new_def = {"name": "Aucun Appareil", "buttons": []}
 
         self.current_device_def = new_def
         self.log_debug(f"Device Definition set to: {self.current_device_def.get('name')}")
@@ -1580,12 +1586,12 @@ class AirstepApp(ctk.CTk):
         # while taking 800ms to switch to "AIRSTEP" after a mode change.
         # Reading it here would aggressively overwrite the correct memory.
         # self.settings["midi_device_name"] is already maintained by change_mode and _finalize_refresh.
-        pass
-            
-        full_config = {"settings": self.settings}
+        
         try:
-            with open("config.json", "w", encoding="utf-8") as f:
-                json.dump(full_config, f, indent=4)
+            from config_manager import ConfigManager
+            cm = ConfigManager()
+            for k, v in self.settings.items():
+                cm.set(k, v)
         except Exception as e:
             if not silent: CTkMessageBox.show_error("Erreur", f"Erreur Config: {e}")
             return
@@ -1684,7 +1690,7 @@ class AirstepApp(ctk.CTk):
             # 2. Auto-Detect
             if self.action_handler:
                 # Avoid detecting the remote itself
-                ignore = ["Remote -", "Airstep Remote", "Airstep Smart Control"]
+                ignore = ["Remote -", "Midi-Kbd Remote", "Midi-Kbd Control Studio"]
 
                 # Find best profile for current active window
                 new_profile = self.action_handler.find_matching_profile(self.profiles, ignore_titles=ignore)
@@ -1779,7 +1785,7 @@ class AirstepApp(ctk.CTk):
         # 3. RESTORE TARGET FOR NEW MODE
         new_target = ""
         if new_mode == "BLE":
-            new_target = self.settings.get("midi_device_name_ble", "AIRSTEP")
+            new_target = self.settings.get("midi_device_name_ble", "")
         else:
             new_target = self.settings.get("midi_device_name_usb", "")
             
@@ -2065,7 +2071,7 @@ class AirstepApp(ctk.CTk):
                     pystray.Menu.SEPARATOR,
                     pystray.MenuItem("Quitter", self.quit_app)
                 )
-                self.tray_icon = pystray.Icon("AirstepSmartControl", image, "Airstep Smart Control", menu)
+                self.tray_icon = pystray.Icon("MidiKbdControlStudio", image, "Midi-Kbd Control Studio", menu)
                 self.tray_icon.run()
             except Exception as e:
                 self.log_debug(f"Erreur Tray: {e}")

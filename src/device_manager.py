@@ -1,6 +1,7 @@
 import os
 import json
 import glob
+from utils import get_app_dir
 
 DEVICE_DIR = "devices"
 
@@ -30,13 +31,12 @@ class DeviceManager:
         self.ensure_device_dir()
         self.load_all_definitions()
 
-        # Ensure default AIRSTEP exists if empty
-        if not self.definitions:
-            self.create_default_airstep()
+        # Do not force AIRSTEP artificially
+        pass
 
     def ensure_device_dir(self):
         # Use absolute path to ensure we look in the right place even if CWD changes
-        self.abs_device_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", DEVICE_DIR)
+        self.abs_device_dir = os.path.join(get_app_dir(), DEVICE_DIR)
         if not os.path.exists(self.abs_device_dir):
             try:
                 os.makedirs(self.abs_device_dir)
@@ -61,10 +61,8 @@ class DeviceManager:
             except Exception as e:
                 print(f"Error loading device {fpath}: {e}")
 
-        # Ultimate Fallback if nothing loaded
-        if not self.definitions:
-            print("WARNING: No devices found on disk. Using Hardcoded Fallback.")
-            self.definitions.append(DEFAULT_AIRSTEP_DEF)
+        # Do not force AIRSTEP artificially
+        pass
 
         self.definitions.sort(key=lambda x: x.get("name", "").lower())
 
@@ -74,7 +72,7 @@ class DeviceManager:
         if not safe_name: safe_name = "device"
 
         filename = f"{safe_name}.json"
-        filepath = os.path.join(DEVICE_DIR, filename)
+        filepath = os.path.join(self.abs_device_dir, filename)
 
         # Update memory
         existing_idx = next((i for i, d in enumerate(self.definitions) if d.get("name") == name), -1)
@@ -112,9 +110,8 @@ class DeviceManager:
             "name": port_name, # Use the port name as the device name
             "buttons": [] # Start empty
         }
-        # Optionally pre-fill if it contains "AIRSTEP" (Legacy Support)
-        if "airstep" in port_lower:
-             new_def["buttons"] = DEFAULT_AIRSTEP_DEF["buttons"]
+        # No longer automatically forcing AIRSTEP layout for unmatched ports
+        pass
         
         # We Add it to definitions so it's live
         self.definitions.append(new_def)

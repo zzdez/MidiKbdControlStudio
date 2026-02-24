@@ -18,11 +18,12 @@ import mutagen
 import time
 import logging # Ensure logging is imported if not already, though it seems used elsewhere
 import base64
+from utils import get_app_dir, get_data_dir
 # Mutagen imports removed as they are now in metadata_service
 
 # Configure Logging
 logging.basicConfig(
-    filename='airstep_debug.log',
+    filename=os.path.join(get_app_dir(), 'midikbd_debug.log'),
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
@@ -42,9 +43,9 @@ app = FastAPI()
 library_manager = LibraryManager()
 metadata_service = MetadataService()
 download_service = DownloadService()
-SETLIST_FILE = "setlist.json"
-APPS_FILE = "apps.json"
-LOCAL_LIB_FILE = "local_lib.json"
+SETLIST_FILE = os.path.join(get_data_dir(), "setlist.json")
+APPS_FILE = os.path.join(get_data_dir(), "apps.json")
+LOCAL_LIB_FILE = os.path.join(get_data_dir(), "local_lib.json")
 
 app.add_middleware(
     CORSMiddleware,

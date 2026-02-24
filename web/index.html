@@ -544,7 +544,7 @@
 
                 <div class="row-inputs">
                     <div class="col">
-                        <label>Profil Airstep</label>
+                        <label>Profil Appareil</label>
                         <select id="local-target-profile">
                             <option value="Auto">Auto (Recommandé)</option>
                         </select>
@@ -575,7 +575,18 @@
                 <div class="input-group">
                     <input type="text" id="yt-search-input" placeholder="Recherche YouTube ou URL..."
                         onkeydown="if(event.key==='Enter') searchYouTube()">
-                    <button onclick="searchYouTube()">🔍</button>
+                    <button id="yt-search-btn" onclick="searchYouTube()">🔍</button>
+                </div>
+                <div id="no-api-key-msg"
+                    style="display:none; padding:10px; background:#2a2a2a; border-radius:5px; border-left:4px solid #f39c12; margin-bottom:10px; font-size:0.85em; line-height:1.4;">
+                    <strong>Info :</strong> Pour utiliser pleinement cette fonction, il vous faut une clé API YouTube
+                    (gratuite) a renseigner ici : <a href="#" onclick="closeModal(); openSettingsModal(); return false;"
+                        style="color:var(--accent);">Réglages</a>.<br>
+                    Vous pouvez cependant toujours ajouter une vidéo manuellement en collant son adresse URL (ex:
+                    <i>https://youtube.com/watch...</i>) directement dans le champ <b>URL du flux vidéo</b> ci-dessous,
+                    mais vous n'aurez pas les détails de la vidéo qu'il faudra entrer manuellement.<br>
+                    Pour obtenir une clé API (gratuite), <a href="https://console.cloud.google.com/" target="_blank"
+                        style="color:var(--accent); text-decoration:none;">allez a cette adresse ↗</a>.
                 </div>
                 <div id="search-results" class="results-grid"></div>
             </div>
@@ -665,7 +676,7 @@
                             </select>
                         </div>
                         <div class="col">
-                            <label>Profil Airstep</label>
+                            <label>Profil Appareil</label>
                             <select id="edit-target-profile">
                                 <option value="Auto">Auto (Recommandé)</option>
                             </select>
@@ -803,10 +814,20 @@
             <div class="settings-content">
                 <!-- TAB: GENERAL -->
                 <div id="tab-settings-general" class="settings-tab">
-                    <h4>Clés API</h4>
+                    <h4>Clé API YouTube (Optionnelle)</h4>
                     <label>YouTube Data API Key</label>
-                    <input type="password" id="setting-youtube-key" placeholder="AIzaSy...">
-                    <p class="hint">Nécessaire pour la recherche et les titres YouTube.</p>
+                    <input type="password" id="setting-youtube-key" placeholder="Laisser vide si aucune clé...">
+                    <p class="hint" style="margin-top:5px;"><strong>Optionnel :</strong> Cette clé gratuite permet de
+                        récupérer automatiquement les titres, descriptions et miniatures lors de l'ajout d'un lien
+                        YouTube. Si aucune clé n'est fournie, <strong>la lecture vidéo et le pédalier MIDI
+                            fonctionneront parfaitement</strong>, mais vous devrez taper les titres manuellement.</p>
+                    <p class="hint"><a href="https://console.cloud.google.com/" target="_blank"
+                            style="color:var(--accent); text-decoration:none;">Obtenir une clé API gratuite ↗</a>
+                        (Cible: "YouTube Data API v3").</p>
+                    <p class="hint" style="margin-top:10px; font-style:italic; color:#888;">Note sécurité : Pour ne pas
+                        sauvgarder la clé en clair ici, placez un fichier caché <code>.env</code> contenant
+                        <code>YOUTUBE_API_KEY=votre_cle</code> à côté du programme.
+                    </p>
                 </div>
 
                 <!-- TAB: LIBRARY -->

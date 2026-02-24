@@ -15,6 +15,8 @@ except ImportError:
     BLEAK_AVAILABLE = False
 
 from midi_scanner import scan_loop
+import os
+from utils import get_app_dir
 
 class MidiProvider(abc.ABC):
     def __init__(self, device_name, callback):
@@ -28,7 +30,8 @@ class MidiProvider(abc.ABC):
     def log(self, message):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         try:
-            with open("debug.log", "a", encoding="utf-8") as f:
+            log_path = os.path.join(get_app_dir(), "debug.log")
+            with open(log_path, "a", encoding="utf-8") as f:
                 f.write(f"[{timestamp}] [{self.__class__.__name__}] {message}\n")
         except: pass
 
@@ -397,7 +400,8 @@ class MidiManager:
     def log(self, msg):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         try:
-            with open("debug.log", "a", encoding="utf-8") as f:
+            log_path = os.path.join(get_app_dir(), "debug.log")
+            with open(log_path, "a", encoding="utf-8") as f:
                 f.write(f"[{timestamp}] [MidiManager] {msg}\n")
         except: pass
 

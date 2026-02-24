@@ -14,11 +14,13 @@ try:
 except ImportError:
     PYCAW_AVAILABLE = False
 
-PROFILE_DIR = "profiles"
+from utils import get_app_dir
+
+PROFILE_DIR = os.path.join(get_app_dir(), "profiles")
 
 class ProfileManager:
     def __init__(self, config_file="config.json"):
-        self.config_file = config_file
+        self.config_file = os.path.join(get_app_dir(), config_file)
         self.profiles = []
         self.ensure_profile_dir()
         self.ensure_web_profiles()
@@ -34,19 +36,19 @@ class ProfileManager:
                 "name": "Web YouTube", 
                 "desc": "Controls for YouTube Player",
                 "app_context": "chrome.exe",
-                "window_title_filter": "Airstep Studio"
+                "window_title_filter": "Midi-Kbd Control Studio"
             },
             {
                 "name": "Web Audio Local", 
                 "desc": "Controls for Local Audio Files",
                 "app_context": "",
-                "window_title_filter": "Airstep Studio"
+                "window_title_filter": "Midi-Kbd Control Studio"
             },
             {
                 "name": "Web Video Local", 
                 "desc": "Controls for Local Video Files",
                 "app_context": "",
-                "window_title_filter": "Airstep Studio"
+                "window_title_filter": "Midi-Kbd Control Studio"
             }
         ]
         
@@ -71,7 +73,7 @@ class ProfileManager:
                 if os.path.exists(self.config_file):
                     zipf.write(self.config_file)
 
-                for root_dir in [PROFILE_DIR, "devices"]:
+                for root_dir in [PROFILE_DIR, os.path.join(get_app_dir(), "devices")]:
                     if os.path.exists(root_dir):
                         for root, dirs, files in os.walk(root_dir):
                             for file in files:
@@ -90,7 +92,8 @@ class ProfileManager:
 
     def log_debug(self, msg):
         try:
-            with open("debug.log", "a", encoding="utf-8") as f:
+            log_path = os.path.join(get_app_dir(), "debug.log")
+            with open(log_path, "a", encoding="utf-8") as f:
                 import datetime
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 f.write(f"[PM] [{timestamp}] {msg}\n")

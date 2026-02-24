@@ -4,10 +4,11 @@ import subprocess
 import webbrowser
 import sys
 import shutil
+from utils import get_app_dir, get_data_dir
 
 class LibraryManager:
     def __init__(self, library_file="library.json"):
-        self.library_file = library_file
+        self.library_file = os.path.join(get_data_dir(), library_file)
         self.data = []
         self.callback_force_profile = None # Injected callback
         self.load_library()
@@ -72,9 +73,10 @@ class LibraryManager:
         migrated = False
 
         # 1. Import Setlist (setlist.json)
-        if os.path.exists("setlist.json"):
+        setlist_path = os.path.join(get_data_dir(), "setlist.json")
+        if os.path.exists(setlist_path):
             try:
-                with open("setlist.json", "r", encoding="utf-8") as f:
+                with open(setlist_path, "r", encoding="utf-8") as f:
                     setlist = json.load(f)
                     if setlist:
                         folder = {
@@ -95,9 +97,10 @@ class LibraryManager:
             except: pass
 
         # 2. Import Apps (apps.json)
-        if os.path.exists("apps.json"):
+        apps_path = os.path.join(get_data_dir(), "apps.json")
+        if os.path.exists(apps_path):
             try:
-                with open("apps.json", "r", encoding="utf-8") as f:
+                with open(apps_path, "r", encoding="utf-8") as f:
                     apps = json.load(f)
                     if apps:
                         folder = {

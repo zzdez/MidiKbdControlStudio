@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ========================================================
-echo   COMPILATION AIRSTEP STUDIO (FULL MUTAGEN SUPPORT)
+echo   COMPILATION MIDI-KBD CONTROL STUDIO (FULL MUTAGEN SUPPORT)
 echo ========================================================
 
 :: 1. TUER L'APPLICATION
