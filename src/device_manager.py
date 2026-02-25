@@ -3,7 +3,7 @@ import json
 import glob
 from utils import get_app_dir
 
-DEVICE_DIR = "devices"
+DEVICE_DIR = os.path.join(get_app_dir(), "devices")
 
 # Hardcoded Fallback to ensure UI is never empty
 DEFAULT_AIRSTEP_DEF = {

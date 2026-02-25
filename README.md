@@ -12,7 +12,9 @@ Elle combine le meilleur de deux mondes :
     *   Compatible avec **n'importe quel contrôleur MIDI** : Airstep, Boss FS-1-WL, Chocolate, Korg Nano, Claviers maîtres...
     *   **Double Driver :** Support natif Bluetooth LE (Bleak) et USB (Mido/WinMM).
     *   **Détection Automatique :** Branchez, scannez, c'est détecté.
-*   **Mode Service :** L'application démarre discrètement dans la zone de notification (Tray).
+*   **Mode Service & Portable :** 
+    *   L'application démarre discrètement dans la zone de notification (Tray).
+    *   **Persistance Absolue :** Vos données (`config.json`, profils) restent indéfiniment attachées à l'exécutable, même lancé depuis un raccourci distant.
 *   **Bibliothèque & Smart Launcher :**
     *   Un tiroir ("Drawer") intégré à la télécommande pour lancer vos morceaux et vos applications favorites.
     *   Détection automatique des applications liées à vos profils (ex: lancez "Reaper" et le profil change automatiquement).
@@ -62,10 +64,11 @@ Elle combine le meilleur de deux mondes :
 
 MidiKbd Control Studio permet de piloter **tous vos équipements en même temps**, quel que soit le contrôleur d'entrée utilisé (Airstep, Boss, Korg...).
 
-### 1. Multi-Sorties Simultanées
+### 1. Multi-Sorties Simultanées & Smart Matching
 Dans *Réglages > MIDI Output*, vous pouvez cocher plusieurs sorties :
 *   **Hardware :** Synthétiseurs externes (ex: *Fender Tone Master*), Pédales...
 *   **Software :** DAWs (Reaper, Ableton, Cubase...) ou Plugins via un câble virtuel.
+*   **Smart Matching (Auto-reconnexion) :** Si Windows renomme votre port MIDI (ex: "Midi 1" devient "Midi 2"), l'application s'y reconnecte automatiquement et met à jour votre profil de manière transparente.
 
 ### 2. Contrôler un Logiciel (Reaper, Ableton...)
 **IMPORTANT :** Windows ne permet pas à deux logiciels d'utiliser le même port MIDI en même temps.

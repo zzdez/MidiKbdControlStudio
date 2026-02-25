@@ -1108,9 +1108,11 @@ class MidiKbdApp(ctk.CTk):
 
     def load_data(self):
         # 1. Load Global Settings
-        if os.path.exists("config.json"):
+        from utils import get_app_dir
+        config_path = os.path.join(get_app_dir(), "config.json")
+        if os.path.exists(config_path):
             try:
-                with open("config.json", 'r', encoding='utf-8') as f:
+                with open(config_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.settings = data.get("settings", {"midi_device_name": "", "connection_mode": "MIDO"})
                     
