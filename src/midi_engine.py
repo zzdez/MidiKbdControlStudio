@@ -470,7 +470,29 @@ class MidiManager:
         if not isinstance(port_names, list):
             port_names = [port_names] if port_names else []
 
-        self._target_output_names = port_names
+        available = self.get_available_outputs()
+        resolved_ports = []
+        
+        import re
+        for name in port_names:
+            if not name: continue
+            
+            actual_name = name
+            if name not in available:
+                # Try smart match (ignore trailing digits)
+                base_target = re.sub(r'\s*\d+$', '', name).strip()
+                if base_target:
+                    for p in available:
+                        base_p = re.sub(r'\s*\d+$', '', p).strip()
+                        if base_target.lower() == base_p.lower():
+                            actual_name = p
+                            self.log(f"Smart Match Output: '{name}' resolved to '{p}'")
+                            break
+            
+            if actual_name not in resolved_ports:
+                resolved_ports.append(actual_name)
+
+        self._target_output_names = resolved_ports
 
         # Close existing
         for name, port in self._active_output_ports:
@@ -478,16 +500,15 @@ class MidiManager:
             except: pass
         self._active_output_ports = []
 
-        available = self.get_available_outputs()
-        
-        for name in port_names:
-            if not name: continue
+        for name in resolved_ports:
             try:
                 out = mido.open_output(name)
                 self._active_output_ports.append((name, out))
                 self.log(f"Connected output: '{name}'")
             except Exception as e:
                 self.log(f"Could not open output '{name}': {e}")
+                
+        return resolved_ports
 
     def send_message(self, channel, cc, value):
         if not self._active_output_ports: return

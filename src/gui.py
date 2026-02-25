@@ -1142,7 +1142,15 @@ class MidiKbdApp(ctk.CTk):
                             self.settings["midi_output_names"] = out_ports
                             
                             
-                    self.midi_manager.set_output_ports(out_ports)
+                    resolved = self.midi_manager.set_output_ports(out_ports)
+                    if resolved and resolved != out_ports:
+                        self.settings["midi_output_names"] = resolved
+                        # Persist smart match automatically
+                        try:
+                            from config_manager import ConfigManager
+                            cm = ConfigManager()
+                            cm.set("midi_output_names", resolved)
+                        except: pass
 
             except: pass
 
