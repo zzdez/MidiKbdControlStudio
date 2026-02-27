@@ -1210,6 +1210,9 @@ class MidiKbdApp(ctk.CTk):
         self.current_device_def = new_def
         self.log_debug(f"Device Definition set to: {self.current_device_def.get('name')}")
 
+        if hasattr(self, 'virtual_pedalboard'):
+            self.virtual_pedalboard.set_device_def(self.current_device_def)
+
         # Update btn text for confirmation
         if self.current_device_def:
             self.btn_edit_device.configure(text=f"⚙ {self.current_device_def['name']}")

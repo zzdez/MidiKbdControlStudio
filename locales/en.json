@@ -58,7 +58,7 @@
         "msg_config_error": "Config Error",
         "msg_config_saved": "Configuration saved!",
         "msg_profiles_error": "Profiles Error",
-        "msg_no_device_def": "No device definition loaded.",
+        "lbl_no_device_def": "No device definition loaded.",
         "btn_scan_short": "Scan",
         "lbl_current_mode": "Current Mode",
         "msg_devices_found": "Device(s) detected",

@@ -45,17 +45,15 @@ class I18nManager:
                 src = os.path.join(internal_dir, f"{lang}.json")
                 dst = os.path.join(external_dir, f"{lang}.json")
                 
-                # Copy if missing OR if destination is much smaller (heuristic for "incomplete")
+                # Copy if missing or out of date. To be perfectly safe, always copy
+                # internal version to external dir during startup. User edits should 
+                # be done in 'src/locales', not in the runtime 'locales' folder.
                 if os.path.exists(src):
-                    should_copy = not os.path.exists(dst)
-                    if not should_copy:
-                        # Heuristic: if internal is bigger by more than 100 bytes, it's likely newer/more complete
-                        if os.path.getsize(src) > os.path.getsize(dst) + 50:
-                            should_copy = True
-                            
-                    if should_copy:
+                    try:
                         shutil.copy2(src, dst)
                         print(f"[I18N] Exported/Updated: {dst}")
+                    except PermissionError:
+                        print(f"[I18N] Permission Error: Could not overwrite {dst} (file might be in use).")
                         
             self.locales_exported = True
         except Exception as e:

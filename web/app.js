@@ -35,10 +35,21 @@ function applyTranslations() {
         if (key) {
             const text = t(key);
             if (text !== key) {
-                // IMPORTANT: If el has icons (children), only update if it's a simple text container
+                // IMPORTANT: If el has icons (children), only update if it's a simple text container.
                 // Button with icons should use data-i18n-title instead.
-                if (el.children.length === 0) {
+                // We use firstElementChild to check for actual DOM nodes like <i> or <img>
+                if (!el.firstElementChild) {
                     el.innerText = text;
+                } else {
+                    // If it contains children, but we STILL want to translate, 
+                    // we must only update the text nodes, leaving elements like <i> intact.
+                    // This is a common pattern for <button><i class="..."></i> Text</button>
+                    for (let node of el.childNodes) {
+                        if (node.nodeType === Node.TEXT_NODE && node.nodeValue.trim() !== '') {
+                            node.nodeValue = " " + text + " ";
+                            break; // Translate the first text node found
+                        }
+                    }
                 }
             }
         }

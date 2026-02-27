@@ -58,7 +58,7 @@
         "msg_config_error": "Erreur Config",
         "msg_config_saved": "Configuration sauvegardée !",
         "msg_profiles_error": "Erreur Profils",
-        "msg_no_device_def": "Aucune définition d'appareil chargée.",
+        "lbl_no_device_def": "Aucune définition d'appareil chargée.",
         "btn_scan_short": "Scan",
         "lbl_current_mode": "Mode Actuel",
         "msg_devices_found": "Appareil(s) détecté(s)",
