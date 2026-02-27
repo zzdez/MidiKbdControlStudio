@@ -183,9 +183,10 @@ class RemoteControl(ctk.CTkToplevel):
         super().__init__(parent)
         self.callback_press = callback_press
         self.callback_close = callback_close
+        self.callback_open_conf = callback_open_conf
         self.callback_open_web = callback_open_web
-        from utils import I18nManager
-        self._ = I18nManager.get_instance().translate
+        from i18n import _
+        self._ = _
         self.device_def = device_def
         self.profile = profile
 
