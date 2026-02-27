@@ -63,9 +63,14 @@ def main():
     if is_light_mode:
         print(">>> MODE LIGHT ACTIVE (Serveur Web & Context Monitor DESACTIVES) <<<")
 
-    # 1. Config
+    # 1. Config & i18n
     config = ConfigManager()
     port = int(config.get("app_port", 8000))
+    
+    from i18n import i18n
+    lang = config.get("language", "fr")
+    i18n.export_locales()
+    i18n.set_language(lang)
 
     # 2. Interface Graphique (GUI) - Doit être créée dans le Main Thread
     app = MidiKbdApp()

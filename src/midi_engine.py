@@ -17,6 +17,7 @@ except ImportError:
 from midi_scanner import scan_loop
 import os
 from utils import get_app_dir
+from i18n import _
 
 class MidiProvider(abc.ABC):
     def __init__(self, device_name, callback):
@@ -43,7 +44,7 @@ class MidiProvider(abc.ABC):
 
     def set_scanning(self, enabled):
         self.scanning_enabled = enabled
-        self.log(f"Auto-Scan {'activé' if enabled else 'désactivé'}")
+        self.log(f"Auto-Scan {'enabled' if enabled else 'disabled'}")
 
     def force_rescan(self):
         """Optional method to force a hardware scan. Override if needed."""
@@ -226,7 +227,7 @@ class BleakProvider(MidiProvider):
     def start(self):
         self.log(f"Starting BleakProvider... (Available={BLEAK_AVAILABLE})")
         if not BLEAK_AVAILABLE:
-            self.last_error = "Bleak (lib) manquant"
+            self.last_error = _("gui.msg_error_bleak_missing", default="Bleak (lib) missing")
             self.log("ERROR: Bleak not available.")
             return
         

@@ -3,6 +3,62 @@ let websocket;
 let currentProfile = null;
 let currentActivePlayer = 'youtube';
 
+// --- i18n (Internationalization) ---
+let currentLang = "fr";
+let translations = {};
+
+async function loadTranslations(lang) {
+    try {
+        const res = await fetch(`/api/locales/${lang}`);
+        if (res.ok) {
+            translations = await res.json();
+            currentLang = lang;
+            applyTranslations();
+        }
+    } catch (e) { console.error("I18N Error", e); }
+}
+
+function t(keyPath, defaultText = null) {
+    const keys = keyPath.split('.');
+    let val = translations;
+    for (const k of keys) {
+        if (val && val[k]) val = val[k];
+        else return defaultText || keyPath;
+    }
+    return val;
+}
+
+function applyTranslations() {
+    document.querySelectorAll('[data-i18n], [data-i18n-title], [data-i18n-placeholder]').forEach(el => {
+        // Text Content
+        const key = el.getAttribute('data-i18n');
+        if (key) {
+            const text = t(key);
+            if (text !== key) {
+                // IMPORTANT: If el has icons (children), only update if it's a simple text container
+                // Button with icons should use data-i18n-title instead.
+                if (el.children.length === 0) {
+                    el.innerText = text;
+                }
+            }
+        }
+
+        // Tooltips (Title)
+        const titleKey = el.getAttribute('data-i18n-title');
+        if (titleKey) {
+            const titleText = t(titleKey);
+            if (titleText !== titleKey) el.title = titleText;
+        }
+
+        // Placeholders
+        const placeholderKey = el.getAttribute('data-i18n-placeholder');
+        if (placeholderKey) {
+            const phText = t(placeholderKey);
+            if (phText !== placeholderKey) el.placeholder = phText;
+        }
+    });
+}
+
 // --- CONTEXT AWARE PROFILES ---
 
 let wavesurfer = null;
@@ -30,25 +86,25 @@ function startDeviceStatusPolling() {
             const res = await fetch("/api/status");
             if (res.ok) {
                 const data = await res.json();
-                currentDeviceName = data.device_name || "Aucun";
+                currentDeviceName = data.device_name || t("web.none");
                 currentConnectionMode = data.connection_mode || "MIDO";
                 currentIsConnected = data.is_connected || false;
 
-                const activeProfileName = data.active_profile_name || "Global / Aucun";
+                const activeProfileName = data.active_profile_name || t("web.none");
                 const profileLabel = document.getElementById("active-profile");
                 if (profileLabel) {
-                    profileLabel.innerText = "Profil : " + activeProfileName;
+                    profileLabel.innerText = t("web.profile_prefix") + activeProfileName;
                 }
 
                 // Update Header Device Status
                 const headerStatus = document.getElementById("header-device-status");
                 if (headerStatus) {
-                    let displayMode = currentConnectionMode === "BLE" ? "Bluetooth" : "USB";
-                    if (currentDeviceName === "Aucun" || !currentDeviceName) {
-                        headerStatus.innerHTML = `○ En attente...`;
+                    let displayMode = currentConnectionMode === "BLE" ? t("web.bt") : t("web.usb");
+                    if (currentDeviceName === t("web.none") || !currentDeviceName) {
+                        headerStatus.innerHTML = `○ ` + t("web.status_waiting");
                         headerStatus.style.color = "#888";
                     } else if (!currentIsConnected) {
-                        headerStatus.innerHTML = `🔴 ${currentDeviceName} (${displayMode}) - Déconnecté`;
+                        headerStatus.innerHTML = `🔴 ${currentDeviceName} (${displayMode}) - ` + t("web.status_disconnected");
                         headerStatus.style.color = "#cf6679";
                     } else {
                         headerStatus.innerHTML = `🟢 ${currentDeviceName} (${displayMode})`;
@@ -359,14 +415,17 @@ function connectVideoWebSocket() {
         } else if (msg.type === "profile_update") {
             currentProfile = msg.data;
             renderPedalboard(currentProfile);
-            const name = currentProfile ? currentProfile.name : "Global / Aucun";
-            document.getElementById("active-profile").innerText = "Profil : " + name;
+            const name = currentProfile ? currentProfile.name : t("web.none");
+            const profileLabel = document.getElementById("active-profile");
+            if (profileLabel) {
+                profileLabel.innerText = t("web.profile_prefix") + name;
+            }
         } else if (msg.type === "dl_progress") {
             const bar = document.getElementById("dl-progress-bar");
             const status = document.getElementById("dl-status");
             if (bar && status) {
                 bar.style.width = msg.percent + "%";
-                status.innerText = msg.status === "processing" ? "Finalisation..." : Math.round(msg.percent) + "%";
+                status.innerText = msg.status === "processing" ? t("web.msg_dl_processing") : Math.round(msg.percent) + "%";
             }
         } else if (msg.type === "dl_complete") {
             // Check auto-close preference
@@ -374,11 +433,11 @@ function connectVideoWebSocket() {
 
             if (autoClose) {
                 closeModal();
-                alert("Téléchargement terminé et ajouté aux Fichiers Locaux !");
+                alert(t("web.msg_dl_done"));
                 // Refresh local view if visible
                 loadLocalFiles();
             } else {
-                document.getElementById("dl-status").innerText = "Terminé ✅";
+                document.getElementById("dl-status").innerText = t("web.msg_dl_success");
                 document.getElementById("dl-progress-bar").style.width = "100%";
                 // Refresh local view if visible
                 loadLocalFiles();
@@ -395,7 +454,7 @@ function connectVideoWebSocket() {
 
     websocket.onclose = () => {
         document.getElementById("connection-status").classList.remove("connected");
-        setTimeout(connectWS, 2000);
+        setTimeout(connectVideoWebSocket, 2000);
     };
 }
 
@@ -617,7 +676,7 @@ function renderSetlist(list) {
     });
 
     if (!filtered || filtered.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:20px; color:gray;'>Aucun résultat</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:20px; color:gray;'>" + t("web.msg_no_result") + "</td></tr>";
         // Update datalists anyway
         updateDatalists(list);
         return;
@@ -638,8 +697,8 @@ function renderSetlist(list) {
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${iconImg}${track.title || track.url}</td>
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.category || ""}</td>
             <td style="text-align:right;">
-                <button class="btn-action" onclick="openEditModal(${realIndex})" title="Éditer">✎</button>
-                <button class="btn-action" onclick="deleteTrack(${realIndex})" style="color:#cf6679;" title="Supprimer">×</button>
+                <button class="btn-action" onclick="openEditModal(${realIndex})" title="${t("web.btn_edit")}">✎</button>
+                <button class="btn-action" onclick="deleteTrack(${realIndex})" style="color:#cf6679;" title="${t("web.btn_delete")}">×</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -663,7 +722,7 @@ async function loadBlockedTags() {
 }
 
 async function blockTag(field, value) {
-    if (!confirm(`Ne plus jamais suggérer "${value}" pour ${field} ?`)) return;
+    if (!confirm(t("web.msg_confirm_block").replace("{value}", value).replace("{field}", field))) return;
 
     // Optimistic Update
     if (!blockedTags[field]) blockedTags[field] = [];
@@ -811,6 +870,11 @@ async function loadSettings() {
         const res = await fetch("/api/settings");
         if (res.ok) {
             currentSettings = await res.json();
+            if (currentSettings.language && currentSettings.language !== currentLang) {
+                await loadTranslations(currentSettings.language);
+            } else if (Object.keys(translations).length === 0) {
+                await loadTranslations(currentLang);
+            }
         }
     } catch (e) {
         console.error("Settings Load Error", e);
@@ -827,6 +891,9 @@ async function openSettingsModal() {
 
     if (currentSettings) {
         // Populate Fields
+        const langDropdown = document.getElementById("setting-language");
+        if (langDropdown) langDropdown.value = currentSettings.language || "fr";
+
         document.getElementById("setting-youtube-key").value = currentSettings.YOUTUBE_API_KEY || "";
         renderSettingsFolders();
 
@@ -834,6 +901,23 @@ async function openSettingsModal() {
         document.getElementById("settings-modal").showModal();
         switchSettingsTab('general'); // Reset to first tab
     }
+}
+
+async function changeLanguage() {
+    const selector = document.getElementById("setting-language");
+    if (!selector) return;
+    const newLang = selector.value;
+
+    // Save to settings
+    if (currentSettings) currentSettings.language = newLang;
+    await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: newLang })
+    });
+
+    // Dynamically apply
+    await loadTranslations(newLang);
 }
 
 function closeSettingsModal() {
@@ -1284,7 +1368,7 @@ async function toggleDownloadOptions() {
 
     if (folders.length === 0) {
         const opt = document.createElement("option");
-        opt.innerText = "Aucun dossier configuré (Ajouter dans Paramètres)";
+        opt.innerText = t("web.msg_no_folder_config");
         folderSelect.appendChild(opt);
     } else {
         folders.forEach(f => {
@@ -1305,18 +1389,18 @@ async function toggleDownloadOptions() {
         o.innerText = text;
         if (!enabled) {
             o.disabled = true;
-            o.innerText += " (FFmpeg requis)";
+            o.innerText += " " + t("web.lbl_ffmpeg_required");
         }
         formatSelect.appendChild(o);
     };
 
     // Audio Options
-    addOpt("audio_original", "🎵 Audio (Original / Meilleure Qualité)");
+    addOpt("audio_original", t("web.opt_audio_original"));
     addOpt("audio_mp3_320", "🎵 Audio MP3 320kbps", ffmpegAvailable);
     addOpt("audio_mp3_192", "🎵 Audio MP3 192kbps", ffmpegAvailable);
 
     // Video Options
-    addOpt("video_auto", "🎬 Vidéo Auto (Meilleur fichier unique)");
+    addOpt("video_auto", t("web.opt_video_auto"));
     addOpt("video_2160", "🎬 Vidéo 4K (2160p) (MP4)", ffmpegAvailable);
     addOpt("video_1440", "🎬 Vidéo 2K (1440p) (MP4)", ffmpegAvailable);
     addOpt("video_1080", "🎬 Vidéo 1080p (MP4)", ffmpegAvailable);
@@ -1335,8 +1419,8 @@ async function startDownload() {
     const folder = document.getElementById("dl-folder").value;
     const subs = document.getElementById("dl-subs").checked;
 
-    if (!url) return alert("URL manquante");
-    if (!folder || folder.includes("Aucun dossier")) return alert("Veuillez sélectionner un dossier valide.");
+    if (!url) return alert(t("web.msg_url_required"));
+    if (!folder || folder.innerText === t("web.msg_no_folder_config")) return alert(t("web.msg_no_folder_config"));
 
     // Harvest Metadata
     const metadata = {
@@ -1349,7 +1433,7 @@ async function startDownload() {
     };
 
     // UI Feedback
-    document.getElementById("dl-status").innerText = "Démarrage...";
+    document.getElementById("dl-status").innerText = t("web.status_starting");
     document.getElementById("dl-progress-bar").style.width = "0%";
     document.getElementById("dl-progress-bar").style.background = "var(--accent)";
 
@@ -1383,8 +1467,8 @@ async function saveItem() {
     const url = document.getElementById("edit-url").value;
 
     // Use defaults if empty
-    const category = document.getElementById("edit-category").value || "Général";
-    const genre = document.getElementById("edit-genre").value || "Divers";
+    const category = document.getElementById("edit-category").value || t("web.default_category");
+    const genre = document.getElementById("edit-genre").value || t("web.default_genre");
 
     const mode = document.getElementById("edit-mode").value;
     const target_profile = document.getElementById("edit-target-profile").value;
@@ -1399,7 +1483,7 @@ async function saveItem() {
     if (img) thumbnail = img.src;
 
     if (!url) {
-        alert("L'URL est obligatoire.");
+        alert(t("web.msg_url_required"));
         return;
     }
 
@@ -2842,7 +2926,7 @@ function openSubtitleTrackSelection(source) {
     btnNone.style.width = "100%";
     btnNone.style.textAlign = "left";
     btnNone.style.padding = "8px";
-    btnNone.innerText = "Aucun / Désactiver";
+    btnNone.innerText = t("web.btn_none_disable");
 
     if (isNoneActive) {
         btnNone.style.background = "var(--accent)";
@@ -3682,7 +3766,7 @@ function setLoopB() {
         loopB = t;
         isLoopActive = true;
     } else {
-        alert("Le point B doit être après le point A.");
+        alert(t("web.msg_loop_b_after_a"));
     }
     updateLoopUI();
 }
@@ -3737,16 +3821,16 @@ function updateLoopUI() {
     // Toggle Button Logic
     let toggleHtml = '<i class="ph ph-repeat"></i>';
     let toggleColor = "#555";
-    let toggleTooltip = "Mode Boucle: Désactivé (Lecture libre)";
+    let toggleTooltip = t("web.tooltip_loop_off");
 
     if (isLoopActive && !isSequentialLoop) {
         toggleHtml = '<i class="ph ph-repeat-once"></i>';
         toggleColor = "var(--accent)";
-        toggleTooltip = "Mode Boucle: Unique (Répéter la boucle actuelle)";
+        toggleTooltip = t("web.tooltip_loop_single");
     } else if (isLoopActive && isSequentialLoop) {
         toggleHtml = '<i class="ph ph-queue"></i>';
         toggleColor = "var(--accent)";
-        toggleTooltip = "Mode Boucle: Séquentiel (Passer à la boucle suivante)";
+        toggleTooltip = t("web.tooltip_loop_seq");
     }
 
     if (btnToggle_a) {
@@ -3921,7 +4005,7 @@ function toggleEditLoop(id) {
 }
 
 function saveLoopName(id) {
-    const newName = document.getElementById(`loop-name-input-${id}`).value.trim() || 'Boucle sans nom';
+    const newName = document.getElementById(`loop-name-input-${id}`).value.trim() || t("web.lbl_no_named_loop");
     const loop = currentLoops.find(l => l.id === id);
     if (loop) {
         loop.name = newName;
@@ -3966,7 +4050,7 @@ async function confirmSaveLoop() {
     }
 
     const nameInput = document.getElementById("loop-modal-name");
-    const name = nameInput.value.trim() || "Boucle sans nom";
+    const name = nameInput.value.trim() || t("web.lbl_no_named_loop");
 
     const newLoop = {
         id: Date.now(),
@@ -4142,7 +4226,7 @@ function navigateLoop(direction) {
 }
 
 function deleteLoop(id) {
-    if (!confirm("Supprimer cette boucle ?")) return;
+    if (!confirm(t("web.msg_confirm_delete_loop"))) return;
     currentLoops = currentLoops.filter(l => l.id !== id);
     renderLoopsUI();
 

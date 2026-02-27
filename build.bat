@@ -37,6 +37,10 @@ if exist assets (
     mkdir _BUILD_TEMP\assets
     xcopy assets _BUILD_TEMP\assets /s /e /y >nul
 )
+if exist locales (
+    mkdir _BUILD_TEMP\locales
+    xcopy locales _BUILD_TEMP\locales /s /e /y >nul
+)
 
 :: 4. COMPILATION
 cd _BUILD_TEMP
@@ -47,6 +51,7 @@ pyinstaller --noconfirm --onefile --windowed ^
  --add-data "config.json;." ^
  --add-data "web;web" ^
  --add-data "assets;assets" ^
+ --add-data "locales;locales" ^
  --hidden-import "uvicorn" ^
  --hidden-import "uvicorn.logging" ^
  --hidden-import "uvicorn.loops" ^

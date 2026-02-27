@@ -53,12 +53,14 @@ except ImportError:
     from src.remote_gui import RemoteControl, CompactPedalboardFrame
     from src.context_monitor import ContextMonitor
 
+from i18n import _
+
 # Configuration de l'apparence
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
 class CTkMessageBox(ctk.CTkToplevel):
-    def __init__(self, title="Message", message="", icon="info", option_text_1="OK", option_text_2=None):
+    def __init__(self, title=_("gui.msg_title"), message="", icon="info", option_text_1=_("gui.btn_ok"), option_text_2=None):
         super().__init__()
         self.title(title)
         self.geometry("400x200")
@@ -103,14 +105,14 @@ class CTkMessageBox(ctk.CTkToplevel):
 
     @staticmethod
     def ask_yes_no(title, message):
-        msg = CTkMessageBox(title, message, option_text_1="Oui", option_text_2="Non")
+        msg = CTkMessageBox(title, message, option_text_1=_("gui.btn_yes"), option_text_2=_("gui.btn_no"))
         return msg.result
 
 class ShortcutsDialog(ctk.CTkToplevel):
     def __init__(self, parent, initial_text, callback):
         super().__init__(parent)
         self.callback = callback
-        self.title("Mémo Raccourcis")
+        self.title(_("gui.title_shortcuts"))
         self.geometry("600x600")
         self.attributes("-topmost", True)
 
@@ -118,7 +120,7 @@ class ShortcutsDialog(ctk.CTkToplevel):
         self.textbox.pack(fill="both", expand=True, padx=20, pady=20)
         self.textbox.insert("0.0", initial_text)
 
-        self.btn_save = ctk.CTkButton(self, text="Sauvegarder", command=self.save)
+        self.btn_save = ctk.CTkButton(self, text=_("gui.btn_save"), command=self.save)
         self.btn_save.pack(pady=(0, 20), padx=20, fill="x")
 
     def save(self):
@@ -129,7 +131,7 @@ class ShortcutsDialog(ctk.CTkToplevel):
 class SettingsDialog(ctk.CTkToplevel):
     def __init__(self, parent, profile_manager, action_handler, env_manager, midi_manager):
         super().__init__(parent)
-        self.title("Réglages")
+        self.title(_("gui.tab_settings"))
         self.geometry("450x400")
         self.attributes("-topmost", True)
         self.profile_manager = profile_manager
@@ -140,12 +142,12 @@ class SettingsDialog(ctk.CTkToplevel):
         try:
             self.tabview = ctk.CTkTabview(self)
             self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
-            self.tabview.add("Général")
-            self.tabview.add("Sauvegarde")
+            self.tabview.add(_("web.tab_general"))
+            self.tabview.add(_("gui.tab_backup"))
 
             # Tab General
-            tab_gen = self.tabview.tab("Général")
-            ctk.CTkLabel(tab_gen, text="Délai Anti-Rebond (Burst Mode) :").pack(pady=(20, 5))
+            tab_gen = self.tabview.tab(_("web.tab_general"))
+            ctk.CTkLabel(tab_gen, text=_("gui.lbl_debounce")).pack(pady=(20, 5))
 
             current_val = action_handler.debounce_delay if action_handler else 0.15
             self.lbl_debounce = ctk.CTkLabel(tab_gen, text=f"{int(current_val * 1000)} ms")
@@ -155,20 +157,29 @@ class SettingsDialog(ctk.CTkToplevel):
             self.slider.set(current_val * 1000)
             self.slider.pack(pady=10, padx=20, fill="x")
 
-            ctk.CTkLabel(tab_gen, text="(Délai pour grouper les messages MIDI rapides\ncomme l'appui court/long AIRSTEP)", text_color="gray", font=("Arial", 10)).pack()
+            ctk.CTkLabel(tab_gen, text=_("gui.lbl_debounce_hint"), text_color="gray", font=("Arial", 10)).pack()
+
+            # Language Selector
+            ctk.CTkLabel(tab_gen, text=_("gui.lbl_lang")).pack(pady=(15, 5))
+            from config_manager import ConfigManager
+            cm = ConfigManager()
+            current_lang = cm.get("language", "fr")
+            self.lang_combo = ctk.CTkComboBox(tab_gen, values=["fr", "en"], command=self.update_lang, state="readonly")
+            self.lang_combo.set(current_lang)
+            self.lang_combo.pack(pady=5)
+            ctk.CTkLabel(tab_gen, text=_("gui.lbl_restart_hint"), text_color="gray", font=("Arial", 10)).pack()
 
             # Tab Backup
-            tab_backup = self.tabview.tab("Sauvegarde")
-            ctk.CTkButton(tab_backup, text="Exporter Configuration (Zip)", command=self.export_conf).pack(pady=20, padx=20, fill="x")
-            ctk.CTkButton(tab_backup, text="Importer Configuration (Zip)", command=self.import_conf).pack(pady=10, padx=20, fill="x")
+            tab_backup = self.tabview.tab(_("gui.tab_backup"))
+            ctk.CTkButton(tab_backup, text=_("gui.btn_export_conf"), command=self.export_conf).pack(pady=20, padx=20, fill="x")
+            ctk.CTkButton(tab_backup, text=_("gui.btn_import_conf"), command=self.import_conf).pack(pady=10, padx=20, fill="x")
 
             # Force set tab
-            self.tabview.set("Général")
+            self.tabview.set(_("web.tab_general"))
 
             # Tab MIDI Output
-            tab_midi = self.tabview.add("MIDI Output")
-            
-            ctk.CTkLabel(tab_midi, text="Ports de Sortie MIDI (Multi) :").pack(pady=(20, 5))
+            tab_midi = self.tabview.add(_("gui.lbl_midi_out"))
+            ctk.CTkLabel(tab_midi, text=_("gui.lbl_midi_out")).pack(pady=(20, 5))
             
             self.midi_checkboxes = []
             self.scroll_midi = ctk.CTkScrollableFrame(tab_midi, width=300, height=200)
@@ -178,7 +189,7 @@ class SettingsDialog(ctk.CTkToplevel):
             ports_status = self.midi_manager.get_ports_status()
             
             if not ports_status:
-                ctk.CTkLabel(self.scroll_midi, text="Aucun port MIDI détecté").pack()
+                ctk.CTkLabel(self.scroll_midi, text=_("gui.lbl_no_midi")).pack()
             
             for p in ports_status:
                 name = p["name"]
@@ -191,10 +202,10 @@ class SettingsDialog(ctk.CTkToplevel):
                 text_color = "white" # default (or None)
                 
                 if not is_available:
-                    lbl_text += " (Absent)"
+                    lbl_text += f" ({_('gui.lbl_absent')})"
                     text_color = "orange"
                 elif is_selected and not is_connected:
-                    lbl_text += " (Erreur)"
+                    lbl_text += f" ({_('gui.lbl_error')})"
                     text_color = "red"
                 
                 chk = ctk.CTkCheckBox(self.scroll_midi, text=lbl_text, text_color=text_color)
@@ -205,15 +216,14 @@ class SettingsDialog(ctk.CTkToplevel):
                 # Store (checkbox_widget, port_name)
                 self.midi_checkboxes.append((chk, name))
 
-            ctk.CTkButton(tab_midi, text="Appliquer / Sauvegarder", command=self.save_midi_out).pack(pady=20)
-            
-            ctk.CTkLabel(tab_midi, text="(Cochez plusieurs sorties pour envoyer\nles commandes simultanément)", text_color="gray", font=("Arial", 10)).pack()
+            ctk.CTkButton(tab_midi, text=_("gui.btn_apply"), command=self.save_midi_out).pack(pady=20)
+            ctk.CTkLabel(tab_midi, text=_("gui.lbl_midi_multi_hint"), text_color="gray", font=("Arial", 10)).pack()
 
         except Exception as e:
             with open("debug.log", "a") as f:
                 import traceback
                 f.write(f"SETTINGS ERROR: {e}\n{traceback.format_exc()}\n")
-            CTkMessageBox.show_error("Erreur", f"Erreur lors de l'ouverture des réglages :\n{e}")
+            CTkMessageBox.show_error(_("gui.msg_error"), f"{_('gui.msg_settings_error')}\n{e}")
 
     def save_midi_out(self):
         selected_ports = []
@@ -232,54 +242,59 @@ class SettingsDialog(ctk.CTkToplevel):
             
             # Legacy cleanup: clear single port config to avoid confusion? 
             # Or just leave it. Let's leave it.
-            
-            CTkMessageBox.show_info("Info", f"Ports actifs : {len(selected_ports)}\n Configuration sauvegardée.")
+            CTkMessageBox.show_info(_("gui.msg_info"), f"{_('gui.msg_ports_active')} : {len(selected_ports)}\n {_('gui.msg_saved')}")
         except Exception as e:
-            CTkMessageBox.show_error("Erreur Sauvegarde", str(e))
+            CTkMessageBox.show_error(_("gui.msg_save_error"), str(e))
 
     def update_label(self, value):
         self.lbl_debounce.configure(text=f"{int(value)} ms")
         if self.action_handler:
             self.action_handler.set_debounce_delay(value / 1000.0)
 
+    def update_lang(self, value):
+        from config_manager import ConfigManager
+        cm = ConfigManager()
+        cm.set("language", value)
+        CTkMessageBox.show_info(_("gui.msg_lang_changed_title"), _("gui.msg_lang_changed_text"))
+
     def export_conf(self):
         from tkinter import filedialog
-        path = filedialog.asksaveasfilename(defaultextension=".zip", filetypes=[("Zip files", "*.zip")])
+        path = filedialog.asksaveasfilename(defaultextension=".zip", filetypes=[(_("gui.filetype_zip"), "*.zip")])
         if path:
             ok, msg = self.profile_manager.export_backup(path)
-            if ok: CTkMessageBox.show_info("Succès", "Sauvegarde réussie !")
-            else: CTkMessageBox.show_error("Erreur", msg)
+            if ok: CTkMessageBox.show_info(_("gui.msg_success"), _("gui.msg_export_success"))
+            else: CTkMessageBox.show_error(_("gui.msg_error"), msg)
 
     def import_conf(self):
         from tkinter import filedialog
-        path = filedialog.askopenfilename(filetypes=[("Zip files", "*.zip")])
+        path = filedialog.askopenfilename(filetypes=[(_("gui.filetype_zip"), "*.zip")])
         if path:
-            if CTkMessageBox.ask_yes_no("Attention", "Cela va écraser votre configuration actuelle.\nContinuer ?"):
+            if CTkMessageBox.ask_yes_no(_("gui.msg_warning"), _("gui.msg_import_confirm")):
                 ok, msg = self.profile_manager.import_backup(path)
                 if ok:
-                    CTkMessageBox.show_info("Succès", "Configuration restaurée.\nVeuillez redémarrer l'application.")
+                    CTkMessageBox.show_info(_("gui.msg_success"), _("gui.msg_import_success"))
                 else:
-                    CTkMessageBox.show_error("Erreur", msg)
+                    CTkMessageBox.show_error(_("gui.msg_error"), msg)
 
 class DeviceEditorDialog(ctk.CTkToplevel):
     def __init__(self, parent, manager, current_def=None, callback=None):
         super().__init__(parent)
         self.manager = manager
         self.callback = callback
-        self.title("Éditeur de Périphérique")
+        self.title(_("gui.title_device_editor"))
         self.geometry("500x600")
         self.attributes("-topmost", True)
 
-        self.definition = current_def if current_def else {"name": "Nouveau", "buttons": []}
+        self.definition = current_def if current_def else {"name": _("gui.new_device"), "buttons": []}
 
         # Name
-        ctk.CTkLabel(self, text="Nom du Modèle (ex: AIRSTEP) :").pack(pady=(10,0))
+        ctk.CTkLabel(self, text=_("gui.lbl_model_name")).pack(pady=(10,0))
         self.entry_name = ctk.CTkEntry(self)
         self.entry_name.insert(0, self.definition["name"])
         self.entry_name.pack(pady=5, padx=20, fill="x")
 
         # Buttons List
-        self.scroll_frame = ctk.CTkScrollableFrame(self, label_text="Boutons (CC -> Nom)")
+        self.scroll_frame = ctk.CTkScrollableFrame(self, label_text=_("gui.lbl_buttons_list"))
         self.scroll_frame.pack(pady=10, padx=20, fill="both", expand=True)
 
         self.rows = []
@@ -287,21 +302,21 @@ class DeviceEditorDialog(ctk.CTkToplevel):
             self.add_row(btn["cc"], btn["label"])
 
         # Add Button
-        ctk.CTkButton(self, text="+ Ajouter Bouton", command=lambda: self.add_row("", "")).pack(pady=5)
+        ctk.CTkButton(self, text=f"+ {_('gui.btn_add_button')}", command=lambda: self.add_row("", "")).pack(pady=5)
 
         # Save
-        ctk.CTkButton(self, text="Sauvegarder", fg_color="green", command=self.save).pack(pady=20, padx=20, fill="x")
+        ctk.CTkButton(self, text=_("gui.btn_save"), fg_color="green", command=self.save).pack(pady=20, padx=20, fill="x")
 
     def add_row(self, cc, label):
         row = ctk.CTkFrame(self.scroll_frame)
         row.pack(fill="x", pady=2)
 
-        e_cc = ctk.CTkEntry(row, width=60, placeholder_text="CC")
+        e_cc = ctk.CTkEntry(row, width=60, placeholder_text=_("gui.placeholder_cc"))
         
         # Display logic
         val_display = ""
         if isinstance(cc, int) and cc < 0:
-            val_display = "Virtuel"
+            val_display = _("gui.lbl_virtual")
             e_cc.configure(text_color="cyan")
         elif cc != "" and cc is not None:
              val_display = str(cc)
@@ -309,7 +324,7 @@ class DeviceEditorDialog(ctk.CTkToplevel):
         e_cc.insert(0, val_display)
         e_cc.pack(side="left", padx=5)
 
-        e_lbl = ctk.CTkEntry(row, placeholder_text="Nom (ex: Bouton A)")
+        e_lbl = ctk.CTkEntry(row, placeholder_text=_("gui.placeholder_btn_name"))
         e_lbl.insert(0, str(label))
         e_lbl.pack(side="left", fill="x", expand=True, padx=5)
 
@@ -391,14 +406,14 @@ class ProfileEditorDialog(ctk.CTkToplevel):
         self.callback = callback
         self.current_profile = current_profile
 
-        self.title("Midi-Kbd Control Studio")
+        self.title(_("gui.title_profile_editor"))
         self.geometry("380x250")
         self.resizable(False, False)
         self.transient(parent)
         self.grab_set()
 
         # Name
-        ctk.CTkLabel(self, text="Nom complet du Profil :").pack(pady=(20, 5), padx=20, anchor="w")
+        ctk.CTkLabel(self, text=_("gui.lbl_profile_full_name")).pack(pady=(20, 5), padx=20, anchor="w")
         self.entry_name = ctk.CTkEntry(self, width=340)
         self.entry_name.pack(padx=20)
         self.entry_name.insert(0, current_profile.get("name", ""))
@@ -408,7 +423,7 @@ class ProfileEditorDialog(ctk.CTkToplevel):
         self.vol_frame.pack(pady=(15, 5), padx=20, fill="x")
         
         # Label that will hold the percentage
-        self.lbl_vol = ctk.CTkLabel(self.vol_frame, text="Volume Master : 100%")
+        self.lbl_vol = ctk.CTkLabel(self.vol_frame, text=f"{_('gui.lbl_master_vol')} : 100%")
         self.lbl_vol.pack(anchor="w")
         
         # Slider
@@ -430,22 +445,20 @@ class ProfileEditorDialog(ctk.CTkToplevel):
         # Save Set
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(pady=25, fill="x", padx=20)
-        
-        btn_cancel = ctk.CTkButton(btn_frame, text="Annuler", width=120, fg_color="#555", hover_color="#777", command=self.destroy)
+        btn_cancel = ctk.CTkButton(btn_frame, text=_("gui.btn_cancel"), width=120, fg_color="#555", hover_color="#777", command=self.destroy)
         btn_cancel.pack(side="left")
-        
-        btn_save = ctk.CTkButton(btn_frame, text="Sauvegarder", width=120, fg_color="green", hover_color="darkgreen", command=self.save)
+        btn_save = ctk.CTkButton(btn_frame, text=_("gui.btn_save"), width=120, fg_color="green", hover_color="darkgreen", command=self.save)
         btn_save.pack(side="right")
 
     def on_slider_change(self, value):
-        self.lbl_vol.configure(text=f"Volume Master : {int(value)}%")
+        self.lbl_vol.configure(text=f"{_('gui.lbl_master_vol')} : {int(value)}%")
 
     def save(self):
         new_name = self.entry_name.get().strip()
         new_val = str(int(self.slider_vol.get()))
         
         if not new_name:
-            CTkMessageBox.show_error("Erreur", "Le nom du profil ne peut pas être vide.")
+            CTkMessageBox.show_error(_("gui.msg_error"), _("gui.msg_profile_name_empty"))
             return
 
         self.callback(new_name, new_val)
@@ -462,17 +475,17 @@ class MappingDialog(ctk.CTkToplevel):
         self.profile_context = profile_context # {app_context, window_title_filter}
         self.action_handler = action_handler
 
-        self.title("Modifier l'Action" if initial_data else "Ajouter une Action")
+        self.title(_("gui.title_edit_action") if initial_data else _("gui.title_add_action"))
         self.geometry("450x450")
         self.attributes("-topmost", True)
 
-        ctk.CTkLabel(self, text="Nom de l'action :").pack(pady=(10,0))
-        self.entry_name = ctk.CTkEntry(self, placeholder_text="Ex: Play YouTube")
+        ctk.CTkLabel(self, text=_("gui.lbl_action_name")).pack(pady=(10,0))
+        self.entry_name = ctk.CTkEntry(self, placeholder_text=_("gui.placeholder_action_name"))
         self.entry_name.pack(pady=5, padx=20, fill="x")
         if initial_data:
             self.entry_name.insert(0, initial_data.get("name", ""))
 
-        ctk.CTkLabel(self, text="Bouton / MIDI CC :").pack(pady=(10,0))
+        ctk.CTkLabel(self, text=_("gui.lbl_button_midi_cc")).pack(pady=(10,0))
 
         self.combo_cc = ctk.CTkComboBox(self)
         self.combo_cc.pack(pady=5, padx=20, fill="x")
@@ -484,7 +497,7 @@ class MappingDialog(ctk.CTkToplevel):
                 cc = b['cc']
                 lbl = b['label']
                 if cc < 0:
-                     values.append(f"{cc} - {lbl} (Virtuel)")
+                     values.append(f"{cc} - {lbl} ({_('gui.lbl_virtual')})")
                 else:
                      values.append(f"{cc} - {lbl}")
 
@@ -503,18 +516,18 @@ class MappingDialog(ctk.CTkToplevel):
             self.combo_cc.set(values[0])
 
         # Icon Selector
-        ctk.CTkLabel(self, text="Icône (Optionnel) :").pack(pady=(10,0))
-        self.combo_icon = ctk.CTkComboBox(self, values=["Auto", "▶", "⏸", "■", "●", "⏪", "⏩", "⟳", "🔇", "🔊", "↔", "⏱", "♪", "◴", "📍", "▲", "▼", "◄", "►", "✓", "↶", "↷", "⚡", "⚙", "📂", "🎸", "🎤", "🎹"])
+        ctk.CTkLabel(self, text=_("gui.lbl_icon_opt")).pack(pady=(10,0))
+        self.combo_icon = ctk.CTkComboBox(self, values=[_("gui.lbl_auto"), "▶", "⏸", "■", "●", "⏪", "⏩", "⟳", "🔇", "🔊", "↔", "⏱", "♪", "◴", "📍", "▲", "▼", "◄", "►", "✓", "↶", "↷", "⚡", "⚙", "📂", "🎸", "🎤", "🎹"])
         self.combo_icon.pack(pady=5, padx=20, fill="x")
 
         if initial_data and initial_data.get("custom_icon"):
             self.combo_icon.set(initial_data.get("custom_icon"))
         else:
-            self.combo_icon.set("Auto")
+            self.combo_icon.set(_("gui.lbl_auto"))
 
         # Action Type Selector
-        ctk.CTkLabel(self, text="Type d'Action :").pack(pady=(10,0))
-        self.combo_type = ctk.CTkComboBox(self, values=["Raccourci Clavier", "Commande Interne", "Envoi MIDI"], command=self.update_ui_state)
+        ctk.CTkLabel(self, text=_("gui.lbl_action_type")).pack(pady=(10,0))
+        self.combo_type = ctk.CTkComboBox(self, values=[_("gui.type_hotkey"), _("gui.type_command"), _("gui.type_midi")], command=self.update_ui_state)
         self.combo_type.pack(pady=5, padx=20, fill="x")
 
         # --- Frames for different types ---
@@ -523,7 +536,7 @@ class MappingDialog(ctk.CTkToplevel):
         self.frame_midi = ctk.CTkFrame(self, fg_color="transparent")
 
         # 1. Hotkey UI
-        ctk.CTkLabel(self.frame_hotkey, text="Touche Clavier (Ex: k, space) :").pack(pady=(5,0))
+        ctk.CTkLabel(self.frame_hotkey, text=_("gui.lbl_keyboard_key")).pack(pady=(5,0))
         self.sub_hotkey = ctk.CTkFrame(self.frame_hotkey, fg_color="transparent")
         self.sub_hotkey.pack(fill="x")
         
@@ -533,36 +546,36 @@ class MappingDialog(ctk.CTkToplevel):
         self.btn_test = ctk.CTkButton(self.sub_hotkey, text="▶", width=30, fg_color="#444", hover_color="#666", command=self.test_mapping)
         self.btn_test.pack(side="right", padx=(5,0))
 
-        self.btn_rec = ctk.CTkButton(self.sub_hotkey, text="REC", width=60, fg_color="#cc3300", hover_color="#992200", command=self.start_recording)
+        self.btn_rec = ctk.CTkButton(self.sub_hotkey, text=_("gui.btn_rec"), width=60, fg_color="#cc3300", hover_color="#992200", command=self.start_recording)
         self.btn_rec.pack(side="right", padx=(5,0))
         
         self.lbl_scan_info = ctk.CTkLabel(self.frame_hotkey, text="", text_color="gray", font=("Arial", 10))
         self.lbl_scan_info.pack(pady=(0, 5))
 
         # 2. Command UI
-        ctk.CTkLabel(self.frame_command, text="Commande (ex: media_play, media_next) :").pack(pady=(5,0))
+        ctk.CTkLabel(self.frame_command, text=_("gui.lbl_command")).pack(pady=(5,0))
         self.entry_cmd = ctk.CTkEntry(self.frame_command, placeholder_text="media_play_pause")
         self.entry_cmd.pack(fill="x")
 
         # 3. MIDI Out UI
-        ctk.CTkLabel(self.frame_midi, text="Message MIDI (CC) :").pack(pady=(5,0))
+        ctk.CTkLabel(self.frame_midi, text=_("gui.lbl_midi_msg")).pack(pady=(5,0))
         
         f_midi_row = ctk.CTkFrame(self.frame_midi, fg_color="transparent")
         f_midi_row.pack(fill="x")
         
         # Channel
-        ctk.CTkLabel(f_midi_row, text="Ch (1-16)").pack(side="left", padx=2)
+        ctk.CTkLabel(f_midi_row, text=_("gui.lbl_midi_ch")).pack(side="left", padx=2)
         self.entry_midi_ch = ctk.CTkEntry(f_midi_row, width=40)
         self.entry_midi_ch.pack(side="left", padx=2)
         self.entry_midi_ch.insert(0, "1")
 
         # CC
-        ctk.CTkLabel(f_midi_row, text="CC (0-127)").pack(side="left", padx=2)
+        ctk.CTkLabel(f_midi_row, text=_("gui.lbl_midi_cc")).pack(side="left", padx=2)
         self.entry_midi_cc = ctk.CTkEntry(f_midi_row, width=40)
         self.entry_midi_cc.pack(side="left", padx=2)
         
         # Value
-        ctk.CTkLabel(f_midi_row, text="Val (0-127)").pack(side="left", padx=2)
+        ctk.CTkLabel(f_midi_row, text=_("gui.lbl_midi_val")).pack(side="left", padx=2)
         self.entry_midi_val = ctk.CTkEntry(f_midi_row, width=40)
         self.entry_midi_val.pack(side="left", padx=2)
         self.entry_midi_val.insert(0, "127")
@@ -573,7 +586,7 @@ class MappingDialog(ctk.CTkToplevel):
             a_type = initial_data.get("action_type", "hotkey")
             
             if a_type == "midi":
-                 self.combo_type.set("Envoi MIDI")
+                 self.combo_type.set(_("gui.type_midi"))
                  self.entry_midi_ch.delete(0, "end")
                  self.entry_midi_ch.insert(0, str(initial_data.get("output_channel", 1)))
                  self.entry_midi_cc.delete(0, "end")
@@ -582,11 +595,11 @@ class MappingDialog(ctk.CTkToplevel):
                  self.entry_midi_val.insert(0, str(initial_data.get("output_value", 127)))
                  
             elif a_type == "command":
-                 self.combo_type.set("Commande Interne")
+                 self.combo_type.set(_("gui.type_command"))
                  self.entry_cmd.insert(0, initial_data.get("action_value", ""))
                  
             else:
-                 self.combo_type.set("Raccourci Clavier")
+                 self.combo_type.set(_("gui.type_hotkey"))
                  self.entry_key.insert(0, initial_data.get("action_value", ""))
 
             # Handle legacy "command" stored as hotkey with "media_" prefix?
@@ -595,7 +608,7 @@ class MappingDialog(ctk.CTkToplevel):
 
         self.update_ui_state(self.combo_type.get())
 
-        self.btn_save = ctk.CTkButton(self, text="Valider", fg_color="green", hover_color="darkgreen", command=self.save_mapping)
+        self.btn_save = ctk.CTkButton(self, text=_("gui.btn_validate"), fg_color="green", hover_color="darkgreen", command=self.save_mapping)
         self.btn_save.pack(pady=10, padx=20, fill="x")
 
     def update_ui_state(self, choice):
@@ -603,17 +616,17 @@ class MappingDialog(ctk.CTkToplevel):
         self.frame_command.pack_forget()
         self.frame_midi.pack_forget()
         
-        if choice == "Raccourci Clavier":
+        if choice == _("gui.type_hotkey"):
             self.frame_hotkey.pack(fill="x", padx=20, pady=5)
-        elif choice == "Commande Interne":
+        elif choice == _("gui.type_command"):
             self.frame_command.pack(fill="x", padx=20, pady=5)
-        elif choice == "Envoi MIDI":
+        elif choice == _("gui.type_midi"):
             self.frame_midi.pack(fill="x", padx=20, pady=5)
 
     def start_recording(self):
         self.btn_rec.configure(text="...", state="disabled")
         self.entry_key.delete(0, "end")
-        self.entry_key.insert(0, "Appuyez...")
+        self.entry_key.insert(0, _("gui.msg_press_key"))
 
         def _rec_thread():
             try:
@@ -673,10 +686,10 @@ class MappingDialog(ctk.CTkToplevel):
             self.entry_key.delete(0, "end")
             self.entry_key.insert(0, result["name"])
             self.current_rec_data = result
-            self.lbl_scan_info.configure(text=f"Scan Code: {result['scan_code']} (+{len(result.get('modifier_scan_codes', []))} mods)")
+            self.lbl_scan_info.configure(text=f"{_('gui.lbl_scan_code')}: {result['scan_code']} (+{len(result.get('modifier_scan_codes', []))} mods)")
         else:
             self.entry_key.delete(0, "end")
-            self.entry_key.insert(0, "Erreur")
+            self.entry_key.insert(0, _("gui.lbl_error"))
             self.lbl_scan_info.configure(text="")
 
         self.btn_rec.configure(text="REC", state="normal")
@@ -687,7 +700,7 @@ class MappingDialog(ctk.CTkToplevel):
         if not mapping_data: return
 
         if not self.action_handler:
-             CTkMessageBox.show_error("Erreur", "ActionHandler manquant.")
+             CTkMessageBox.show_error(_("gui.msg_error"), _("gui.msg_handler_missing"))
              return
 
         # Disable button
@@ -723,7 +736,7 @@ class MappingDialog(ctk.CTkToplevel):
             else:
                 cc = int(val)
         except ValueError:
-            CTkMessageBox.show_error("Erreur", "Le MIDI CC doit être valide (Nombre).")
+            CTkMessageBox.show_error(_("gui.msg_error"), _("gui.msg_midi_cc_invalid"))
             return None
 
         scan_code = None
@@ -732,6 +745,9 @@ class MappingDialog(ctk.CTkToplevel):
         
         type_choice = self.combo_type.get()
         action_type = "hotkey"
+        if type_choice == _("gui.type_command"): action_type = "command"
+        elif type_choice == _("gui.type_midi"): action_type = "midi"
+        
         action_val = ""
         
         # Output MIDI placeholders
@@ -752,26 +768,23 @@ class MappingDialog(ctk.CTkToplevel):
                  modifiers = self.initial_data.get("action_modifiers")
                  modifier_scan_codes = self.initial_data.get("action_modifier_scan_codes", [])
 
-        elif type_choice == "Commande Interne":
-            action_type = "command"
+        elif action_type == "command":
             action_val = self.entry_cmd.get()
-
-        elif type_choice == "Envoi MIDI":
-            action_type = "midi"
+        elif action_type == "midi":
             try:
                 out_ch = int(self.entry_midi_ch.get())
                 out_cc = int(self.entry_midi_cc.get())
                 out_val = int(self.entry_midi_val.get())
                 action_val = f"MIDI ch{out_ch} cc{out_cc} v{out_val}" # For display
             except:
-                CTkMessageBox.show_error("Erreur", "Valeurs MIDI invalides.")
+                CTkMessageBox.show_error(_("gui.msg_error"), _("gui.msg_midi_vals_invalid"))
                 return None
 
         icon_val = self.combo_icon.get()
-        custom_icon = icon_val if icon_val != "Auto" else None
+        custom_icon = icon_val if icon_val != _("gui.lbl_auto") else None
 
         return {
-            "name": self.entry_name.get() or "Sans nom",
+            "name": self.entry_name.get() or _("gui.lbl_no_name"),
             "midi_cc": cc,
             "midi_channel": 16, # Input Channel
             "trigger_value": "any",
@@ -804,7 +817,7 @@ class MappingDialog(ctk.CTkToplevel):
 class MidiKbdApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("MIDI-KBD Control Studio")
+        self.title(_("gui.main_title"))
         self.geometry("1000x750")
 
         self.tray_icon = None
@@ -936,38 +949,37 @@ class MidiKbdApp(ctk.CTk):
         self.logo_label.grid(row=0, column=0, padx=10, pady=(10, 5))
 
         # 2. MIDI Mode & Selector
-        self.lbl_mode = ctk.CTkLabel(self.sidebar_frame, text="Mode de Connexion :", anchor="w")
+        self.lbl_mode = ctk.CTkLabel(self.sidebar_frame, text=_("gui.lbl_conn_mode"), anchor="w")
         self.lbl_mode.grid(row=1, column=0, padx=20, pady=(5, 0), sticky="w")
 
-        self.mode_combo = ctk.CTkComboBox(self.sidebar_frame, values=["Windows (USB/Driver)", "Bluetooth (Direct)"], command=self.change_mode, height=24)
+        self.mode_combo = ctk.CTkComboBox(self.sidebar_frame, values=[_("gui.mode_usb"), _("gui.mode_ble")], command=self.change_mode, height=24)
         self.mode_combo.grid(row=2, column=0, padx=20, pady=(0, 5))
 
-        self.lbl_device = ctk.CTkLabel(self.sidebar_frame, text="Périphérique :", anchor="w")
+        self.lbl_device = ctk.CTkLabel(self.sidebar_frame, text=_("gui.lbl_device"), anchor="w")
         self.lbl_device.grid(row=3, column=0, padx=20, pady=(5, 0), sticky="w")
 
-        self.device_combo = ctk.CTkComboBox(self.sidebar_frame, values=["Recherche..."], command=self.change_midi_device, height=24)
+        self.device_combo = ctk.CTkComboBox(self.sidebar_frame, values=[_("gui.msg_searching")], command=self.change_midi_device, height=24)
         self.device_combo.grid(row=4, column=0, padx=20, pady=(0, 5))
 
-        self.btn_refresh = ctk.CTkButton(self.sidebar_frame, text="Rafraîchir", width=100, height=24, command=self.refresh_midi_ports)
+        self.btn_refresh = ctk.CTkButton(self.sidebar_frame, text=_("gui.btn_refresh"), width=100, height=24, command=self.refresh_midi_ports)
         self.btn_refresh.grid(row=5, column=0, padx=20, pady=5)
 
         # 3. Device & Settings
         self.settings_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
         self.settings_frame.grid(row=6, column=0, padx=10, pady=5)
-
-        self.btn_edit_device = ctk.CTkButton(self.settings_frame, text="⚙ Boutons", width=90, height=24, fg_color="#555", command=self.open_device_editor)
+        self.btn_edit_device = ctk.CTkButton(self.settings_frame, text=f"⚙ {_('gui.btn_buttons')}", width=90, height=24, fg_color="#555", command=self.open_device_editor)
 
         # Update text update logic
         if self.current_device_def:
             self.btn_edit_device.configure(text=f"⚙ {self.current_device_def['name'][:10]}")
         else:
-            self.btn_edit_device.configure(text="⚙ Configurer")
+            self.btn_edit_device.configure(text=f"⚙ {_('gui.btn_configure')}")
         
         # Missing Pack restored
         self.btn_edit_device.pack(side="left", padx=2)
 
         # Missing Settings Button restored
-        self.btn_settings = ctk.CTkButton(self.settings_frame, text="🛠 Réglages", width=90, height=24, fg_color="#555", command=self.open_settings)
+        self.btn_settings = ctk.CTkButton(self.settings_frame, text=f"🛠 {_('gui.btn_settings')}", width=90, height=24, fg_color="#555", command=self.open_settings)
         self.btn_settings.pack(side="left", padx=2)
 
         self.status_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
@@ -979,27 +991,26 @@ class MidiKbdApp(ctk.CTk):
 
         self.lbl_conn_led = ctk.CTkLabel(self.conn_frame, text="●", font=ctk.CTkFont(size=18), text_color="red")
         self.lbl_conn_led.pack(side="left", padx=(0, 5))
-
-        self.lbl_conn_text = ctk.CTkLabel(self.conn_frame, text="Déconnecté", font=ctk.CTkFont(size=12, weight="bold"))
+        self.lbl_conn_text = ctk.CTkLabel(self.conn_frame, text=_("gui.lbl_disconnected"), font=ctk.CTkFont(size=12, weight="bold"))
         self.lbl_conn_text.pack(side="left")
 
         # LCD Monitor
         self.monitor_frame = ctk.CTkFrame(self.status_frame, fg_color=("gray90", "gray20"), corner_radius=5)
         self.monitor_frame.pack(fill="x", pady=5)
 
-        self.lbl_monitor_cc = ctk.CTkLabel(self.monitor_frame, text="CC: --", font=ctk.CTkFont(family="Consolas", size=14, weight="bold"))
+        self.lbl_monitor_cc = ctk.CTkLabel(self.monitor_frame, text=f"{_('gui.lbl_monitor_cc')}: --", font=ctk.CTkFont(family="Consolas", size=14, weight="bold"))
         self.lbl_monitor_cc.pack(side="left", padx=10, pady=5)
 
-        self.lbl_monitor_ch = ctk.CTkLabel(self.monitor_frame, text="CH: --", font=ctk.CTkFont(family="Consolas", size=11))
+        self.lbl_monitor_ch = ctk.CTkLabel(self.monitor_frame, text=f"{_('gui.lbl_monitor_ch')}: --", font=ctk.CTkFont(family="Consolas", size=11))
         self.lbl_monitor_ch.pack(side="right", padx=10, pady=5)
 
         # Auto-Scan Switch
-        self.switch_scan = ctk.CTkSwitch(self.status_frame, text="Auto-Scan", command=self.toggle_scan, font=ctk.CTkFont(size=11), width=80, height=24)
+        self.switch_scan = ctk.CTkSwitch(self.status_frame, text=_("gui.lbl_auto_scan"), command=self.toggle_scan, font=ctk.CTkFont(size=11), width=80, height=24)
         self.switch_scan.select()
         self.switch_scan.pack(pady=(5, 0), anchor="w")
 
         # Theme Switch
-        self.theme_switch = ctk.CTkSwitch(self.status_frame, text="Mode Sombre", command=self.toggle_theme, font=ctk.CTkFont(size=11), width=80, height=24)
+        self.theme_switch = ctk.CTkSwitch(self.status_frame, text=_("gui.lbl_dark_mode"), command=self.toggle_theme, font=ctk.CTkFont(size=11), width=80, height=24)
 
         # Load theme setting
         current_theme = self.settings.get("theme", "Dark")
@@ -1018,14 +1029,14 @@ class MidiKbdApp(ctk.CTk):
         # 5. Startup
         is_startup = self.check_startup_status()
         self.startup_var = ctk.BooleanVar(value=is_startup)
-        self.chk_startup = ctk.CTkCheckBox(self.sidebar_frame, text="Lancer au démarrage", variable=self.startup_var, command=self.toggle_startup, font=ctk.CTkFont(size=12))
+        self.chk_startup = ctk.CTkCheckBox(self.sidebar_frame, text=_("gui.lbl_launch_at_startup"), variable=self.startup_var, command=self.toggle_startup, font=ctk.CTkFont(size=12))
         self.chk_startup.grid(row=9, column=0, padx=20, pady=10, sticky="w")
 
         # 6. Global Actions
-        self.btn_remote = ctk.CTkButton(self.sidebar_frame, text="Détacher Télécommande ⧉", command=self.open_remote_control, fg_color="#444", hover_color="#666", height=28)
+        self.btn_remote = ctk.CTkButton(self.sidebar_frame, text=_("gui.btn_detach_remote"), command=self.open_remote_control, fg_color="#444", hover_color="#666", height=28)
         self.btn_remote.grid(row=10, column=0, padx=20, pady=(10, 5))
 
-        self.save_button = ctk.CTkButton(self.sidebar_frame, text="Sauvegarder Tout", command=lambda: self.save_all(silent=False), fg_color="green", hover_color="darkgreen", height=28)
+        self.save_button = ctk.CTkButton(self.sidebar_frame, text=_("gui.btn_save_all"), command=lambda: self.save_all(silent=False), fg_color="green", hover_color="darkgreen", height=28)
         self.save_button.grid(row=11, column=0, padx=20, pady=(5, 20))
 
     def create_main_area(self):
@@ -1039,7 +1050,7 @@ class MidiKbdApp(ctk.CTk):
         self.profile_frame = ctk.CTkFrame(self, corner_radius=5)
         self.profile_frame.grid(row=0, column=1, padx=5, pady=(5, 1), sticky="ew")
 
-        ctk.CTkLabel(self.profile_frame, text="Profil :", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=(5, 2), pady=2)
+        ctk.CTkLabel(self.profile_frame, text=_("gui.lbl_profile", default="Profil :"), font=ctk.CTkFont(weight="bold")).pack(side="left", padx=(5, 2), pady=2)
 
         self.profile_combo = ctk.CTkComboBox(self.profile_frame, width=200, height=24, command=self.on_profile_change)
         self.profile_combo.pack(side="left", padx=2, pady=2)
@@ -1053,32 +1064,32 @@ class MidiKbdApp(ctk.CTk):
         self.btn_edit_profile = ctk.CTkButton(self.profile_frame, text="✎", width=24, height=24, fg_color="#555", hover_color="#777", command=self.edit_current_profile)
         self.btn_edit_profile.pack(side="left", padx=2, pady=2)
 
-        self.btn_del_profile = ctk.CTkButton(self.profile_frame, text="Suppr", width=40, height=24, fg_color="red", hover_color="darkred", command=self.delete_current_profile)
+        self.btn_del_profile = ctk.CTkButton(self.profile_frame, text=_("gui.btn_delete_short"), width=40, height=24, fg_color="red", hover_color="darkred", command=self.delete_current_profile)
         self.btn_del_profile.pack(side="left", padx=2, pady=2)
 
         # Shortcut Memo Button
-        self.btn_shortcuts = ctk.CTkButton(self.profile_frame, text="📝 Mémo", width=60, height=24, command=self.open_shortcuts_dialog)
+        self.btn_shortcuts = ctk.CTkButton(self.profile_frame, text=f"📝 {_('gui.btn_memo')}", width=60, height=24, command=self.open_shortcuts_dialog)
         self.btn_shortcuts.pack(side="right", padx=5, pady=2)
 
         # --- Zone 2: Règles de Détection ---
         self.rules_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.rules_frame.grid(row=1, column=1, padx=5, pady=(1, 5), sticky="ew")
 
-        ctk.CTkLabel(self.rules_frame, text="Règles :", width=60).grid(row=0, column=0, padx=(2,0), pady=1)
+        ctk.CTkLabel(self.rules_frame, text=_("gui.lbl_rules"), width=60).grid(row=0, column=0, padx=(2,0), pady=1)
 
-        self.entry_app_rule = ctk.CTkEntry(self.rules_frame, placeholder_text="Processus", height=24)
+        self.entry_app_rule = ctk.CTkEntry(self.rules_frame, placeholder_text=_("gui.placeholder_process"), height=24)
         self.entry_app_rule.grid(row=0, column=1, padx=2, sticky="ew")
 
-        self.btn_scan_app = ctk.CTkButton(self.rules_frame, text="Scan App", width=60, height=24, command=lambda: self.scan_window("app"))
+        self.btn_scan_app = ctk.CTkButton(self.rules_frame, text=_("gui.btn_scan_app"), width=60, height=24, command=lambda: self.scan_window("app"))
         self.btn_scan_app.grid(row=0, column=2, padx=2)
 
-        self.entry_title_rule = ctk.CTkEntry(self.rules_frame, placeholder_text="Titre (Optionnel)", height=24)
+        self.entry_title_rule = ctk.CTkEntry(self.rules_frame, placeholder_text=_("gui.placeholder_title_opt"), height=24)
         self.entry_title_rule.grid(row=0, column=3, padx=2, sticky="ew")
 
-        self.btn_scan_title = ctk.CTkButton(self.rules_frame, text="Scan Titre", width=60, height=24, command=lambda: self.scan_window("title"))
+        self.btn_scan_title = ctk.CTkButton(self.rules_frame, text=_("gui.btn_scan_title"), width=60, height=24, command=lambda: self.scan_window("title"))
         self.btn_scan_title.grid(row=0, column=4, padx=2)
 
-        self.entry_vol_rule = ctk.CTkEntry(self.rules_frame, placeholder_text="Vol. OS %", height=24, width=70)
+        self.entry_vol_rule = ctk.CTkEntry(self.rules_frame, placeholder_text=_("gui.placeholder_os_vol"), height=24, width=70)
         self.entry_vol_rule.grid(row=0, column=5, padx=2)
 
         self.rules_frame.grid_columnconfigure(1, weight=1)
@@ -1091,9 +1102,9 @@ class MidiKbdApp(ctk.CTk):
         self.mappings_header = ctk.CTkFrame(self, fg_color="transparent")
         self.mappings_header.grid(row=2, column=1, padx=5, pady=(2, 0), sticky="ew")
 
-        ctk.CTkLabel(self.mappings_header, text="Mappings", font=ctk.CTkFont(size=14, weight="bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(self.mappings_header, text=_("gui.lbl_mappings"), font=ctk.CTkFont(size=14, weight="bold")).pack(side="left", padx=5)
 
-        self.add_mapping_btn = ctk.CTkButton(self.mappings_header, text="+ Ajouter", width=70, height=24, command=self.open_add_dialog)
+        self.add_mapping_btn = ctk.CTkButton(self.mappings_header, text=f"+ {_('gui.btn_add')}", width=70, height=24, command=self.open_add_dialog)
         self.add_mapping_btn.pack(side="right", padx=5)
 
         # --- Zone 4: Liste des Mappings ---
@@ -1123,10 +1134,10 @@ class MidiKbdApp(ctk.CTk):
 
                     mode = self.settings.get("connection_mode", "MIDO")
                     if mode == "BLE": 
-                        self.mode_combo.set("Bluetooth (Direct)")
+                        self.mode_combo.set(_("gui.mode_ble"))
                         target = self.settings.get("midi_device_name_ble", self.settings.get("midi_device_name", ""))
                     else: 
-                        self.mode_combo.set("Windows (USB/Driver)")
+                        self.mode_combo.set(_("gui.mode_usb"))
                         target = self.settings.get("midi_device_name_usb", self.settings.get("midi_device_name", ""))
                         
                     self.device_combo.set(target)
@@ -1175,7 +1186,7 @@ class MidiKbdApp(ctk.CTk):
         port_name = self.device_combo.get()
         
         # If combo says "Recherche...", use the actual target for the current mode
-        if port_name in ["Recherche en cours...", "Recherche...", "Aucun", ""]:
+        if port_name in [_("gui.msg_searching_full"), _("gui.msg_searching"), _("gui.lbl_none"), ""]:
             mode = self.settings.get("connection_mode", "MIDO")
             if mode == "BLE":
                 port_name = self.settings.get("midi_device_name_ble", "")
@@ -1194,7 +1205,7 @@ class MidiKbdApp(ctk.CTk):
 
         # Absolute Last Resort: Hardcoded default
         if not new_def:
-            new_def = {"name": "Aucun Appareil", "buttons": []}
+            new_def = {"name": _("gui.lbl_no_device"), "buttons": []}
 
         self.current_device_def = new_def
         self.log_debug(f"Device Definition set to: {self.current_device_def.get('name')}")
@@ -1203,7 +1214,7 @@ class MidiKbdApp(ctk.CTk):
         if self.current_device_def:
             self.btn_edit_device.configure(text=f"⚙ {self.current_device_def['name']}")
         else:
-            self.btn_edit_device.configure(text="⚙ Configurer")
+            self.btn_edit_device.configure(text=f"⚙ {_('gui.btn_configure')}")
 
     def open_device_editor(self):
         DeviceEditorDialog(self, self.device_manager, self.current_device_def, self.on_device_saved)
@@ -1371,7 +1382,7 @@ class MidiKbdApp(ctk.CTk):
 
     # --- Actions Profils ---
     def create_new_profile(self):
-        dialog = ctk.CTkInputDialog(text="Nom du profil (ex: Reaper) :", title="Nouveau Profil")
+        dialog = ctk.CTkInputDialog(text=_("gui.msg_profile_name"), title=_("gui.title_new_profile"))
         name = dialog.get_input()
         if name:
             self.create_profile_by_name(name)
@@ -1406,7 +1417,7 @@ class MidiKbdApp(ctk.CTk):
 
         old_name = self.current_profile["name"]
 
-        dialog = ctk.CTkInputDialog(text="Nom du nouveau profil :", title="Dupliquer Profil")
+        dialog = ctk.CTkInputDialog(text=_("gui.msg_new_profile_name"), title=_("gui.title_dup_profile"))
 
         new_name = dialog.get_input()
         if not new_name: return
@@ -1414,7 +1425,7 @@ class MidiKbdApp(ctk.CTk):
         # Check if exists
         for p in self.profiles:
             if p["name"] == new_name:
-                CTkMessageBox.show_error("Erreur", "Un profil avec ce nom existe déjà.")
+                CTkMessageBox.show_error(_("gui.msg_error"), _("gui.msg_profile_exists"))
                 return
 
         # Deep copy manually
@@ -1426,7 +1437,7 @@ class MidiKbdApp(ctk.CTk):
             self.profiles = self.profile_manager.load_all_profiles()
             self.update_profile_combo()
             self.select_profile_by_name(new_name)
-            CTkMessageBox.show_info("Succès", f"Profil dupliqué : {new_name}")
+            CTkMessageBox.show_info(_("gui.msg_success"), f"{_('gui.msg_profile_duplicated')} : {new_name}")
 
     def edit_current_profile(self):
         if not self.current_profile: return
@@ -1439,7 +1450,7 @@ class MidiKbdApp(ctk.CTk):
         if new_name != old_name:
             for p in self.profiles:
                 if p["name"] == new_name:
-                    CTkMessageBox.show_error("Erreur", "Un profil avec ce nom existe déjà.")
+                    CTkMessageBox.show_error(_("gui.msg_error"), _("gui.msg_profile_exists"))
                     return
         
         self.current_profile["name"] = new_name
@@ -1458,7 +1469,7 @@ class MidiKbdApp(ctk.CTk):
     def delete_current_profile(self):
         if not self.current_profile: return
         name = self.current_profile["name"]
-        if CTkMessageBox.ask_yes_no("Confirmer", f"Supprimer le profil '{name}' et tous ses mappings ?"):
+        if CTkMessageBox.ask_yes_no(_("gui.msg_confirm"), f"{_('gui.msg_delete_profile')} '{name}'?"):
             self.profile_manager.delete_profile(name)
             self.profiles = self.profile_manager.load_all_profiles()
             self.update_profile_combo()
@@ -1493,7 +1504,7 @@ class MidiKbdApp(ctk.CTk):
         try:
             if not self.current_profile:
                  self.log_debug("No profile selected")
-                 CTkMessageBox.show_info("Attention", "Aucun profil sélectionné.")
+                 CTkMessageBox.show_info(_("gui.msg_warning"), _("gui.msg_no_profile_selected"))
                  return
 
             # PAUSE MONITORING to prevent conflict
@@ -1524,7 +1535,7 @@ class MidiKbdApp(ctk.CTk):
             if hasattr(self, 'context_monitor') and self.context_monitor:
                 self.context_monitor.pause_monitoring(False)
             
-            CTkMessageBox.show_error("Erreur", f"Erreur lors de l'ouverture:\n{e}")
+            CTkMessageBox.show_error(_("gui.msg_error"), f"{_('gui.msg_open_error')}:\n{e}")
 
     def on_mapping_dialog_close(self, dialog):
         # RESUME MONITORING
@@ -1603,15 +1614,15 @@ class MidiKbdApp(ctk.CTk):
             for k, v in self.settings.items():
                 cm.set(k, v)
         except Exception as e:
-            if not silent: CTkMessageBox.show_error("Erreur", f"Erreur Config: {e}")
+            if not silent: CTkMessageBox.show_error(_("gui.msg_error"), f"{_('gui.msg_config_error')}: {e}")
             return
 
         try:
             for p in self.profiles:
                 self.profile_manager.save_profile(p)
-            if not silent: CTkMessageBox.show_info("Succès", "Configuration sauvegardée !")
+            if not silent: CTkMessageBox.show_info(_("gui.msg_success"), _("gui.msg_config_saved"))
         except Exception as e:
-            if not silent: CTkMessageBox.show_error("Erreur", f"Erreur Profils: {e}")
+            if not silent: CTkMessageBox.show_error(_("gui.msg_error"), f"{_('gui.msg_profiles_error')}: {e}")
 
     # --- Remote Control ---
     def toggle_remote_control(self):
@@ -1630,7 +1641,7 @@ class MidiKbdApp(ctk.CTk):
 
     def open_remote_control(self):
         if not self.current_device_def:
-            CTkMessageBox.show_error("Erreur", "Aucune définition d'appareil chargée.")
+            CTkMessageBox.show_error(_("gui.msg_error"), _("gui.msg_no_device_def"))
             return
 
         # Singleton Check
@@ -1827,10 +1838,10 @@ class MidiKbdApp(ctk.CTk):
         self.midi_manager.force_rescan()
         
         # UI Feedback
-        self.log_debug("Updating UI to 'Recherche in cours...'")
-        self.device_combo.set("Recherche en cours...")
+        self.log_debug(f"Updating UI to '{_('gui.msg_searching_full')}'")
+        self.device_combo.set(_("gui.msg_searching_full"))
         self.device_combo.configure(state="disabled")
-        self.btn_refresh.configure(state="disabled", text="Scan...")
+        self.btn_refresh.configure(state="disabled", text=f"{_('gui.btn_scan_short')}...")
 
         # Schedule Finalization based on Mode
         mode = self.settings.get("connection_mode", "MIDO")
@@ -1858,7 +1869,7 @@ class MidiKbdApp(ctk.CTk):
         # --- FINALIZATION ---
         # Restore UI State
         self.device_combo.configure(state="normal")
-        self.btn_refresh.configure(state="normal", text="Rafraîchir")
+        self.btn_refresh.configure(state="normal", text=_("gui.btn_refresh"))
 
         # SMART COMBOBOX HANDLING
         # Retrieve the intended target for the CURRENT mode
@@ -1875,7 +1886,7 @@ class MidiKbdApp(ctk.CTk):
         
         # --- SMART INDEX MATCHING (GUI) ---
         # If the exact target is missing, check if there is a version with a different trailing number
-        if target_name and target_name not in display_ports and target_name != "Aucun":
+        if target_name and target_name not in display_ports and target_name != _("gui.lbl_none"):
             import re
             base_target = re.sub(r'\s*\d+$', '', target_name).strip()
             if base_target:
@@ -1903,14 +1914,14 @@ class MidiKbdApp(ctk.CTk):
 
         # --- LIST INJECTION ---
         # If still not found, inject it visually so user knows what we are looking for
-        if target_name and target_name not in display_ports and target_name != "Aucun":
+        if target_name and target_name not in display_ports and target_name != _("gui.lbl_none"):
             if mode == "BLE":
                 display_ports.insert(0, target_name) # Add text only
             elif target_name not in display_ports:
                  display_ports.insert(0, target_name)
 
         if not display_ports:
-            display_ports = ["Aucun"]
+            display_ports = [_("gui.lbl_none")]
 
         self.device_combo.configure(values=display_ports)
         
@@ -1928,17 +1939,17 @@ class MidiKbdApp(ctk.CTk):
 
         # --- DIAGNOSTIC POPUP (ONLY IF NOT SILENT) ---
         if not silent:
-            info = f"Mode Actuel : {mode}\n\n"
+            info = f"{_('gui.lbl_current_mode')} : {mode}\n\n"
             if ports:
-                info += f"{len(ports)} Appareil(s) détecté(s) :\n" + "\n".join([f"- {p}" for p in ports])
+                info += f"{len(ports)} {_('gui.msg_devices_found')} :\n" + "\n".join([f"- {p}" for p in ports])
             else:
-                info += "Aucun appareil détecté.\n"
+                info += f"{_('gui.msg_no_device_found')}.\n"
                 if mode == "BLE":
-                    info += "Vérifiez le Bluetooth et l'alimentation.\n(Le scan BLE peut prendre encore quelques secondes)."
+                    info += f"{_('gui.msg_check_ble')}.\n({_('gui.msg_ble_delay')})."
                 else:
-                    info += "Vérifiez le câble USB."
+                    info += f"{_('gui.msg_check_usb')}."
 
-            CTkMessageBox.show_info("Diagnostic Connexion", info)
+            CTkMessageBox.show_info(_("gui.title_diag"), info)
 
     def change_midi_device(self, choice):
         if not choice: return
@@ -1960,7 +1971,7 @@ class MidiKbdApp(ctk.CTk):
         self.update_device_def()
 
         # Feedback UI
-        self.lbl_conn_text.configure(text=f"Connexion à {choice}...")
+        self.lbl_conn_text.configure(text=f"{_('gui.msg_connecting_to')} {choice}...")
         self.lbl_conn_led.configure(text_color="orange")
         self.update_idletasks() # Force UI Update
 
@@ -2042,7 +2053,7 @@ class MidiKbdApp(ctk.CTk):
             self.lbl_conn_text.configure(text=f"{dev_name} ({mode_str})")
         else:
             self.lbl_conn_led.configure(text_color="red")
-            self.lbl_conn_text.configure(text="Déconnecté")
+            self.lbl_conn_text.configure(text=_("gui.lbl_disconnected"))
 
     def check_startup_status(self):
         startup_dir = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
@@ -2062,7 +2073,7 @@ class MidiKbdApp(ctk.CTk):
                 with open(self.startup_bat, "w") as f:
                     f.write(content)
             except Exception as e:
-                CTkMessageBox.show_error("Erreur", f"Erreur démarrage auto: {e}")
+                CTkMessageBox.show_error(_("gui.msg_error"), f"{_('gui.msg_startup_error')}: {e}")
         else:
             if os.path.exists(self.startup_bat):
                 try: os.remove(self.startup_bat)
@@ -2075,11 +2086,11 @@ class MidiKbdApp(ctk.CTk):
                 # Use the robust path directly
                 image = Image.open(ICON_PNG_PATH)
                 menu = pystray.Menu(
-                    pystray.MenuItem("Télécommande", self.open_remote_from_tray, default=True),
-                    pystray.MenuItem("Configuration", self.open_conf_from_tray),
-                    pystray.MenuItem("Interface Web", self.open_web),
+                    pystray.MenuItem(_("gui.menu_remote"), self.open_remote_from_tray, default=True),
+                    pystray.MenuItem(_("gui.menu_config"), self.open_conf_from_tray),
+                    pystray.MenuItem(_("gui.menu_web"), self.open_web),
                     pystray.Menu.SEPARATOR,
-                    pystray.MenuItem("Quitter", self.quit_app)
+                    pystray.MenuItem(_("gui.menu_quit"), self.quit_app)
                 )
                 self.tray_icon = pystray.Icon("MidiKbdControlStudio", image, "Midi-Kbd Control Studio", menu)
                 self.tray_icon.run()

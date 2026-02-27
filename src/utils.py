@@ -27,3 +27,13 @@ def get_data_dir():
         except Exception as e:
             print(f"Error creating data dir: {e}")
     return data_dir
+
+def get_resource_path(relative_path):
+    """
+    Finds resource files in both Dev and PyInstaller EXE.
+    - Dev: returns path relative to project root.
+    - EXE: returns path inside the temporary _MEIPASS folder.
+    """
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(get_app_dir(), relative_path)

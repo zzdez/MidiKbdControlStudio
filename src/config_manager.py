@@ -53,6 +53,10 @@ class ConfigManager:
             if os.path.exists(default_path):
                 return [default_path]
             return []
+            
+        # Specific Default for language
+        if key == "language":
+            return "fr"
 
         # 3. Default
         return default
