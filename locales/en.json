@@ -190,6 +190,20 @@
         "placeholder_youtube_api": "Leave empty for no key...",
         "hint_youtube_api": "<strong>Optional:</strong> This free key allows automatic retrieval of titles, descriptions, and thumbnails when adding a YouTube link. If no key is provided, <strong>video playback and MIDI pedalboard will work perfectly</strong>, but you will have to type titles manually.",
         "link_get_api_key": "Get a free API key ↗",
+        "btn_restart": "Restart",
+        "btn_prev": "-5s",
+        "btn_next": "+5s",
+        "btn_chapter_prev": "Previous Chapter",
+        "btn_chapter_next": "Next Chapter",
+        "hint_loop_a": "Set Point A",
+        "hint_loop_b": "Set Point B",
+        "hint_loop_prev": "Previous Loop",
+        "hint_loop_toggle": "Enable/Disable Loop",
+        "hint_loop_next": "Next Loop",
+        "hint_loop_save": "Save Loop",
+        "hint_subs_toggle": "Show/Hide Subtitles",
+        "hint_mute": "Mute/Unmute",
+        "hint_pitch": "Enable Audio DSP (Pitch)",
         "hint_api_target": "(Target: \"YouTube Data API v3\")",
         "lbl_local_folders": "Local Folders",
         "btn_add_folder_list": "+ Add Folder",
@@ -254,6 +268,11 @@
         "default_genre": "Miscellaneous",
         "opt_auto_recommended": "Auto (Recommended)",
         "opt_auto": "Auto",
-        "msg_url_required": "URL is required."
+        "msg_url_required": "URL is required.",
+        "tab_local": "Local Files",
+        "tab_apps": "Applications",
+        "hint_sub_pos": "Subtitle Height",
+        "hint_musicbrainz": "Search on MusicBrainz",
+        "msg_api_info": "<strong>Optional:</strong> This free key allows automatic retrieval of titles, descriptions, and thumbnails when adding a YouTube link. If no key is provided, <strong>video playback and MIDI pedalboard will work perfectly</strong>, but you will have to type titles manually."
     }
 }
