@@ -16,6 +16,13 @@ class NullWriter:
 if sys.stdout is None: sys.stdout = NullWriter()
 if sys.stderr is None: sys.stderr = NullWriter()
 
+# --- FORCE MIDI BACKEND ---
+# Globals
+# (Removed the forced MIDO_BACKEND to allow standard auto-selection which worked for LoopMIDI)
+
+if sys.stdout is None: sys.stdout = NullWriter()
+if sys.stderr is None: sys.stderr = NullWriter()
+
 # --- FIX CHEMINS ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path: sys.path.insert(0, current_dir)
@@ -25,8 +32,8 @@ if current_dir not in sys.path: sys.path.insert(0, current_dir)
 # Note: sys.path hack above ensures we can import modules directly
 from server import app as fastapi_app
 from config_manager import ConfigManager
-from config_manager import ConfigManager
-from gui import AirstepApp
+from gui import MidiKbdApp
+from utils import get_app_dir
 
 # Globals
 server_thread = None
@@ -50,18 +57,23 @@ def main():
     print("conformément aux lois sur la copie privée et aux droits d'auteur de son pays.")
 
     # 0. Light Mode Detection
-    light_mode_flag = os.path.join(os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.getcwd(), "light_mode.flag")
-    is_light_mode = os.path.exists(light_mode_flag)
+    light_mode_flag = os.path.join(get_app_dir(), "light_mode.flag")
+    is_light_mode = os.path.exists(light_mode_flag) or os.environ.get("LIGHT_MODE") == "1"
 
     if is_light_mode:
         print(">>> MODE LIGHT ACTIVE (Serveur Web & Context Monitor DESACTIVES) <<<")
 
-    # 1. Config
+    # 1. Config & i18n
     config = ConfigManager()
     port = int(config.get("app_port", 8000))
+    
+    from i18n import i18n
+    lang = config.get("language", "fr")
+    i18n.export_locales()
+    i18n.set_language(lang)
 
     # 2. Interface Graphique (GUI) - Doit être créée dans le Main Thread
-    app = AirstepApp()
+    app = MidiKbdApp()
     
     if is_light_mode:
         # Mode Light : On ouvre directement la Remote et on affiche le Tray
@@ -87,15 +99,15 @@ def main():
         server_thread.start()
         print("Serveur Web démarré.")
     
-        # Context Monitor start is inside AirstepApp.__init__. 
+        # Context Monitor start is inside MidiKbdApp.__init__. 
         # We need to STOP it if light mode.
         if hasattr(app, 'context_monitor') and app.context_monitor:
             # Note: ContextMonitor was started in app.__init__. We should stop it here.
             # Better architecture would be to start it here, but checking existing code...
-            # It IS started in AirstepApp.__init__.
+            # It IS started in MidiKbdApp.__init__.
              pass 
     else:
-        # Stop the monitor that started automatically in AirstepApp
+        # Stop the monitor that started automatically in MidiKbdApp
         if hasattr(app, 'context_monitor') and app.context_monitor:
             print("Arrêt du ContextMonitor pour Light Mode.")
             app.context_monitor.stop()
@@ -216,39 +228,14 @@ def main():
     fastapi_app.state.select_file_callback = select_file_wrapper
 
     # 2e. State Injection (Profiles, Context, Action Handler)
-    # WARNING: app.action_handler might be initialized but ContextMonitor is created implicitly or needs access
-    # AirstepApp creates ActionHandler, but where is ContextMonitor? 
-    # Checking gui.py AirstepApp init...
-    # It seems AirstepApp doesn't store context_monitor in self.
-    # Wait, ContextMonitor is usually part of ActionHandler or separate?
-    # In src/context_monitor.py it takes action_handler.
-    # I need to create it or access it.
-    # Looking at gui.py imports... no ContextMonitor usage inside AirstepApp?
-    # Wait, RemoteControl uses it?
-    # Actually, the user requirement is that server.py calls context_monitor.set_manual_override.
-    # So it MUST exist.
-    # If AirstepApp doesn't create it, I must create it here or inside AirstepApp.
-    # Let's check gui.py again: AirstepApp creates ActionHandler.
-    # But does it create ContextMonitor?
-    # I didn't see it in AirstepApp.__init__.
-    # BUT, the remote_win creates a monitor loop `_monitor_remote_context`.
-    # That is NOT the real ContextMonitor class.
-    # The real ContextMonitor is a Thread.
-    # If it is missing from the app, I must add it to AirstepApp!
-    
-    # Let's assume for now I add it to AirstepApp (I will do that in next step).
-    # Here I just wire it assuming it exists.
     fastapi_app.state.profile_manager = app.profile_manager
     fastapi_app.state.action_handler = app.action_handler
     
-    # We will instantiate ContextMonitor in AirstepApp and expose it.
     if hasattr(app, 'context_monitor'):
         fastapi_app.state.context_monitor = app.context_monitor
 
-
-
-    # 4. MIDI Engine is now managed by AirstepApp internally automatically.
-    # See AirstepApp.start_engine() and AirstepApp.__init__()
+    # 4. MIDI Engine is now managed by MidiKbdApp internally automatically.
+    # See MidiKbdApp.start_engine() and MidiKbdApp.__init__()
 
 
     # 5. Ouverture Navigateur (Désactivé : Mode Service)

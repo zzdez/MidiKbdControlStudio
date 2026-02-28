@@ -179,3 +179,13 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **Héritage Dynamique :** Lors du chargement d'une nouvelle vidéo locale, si aucune position n'est assignée dans le fichier JSON (`subtitle_pos_y`), le lecteur injecte par défaut la hauteur préférée globale à la place de la valeur statique de `80%`.
 *   **Isolation des Lecteurs :**
     *   **Flush State :** La fonction `playTrack()` a été durcie. Le moteur natif iframe (YouTube CC) et le moteur de sous-titres Airstep.js sont strictement isolés (flush des tableaux `currentSubtitles` et masquage du bouton UI) pour prévenir les « fuites » de texte d'une vidéo locale vers un stream.
+
+### 18. Évolution V12 : Persistance Absolue & MIDI Smart Matching
+*   **Path Persistence (`utils.py`) :**
+    *   **Dossier Agnostique :** Centralisation via `get_app_dir()` pour garantir que le dossier de données (`config.json`, `profiles/`, `devices/`, `library.json`, etc.) réside **toujours** à côté de l'exécutable PyInstaller (`sys.executable`), même si l'application est lancée depuis un raccourci bureau qui modifie le CWD (Current Working Directory).
+    *   **Sécurité des Données :** Suppression stricte des accès par chemins relatifs dans tous les managers (`config_manager.py`, `profile_manager.py`, `device_manager.py`, `library_manager.py`, `server.py`).
+*   **Smart Matching MIDI Output (`midi_engine.py`) :**
+    *   **Résolution Dynamique :** Le moteur est désormais capable de se reconnecter automatiquement à un port de sortie renommé par Windows MM. Si "Midi 1" est déconnecté puis redétecté comme "Midi 2", le moteur retire le suffixe numérique, matche la racine "Midi", se connecte, et **met à jour la configuration silencieusement** pour préserver la case cochée dans GUI.
+    *   **Ghost Config Fix :** La mémoire tampon de l'interface `self.settings` ne subit plus de dérive (drift) lors des appels `save_all`. Les ports d'E/S actifs sont strictement synchronisés dynamiquement avant chaque sauvegarde, évitant l'écrasement intempestif par un `config.json` vide.
+*   **Mode "Light" Agnostique (`main.py`) :**
+    *   Le système de `.flag` (Désactivation Web/Moniteur de Focus) est désormais robuste et fonctionne n'importe où grâce à l'implémentation de `get_app_dir()`. De plus, le `.env` de sécurité YouTube obsolète a été banni de l'UI.

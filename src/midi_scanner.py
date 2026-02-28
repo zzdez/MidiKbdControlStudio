@@ -1,5 +1,7 @@
 import mido
 import time
+import os
+from utils import get_app_dir
 
 def scan_loop(queue, interval=0.5):
     """
@@ -8,7 +10,8 @@ def scan_loop(queue, interval=0.5):
     """
     # Log startup
     try:
-        with open("debug.log", "a", encoding="utf-8") as f:
+        log_path = os.path.join(get_app_dir(), "debug.log")
+        with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"[SCANNER] Starting Subprocess loop (Interval={interval}s)...\n")
     except: pass
 
@@ -34,7 +37,8 @@ def scan_loop(queue, interval=0.5):
             queue.put(ports)
         except Exception as e:
             try:
-                with open("debug.log", "a", encoding="utf-8") as f:
+                log_path = os.path.join(get_app_dir(), "debug.log")
+                with open(log_path, "a", encoding="utf-8") as f:
                    f.write(f"[SCANNER] Error: {e}\n")
             except: pass
             

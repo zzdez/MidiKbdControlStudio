@@ -18,11 +18,13 @@ import mutagen
 import time
 import logging # Ensure logging is imported if not already, though it seems used elsewhere
 import base64
+from utils import get_app_dir, get_data_dir
+from i18n import _
 # Mutagen imports removed as they are now in metadata_service
 
 # Configure Logging
 logging.basicConfig(
-    filename='airstep_debug.log',
+    filename=os.path.join(get_app_dir(), 'midikbd_debug.log'),
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
@@ -42,9 +44,9 @@ app = FastAPI()
 library_manager = LibraryManager()
 metadata_service = MetadataService()
 download_service = DownloadService()
-SETLIST_FILE = "setlist.json"
-APPS_FILE = "apps.json"
-LOCAL_LIB_FILE = "local_lib.json"
+SETLIST_FILE = os.path.join(get_data_dir(), "setlist.json")
+APPS_FILE = os.path.join(get_data_dir(), "apps.json")
+LOCAL_LIB_FILE = os.path.join(get_data_dir(), "local_lib.json")
 
 app.add_middleware(
     CORSMiddleware,
@@ -291,7 +293,7 @@ async def get_status():
 
     return {
         "status": "ok",
-        "device_name": config_manager.get("midi_device_name", "Aucun"),
+        "device_name": config_manager.get("midi_device_name", _("web.none")),
         "connection_mode": config_manager.get("connection_mode", "MIDO"),
         "is_connected": is_connected,
         "active_profile_name": active_profile_name
@@ -325,7 +327,7 @@ async def get_setlist():
             migrated = False
             for item in items:
                 if "category" not in item:
-                    item["category"] = "Général"
+                    item["category"] = _("web.none") # Use "None" or a key
                     migrated = True
 
             if migrated:
@@ -403,7 +405,7 @@ async def add_to_setlist(item: Dict):
             "open_mode": open_mode,
             "profile_name": profile_name,
             "category": category,
-            "genre": item.get("genre", "Divers"),
+            "genre": item.get("genre", _("web.none")),
             "artist": item.get("artist", ""),
             "channel": item.get("channel", ""),
             "thumbnail": item.get("thumbnail", ""),
@@ -460,9 +462,8 @@ async def update_setlist_item(index: int, item: Dict):
             url = item.get("url", "")
             manual_mode = item.get("manual_mode", "auto")
             target_profile = item.get("target_profile", "Auto")
-            category = item.get("category", "Général")
-            title = item.get("title", "Sans titre")
-
+            category = item.get("category", _("web.none"))
+            title = item.get("title", _("web.none"))
             if not url:
                 raise HTTPException(status_code=400, detail="URL is required")
 
@@ -502,7 +503,7 @@ async def update_setlist_item(index: int, item: Dict):
                 "open_mode": open_mode,
                 "profile_name": profile_name,
                 "category": category,
-                "genre": item.get("genre", "Divers"),
+                "genre": item.get("genre", _("web.none")),
                 "artist": item.get("artist", ""),
                 "channel": item.get("channel", ""),
                 "thumbnail": item.get("thumbnail", ""),
@@ -575,8 +576,26 @@ async def get_settings():
         "YOUTUBE_API_KEY": config_manager.get("YOUTUBE_API_KEY", ""),
         "media_folders": config_manager.get("media_folders", []),
         "midi_output_names": config_manager.get("midi_output_names", []),
-        "midi_output_name": config_manager.get("midi_output_name", "") # Legacy fallback
+        "midi_output_name": config_manager.get("midi_output_name", ""), # Legacy fallback
+        "language": config_manager.get("language", "fr")
     }
+
+@app.get("/api/locales/{lang}")
+async def get_locale(lang: str):
+    try:
+        from utils import get_app_dir, get_resource_path
+        # 1. Try external
+        path = os.path.join(get_app_dir(), "locales", f"{lang}.json")
+        if not os.path.exists(path):
+            # 2. Try internal bundle
+            path = get_resource_path(os.path.join("locales", f"{lang}.json"))
+            
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {"error": "Locale not found"}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/api/settings")
 async def update_settings(settings: Dict):

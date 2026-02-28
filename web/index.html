@@ -17,22 +17,24 @@
     <header>
         <div class="logo" style="display: flex; align-items: center; gap: 15px;">
             <img src="/assets/logo.png" alt="MidiKbd Control Studio" id="main-logo">
-            <span id="header-device-status" style="font-size: 0.85em; color: #888; font-weight: normal;">○ En
+            <span id="header-device-status" data-i18n="web.status_waiting"
+                style="font-size: 0.85em; color: #888; font-weight: normal;">○ En
                 attente...</span>
         </div>
         <div class="status-bar"
             style="display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; min-width: max-content;">
             <button id="btn-remote-native" class="btn-icon" onclick="toggleNativeRemote()"
-                title="Afficher/Masquer la télécommande flottante" style="margin-right: 5px;">
+                data-i18n-title="web.btn_remote" title="Afficher/Masquer la télécommande flottante"
+                style="margin-right: 5px;">
                 <i class="ph ph-device-mobile"></i>
             </button>
             <button id="btn-toggle-theater" class="btn-icon" onclick="toggleTheaterMode()"
-                title="Mode Plein Écran (Théâtre)" style="margin-right: 5px;">
+                data-i18n-title="web.btn_theater" title="Mode Plein Écran (Théâtre)" style="margin-right: 5px;">
                 <i class="ph ph-corners-out"></i>
             </button>
             <span id="active-profile" style="white-space: nowrap; font-size: 0.9em; color: #ccc;">Profil : Global</span>
-            <button id="btn-settings" class="btn-icon" onclick="openSettingsModal()" title="Paramètres"
-                style="margin-left: 5px;">
+            <button id="btn-settings" class="btn-icon" onclick="openSettingsModal()" data-i18n-title="web.btn_settings"
+                title="Paramètres" style="margin-left: 5px;">
                 <i class="ph ph-gear"></i>
             </button>
         </div>
@@ -100,9 +102,10 @@
                     onerror="this.style.display='none'">
 
                 <div id="audio-meta-display" style="text-align:center; margin-bottom:10px;">
-                    <div id="audio-title" style="font-size:1.5em; font-weight:bold; color:white;">Titre</div>
-                    <div id="audio-artist" style="font-size:1em; color:#bbb;">Artiste</div>
-                    <div id="audio-album" style="font-size:0.8em; color:#888;">Album</div>
+                    <div id="audio-title" data-i18n="web.lbl_title"
+                        style="font-size:1.5em; font-weight:bold; color:white;">Titre</div>
+                    <div id="audio-artist" data-i18n="web.lbl_artist" style="font-size:1em; color:#bbb;">Artiste</div>
+                    <div id="audio-album" data-i18n="web.lbl_album" style="font-size:0.8em; color:#888;">Album</div>
                 </div>
                 <div id="audio-waveform-container" style="position:relative; width:90%; height:100px;">
                     <div id="waveform" style="width:100%; height:100%;"></div>
@@ -126,31 +129,32 @@
                 <!-- On Screen Controls -->
                 <!-- On Screen Controls -->
                 <div class="audio-controls media-controls-bar">
-                    <button class="control-btn" onclick="audioControl('restart')" title="Restart"><i
-                            class="ph ph-arrow-counter-clockwise"></i></button>
-                    <button class="control-btn" onclick="audioControl('prev')" title="-5s"><i
-                            class="ph ph-rewind"></i></button>
+                    <button class="control-btn" onclick="audioControl('restart')" title="Restart"
+                        data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
+                    <button class="control-btn" onclick="audioControl('prev')" title="-5s"
+                        data-i18n-title="web.btn_prev"><i class="ph ph-rewind"></i></button>
 
                     <button class="control-btn control-btn-large" onclick="audioControl('playpause')"
-                        title="Lecture/Pause">
+                        data-i18n-title="web.btn_playpause" title="Lecture/Pause">
                         <i id="btn-audio-play-toggle" class="ph ph-play-circle ph-fill"></i>
                     </button>
 
-                    <button class="control-btn" onclick="audioControl('next')" title="+5s"><i
-                            class="ph ph-fast-forward"></i></button>
+                    <button class="control-btn" onclick="audioControl('next')" title="+5s"
+                        data-i18n-title="web.btn_next"><i class="ph ph-fast-forward"></i></button>
 
                     <div class="speed-pill">
-                        <button onclick="audioControl('speed_down')" title="Ralentir"><i
+                        <button onclick="audioControl('speed_down')" data-i18n-title="web.btn_slow" title="Ralentir"><i
                                 class="ph ph-minus"></i></button>
                         <span id="btn-audio-speed" class="speed-display">1.0x</span>
-                        <button onclick="audioControl('speed_up')" title="Accélérer"><i class="ph ph-plus"></i></button>
+                        <button onclick="audioControl('speed_up')" data-i18n-title="web.btn_fast" title="Accélérer"><i
+                                class="ph ph-plus"></i></button>
                     </div>
 
                     <!-- Pitch Control (Compact) -->
                     <div class="pitch-pill"
                         style="display:flex; align-items:center; gap:6px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
                         <input type="checkbox" id="pitch-enable-toggle" onchange="togglePitchEngine(this.checked)"
-                            title="Activer DSP">
+                            title="Activer DSP" data-i18n-title="web.hint_pitch">
                         <i class="ph ph-wave-sine" style="color:#aaa; font-size:1.1em;" title="Pitch"></i>
                         <input type="range" id="pitch-slider" min="-6" max="6" step="0.1" value="0" disabled
                             style="width:60px; height:4px;" oninput="updatePitch(this.value)">
@@ -165,10 +169,10 @@
                         style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
                         <i id="audio-mute-icon" class="ph ph-speaker-high"
                             style="color:#888; font-size:1em; cursor:pointer;" title="Mute/Unmute"
-                            onclick="toggleMute('audio')"></i>
+                            data-i18n-title="web.hint_mute" onclick="toggleMute('audio')"></i>
                         <input type="range" id="audio-volume" min="0" max="1" step="0.01" value="1"
-                            style="width:50px; height:4px;"
-                            oninput="if(wavesurfer) wavesurfer.setVolume(this.value); document.getElementById('audio-volume-percent').innerText = Math.round(this.value * 100) + '%';">
+                            style="width:80px; height:4px;"
+                            oninput="updateAudioVolume(this.value); document.getElementById('audio-volume-percent').innerText = Math.round(this.value * 100) + '%'; syncVolumeToModals(Math.round(this.value * 100));">
                         <span id="audio-volume-percent"
                             style="font-size:0.75em; color:#aaa; min-width:28px; text-align:right;">100%</span>
                     </div>
@@ -177,25 +181,29 @@
                     <div
                         style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left: 5px;">
                         <button class="control-btn" id="btn-loop-a-audio" onclick="setLoopA()" title="Définir Point A"
+                            data-i18n-title="web.hint_loop_a"
                             style="font-weight:bold; font-size:0.9em; padding:2px 6px;">A</button>
                         <button class="control-btn" id="btn-loop-b-audio" onclick="setLoopB()" title="Définir Point B"
+                            data-i18n-title="web.hint_loop_b"
                             style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
 
                         <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
 
                         <button class="control-btn" id="btn-loop-prev-audio" onclick="navigateLoop(-1)"
-                            title="Boucle Précédente" style="display:none; padding:2px 2px;"><i
-                                class="ph ph-skip-back"></i></button>
+                            title="Boucle Précédente" data-i18n-title="web.hint_loop_prev"
+                            style="display:none; padding:2px 2px;"><i class="ph ph-skip-back"></i></button>
                         <button class="control-btn" id="btn-loop-toggle-audio" onclick="toggleLoopState()"
-                            title="Activer/Désactiver" style="display:none; padding:2px 4px; color:var(--accent);"><i
+                            title="Activer/Désactiver" data-i18n-title="web.hint_loop_toggle"
+                            style="display:none; padding:2px 4px; color:var(--accent);"><i
                                 class="ph ph-repeat"></i></button>
                         <button class="control-btn" id="btn-loop-next-audio" onclick="navigateLoop(1)"
-                            title="Boucle Suivante" style="display:none; padding:2px 2px;"><i
-                                class="ph ph-skip-forward"></i></button>
+                            title="Boucle Suivante" data-i18n-title="web.hint_loop_next"
+                            style="display:none; padding:2px 2px;"><i class="ph ph-skip-forward"></i></button>
 
                         <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
                         <button class="control-btn" id="btn-loop-save-audio" onclick="openLoopModal()"
-                            title="Sauvegarder Boucle" style="display:none; padding:2px 4px; color:var(--accent);"><i
+                            title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
+                            style="display:none; padding:2px 4px; color:var(--accent);"><i
                                 class="ph ph-floppy-disk"></i></button>
                     </div>
                 </div>
@@ -207,39 +215,43 @@
             <div id="video-controls-container" class="media-controls-bar"
                 style="display:none; width:100%; justify-content:center; align-items:center; gap:12px; flex-wrap:wrap; padding:5px 0;">
 
-                <button class="control-btn" onclick="videoControl('restart')" title="Restart"><i
-                        class="ph ph-arrow-counter-clockwise"></i></button>
+                <button class="control-btn" onclick="videoControl('restart')" title="Restart"
+                    data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
 
                 <!-- Chapter Prev -->
-                <button class="control-btn" onclick="videoControl('chapter_prev')" title="Chapitre Préc."><i
-                        class="ph ph-skip-back"></i></button>
+                <button class="control-btn" onclick="videoControl('chapter_prev')" title="Chapitre Préc."
+                    data-i18n-title="web.btn_chapter_prev"><i class="ph ph-skip-back"></i></button>
 
                 <!-- Standard Prev (-5s) -->
-                <button class="control-btn" onclick="videoControl('prev')" title="-5s"><i
+                <button class="control-btn" onclick="videoControl('prev')" title="-5s" data-i18n-title="web.btn_prev"><i
                         class="ph ph-rewind"></i></button>
 
-                <button class="control-btn control-btn-large" onclick="videoControl('playpause')" title="Lecture/Pause">
+                <button class="control-btn control-btn-large" onclick="videoControl('playpause')" title="Lecture/Pause"
+                    data-i18n-title="web.btn_playpause">
                     <i id="btn-video-play-toggle" class="ph ph-play-circle ph-fill"></i>
                 </button>
 
                 <!-- Standard Next (+5s) -->
-                <button class="control-btn" onclick="videoControl('next')" title="+5s"><i
+                <button class="control-btn" onclick="videoControl('next')" title="+5s" data-i18n-title="web.btn_next"><i
                         class="ph ph-fast-forward"></i></button>
 
                 <!-- Chapter Next -->
-                <button class="control-btn" onclick="videoControl('chapter_next')" title="Chapitre Suiv."><i
-                        class="ph ph-skip-forward"></i></button>
+                <button class="control-btn" onclick="videoControl('chapter_next')" title="Chapitre Suiv."
+                    data-i18n-title="web.btn_chapter_next"><i class="ph ph-skip-forward"></i></button>
 
                 <div class="speed-pill">
-                    <button onclick="videoControl('speed_down')" title="Ralentir"><i class="ph ph-minus"></i></button>
+                    <button onclick="videoControl('speed_down')" title="Ralentir" data-i18n-title="web.btn_slow"><i
+                            class="ph ph-minus"></i></button>
                     <span id="btn-video-speed" class="speed-display">1.0x</span>
-                    <button onclick="videoControl('speed_up')" title="Accélérer"><i class="ph ph-plus"></i></button>
+                    <button onclick="videoControl('speed_up')" title="Accélérer" data-i18n-title="web.btn_fast"><i
+                            class="ph ph-plus"></i></button>
                 </div>
 
                 <!-- Subtitle Toggle Area -->
                 <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
                     <button class="control-btn" id="btn-toggle-subs" onclick="toggleSubtitles()"
-                        title="Afficher/Masquer Sous-titres" style="display:none; padding:0 5px;">
+                        title="Afficher/Masquer Sous-titres" data-i18n-title="web.hint_subs_toggle"
+                        style="display:none; padding:0 5px;">
                         <i id="icon-toggle-subs" class="ph ph-closed-captioning"></i>
                     </button>
                 </div>
@@ -249,10 +261,10 @@
                     style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
                     <i id="video-mute-icon" class="ph ph-speaker-high"
                         style="color:#888; font-size:1em; cursor:pointer;" title="Mute/Unmute"
-                        onclick="toggleMute('video')"></i>
+                        data-i18n-title="web.hint_mute" onclick="toggleMute('video')"></i>
                     <input type="range" id="video-volume" min="0" max="1" step="0.01" value="1"
-                        style="width:50px; height:4px;"
-                        oninput="updateVideoVolume(this.value); document.getElementById('video-volume-percent').innerText = Math.round(this.value * 100) + '%';">
+                        style="width:80px; height:4px;"
+                        oninput="updateVideoVolume(this.value); document.getElementById('video-volume-percent').innerText = Math.round(this.value * 100) + '%'; syncVolumeToModals(Math.round(this.value * 100));">
                     <span id="video-volume-percent"
                         style="font-size:0.75em; color:#aaa; min-width:28px; text-align:right;">100%</span>
                 </div>
@@ -261,7 +273,7 @@
                 <div id="video-pitch-control-inline"
                     style="display:flex; align-items:center; gap:6px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
                     <input type="checkbox" id="pitch-enable-toggle-video" onchange="togglePitchEngine(this.checked)"
-                        title="Activer DSP">
+                        title="Activer DSP" data-i18n-title="web.hint_pitch">
                     <i class="ph ph-wave-sine" style="color:#aaa; font-size:1.1em;" title="Pitch"></i>
                     <input type="range" id="pitch-slider-video" min="-6" max="6" step="0.1" value="0" disabled
                         style="width:60px; height:4px;" oninput="updatePitch(this.value)">
@@ -275,25 +287,29 @@
                 <div
                     style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left: 5px;">
                     <button class="control-btn" id="btn-loop-a-video" onclick="setLoopA()" title="Définir Point A"
+                        data-i18n-title="web.hint_loop_a"
                         style="font-weight:bold; font-size:0.9em; padding:2px 6px;">A</button>
                     <button class="control-btn" id="btn-loop-b-video" onclick="setLoopB()" title="Définir Point B"
+                        data-i18n-title="web.hint_loop_b"
                         style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
 
                     <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
 
                     <button class="control-btn" id="btn-loop-prev-video" onclick="navigateLoop(-1)"
-                        title="Boucle Précédente" style="display:none; padding:2px 2px;"><i
-                            class="ph ph-skip-back"></i></button>
+                        title="Boucle Précédente" data-i18n-title="web.hint_loop_prev"
+                        style="display:none; padding:2px 2px;"><i class="ph ph-skip-back"></i></button>
                     <button class="control-btn" id="btn-loop-toggle-video" onclick="toggleLoopState()"
-                        title="Activer/Désactiver" style="display:none; padding:2px 4px; color:var(--accent);"><i
+                        title="Activer/Désactiver" data-i18n-title="web.hint_loop_toggle"
+                        style="display:none; padding:2px 4px; color:var(--accent);"><i
                             class="ph ph-repeat"></i></button>
                     <button class="control-btn" id="btn-loop-next-video" onclick="navigateLoop(1)"
-                        title="Boucle Suivante" style="display:none; padding:2px 2px;"><i
-                            class="ph ph-skip-forward"></i></button>
+                        title="Boucle Suivante" data-i18n-title="web.hint_loop_next"
+                        style="display:none; padding:2px 2px;"><i class="ph ph-skip-forward"></i></button>
 
                     <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
                     <button class="control-btn" id="btn-loop-save-video" onclick="openLoopModal()"
-                        title="Sauvegarder Boucle" style="display:none; padding:2px 4px; color:var(--accent);"><i
+                        title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
+                        style="display:none; padding:2px 4px; color:var(--accent);"><i
                             class="ph ph-floppy-disk"></i></button>
                 </div>
             </div>
@@ -302,7 +318,7 @@
 
             <!-- CHAPTERS LIST -->
             <div id="chapter-container">
-                <div id="chapter-list-title">Chapitres</div>
+                <div id="chapter-list-title" data-i18n="web.lbl_chapters">Chapitres</div>
                 <div id="chapter-list"></div>
             </div>
 
@@ -311,7 +327,7 @@
             <!-- Pédalier Virtuel (Sync) -->
             <div id="pedalboard-container">
                 <div id="pedalboard-grid">
-                    <div class="empty-state">Pédalier : En attente...</div>
+                    <div class="empty-state" data-i18n="web.status_waiting">Pédalier : En attente...</div>
                 </div>
             </div>
         </section>
@@ -322,11 +338,14 @@
             <!-- TAB NAVIGATION -->
             <div class="nav-tabs">
                 <button id="tab-library" class="active" onclick="switchView('library')"><i class="ph ph-music-notes"
-                        style="font-size:1.1em; vertical-align:middle; margin-right:5px;"></i> Bibliothèque Web</button>
+                        style="font-size:1.1em; vertical-align:middle; margin-right:5px;"></i> <span
+                        data-i18n="web.tab_library">Bibliothèque Web</span></button>
                 <button id="tab-local" onclick="switchView('local')"><i class="ph ph-folder-notch-open"
-                        style="font-size:1.1em; vertical-align:middle; margin-right:5px;"></i> Fichiers Locaux</button>
+                        style="font-size:1.1em; vertical-align:middle; margin-right:5px;"></i> <span
+                        data-i18n="web.tab_local">Fichiers Locaux</span></button>
                 <button id="tab-apps" onclick="switchView('apps')"><i class="ph ph-windows-logo"
-                        style="font-size:1.1em; vertical-align:middle; margin-right:5px;"></i> Applications</button>
+                        style="font-size:1.1em; vertical-align:middle; margin-right:5px;"></i> <span
+                        data-i18n="web.tab_apps">Applications</span></button>
             </div>
 
             <!-- VIEW: LIBRARY -->
@@ -334,7 +353,8 @@
                 <div class="sidebar-section">
                     <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
                         Setlist
-                        <button class="btn-icon" onclick="openAddModal()">+</button>
+                        <button class="btn-icon" onclick="openAddModal()" data-i18n-title="web.btn_add_youtube"
+                            title="Ajouter">+</button>
                     </div>
 
                     <!-- Search / Filters -->
@@ -353,10 +373,10 @@
                         <table id="library-table" class="styled-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortTable('artist')">Artiste</th>
-                                    <th onclick="sortTable('title')">Titre</th>
-                                    <th onclick="sortTable('category')">Cat</th>
-                                    <th style="width: 80px;">Actions</th>
+                                    <th onclick="sortTable('artist')" data-i18n="web.col_artist">Artiste</th>
+                                    <th onclick="sortTable('title')" data-i18n="web.col_title">Titre</th>
+                                    <th onclick="sortTable('category')" data-i18n="web.col_category">Cat</th>
+                                    <th style="width: 80px;" data-i18n="web.col_actions">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="setlist-body">
@@ -371,7 +391,7 @@
             <div id="view-apps" class="view-container" style="display:none;">
                 <div class="sidebar-section">
                     <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
-                        Lanceur
+                        <span data-i18n="web.lbl_launcher">Lanceur</span>
                         <button class="btn-icon" onclick="openAppModal()">+</button>
                     </div>
 
@@ -405,10 +425,10 @@
                         <table id="local-table" class="styled-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortLocal('artist')">Artiste</th>
-                                    <th onclick="sortLocal('title')">Titre</th>
-                                    <th onclick="sortLocal('category')">Cat</th>
-                                    <th style="width: 100px;">Actions</th>
+                                    <th onclick="sortLocal('artist')" data-i18n="web.col_artist">Artiste</th>
+                                    <th onclick="sortLocal('title')" data-i18n="web.col_title">Titre</th>
+                                    <th onclick="sortLocal('category')" data-i18n="web.col_category">Cat</th>
+                                    <th style="width: 100px;" data-i18n="web.col_actions">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="local-body"></tbody>
@@ -424,14 +444,14 @@
     <!-- APP MODAL -->
     <dialog id="app-modal">
         <div class="modal-header">
-            <h3>Ajouter une Application</h3>
+            <h3 data-i18n="web.modal_app_title">Ajouter une Application</h3>
             <button onclick="closeAppModal()" class="btn-close">×</button>
         </div>
         <div class="modal-body">
             <div class="edit-form">
-                <label>Nom</label>
+                <label data-i18n="web.modal_app_name">Nom</label>
                 <input type="text" id="new-app-name" placeholder="Ex: Reaper">
-                <label>Chemin Exécutable</label>
+                <label data-i18n="web.modal_app_path">Chemin Exécutable</label>
                 <input type="text" id="new-app-path" placeholder="C:\Program Files\...">
             </div>
         </div>
@@ -444,18 +464,17 @@
     <!-- LOCAL FILE MODAL -->
     <dialog id="modal-local">
         <div class="modal-header">
-            <h3>Éditer Fichier Local</h3>
+            <h3 data-i18n="web.modal_local_title">Éditer Fichier Local</h3>
             <button onclick="closeLocalModal()" class="btn-close">×</button>
         </div>
         <div class="modal-body">
             <!-- ART PREVIEW -->
             <div
                 style="display:flex; justify-content:center; align-items:center; margin-bottom:15px; position:relative;">
-                <div id="local-art-container" class="art-container" title="Cliquez pour changer la pochette"
+                <div id="local-art-container" class="art-container" data-i18n-title="web.lbl_click_to_change_cover"
                     onclick="document.getElementById('cover-upload').click()"
-                    style="width: 150px; height: 150px; position:relative;">
-                    <img id="local-art-img" src=""
-                        style="width:100%; height:100%; object-fit:cover; border-radius:8px; display:none;">
+                    style="position:relative; width:220px; height:220px; margin: 0 auto; overflow: hidden; border-radius: 8px;">
+                    <img id="local-art-img" src="" style="display:none; width:100%; height:100%; object-fit:cover;">
                     <div id="local-art-placeholder"
                         style="width: 100%; height: 100%; border: 2px dashed #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888; background: #222;">
                         <span>+ Photo</span>
@@ -496,7 +515,8 @@
                             style="font-size:1.4em; color:var(--accent);"></i>
                     </div>
                     <input type="range" id="local-sub-pos" min="0" max="100" value="20" title="Hauteur des sous-titres"
-                        style="flex:1; cursor:pointer;" oninput="updateLiveSubtitlePos(this.value)">
+                        data-i18n-title="web.hint_sub_pos" style="flex:1; cursor:pointer;"
+                        oninput="updateLiveSubtitlePos(this.value)">
                 </div>
             </div>
 
@@ -505,10 +525,11 @@
                     style="font-size:0.8em; color:#888; background:#222; padding:5px; border-radius:4px; margin-bottom:10px; word-break:break-all;">
                 </div>
 
-                <label>Titre</label>
+                <label data-i18n="web.lbl_title">Titre</label>
                 <div style="display:flex; gap:10px;">
                     <input type="text" id="local-title" style="flex:1;">
-                    <button class="btn-secondary" onclick="autoTagLocal()" title="Rechercher sur MusicBrainz">🔍
+                    <button class="btn-secondary" onclick="autoTagLocal()" title="Rechercher sur MusicBrainz"
+                        data-i18n-title="web.hint_musicbrainz">🔍
                         Auto-Tag</button>
                 </div>
                 <!-- Auto-Tag Results Area -->
@@ -518,54 +539,54 @@
 
                 <div class="row-inputs">
                     <div class="col">
-                        <label>Artiste</label>
+                        <label data-i18n="web.lbl_artist">Artiste</label>
                         <input type="text" id="local-artist" list="artists">
                     </div>
                     <div class="col">
-                        <label>Catégorie</label>
+                        <label data-i18n="web.lbl_category">Catégorie</label>
                         <input type="text" id="local-category" placeholder="ex: Tuto..." list="categories">
                     </div>
                 </div>
 
                 <div class="row-inputs">
                     <div class="col" style="flex:2;">
-                        <label>Album (Tag)</label>
+                        <label data-i18n="web.lbl_album">Album</label>
                         <input type="text" id="local-album">
                     </div>
                     <div class="col" style="flex:2;">
-                        <label>Genre</label>
+                        <label data-i18n="web.lbl_genre">Genre</label>
                         <input type="text" id="local-genre" list="genres">
                     </div>
                     <div class="col" style="flex:0.8;">
-                        <label>Année</label>
+                        <label data-i18n="web.lbl_year">Année</label>
                         <input type="text" id="local-year">
                     </div>
                 </div>
 
                 <div class="row-inputs">
                     <div class="col">
-                        <label>Profil Airstep</label>
+                        <label data-i18n="web.lbl_profile_device">Profil Appareil</label>
                         <select id="local-target-profile">
-                            <option value="Auto">Auto (Recommandé)</option>
+                            <option value="Auto" data-i18n="web.opt_auto_recommended">Auto (Recommandé)</option>
                         </select>
                     </div>
                     <!-- Le volume a été déplacé à gauche de l'image -->
                 </div>
 
-                <label>Notes</label>
+                <label data-i18n="web.lbl_notes">Notes</label>
                 <textarea id="local-notes" rows="3"></textarea>
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn-text" onclick="closeLocalModal()">Annuler</button>
-            <button class="btn-primary" onclick="saveLocalItem()">Sauvegarder</button>
+            <button class="btn-text" onclick="closeLocalModal()" data-i18n="web.btn_cancel">Annuler</button>
+            <button class="btn-primary" onclick="saveLocalItem()" data-i18n="web.btn_save">Sauvegarder</button>
         </div>
     </dialog>
 
     <!-- MEDIA MODAL -->
     <dialog id="media-modal">
         <div class="modal-header">
-            <h3>Ajouter / Modifier un Média</h3>
+            <h3 data-i18n="web.modal_youtube_title">Ajouter / Modifier un Média</h3>
             <button onclick="closeModal()" class="btn-close">×</button>
         </div>
 
@@ -573,9 +594,20 @@
             <!-- Search Zone -->
             <div id="search-zone-container">
                 <div class="input-group">
-                    <input type="text" id="yt-search-input" placeholder="Recherche YouTube ou URL..."
-                        onkeydown="if(event.key==='Enter') searchYouTube()">
-                    <button onclick="searchYouTube()">🔍</button>
+                    <input type="text" id="yt-search-input" data-i18n-placeholder="web.search_placeholder"
+                        placeholder="Recherche YouTube ou URL..." onkeydown="if(event.key==='Enter') searchYouTube()">
+                    <button id="yt-search-btn" onclick="searchYouTube()">🔍</button>
+                </div>
+                <div id="no-api-key-msg"
+                    style="display:none; padding:10px; background:#2a2a2a; border-radius:5px; border-left:4px solid #f39c12; margin-bottom:10px; font-size:0.85em; line-height:1.4;">
+                    <strong>Info :</strong> Pour utiliser pleinement cette fonction, il vous faut une clé API YouTube
+                    (gratuite) a renseigner ici : <a href="#" onclick="closeModal(); openSettingsModal(); return false;"
+                        style="color:var(--accent);">Réglages</a>.<br>
+                    Vous pouvez cependant toujours ajouter une vidéo manuellement en collant son adresse URL (ex:
+                    <i>https://youtube.com/watch...</i>) directement dans le champ <b>URL du flux vidéo</b> ci-dessous,
+                    mais vous n'aurez pas les détails de la vidéo qu'il faudra entrer manuellement.<br>
+                    Pour obtenir une clé API (gratuite), <a href="https://console.cloud.google.com/" target="_blank"
+                        style="color:var(--accent); text-decoration:none;">allez a cette adresse ↗</a>.
                 </div>
                 <div id="search-results" class="results-grid"></div>
             </div>
@@ -588,13 +620,13 @@
                 <!-- Zone 1: Title (Full Width) -->
                 <div class="zone-title" style="display:flex; gap:10px; align-items:center;">
                     <button id="btn-back-search" class="btn-secondary" onclick="resetSearchMode()" style="display:none;"
-                        title="Retour Recherche">
-                        🔍 Retour
+                        data-i18n-title="web.btn_back_search" title="Retour Recherche">
+                        🔍 <span data-i18n="web.btn_back_search">Retour</span>
                     </button>
                     <div style="flex:1;">
-                        <label>Titre</label>
-                        <input type="text" id="edit-title" placeholder="Titre de la chanson"
-                            style="font-size:1.1em; font-weight:bold;">
+                        <label data-i18n="web.lbl_title">Titre</label>
+                        <input type="text" id="edit-title" data-i18n-placeholder="web.placeholder_song_title"
+                            placeholder="Titre de la chanson" style="font-size:1.1em; font-weight:bold;">
                     </div>
                 </div>
 
@@ -620,8 +652,9 @@
 
                     </div>
                     <div class="split-right">
-                        <label>Description YouTube</label>
-                        <textarea id="youtube-desc-input" placeholder="Description officielle..." readonly></textarea>
+                        <label data-i18n="web.lbl_yt_description">Description YouTube</label>
+                        <textarea id="youtube-desc-input" data-i18n-placeholder="web.placeholder_yt_description"
+                            placeholder="Description officielle..." readonly></textarea>
                     </div>
                 </div>
 
@@ -629,45 +662,51 @@
                 <div class="zone-metadata">
                     <div class="row-inputs">
                         <div class="col">
-                            <label>Artiste</label>
-                            <input type="text" id="edit-artist" placeholder="Ex: Metallica">
+                            <label data-i18n="web.lbl_artist">Artiste</label>
+                            <input type="text" id="edit-artist" data-i18n-placeholder="web.placeholder_artist_ex"
+                                placeholder="Ex: Metallica">
                         </div>
                         <div class="col">
-                            <label>Chaîne</label>
-                            <input type="text" id="edit-channel" placeholder="Nom de la chaîne">
+                            <label data-i18n="web.lbl_channel">Chaîne</label>
+                            <input type="text" id="edit-channel" data-i18n-placeholder="web.placeholder_channel_name"
+                                placeholder="Nom de la chaîne">
                         </div>
                         <div class="col">
-                            <label>URL</label>
-                            <input type="text" id="edit-url" placeholder="https://...">
+                            <label data-i18n="web.lbl_url">URL</label>
+                            <input type="text" id="edit-url" data-i18n-placeholder="web.placeholder_url_https"
+                                placeholder="https://...">
                         </div>
                     </div>
                     <div class="row-inputs">
                         <div class="col">
-                            <label>Catégorie</label>
+                            <label data-i18n="web.lbl_category">Catégorie</label>
                             <div class="autocomplete-wrapper">
-                                <input type="text" id="edit-category" placeholder="Ex: Cours" autocomplete="off">
+                                <input type="text" id="edit-category"
+                                    data-i18n-placeholder="web.placeholder_category_ex" placeholder="Ex: Cours"
+                                    autocomplete="off">
                                 <div id="suggestions-category" class="suggestions-box"></div>
                             </div>
                         </div>
                         <div class="col">
-                            <label>Genre</label>
+                            <label data-i18n="web.lbl_genre">Genre</label>
                             <div class="autocomplete-wrapper">
-                                <input type="text" id="edit-genre" placeholder="Ex: Rock" autocomplete="off">
+                                <input type="text" id="edit-genre" data-i18n-placeholder="web.placeholder_genre_ex"
+                                    placeholder="Ex: Rock" autocomplete="off">
                                 <div id="suggestions-genre" class="suggestions-box"></div>
                             </div>
                         </div>
                         <div class="col">
-                            <label>Mode</label>
+                            <label data-i18n="web.lbl_mode">Mode</label>
                             <select id="edit-mode">
-                                <option value="auto">Auto</option>
-                                <option value="iframe">Intégré (YouTube)</option>
-                                <option value="external">Externe</option>
+                                <option value="auto" data-i18n="web.opt_auto">Auto</option>
+                                <option value="iframe" data-i18n="web.opt_mode_iframe">Intégré (YouTube)</option>
+                                <option value="external" data-i18n="web.opt_mode_external">Externe</option>
                             </select>
                         </div>
                         <div class="col">
-                            <label>Profil Airstep</label>
+                            <label data-i18n="web.lbl_profile_device">Profil Appareil</label>
                             <select id="edit-target-profile">
-                                <option value="Auto">Auto (Recommandé)</option>
+                                <option value="Auto" data-i18n="web.opt_auto_recommended">Auto (Recommandé)</option>
                             </select>
                         </div>
                     </div>
@@ -675,8 +714,8 @@
 
                 <!-- Zone 4: User Notes -->
                 <div class="zone-notes">
-                    <label>Mes Notes / Résumé</label>
-                    <textarea id="user-notes-input" rows="3"
+                    <label data-i18n="web.lbl_user_notes">Mes Notes / Résumé</label>
+                    <textarea id="user-notes-input" rows="3" data-i18n-placeholder="web.placeholder_user_notes"
                         placeholder="Mes notes personnelles, accords, structure..."></textarea>
                 </div>
 
@@ -684,18 +723,19 @@
                 <div id="dl-options-container"
                     style="display:none; background:#1a1a1a; padding:15px; margin-top:15px; border-radius:6px; border:1px solid #333;">
                     <h4 style="margin:0 0 15px 0; color:var(--accent); display:flex; align-items:center; gap:10px;">
-                        <i class="ph ph-download-simple"></i> Téléchargement Local
+                        <i class="ph ph-download-simple"></i> <span data-i18n="web.lbl_local_download">Téléchargement
+                            Local</span>
                     </h4>
 
                     <div class="row-inputs">
                         <div class="col">
-                            <label>Format & Qualité</label>
+                            <label data-i18n="web.lbl_format_quality">Format & Qualité</label>
                             <select id="dl-format">
                                 <!-- Populated dynamically -->
                             </select>
                         </div>
                         <div class="col">
-                            <label>Dossier de Destination</label>
+                            <label data-i18n="web.lbl_dest_folder">Dossier de Destination</label>
                             <select id="dl-folder"></select>
                         </div>
                     </div>
@@ -704,22 +744,25 @@
                         <div style="display:flex; align-items:center; gap:10px; cursor:pointer;">
                             <input type="checkbox" id="dl-subs" checked
                                 style="width:18px; height:18px; cursor:pointer;">
-                            <label for="dl-subs" style="margin:0; cursor:pointer;">Télécharger les Sous-titres
+                            <label for="dl-subs" style="margin:0; cursor:pointer;"
+                                data-i18n="web.lbl_download_subs">Télécharger les Sous-titres
                                 (SRT)</label>
                         </div>
                         <div style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-left:20px;">
                             <input type="checkbox" id="dl-autoclose" style="width:18px; height:18px; cursor:pointer;">
-                            <label for="dl-autoclose" style="margin:0; cursor:pointer; color:var(--accent);">Fermer
+                            <label for="dl-autoclose" style="margin:0; cursor:pointer; color:var(--accent);"
+                                data-i18n="web.lbl_close_after_dl">Fermer
                                 après téléchargement</label>
                         </div>
                     </div>
 
                     <div style="display:flex; gap:15px; margin-top:20px; align-items:center;">
                         <button class="btn-primary" onclick="startDownload()"
-                            style="background:var(--accent); padding:10px 20px;">
+                            style="background:var(--accent); padding:10px 20px;" data-i18n="web.btn_start_dl">
                             <i class="ph ph-download"></i> Lancer
                         </button>
-                        <div id="dl-status" style="font-size:0.9em; color:#ccc; flex:1; text-align:right;">Prêt</div>
+                        <div id="dl-status" style="font-size:0.9em; color:#ccc; flex:1; text-align:right;"
+                            data-i18n="web.status_ready">Prêt</div>
                     </div>
 
                     <!-- Progress Bar Container -->
@@ -734,11 +777,11 @@
         </div>
 
         <div class="modal-footer">
-            <button class="btn-secondary" onclick="previewItem()">Prévisualiser</button>
+            <button class="btn-secondary" onclick="previewItem()" data-i18n="web.btn_preview">Prévisualiser</button>
 
             <!-- Dynamic Download / Offline Options -->
             <button id="btn-show-dl" class="btn-secondary" onclick="toggleDownloadOptions()"
-                style="display:none; margin-left:10px;">⬇️ Ajout Hors ligne</button>
+                style="display:none; margin-left:10px;" data-i18n="web.btn_offline_add">⬇️ Ajout Hors ligne</button>
             <a id="btn-offline-help"
                 href="https://github.com/zzdez/MidiKbdControlStudio/blob/main/README.md#offline-mode" target="_blank"
                 class="btn-text" style="display:none; margin-left:10px; color:#aaa; text-decoration:none;">
@@ -746,33 +789,36 @@
             </a>
 
             <div style="flex:1"></div>
-            <button class="btn-text" onclick="closeModal()">Annuler</button>
-            <button class="btn-primary" onclick="saveItem()">Ajouter à la Bibliothèque Web</button>
+            <button class="btn-text" onclick="closeModal()" data-i18n="web.btn_cancel">Annuler</button>
+            <button class="btn-primary" onclick="saveItem()" data-i18n="web.btn_save_web_lib">Ajouter à la Bibliothèque
+                Web</button>
         </div>
     </dialog>
 
     <!-- LOOP SAVE MODAL -->
     <dialog id="loop-modal">
         <div class="modal-header">
-            <h3>Sauvegarder la Boucle</h3>
+            <h3 data-i18n="web.modal_loop_title">Sauvegarder la Boucle</h3>
             <button onclick="closeLoopModal()" class="btn-close">×</button>
         </div>
         <div class="modal-body" style="display:flex; flex-direction:column; gap:15px; padding-bottom:10px;">
             <div style="background:#222; padding:10px; border-radius:8px; border:1px solid #333; text-align:center;">
-                <span style="color:#888; font-size:0.9em;">Extrait de :</span>
+                <span style="color:#888; font-size:0.9em;" data-i18n="web.lbl_loop_from">Extrait de :</span>
                 <div id="loop-modal-timing"
                     style="color:var(--accent); font-family:monospace; font-size:1.2em; font-weight:bold; margin-top:5px;">
                     00:00 - 00:00</div>
             </div>
 
             <div>
-                <label>Nom de la boucle</label>
-                <input type="text" id="loop-modal-name" placeholder="Ex: Solo Intro, Riff Principal..."
+                <label data-i18n="web.lbl_loop_name">Nom de la boucle</label>
+                <input type="text" id="loop-modal-name" data-i18n-placeholder="web.placeholder_loop_name"
+                    placeholder="Ex: Solo Intro, Riff Principal..."
                     style="width:100%; box-sizing:border-box; font-size:1.1em; padding:8px;">
             </div>
 
             <div id="loop-modal-existing-container" style="display:none; margin-top:10px;">
-                <label style="color:#888;">Boucles existantes pour ce morceau :</label>
+                <label style="color:#888;" data-i18n="web.lbl_loop_existing">Boucles existantes pour ce morceau
+                    :</label>
                 <div id="loop-modal-existing-list"
                     style="max-height:100px; overflow-y:auto; background:#1e1e1e; border:1px solid #333; border-radius:5px; padding:5px; margin-top:5px; display:flex; flex-direction:column; gap:5px;">
                     <!-- Injected via JS -->
@@ -780,56 +826,81 @@
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn-text" onclick="closeLoopModal()">Annuler</button>
-            <button class="btn-primary" onclick="confirmSaveLoop()">Enregistrer</button>
+            <button class="btn-text" onclick="closeLoopModal()" data-i18n="web.btn_cancel">Annuler</button>
+            <button class="btn-primary" onclick="confirmSaveLoop()" data-i18n="web.btn_save">Enregistrer</button>
         </div>
     </dialog>
 
     <!-- SETTINGS MODAL -->
     <dialog id="settings-modal">
         <div class="modal-header">
-            <h3>Réglages</h3>
+            <h3 data-i18n="web.modal_settings_title">Réglages</h3>
             <button onclick="closeSettingsModal()" class="btn-close">×</button>
         </div>
         <div class="modal-body" style="padding:0; display:flex;">
             <!-- SIDE NAV -->
             <div class="settings-nav">
-                <button class="nav-btn active" onclick="switchSettingsTab('general')">Général</button>
-                <button class="nav-btn" onclick="switchSettingsTab('library')">Médiathèque</button>
-                <button class="nav-btn" onclick="switchSettingsTab('controller')">Contrôleur</button>
+                <button class="nav-btn active" onclick="switchSettingsTab('general')"
+                    data-i18n="web.tab_general">Général</button>
+                <button class="nav-btn" onclick="switchSettingsTab('library')"
+                    data-i18n="web.tab_library">Médiathèque</button>
+                <button class="nav-btn" onclick="switchSettingsTab('controller')"
+                    data-i18n="web.tab_controller">Contrôleur</button>
             </div>
 
             <!-- CONTENT -->
             <div class="settings-content">
                 <!-- TAB: GENERAL -->
                 <div id="tab-settings-general" class="settings-tab">
-                    <h4>Clés API</h4>
-                    <label>YouTube Data API Key</label>
-                    <input type="password" id="setting-youtube-key" placeholder="AIzaSy...">
-                    <p class="hint">Nécessaire pour la recherche et les titres YouTube.</p>
+                    <!-- INJECT SELECT -->
+                    <h4 data-i18n="web.lbl_lang_choice">Langue / Language</h4>
+                    <select id="setting-language" onchange="changeLanguage()"
+                        style="padding:10px; border-radius:10px; border:1px solid #333; background:#222; color:white; width:100%; margin-bottom: 20px;">
+                        <option value="fr">Français</option>
+                        <option value="en">English</option>
+                    </select>
+                    <h4 data-i18n="web.lbl_youtube_api">Clé API YouTube (Optionnelle)</h4>
+                    <label data-i18n="web.lbl_youtube_api_key">YouTube Data API Key</label>
+                    <input type="password" id="setting-youtube-key" data-i18n-placeholder="web.placeholder_youtube_api"
+                        placeholder="Laisser vide si aucune clé...">
+                    <p class="hint" style="margin-top:5px;" data-i18n="web.msg_api_info" data-i18n-html="true">
+                        <strong>Optionnel
+                            :</strong> Cette clé gratuite permet de
+                        récupérer automatiquement les titres, descriptions et miniatures lors de l'ajout d'un lien
+                        YouTube. Si aucune clé n'est fournie, <strong>la lecture vidéo et le pédalier MIDI
+                            fonctionneront parfaitement</strong>, mais vous devrez taper les titres manuellement.
+                    </p>
+                    <p class="hint"><a href="https://console.cloud.google.com/" target="_blank"
+                            style="color:var(--accent); text-decoration:none;" data-i18n="web.link_get_api_key">Obtenir
+                            une clé API gratuite ↗</a>
+                        <span data-i18n="web.hint_api_target">(Cible: "YouTube Data API v3")</span>.
+                    </p>
                 </div>
 
                 <!-- TAB: LIBRARY -->
                 <div id="tab-settings-library" class="settings-tab" style="display:none;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <h4>Dossiers Locaux</h4>
-                        <button class="btn-secondary" onclick="addLibraryFolder()">+ Ajouter Dossier</button>
+                        <h4 data-i18n="web.lbl_local_folders">Dossiers Locaux</h4>
+                        <button class="btn-secondary" onclick="addLibraryFolder()" data-i18n="web.btn_add_folder_list">+
+                            Ajouter Dossier</button>
                     </div>
 
                     <div id="settings-folder-list" class="folder-list">
                         <!-- JS injected -->
                     </div>
-                    <p class="hint">Les fichiers audio (MP3, WAV, FLAC, M4A, OGG) seront analysés automatiquement.</p>
+                    <p class="hint" data-i18n="web.hint_local_folders">Les fichiers audio (MP3, WAV, FLAC, M4A, OGG)
+                        seront analysés automatiquement.</p>
                 </div>
 
                 <!-- TAB: CONTROLLER -->
                 <div id="tab-settings-controller" class="settings-tab" style="display:none;">
-                    <h4>Configuration du Pédalier</h4>
-                    <p>Pour modifier les boutons, les actions avancées et les profils, utilisez l'éditeur natif.</p>
+                    <h4 data-i18n="web.lbl_controller_config">Configuration du Pédalier</h4>
+                    <p data-i18n="web.hint_controller_config">Pour modifier les boutons, les actions avancées et les
+                        profils, utilisez l'éditeur natif.</p>
 
                     <div style="text-align:center; margin-top:30px;">
                         <button class="btn-primary" onclick="openNativeEditor()"
-                            style="padding:15px 30px; font-size:1.1em;">
+                            style="padding:15px 30px; font-size:1.1em;" data-i18n="gui.btn_open_editor">
                             Ouvrir l'Éditeur Avancé ⚙️
                         </button>
                     </div>
@@ -837,41 +908,44 @@
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn-text" onclick="closeSettingsModal()">Annuler</button>
-            <button class="btn-primary" onclick="saveSettings()">Enregistrer</button>
+            <button class="btn-text" onclick="closeSettingsModal()" data-i18n="web.btn_cancel">Annuler</button>
+            <button class="btn-primary" onclick="saveSettings()" data-i18n="web.btn_save">Enregistrer</button>
         </div>
     </dialog>
 
     <!-- IMPORT MODAL -->
     <dialog id="import-modal" class="small-modal">
         <div class="modal-header">
-            <h3>Importer le fichier ?</h3>
+            <h3 data-i18n="web.modal_import_title">Importer le fichier ?</h3>
         </div>
         <div class="modal-content">
-            <p>Ce fichier ne se trouve pas dans vos dossiers gérés.</p>
+            <p data-i18n="web.msg_import_not_managed">Ce fichier ne se trouve pas dans vos dossiers gérés.</p>
             <div class="monitor-path" id="import-source-path" style="font-size:0.8em; color:#888; margin-bottom:10px;">
                 ...</div>
 
-            <label>Dossier de destination :</label>
+            <label data-i18n="web.lbl_import_dest">Dossier de destination :</label>
             <select id="import-target-folder"
                 style="width:100%; padding:8px; margin-bottom:15px; background:#333; color:white; border:1px solid #555;"></select>
 
             <div class="import-actions" style="display:flex; flex-direction:column; gap:10px;">
-                <button class="btn-primary" onclick="confirmImport('copy')">Copier vers le dossier (Non
+                <button class="btn-primary" onclick="confirmImport('copy')" data-i18n="web.btn_import_copy">Copier vers
+                    le dossier (Non
                     Destructif)</button>
-                <button class="btn-secondary" onclick="confirmImport('move')">Déplacer vers le dossier</button>
-                <button class="btn-text" onclick="confirmImport('link')">Lier uniquement (Laisser sur place)</button>
+                <button class="btn-secondary" onclick="confirmImport('move')" data-i18n="web.btn_import_move">Déplacer
+                    vers le dossier</button>
+                <button class="btn-text" onclick="confirmImport('link')" data-i18n="web.btn_import_link">Lier uniquement
+                    (Laisser sur place)</button>
             </div>
         </div>
         <div class="modal-footer" style="justify-content:center; margin-top:10px;">
-            <button class="btn-text" onclick="closeImportModal()">Annuler</button>
+            <button class="btn-text" onclick="closeImportModal()" data-i18n="web.btn_cancel">Annuler</button>
         </div>
     </dialog>
 
     <!-- PREVIEW MODAL -->
     <dialog id="preview-modal" class="preview-modal" style="display:none; flex-direction:column;">
         <div class="modal-header">
-            <h3>Prévisualisation</h3>
+            <h3 data-i18n="web.modal_preview_title">Prévisualisation</h3>
             <button onclick="closePreviewModal()" class="btn-close">×</button>
         </div>
         <div class="modal-body"
@@ -883,10 +957,11 @@
         </div>
         <div class="modal-footer"
             style="padding:8px 15px; background:#181818; border-top:1px solid #333; justify-content:space-between; align-items:center; min-height:45px;">
-            <span id="preview-info" style="font-size:0.8em; color:#666;">Mode Standard (YouTube Embed)</span>
+            <span id="preview-info" style="font-size:0.8em; color:#666;" data-i18n="web.lbl_preview_mode_standard">Mode
+                Standard (YouTube Embed)</span>
             <button id="btn-preview-fallback" class="btn-secondary" onclick="unlockPreview()"
                 style="font-size:0.8em; padding:6px 12px; display:flex; align-items:center; gap:5px;">
-                <span>🔓</span> Forcer la Lecture (Débloquer)
+                <span>🔓</span> <span data-i18n="web.btn_preview_unlock">Forcer la Lecture (Débloquer)</span>
             </button>
         </div>
     </dialog>
@@ -896,13 +971,14 @@
     <!-- SUBTITLE TRACKS MODAL -->
     <dialog id="modal-subtitle-tracks" class="preview-modal"
         style="width:300px; margin:auto; padding:15px; border-radius:8px; border:1px solid #444; background:#1e1e1e; text-align:center;">
-        <h3 style="margin-top:0; font-size:1em; color:#ddd; margin-bottom:15px;">Piste de Sous-titres</h3>
+        <h3 style="margin-top:0; font-size:1em; color:#ddd; margin-bottom:15px;" data-i18n="web.modal_subtitle_title">
+            Piste de Sous-titres</h3>
         <div id="subtitle-tracks-list"
             style="display:flex; flex-direction:column; gap:10px; max-height:200px; overflow-y:auto;">
             <!-- Buttons injected by JS -->
         </div>
         <button onclick="document.getElementById('modal-subtitle-tracks').close()" class="btn-text"
-            style="margin-top:15px; width:100%;">Fermer</button>
+            style="margin-top:15px; width:100%;" data-i18n="web.btn_close">Fermer</button>
     </dialog>
 
 </body>

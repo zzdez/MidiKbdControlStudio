@@ -3,6 +3,8 @@ import customtkinter as ctk
 class CompactPedalboardFrame(ctk.CTkFrame):
     """Grid layout for pedalboard (shared between Main and Remote)"""
     def __init__(self, parent, device_def, profile, callback_press):
+        from i18n import _
+        self._ = _
         super().__init__(parent, fg_color="transparent")
         self.device_def = device_def
         self.profile = profile
@@ -67,7 +69,7 @@ class CompactPedalboardFrame(ctk.CTkFrame):
         self.btn_map.clear()
 
         if not self.device_def or "buttons" not in self.device_def:
-            msg = "Aucune définition d'appareil"
+            msg = self._("gui.lbl_no_device_def")
             if self.device_def is None: msg += " (None)"
             elif "buttons" not in self.device_def: msg += " (No Buttons)"
             ctk.CTkLabel(self, text=msg).pack(pady=20)
@@ -102,8 +104,7 @@ class CompactPedalboardFrame(ctk.CTkFrame):
             if is_long_press:
                 base = default_label.replace("Long Press ", "").strip()
                 if "(" in base: base = base.split("(")[0].strip()
-                short_lbl = f"{base} (Hold)"
-
+                short_lbl = f"{base} ({self._('gui.lbl_hold')})"
             # Determine Icon & State
             mapping_data = mapping_map.get(cc, None)
 
@@ -184,6 +185,8 @@ class RemoteControl(ctk.CTkToplevel):
         self.callback_close = callback_close
         self.callback_open_conf = callback_open_conf
         self.callback_open_web = callback_open_web
+        from i18n import _
+        self._ = _
         self.device_def = device_def
         self.profile = profile
 
@@ -196,7 +199,7 @@ class RemoteControl(ctk.CTkToplevel):
         self.hover_color = "#3a3a3a"
 
         # Window Setup
-        self.title("Airstep Remote")
+        self.title(self._("gui.title_remote"))
         self.overrideredirect(True) # Frameless
         self.attributes("-topmost", True)
         self.configure(fg_color=self.bg_color)
@@ -229,7 +232,7 @@ class RemoteControl(ctk.CTkToplevel):
         self.header.bind("<B1-Motion>", self.do_move)
 
         # Title / Handle
-        title_text = f"Remote - {self.profile.get('name', 'Profile')}" if self.profile else "Airstep Remote"
+        title_text = f"{self._('gui.lbl_remote_prefix')} - {self.profile.get('name', 'Profile')}" if self.profile else self._("gui.title_remote")
         if len(title_text) > 25: title_text = title_text[:25] + "..."
 
         self.lbl_title = ctk.CTkLabel(self.header, text=title_text, text_color="gray", width=120, anchor="w", font=ctk.CTkFont(size=11))
@@ -338,7 +341,7 @@ class RemoteControl(ctk.CTkToplevel):
             self.pedalboard_frame.set_profile(new_profile)
 
             # Update Title
-            title_text = f"Remote - {new_name}"
+            title_text = f"{self._('gui.lbl_remote_prefix')} - {new_name}"
             if len(title_text) > 25: title_text = title_text[:25] + "..."
             self.lbl_title.configure(text=title_text)
 
