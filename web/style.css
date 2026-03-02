@@ -1486,37 +1486,36 @@ dialog::backdrop {
 
 .track-header {
     width: 170px;
-    height: 102px;
+    height: 87px;
     background: #2a2a2a;
     border-right: 1px solid #333;
     border-bottom: 1px solid #333;
     padding: 2px 8px;
     display: flex;
     flex-direction: column;
-    justify-content: space-around;
-    gap: 1px;
+    justify-content: flex-start;
+    gap: 0px;
     flex-shrink: 0;
     box-sizing: border-box;
     overflow: hidden;
 }
 
 .track-title {
-    font-size: 0.85em;
+    font-size: 0.8em;
     font-weight: bold;
     color: #eee;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-bottom: 0;
+    margin-bottom: 0px;
     line-height: 1;
-    height: 1.2em;
-    padding-top: 2px;
+    height: 1.1em;
 }
 
 .track-controls {
     display: flex;
     gap: 4px;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .btn-mute,
@@ -1610,7 +1609,7 @@ dialog::backdrop {
     position: relative;
     background: #121212;
     transition: opacity 0.2s;
-    height: 100px;
+    height: 85px;
     overflow: hidden;
     box-sizing: border-box;
     border-bottom: 1px solid #333;
