@@ -4,7 +4,7 @@ import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from typing import List, Dict
 import json
 import requests
@@ -267,15 +267,16 @@ async def api_metadata_search(q: str):
 
 
 @app.get("/api/stream")
-async def stream_file(path: str):
+async def stream_file(request: Request, path: str):
     decoded_path = urllib.parse.unquote(path)
     logging.info(f"STREAM API HIT: {decoded_path}") 
     if not os.path.exists(decoded_path):
         logging.error(f"STREAM MISSING: {decoded_path}")
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Force media type for common video formats if needed, or let FileResponse guess
-    return FileResponse(decoded_path)
+    import mimetypes
+    mime_type, _ = mimetypes.guess_type(decoded_path)
+    return FileResponse(decoded_path, media_type=mime_type, filename=os.path.basename(decoded_path))
 
 @app.get("/api/status")
 async def get_status():
@@ -821,6 +822,59 @@ async def add_local_file():
         print(f"Add File Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/local/add_multitrack_folder")
+async def add_multitrack_folder():
+    try:
+        if hasattr(app.state, "select_folder_callback"):
+            path = app.state.select_folder_callback()
+            if path:
+                # --- SMART IMPORT CHECK ---
+                folders = config_manager.get("media_folders", [])
+                abs_path = os.path.abspath(path)
+                
+                is_managed = False
+                for folder in folders:
+                    abs_folder = os.path.abspath(folder)
+                    if abs_path.lower().startswith(abs_folder.lower()):
+                        is_managed = True
+                        break
+                
+                if not is_managed:
+                    return {
+                        "status": "import_needed",
+                        "source_path": path,
+                        "filename": os.path.basename(path.rstrip('/\\')),
+                        "target_folders": folders
+                    }
+                
+                # If already managed, proceed normally
+                try:
+                    file_data = metadata_service.scan_file_metadata(path)
+                    file_data["path"] = path
+                    file_data["added_at"] = time.time()
+                    
+                    items = []
+                    if os.path.exists(LOCAL_LIB_FILE):
+                        with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                            items = json.load(f)
+                    
+                    existing = next((i for i in items if i["path"] == path), None)
+                    if not existing:
+                        items.append(file_data)
+                        with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                            json.dump(items, f, indent=4)
+                        return {"status": "ok", "message": "Added"}
+                    else:
+                         return {"status": "exists", "message": "Already in library"}
+                except Exception as e:
+                     logging.error(f"Scan Error on Add Multitrack: {e}")
+                     return {"status": "error", "message": str(e)}
+
+        return {"status": "cancelled"}
+    except Exception as e:
+        print(f"Add Multitrack Folder Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/local/confirm_import")
 async def confirm_import(data: Dict):
     source_path = data.get("source_path", "").strip()
@@ -857,20 +911,32 @@ async def confirm_import(data: Dict):
 
                  raise HTTPException(status_code=400, detail=f"Target folder invalid: {target_folder}")
                  
-            filename = os.path.basename(source_path)
+            filename = os.path.basename(source_path.rstrip('/\\'))
             destination = os.path.join(target_folder, filename)
             
             # Handle duplicates (Auto-rename)
-            base, ext = os.path.splitext(destination)
-            counter = 1
-            while os.path.exists(destination):
-                destination = f"{base}_{counter}{ext}"
-                counter += 1
-            
-            if action == "copy":
-                shutil.copy2(source_path, destination)
-            elif action == "move":
-                shutil.move(source_path, destination)
+            if os.path.isdir(source_path):
+                base = destination
+                counter = 1
+                while os.path.exists(destination):
+                    destination = f"{base}_{counter}"
+                    counter += 1
+                
+                if action == "copy":
+                    shutil.copytree(source_path, destination)
+                elif action == "move":
+                    shutil.move(source_path, destination)
+            else:
+                base, ext = os.path.splitext(destination)
+                counter = 1
+                while os.path.exists(destination):
+                    destination = f"{base}_{counter}{ext}"
+                    counter += 1
+                
+                if action == "copy":
+                    shutil.copy2(source_path, destination)
+                elif action == "move":
+                    shutil.move(source_path, destination)
                 
             final_path = destination
 
@@ -953,7 +1019,7 @@ async def update_local_file(index: int, item: Dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/local/stream/{index}")
-async def stream_local_file_by_index(index: int):
+async def stream_local_file_by_index(request: Request, index: int):
     try:
         items = []
         if os.path.exists(LOCAL_LIB_FILE):
@@ -963,7 +1029,6 @@ async def stream_local_file_by_index(index: int):
         if 0 <= index < len(items):
             path = items[index]["path"]
             if os.path.exists(path):
-                # Determine media type for Content-Type header (helps some browsers)
                 import mimetypes
                 mime_type, _ = mimetypes.guess_type(path)
                 return FileResponse(path, media_type=mime_type, filename=os.path.basename(path))
@@ -974,6 +1039,28 @@ async def stream_local_file_by_index(index: int):
     except Exception as e:
         print(f"Stream Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/local/peaks/{index}/{stem_index}")
+async def get_local_stem_peaks(index: int, stem_index: int):
+    try:
+        if not os.path.exists(LOCAL_LIB_FILE):
+             return []
+        with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+             items = json.load(f)
+             
+        if 0 <= index < len(items):
+            item = items[index]
+            if item.get("is_multitrack") and "stems" in item:
+                stems = item["stems"]
+                if 0 <= stem_index < len(stems):
+                    path = stems[stem_index]
+                    if os.path.exists(path):
+                        peaks = metadata_service.generate_peaks(path)
+                        return peaks
+        return []
+    except Exception as e:
+        logging.error(f"Peaks Endpoint Error: {e}")
+        return []
 
 @app.get("/api/local/subs_list/{index}")
 async def get_local_subs_list(index: int):

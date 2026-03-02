@@ -548,6 +548,8 @@ function toggleVideo() {
         v.paused ? v.play() : v.pause();
     } else if (currentActivePlayer === 'waveform' && wavesurfer) {
         wavesurfer.playPause();
+    } else if (currentActivePlayer === 'multitrack' && window.multitrack) {
+        window.multitrack.isPlaying() ? window.multitrack.pause() : window.multitrack.play();
     } else if (player && typeof player.getPlayerState === 'function') {
         player.getPlayerState() === 1 ? player.pauseVideo() : player.playVideo();
     }
@@ -1706,6 +1708,14 @@ function stopAllMedia() {
         // Clearing src stops playback for generic iframes
         // genFrame.src = ""; // Optional: might flash white, usually strictly separate
     }
+
+    // 5. Multitrack
+    if (window.multitrack) {
+        try {
+            window.multitrack.destroy();
+            window.multitrack = null;
+        } catch (e) { console.error(e); }
+    }
 }
 
 async function deleteTrack(index) {
@@ -2269,7 +2279,7 @@ function resetFilters(mode) {
     }
 }
 
-function playLocal(index) {
+async function playLocal(index) {
     const file = localFiles[index];
     if (!file) return;
 
@@ -2279,10 +2289,11 @@ function playLocal(index) {
     const getProfile = (item, def) => (item.target_profile && item.target_profile !== "Auto") ? item.target_profile : def;
 
     // Detect Type
-    const ext = file.path.split('.').pop().toLowerCase();
-    const isAudio = ['mp3', 'wav', 'flac', 'm4a', 'aac'].includes(ext);
+    const isMultitrack = file.is_multitrack === true;
+    const ext = file.path ? file.path.split('.').pop().toLowerCase() : '';
+    const isAudio = !isMultitrack && ['mp3', 'wav', 'flac', 'm4a', 'aac'].includes(ext);
     const videoExts = ['mp4', 'mkv', 'avi', 'mov', 'webm']; // Explicit list from user request for log consistency
-    const isVideo = videoExts.includes(ext); // Note: original code checked ['mp4', 'mkv', 'webm', 'avi', 'mov']
+    const isVideo = !isMultitrack && videoExts.includes(ext); // Note: original code checked ['mp4', 'mkv', 'webm', 'avi', 'mov']
 
     console.log("[DEBUG JS] Extension détectée :", ext);
     console.log("[DEBUG JS] Est-ce une vidéo ?", isVideo);
@@ -2332,7 +2343,228 @@ function playLocal(index) {
     v.load();
     v.volume = normalizedVolume; // SET HTML5 VOLUME
 
-    if (isAudio) {
+    if (isMultitrack) {
+        // --- MULTITRACK MODE ---
+        const target = getProfile(file, "Web Audio Local");
+        console.log("[DEBUG JS] Envoi demande setMode (MULTITRACK) avec profil :", target);
+        setMode("AUDIO", target);
+
+        videoContainer.style.display = "none";
+        audioContainer.style.display = "none";
+        document.getElementById("video-controls-container").style.display = "none";
+
+        const multitrackContainer = document.getElementById("multitrack-container");
+        if (multitrackContainer) multitrackContainer.style.display = "flex";
+
+        document.getElementById("multitrack-title").innerText = file.title;
+
+        if (wavesurfer) wavesurfer.pause();
+        v.style.display = "none";
+
+        const trackHeaders = document.getElementById("multitrack-headers");
+        const trackWaveforms = document.getElementById("multitrack-waveforms");
+        const loadingIndicator = document.getElementById("multitrack-loading");
+
+        if (loadingIndicator) loadingIndicator.style.display = "block";
+        if (trackHeaders) trackHeaders.innerHTML = "";
+        if (trackWaveforms) trackWaveforms.innerHTML = "";
+
+        const mtOptions = await Promise.all(file.stems.map(async (stemPath, i) => {
+            const name = stemPath.split(/[\\/]/).pop().replace(/\.[^/.]+$/, "");
+
+            const header = document.createElement("div");
+            header.className = "track-header";
+            header.id = `mt-header-${i}`;
+            // Align with multitrack's background to make it seamless
+            header.innerHTML = `
+                <div class="track-title" title="${name}">${name}</div>
+                <div class="track-controls">
+                    <button class="btn-mute" id="mt-mute-${i}" title="Mute">M</button>
+                    <button class="btn-solo" id="mt-solo-${i}" title="Solo">S</button>
+                </div>
+                <div class="track-slider-row">
+                    <i class="ph ph-speaker-low" title="Volume"></i>
+                    <input type="range" class="slider-vol" id="mt-vol-${i}" min="0" max="1" step="0.01" value="1" title="Volume">
+                </div>
+                <div class="track-slider-row">
+                    <span class="pan-lbl">L</span>
+                    <input type="range" class="slider-pan" id="mt-pan-${i}" min="-1" max="1" step="0.01" value="0" title="Pan">
+                    <span class="pan-lbl">R</span>
+                </div>
+            `;
+            if (trackHeaders) trackHeaders.appendChild(header);
+
+            // Fetch pre-calculated peaks AND the audio file entirely to RAM
+            let peaksArray = undefined;
+            let audioUrl = "/api/stream?path=" + encodeURIComponent(stemPath); // fallback
+            let mediaElement = null;
+
+            try {
+                // Parallel fetch limits network bottleneck
+                const [peaksRes, audioRes] = await Promise.all([
+                    fetch(`/api/local/peaks/${index}/${i}`),
+                    fetch("/api/stream?path=" + encodeURIComponent(stemPath))
+                ]);
+
+                if (peaksRes.ok) {
+                    const data = await peaksRes.json();
+                    if (data && data.length > 0) {
+                        peaksArray = [new Float32Array(data)];
+                    }
+                }
+
+                if (audioRes.ok) {
+                    const blob = await audioRes.blob();
+                    audioUrl = URL.createObjectURL(blob);
+
+                    // Create explicit Audio media element forcing preload
+                    mediaElement = new Audio();
+                    mediaElement.src = audioUrl;
+                    mediaElement.crossOrigin = "anonymous";
+                    mediaElement.preload = "auto";
+
+                    // Route to WebAudio for Panning
+                    if (!window.mtAudioCtx) {
+                        const AudioContext = window.AudioContext || window.webkitAudioContext;
+                        window.mtAudioCtx = new AudioContext();
+                    }
+
+                    const source = window.mtAudioCtx.createMediaElementSource(mediaElement);
+                    const panner = window.mtAudioCtx.createStereoPanner();
+                    panner.pan.value = 0;
+                    source.connect(panner);
+                    panner.connect(window.mtAudioCtx.destination);
+
+                    mediaElement._panner = panner;
+                }
+            } catch (e) {
+                console.error("Multitrack fetch error:", e);
+            }
+
+            return {
+                id: i,
+                url: audioUrl, // Fallback if media is strictly needed by plugins
+                volume: 1,
+                peaks: peaksArray,
+                options: {
+                    media: mediaElement, // Forces HTML5 but guarantees 0ms latency thanks to RAM blob
+                    waveColor: `hsl(${(i * 45) % 360}, 70%, 50%)`,
+                    progressColor: `hsl(${(i * 45) % 360}, 70%, 30%)`,
+                    height: 100,
+                    barWidth: 2,
+                    barGap: 1,
+                    barRadius: 2
+                }
+            };
+        }));
+
+        window.multitrack = Multitrack.create(mtOptions, {
+            container: trackWaveforms,
+            rightButtonDrag: false,
+            cursorWidth: 2,
+            cursorColor: 'var(--accent)',
+            trackBackground: '#2d2d2d',
+            trackBorderColor: '#7C7C7C',
+            timelineOptions: { height: 0 }
+        });
+
+        window.multitrack.once('canplay', () => {
+            if (loadingIndicator) loadingIndicator.style.display = "none";
+            file.stems.forEach((_, i) => {
+                const muteBtn = document.getElementById(`mt-mute-${i}`);
+                const soloBtn = document.getElementById(`mt-solo-${i}`);
+                const volSlider = document.getElementById(`mt-vol-${i}`);
+                const panSlider = document.getElementById(`mt-pan-${i}`);
+                const headerDiv = document.getElementById(`mt-header-${i}`);
+
+                // Dynamic strict height alignment block
+                const ws = window.multitrack.wavesurfers[i];
+                if (ws && headerDiv) {
+                    const wsContainer = ws.getWrapper().parentElement;
+                    const h = wsContainer.offsetHeight;
+                    if (h > 0) {
+                        headerDiv.style.height = (h + 2) + "px";
+                    } else {
+                        headerDiv.style.height = "102px";
+                    }
+                }
+
+                if (!muteBtn || !soloBtn || !volSlider) return;
+
+                const getMasterVol = () => {
+                    const mst = document.getElementById("multitrack-master-volume");
+                    return mst ? parseFloat(mst.value) : 1;
+                };
+
+                const updateTrackVol = (index) => {
+                    const mBtn = document.getElementById(`mt-mute-${index}`);
+                    const vSlider = document.getElementById(`mt-vol-${index}`);
+                    const isMuted = mBtn.classList.contains('active');
+                    const vol = isMuted ? 0 : (parseFloat(vSlider.value) * getMasterVol());
+                    window.multitrack.setTrackVolume(index, vol);
+
+                    // Visual feedback Opacity on waveform
+                    const ws = window.multitrack.wavesurfers[index];
+                    if (ws) {
+                        ws.getWrapper().style.opacity = isMuted ? "0.3" : "1";
+                    }
+                };
+
+                muteBtn.onclick = () => {
+                    muteBtn.classList.toggle('active');
+                    updateTrackVol(i);
+                };
+
+                soloBtn.onclick = () => {
+                    soloBtn.classList.toggle('active');
+
+                    const anySolo = Array.from(document.querySelectorAll('.btn-solo')).some(b => b.classList.contains('active'));
+
+                    file.stems.forEach((_, j) => {
+                        const sBtn = document.getElementById(`mt-solo-${j}`);
+                        const wss = window.multitrack.wavesurfers[j];
+
+                        if (anySolo) {
+                            if (sBtn.classList.contains('active')) {
+                                updateTrackVol(j);
+                            } else {
+                                window.multitrack.setTrackVolume(j, 0); // Force mute if not soloed
+                                if (wss) wss.getWrapper().style.opacity = "0.3";
+                            }
+                        } else {
+                            updateTrackVol(j); // Restore normal state
+                        }
+                    });
+                };
+
+                volSlider.oninput = () => {
+                    // Unmute if changing volume
+                    if (muteBtn.classList.contains('active')) {
+                        muteBtn.classList.remove('active');
+                    }
+                    updateTrackVol(i);
+                };
+
+                if (panSlider) {
+                    panSlider.oninput = (e) => {
+                        const pan = parseFloat(e.target.value);
+                        const ws = window.multitrack.wavesurfers[i];
+                        if (ws && ws.media && ws.media._panner) {
+                            ws.media._panner.pan.value = pan;
+                        }
+                    };
+                }
+            });
+            window.multitrack.play();
+            updatePlayPauseUI();
+        });
+
+        window.multitrack.on('play', updatePlayPauseUI);
+        window.multitrack.on('pause', updatePlayPauseUI);
+
+        currentActivePlayer = 'multitrack';
+
+    } else if (isAudio) {
         // --- AUDIO MODE (Hide Video Container) ---
         const target = getProfile(file, "Web Audio Local");
         console.log("[DEBUG JS] Envoi demande setMode (AUDIO) avec profil :", target);
@@ -2347,6 +2579,9 @@ function playLocal(index) {
 
         const vPitch = document.getElementById("video-pitch-control-inline");
         if (vPitch) vPitch.style.display = "none";
+
+        const multitrackContainer = document.getElementById("multitrack-container");
+        if (multitrackContainer) multitrackContainer.style.display = "none";
 
         v.style.display = "none";
 
@@ -2387,6 +2622,8 @@ function playLocal(index) {
         audioContainer.style.display = "none";
         v.style.display = "block";
         document.getElementById("video-controls-container").style.display = "flex";
+        const multitrackContainer = document.getElementById("multitrack-container");
+        if (multitrackContainer) multitrackContainer.style.display = "none";
 
         // Show Custom Timeline
         const timeline = document.getElementById("video-timeline-container");
@@ -2442,6 +2679,10 @@ function playLocal(index) {
 
 // --- AUDIO CONTROLS (On Screen) ---
 function audioControl(action) {
+    if (currentActivePlayer === 'multitrack' && window.multitrack) {
+        multitrackControl(action);
+        return;
+    }
     if (!wavesurfer) return;
     switch (action) {
         case 'playpause': wavesurfer.playPause(); break;
@@ -2601,6 +2842,62 @@ function videoControl(action) {
             }
             break;
     }
+}
+
+// --- MULTITRACK CONTROLS (On Screen) ---
+function multitrackControl(action) {
+    if (!window.multitrack) return;
+
+    switch (action) {
+        case 'prev':
+            window.multitrack.setTime(Math.max(0, window.multitrack.getCurrentTime() - 5));
+            break;
+        case 'next':
+            window.multitrack.setTime(window.multitrack.getCurrentTime() + 5);
+            break;
+        case 'playpause':
+            if (window.multitrack.isPlaying()) {
+                window.multitrack.pause();
+            } else {
+                window.multitrack.play();
+            }
+            break;
+        case 'restart':
+            window.multitrack.setTime(0);
+            break;
+    }
+}
+
+function updatePlayPauseUI() {
+    if (window.multitrack) {
+        updatePlayPauseIcon('multitrack', window.multitrack.isPlaying());
+    }
+}
+
+function updateMultitrackMasterVolume(val) {
+    if (!window.multitrack) return;
+    const master = parseFloat(val);
+
+    const anySolo = Array.from(document.querySelectorAll('.btn-solo')).some(b => b.classList.contains('active'));
+
+    // We assume the number of tracks corresponds to the DOM elements created
+    const trackHeaders = document.querySelectorAll('.track-header');
+
+    trackHeaders.forEach((th, i) => {
+        const muteBtn = document.getElementById(`mt-mute-${i}`);
+        const soloBtn = document.getElementById(`mt-solo-${i}`);
+        const volSlider = document.getElementById(`mt-vol-${i}`);
+
+        if (muteBtn && soloBtn && volSlider) {
+            let shouldPlay = !muteBtn.classList.contains('active');
+            if (anySolo && !soloBtn.classList.contains('active')) {
+                shouldPlay = false;
+            }
+            if (shouldPlay) {
+                window.multitrack.setTrackVolume(i, parseFloat(volSlider.value) * master);
+            }
+        }
+    });
 }
 
 // --- VOLUME LOGIC (Live Persistence) ---
@@ -3143,6 +3440,21 @@ async function addLocalFile() {
         openImportModal(data);
     } else if (data.status === "exists") {
         alert("Ce fichier est déjà dans la bibliothèque.");
+    }
+}
+
+async function addLocalMultitrack() {
+    const res = await fetch("/api/local/add_multitrack_folder", { method: "POST" });
+    const data = await res.json();
+
+    if (data.status === "ok") {
+        loadLocalFiles();
+    } else if (data.status === "import_needed") {
+        openImportModal(data);
+    } else if (data.status === "exists") {
+        alert("Ce dossier est déjà dans la bibliothèque.");
+    } else if (data.status === "error") {
+        alert("Erreur: " + data.message);
     }
 }
 
