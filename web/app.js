@@ -2450,7 +2450,7 @@ async function playLocal(index) {
                     media: mediaElement, // Forces HTML5 but guarantees 0ms latency thanks to RAM blob
                     waveColor: `hsl(${(i * 45) % 360}, 70%, 50%)`,
                     progressColor: `hsl(${(i * 45) % 360}, 70%, 30%)`,
-                    height: 85,
+                    height: 70,
                     barWidth: 2,
                     barGap: 1,
                     barRadius: 2
@@ -2485,7 +2485,7 @@ async function playLocal(index) {
                     if (h > 0) {
                         headerDiv.style.height = (h + 2) + "px";
                     } else {
-                        headerDiv.style.height = "87px";
+                        headerDiv.style.height = "72px";
                     }
                 }
 
