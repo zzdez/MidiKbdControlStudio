@@ -1014,6 +1014,20 @@ function moveStem(fromIndex, toIndex) {
         window.multitrack = null;
     }
 
+    // Update the saved settings order instantly so the UI redraws correctly
+    try {
+        const key = getMultitrackStorageKey(currentFile);
+        const saved = localStorage.getItem(key);
+        if (saved) {
+            const settings = JSON.parse(saved);
+            if (settings.tracks && settings.tracks.length > Math.max(fromIndex, toIndex)) {
+                const t = settings.tracks.splice(fromIndex, 1)[0];
+                settings.tracks.splice(toIndex, 0, t);
+                localStorage.setItem(key, JSON.stringify(settings));
+            }
+        }
+    } catch (e) { }
+
     // UI reload
     playLocal(window.currentPlayingIndex);
 }
@@ -2350,6 +2364,114 @@ function resetFilters(mode) {
     }
 }
 
+// --- MULTITRACK STATE PERSISTENCE ---
+let mtSaveTimeout = null;
+function getMultitrackStorageKey(file) {
+    if (!file) return 'mt_settings_unknown';
+    return 'mt_settings_' + (file.path || file.title);
+}
+
+function saveMultitrackSettings(file) {
+    if (!window.multitrack || !file) return;
+
+    // Debounce to avoid flooding localStorage when sliding quickly or playing
+    clearTimeout(mtSaveTimeout);
+    mtSaveTimeout = setTimeout(() => {
+        const settings = {
+            position: window.multitrack.getCurrentTime() || 0,
+            masterVolume: document.getElementById("multitrack-master-volume") ? parseFloat(document.getElementById("multitrack-master-volume").value) : 1.0,
+            tracks: []
+        };
+
+        file.stems.forEach((stem, i) => {
+            const muteBtn = document.getElementById(`mt-mute-${i}`);
+            const soloBtn = document.getElementById(`mt-solo-${i}`);
+            const volSlider = document.getElementById(`mt-vol-${i}`);
+            const panSlider = document.getElementById(`mt-pan-${i}`);
+
+            settings.tracks.push({
+                path: stem.path,
+                name: stem.name,
+                mute: muteBtn ? muteBtn.classList.contains('active') : false,
+                solo: soloBtn ? soloBtn.classList.contains('active') : false,
+                volume: volSlider ? parseFloat(volSlider.value) : 1.0,
+                pan: panSlider ? parseFloat(panSlider.value) : 0.0
+            });
+        });
+
+        localStorage.setItem(getMultitrackStorageKey(file), JSON.stringify(settings));
+    }, 500); // 500ms debounce
+}
+
+function loadMultitrackSettings(file) {
+    if (!window.multitrack || !file) return;
+
+    const saved = localStorage.getItem(getMultitrackStorageKey(file));
+    if (!saved) return;
+
+    try {
+        const settings = JSON.parse(saved);
+
+        if (settings.masterVolume !== undefined) {
+            const mst = document.getElementById("multitrack-master-volume");
+            if (mst) mst.value = settings.masterVolume;
+        }
+
+        if (settings.tracks && Array.isArray(settings.tracks)) {
+            settings.tracks.forEach((trackData, i) => {
+                const muteBtn = document.getElementById(`mt-mute-${i}`);
+                const soloBtn = document.getElementById(`mt-solo-${i}`);
+                const volSlider = document.getElementById(`mt-vol-${i}`);
+                const panSlider = document.getElementById(`mt-pan-${i}`);
+
+                if (muteBtn && trackData.mute) muteBtn.classList.add('active');
+                if (soloBtn && trackData.solo) soloBtn.classList.add('active');
+                if (volSlider && trackData.volume !== undefined) volSlider.value = trackData.volume;
+                if (panSlider && trackData.pan !== undefined) {
+                    panSlider.value = trackData.pan;
+                    const ws = window.multitrack.wavesurfers[i];
+                    if (ws && ws.media && ws.media._panner) {
+                        ws.media._panner.pan.value = trackData.pan;
+                    }
+                }
+            });
+
+            // Re-trigger the solo/mute logic map for volumes
+            const anySolo = Array.from(document.querySelectorAll('.btn-solo')).some(b => b.classList.contains('active'));
+            const mstVol = settings.masterVolume !== undefined ? settings.masterVolume : 1.0;
+
+            file.stems.forEach((_, j) => {
+                const mBtn = document.getElementById(`mt-mute-${j}`);
+                const sBtn = document.getElementById(`mt-solo-${j}`);
+                const vSlider = document.getElementById(`mt-vol-${j}`);
+                const wss = window.multitrack.wavesurfers[j];
+
+                const isMuted = mBtn ? mBtn.classList.contains('active') : false;
+                const isSolo = sBtn ? sBtn.classList.contains('active') : false;
+                const baseVol = vSlider ? parseFloat(vSlider.value) : 1.0;
+
+                let finalVol = baseVol * mstVol;
+
+                if (isMuted) {
+                    finalVol = 0;
+                } else if (anySolo && !isSolo) {
+                    finalVol = 0;
+                }
+
+                window.multitrack.setTrackVolume(j, finalVol);
+                if (wss) {
+                    wss.getWrapper().style.opacity = finalVol === 0 ? "0.3" : "1";
+                }
+            });
+        }
+
+        if (settings.position !== undefined && settings.position > 0) {
+            window.multitrack.setTime(settings.position);
+        }
+    } catch (e) {
+        console.error("Failed to parse saved multitrack settings:", e);
+    }
+}
 async function playLocal(index) {
     const file = localFiles[index];
     if (!file) return;
@@ -2419,6 +2541,25 @@ async function playLocal(index) {
         if (file.stems && file.stems.length > 0 && typeof file.stems[0] === 'string') {
             file.stems = file.stems.map(s => ({ path: s, name: s.split(/[\\/]/).pop().replace(/\.[^/.]+$/, "") }));
         }
+
+        // Restore Stem Order from localStorage
+        try {
+            const saved = localStorage.getItem(getMultitrackStorageKey(file));
+            if (saved) {
+                const settings = JSON.parse(saved);
+                if (settings.tracks && Array.isArray(settings.tracks) && settings.tracks.length === file.stems.length) {
+                    const orderedStems = [];
+                    const availableStems = [...file.stems];
+                    settings.tracks.forEach(trackData => {
+                        const matchIdx = availableStems.findIndex(s => s.path === trackData.path);
+                        if (matchIdx !== -1) {
+                            orderedStems.push(availableStems.splice(matchIdx, 1)[0]);
+                        }
+                    });
+                    file.stems = orderedStems.concat(availableStems);
+                }
+            }
+        } catch (e) { console.error("Order restore failed", e); }
 
         // --- MULTITRACK MODE ---
         const target = getProfile(file, "Web Audio Local");
@@ -2659,6 +2800,7 @@ async function playLocal(index) {
                 muteBtn.onclick = () => {
                     muteBtn.classList.toggle('active');
                     updateTrackVol(i);
+                    saveMultitrackSettings(file);
                 };
 
                 soloBtn.onclick = () => {
@@ -2681,6 +2823,7 @@ async function playLocal(index) {
                             updateTrackVol(j); // Restore normal state
                         }
                     });
+                    saveMultitrackSettings(file);
                 };
 
                 volSlider.oninput = () => {
@@ -2689,6 +2832,7 @@ async function playLocal(index) {
                         muteBtn.classList.remove('active');
                     }
                     updateTrackVol(i);
+                    saveMultitrackSettings(file);
                 };
 
                 if (panSlider) {
@@ -2698,15 +2842,33 @@ async function playLocal(index) {
                         if (ws && ws.media && ws.media._panner) {
                             ws.media._panner.pan.value = pan;
                         }
+                        saveMultitrackSettings(file);
                     };
                 }
             });
+
+            // Restore saved settings on load
+            loadMultitrackSettings(file);
+
             window.multitrack.play();
             updatePlayPauseUI();
         });
 
-        window.multitrack.on('play', updatePlayPauseUI);
-        window.multitrack.on('pause', updatePlayPauseUI);
+        window.multitrack.on('play', () => {
+            updatePlayPauseUI();
+            saveMultitrackSettings(file);
+        });
+        window.multitrack.on('pause', () => {
+            updatePlayPauseUI();
+            saveMultitrackSettings(file); // Save exact stop time
+        });
+
+        // Save bounds periodically on seek/play
+        window.multitrack.on('timeupdate', () => {
+            if (!window.multitrack.isPlaying()) {
+                saveMultitrackSettings(file);
+            }
+        });
 
         currentActivePlayer = 'multitrack';
 
