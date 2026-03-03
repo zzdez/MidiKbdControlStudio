@@ -82,6 +82,9 @@ pyinstaller --noconfirm --onefile --windowed ^
  --hidden-import "mutagen.easymp4" ^
  --hidden-import "musicbrainzngs" ^
  --hidden-import "yt_dlp" ^
+ --hidden-import "numpy" ^
+ --hidden-import "soundfile" ^
+ --hidden-import "_cffi_backend" ^
  --collect-all "pygame" ^
  main.py
 :: ... (Existing content skipped, ensuring Hidden Imports remain) ...

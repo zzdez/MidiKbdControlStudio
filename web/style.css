@@ -1273,8 +1273,394 @@ dialog::backdrop {
     cursor: pointer;
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
     transition: background .15s ease-in-out;
+    font-size: 0.85em;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 100;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+    border: 1px solid #444;
+}
+
+.timeline-marker:hover::after {
+    opacity: 1;
+}
+
+.settings-tab h4 {
+    margin-top: 0;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    color: var(--accent);
+}
+
+.hint {
+    font-size: 0.8em;
+    color: #666;
+    margin-top: 5px;
+}
+
+.folder-list {
+    background: #121212;
+    border: 1px solid #333;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.folder-item {
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #222;
+}
+
+.folder-item:last-child {
+    border-bottom: none;
+}
+
+.folder-path {
+    font-family: monospace;
+    font-size: 0.9em;
+    color: #ccc;
+    word-break: break-all;
+}
+
+.btn-remove-folder {
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 1.2em;
+    padding: 0 10px;
+}
+
+.btn-remove-folder:hover {
+    color: var(--danger);
+}
+
+/* --- CUSTOM AUTOCOMPLETE --- */
+.autocomplete-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.suggestions-box {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #252525;
+    border: 1px solid #444;
+    border-top: none;
+    z-index: 1000;
+    max-height: 200px;
+    overflow-y: auto;
+    border-radius: 0 0 4px 4px;
+    display: none;
+    /* Hidden by default */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.suggestion-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #333;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background: #333;
+    color: white;
+}
+
+.suggestion-delete {
+    color: #cf6679;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 10px;
+    font-size: 1.1em;
+}
+
+.suggestion-delete:hover {
+    background: rgba(207, 102, 121, 0.2);
+    color: #ff8a9f;
+}
+
+/* UTILITY CLASSES */
+.hidden {
+    display: none !important;
+}
+
+.visible {
+    display: block !important;
+}
+
+/* PREVIEW MODAL */
+.preview-modal {
+    width: 80vw;
+    max-width: 1000px;
+    background: black;
+    color: white;
+    border: 1px solid #444;
+    padding: 0;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+    position: fixed;
+    margin: auto;
+}
+
+
+.preview-modal .modal-body {
+    width: 100%;
+    height: auto !important;
+    aspect-ratio: 16/9;
+    background: black;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.preview-modal::backdrop {
+    background: rgba(0, 0, 0, 0.85);
+}
+
+/* CUSTOM VERTICAL SLIDER (Horizontal rotated) */
+.slider-container-v {
+    position: relative;
+    width: 20px;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.custom-vslider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100px;
+    /* This becomes the height when rotated */
+    height: 4px;
+    background: #444;
+    outline: none;
+    border-radius: 2px;
+    transform: rotate(-90deg);
+    transform-origin: center center;
+    cursor: pointer;
+}
+
+.custom-vslider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    transition: background .15s ease-in-out;
 }
 
 .custom-vslider::-webkit-slider-thumb:hover {
     background: var(--accent);
+}
+
+/* === MULTITRACK DAW STYLES === */
+.multitrack-row {
+    display: flex;
+    align-items: stretch;
+    background: #1e1e1e;
+    border: none;
+    /* Let the internal items handle borders */
+    overflow: visible;
+}
+
+.track-header {
+    width: 200px;
+    /* Increased to accommodate reorder buttons */
+    height: 72px;
+    /* 70px stem + 2px offset */
+    background: #2a2a2a;
+    border-right: 1px solid #333;
+    border-bottom: 1px solid #333;
+    padding: 2px 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.track-title {
+    font-size: 0.75em;
+    font-weight: bold;
+    color: #eee;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 0px;
+    line-height: 1;
+    height: 1.1em;
+    flex-grow: 1;
+}
+
+/* Reorder Handle in Multitrack Controls */
+.drag-handle {
+    transition: color 0.2s;
+}
+
+.drag-handle:hover {
+    color: var(--accent) !important;
+}
+
+
+.track-controls {
+    display: flex;
+    gap: 3px;
+    margin-bottom: 0px;
+}
+
+.btn-mute,
+.btn-solo {
+    background: #333;
+    color: #888;
+    border: 1px solid #444;
+    border-radius: 3px;
+    padding: 1px 0;
+    font-size: 0.65em;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    flex: 1;
+    text-align: center;
+}
+
+.btn-mute:hover:not(.active),
+.btn-solo:hover:not(.active) {
+    background: #444;
+    color: #ccc;
+}
+
+.btn-mute.active {
+    background: #e74c3c;
+    color: #fff;
+    border-color: #c0392b;
+    box-shadow: 0 0 5px rgba(231, 76, 60, 0.4);
+}
+
+.btn-solo.active {
+    background: #f1c40f;
+    color: #111;
+    border-color: #f39c12;
+    box-shadow: 0 0 5px rgba(241, 196, 15, 0.4);
+}
+
+.track-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 0px;
+    line-height: 1;
+    height: 15px;
+    /* Forced user request height */
+    overflow: hidden;
+    /* Prevent default input styling from stretching past this */
+}
+
+.track-slider-row i {
+    color: #888;
+    font-size: 0.8em;
+    width: 12px;
+    text-align: center;
+}
+
+.pan-lbl {
+    font-size: 0.55em;
+    color: #888;
+    font-weight: bold;
+    width: 8px;
+    text-align: center;
+}
+
+.slider-vol,
+.slider-pan {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: #444;
+    border-radius: 2px;
+    outline: none;
+    min-width: 0;
+    margin: 0;
+}
+
+.slider-vol::-webkit-slider-runnable-track,
+.slider-pan::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 4px;
+    background: #444;
+    border-radius: 2px;
+}
+
+.slider-vol::-webkit-slider-thumb,
+.slider-pan::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.2s;
+    margin-top: -3px;
+}
+
+.slider-vol::-webkit-slider-thumb {
+    background: var(--accent);
+}
+
+.slider-pan::-webkit-slider-thumb {
+    background: #03dac6;
+}
+
+.slider-vol::-webkit-slider-thumb:hover,
+.slider-pan::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.track-waveform {
+    flex-grow: 1;
+    position: relative;
+    background: #121212;
+    transition: opacity 0.2s;
+    height: 70px;
+    overflow: hidden;
+    box-sizing: border-box;
+    border-bottom: 1px solid #333;
+}
+
+/* Hide multitrack bottom scrollbar */
+#multitrack-container {
+    overflow-x: hidden !important;
+}
+
+#multitrack-waveforms {
+    overflow-x: hidden !important;
+}
+
+#multitrack-waveforms>div {
+    /* Wavesurfer multitrack main wrapper */
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
 }

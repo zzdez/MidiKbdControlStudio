@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="lib/wavesurfer.min.js"></script>
+    <script src="lib/wavesurfer-multitrack.min.js"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 </head>
 
@@ -210,6 +211,55 @@
 
             </div>
 
+            <!-- Multitrack Player (DAW Mode) -->
+            <div id="multitrack-container"
+                style="display:none; width:100%; height:100%; flex-direction:column; background:#121212; overflow-y:auto; padding-top: 5px;">
+                <div id="multitrack-header" style="text-align:center; margin-bottom:15px; flex-shrink:0;">
+                    <div id="multitrack-title" style="font-size:1.5em; font-weight:bold; color:white;">Multipiste</div>
+                    <div id="multitrack-artist" style="font-size:1em; color:#bbb;">Stems</div>
+                </div>
+
+
+                <!-- Controls bar for multitrack: reuse the existing logic, just add play/pause -->
+                <div class="audio-controls media-controls-bar"
+                    style="margin-bottom:15px; flex-shrink:0; justify-content:center;">
+                    <button class="control-btn" onclick="multitrackControl('restart')" title="Restart"><i
+                            class="ph ph-arrow-counter-clockwise"></i></button>
+                    <button class="control-btn" onclick="multitrackControl('prev')" title="-5s"><i
+                            class="ph ph-rewind"></i></button>
+                    <button class="control-btn control-btn-large" onclick="multitrackControl('playpause')"
+                        title="Lecture/Pause">
+                        <i id="btn-multitrack-play-toggle" class="ph ph-play-circle ph-fill"></i>
+                    </button>
+                    <button class="control-btn" onclick="multitrackControl('next')" title="+5s"><i
+                            class="ph ph-fast-forward"></i></button>
+
+                    <!-- We'll attach global volume later if needed -->
+                    <div
+                        style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left:10px;">
+                        <i class="ph ph-speaker-high" style="color:#888; font-size:1em;"></i>
+                        <input type="range" id="multitrack-master-volume" min="0" max="1" step="0.01" value="1"
+                            style="width:80px; height:4px;" oninput="updateMultitrackMasterVolume(this.value)">
+                    </div>
+
+
+
+                </div>
+
+                <!-- The tracks grid: headers left, waveforms right -->
+                <div style="flex-grow:1; display:flex; gap:0; padding:0 10px; align-items: flex-start;">
+                    <div id="multitrack-headers"
+                        style="width:200px; display:flex; flex-direction:column; flex-shrink:0;">
+                        <!-- Headers injected via JS -->
+                    </div>
+                    <div id="multitrack-waveforms"
+                        style="flex-grow:1; background:#1e1e1e; overflow:hidden; box-sizing: border-box;">
+                        <!-- Multitrack plugin injects here -->
+                    </div>
+                </div>
+                <div style="height:20px; flex-shrink:0;"></div>
+            </div>
+
             <!-- Video Controls (Overlay/Below) -->
             <!-- Video Controls (Overlay/Below) -->
             <div id="video-controls-container" class="media-controls-bar"
@@ -406,7 +456,13 @@
                 <div class="sidebar-section">
                     <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
                         Fichiers Locaux
-                        <button class="btn-icon" onclick="addLocalFile()">+</button>
+                        <div style="display:flex; gap:5px;">
+                            <button class="btn-icon" onclick="addLocalMultitrack()"
+                                title="Ajouter un Dossier Multipiste" data-i18n-title="web.hint_add_multitrack"><i
+                                    class="ph ph-folder-plus"></i></button>
+                            <button class="btn-icon" onclick="addLocalFile()" title="Ajouter un Fichier"
+                                data-i18n-title="web.hint_add_file">+</button>
+                        </div>
                     </div>
 
                     <!-- Local Filters -->

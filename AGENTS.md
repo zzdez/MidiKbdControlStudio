@@ -189,3 +189,12 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **Ghost Config Fix :** La mémoire tampon de l'interface `self.settings` ne subit plus de dérive (drift) lors des appels `save_all`. Les ports d'E/S actifs sont strictement synchronisés dynamiquement avant chaque sauvegarde, évitant l'écrasement intempestif par un `config.json` vide.
 *   **Mode "Light" Agnostique (`main.py`) :**
     *   Le système de `.flag` (Désactivation Web/Moniteur de Focus) est désormais robuste et fonctionne n'importe où grâce à l'implémentation de `get_app_dir()`. De plus, le `.env` de sécurité YouTube obsolète a été banni de l'UI.
+
+### 19. Évolution V13 : Lecteur Audio Multipistes (Stems)
+*   **Moteur Multitrack (`app.js` & `wavesurfer-multitrack.js`) :**
+    *   **DAW Mode :** Support de dossiers contenant des fichiers audio multiples (stems) pour une lecture WebAudio synchronisée. Chaque piste possède son propre contrôle de Volume, Panoramique (via StereoPannerNode), et états Mute/Solo.
+    *   **UI Ultra-Compacte :** L'interface a été optimisée au millimètre (sliders ultra-fins, hauteur forcée à 70px) pour permettre l'affichage de 7 stems simultanés sans scroll vertical.
+    *   **Features Avancées :** Renommage dynamique des stems (double-clic) et réordonnancement manuel (déplacement des pistes haut/bas). Ajout d'un "Mode Théâtre" dédié pour étendre la vue des formes d'onde.
+*   **Intégration Backend (`library_manager.py` & `server.py`) :**
+    *   **Smart Detection :** Détection automatique des dossiers contenant de multiples fichiers audio (`is_multitrack = True`) lors du scan de la bibliothèque.
+    *   **Zero-Latency Preload :** Pour garantir une synchronisation parfaite des pistes (zéro décalage), les stems sont pré-téléchargés en mémoire vive (Blob) via `fetch` asynchrone avant l'initialisation du lecteur HTML5. Les `peaks` JSON des waveforms sont générés côté serveur en Python pour soulager le CPU du navigateur.

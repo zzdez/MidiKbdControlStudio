@@ -109,6 +109,139 @@ class MetadataService:
         return results
 
     def scan_file_metadata(self, path):
+        if os.path.isdir(path):
+            title = os.path.basename(path.rstrip('/\\'))
+            stems = []
+            max_duration = 0
+            
+            # Scan for audio files in the top level of the directory
+            for f in os.listdir(path):
+                if f.lower().endswith(('.mp3', '.wav', '.flac', '.ogg', '.m4a')):
+                    stem_path = os.path.join(path, f)
+                    stems.append(stem_path)
+                    
+            # Try to get duration from the first stem as reference
+            if stems:
+                try:
+                    ref_audio = mutagen.File(stems[0], easy=True)
+                    if ref_audio and hasattr(ref_audio, 'info') and hasattr(ref_audio.info, 'length'):
+                        max_duration = ref_audio.info.length
+                except: pass
+
+            return {
+                "title": title,
+                "artist": "Multipistes",
+                "album": "Stems",
+                "genre": "",
+                "year": "",
+                "duration": max_duration,
+                "is_multitrack": True,
+                "stems": stems
+            }
+
+    def generate_peaks(self, file_path: str, num_samples: int = 8000) -> list:
+        """
+        Génère un tableau de 'peaks' (min/max) pour dessiner l'onde audio.
+        Mise en cache du résultat (.json) pour éviter de recalculer à chaque chargement.
+        """
+        import json
+        
+        cache_file = file_path + ".peaks.json"
+        
+        # 1. Vérifier si le cache existe
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r") as f:
+                    return json.load(f)
+            except:
+                pass # Si le cache est corrompu, on recalcule
+                
+        try:
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext != '.wav':
+                # Pour l'instant on ne supporte que les pics pur WAV sans dependances lourdes
+                return []
+                
+            import wave
+            import struct
+            
+            with wave.open(file_path, 'rb') as wav_file:
+                nchannels = wav_file.getnchannels()
+                sampwidth = wav_file.getsampwidth()
+                nframes = wav_file.getnframes()
+                
+                if nframes == 0 or sampwidth not in (1, 2, 3, 4):
+                    return []
+                    
+                chunk_size = max(1, nframes // num_samples)
+                peaks = []
+                
+                # Format de struct selon sampwidth
+                fmt = ''
+                if sampwidth == 1:
+                    fmt = f"<{chunk_size * nchannels}B" # unverified, unsigned
+                elif sampwidth == 2:
+                    fmt = f"<{chunk_size * nchannels}h" # signed 16-bit
+                elif sampwidth == 4:
+                    fmt = f"<{chunk_size * nchannels}i" # signed 32-bit ou f (float) - simplifions pour int standard
+                    
+                for i in range(0, nframes, chunk_size):
+                    # Attention, à la fin du fichier le chunk peut être plus petit
+                    frames_to_read = min(chunk_size, nframes - i)
+                    data = wav_file.readframes(frames_to_read)
+                    
+                    if not data:
+                        break
+                        
+                    # Si c'est du 24-bit (sampwidth=3), struct ne gère pas nativement int24.
+                    # Méthode manuelle ou on skip. Pour l'audio DAW c'est souvent 16 ou 24, parfois 32 float.
+                    # Implémentation universelle simple via int.from_bytes:
+                    max_val = 0
+                    bytes_per_sample = sampwidth * nchannels
+                    
+                    # Lecture byte-level (plus souple que struct pour le 24bit)
+                    # On ne prend qu'un échantillon sur X pour aller vite si le chunk est très grand (downsampling basique)
+                    step = max(1, len(data) // 400) * sampwidth # On check ~400 points dans le chunk pour trouver le max approché
+                    # s'assurer qu'on reste aligné sur un echantillon complet (nchannels * sampwidth)
+                    step = (step // bytes_per_sample) * bytes_per_sample
+                    if step == 0: step = bytes_per_sample
+                    
+                    for j in range(0, len(data), step):
+                        # Lecture du channel 1 (Left ou Mono)
+                        sample_bytes = data[j:j+sampwidth]
+                        if len(sample_bytes) < sampwidth:
+                            continue
+                            
+                        # Convertir bytes en entier signé (sauf 8-bit qui est souvent non-signé)
+                        signed = sampwidth > 1
+                        val = int.from_bytes(sample_bytes, byteorder='little', signed=signed)
+                        
+                        abs_val = abs(val)
+                        if abs_val > max_val:
+                            max_val = abs_val
+                            
+                    # Normaliser selon la largeur (16 bits = 32768, 24 bits = 8388608...)
+                    max_possible = (1 << (sampwidth * 8 - (1 if sampwidth > 1 else 0))) - 1
+                    
+                    # Ramener entre 0 et 1.
+                    normalized = float(max_val) / float(max_possible) if max_possible > 0 else 0.0
+                    peaks.append(round(normalized, 4))
+                    
+            # 3. Sauvegarder dans le cache
+            try:
+                import json
+                with open(cache_file, "w") as f:
+                    json.dump(peaks, f)
+            except Exception as e:
+                import logging
+                logging.error(f"Cannot save peaks cache for {file_path}: {e}")
+                    
+            return peaks
+        except Exception as e:
+            import logging
+            logging.error(f"Generate Peaks Error for {file_path} (wave module): {e}")
+            return []
+
         ext = os.path.splitext(path)[1].lower()
         try:
             audio = None
