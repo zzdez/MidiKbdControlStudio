@@ -36,10 +36,12 @@ Elle combine le meilleur de deux mondes :
     - **Nouveau** : Ajustement interactif (Drag & Drop) de la hauteur des sous-titres, avec sauvegarde globale persistante pour vos prochains visionnages !
     - Navigation par sauts (+/- 5s).
     - **NOUVEAU ! Support des Chapitres :** Détection et affichage interactif des chapitres YouTube (Timeline Marker).
-- **Lecteur Audio Local**
-    - Waveform interactive (WaveSurfer.js).
+- **Lecteur Audio Local (Simple & Multipistes)**
     - Support MP3, WAV, FLAC, M4A, OGG.
-    - Pitch Shifting et contrôle de vitesse indépendants.
+    - **NOUVEAU ! Support Multipistes (Stems) :** Jouez vos morceaux décomposés (basse, batterie, guitare, etc.) en parfaite synchronisation.
+    - Mini-DAW intégré : contrôles indépendants de Volume, Panoramique (L/R), Mute et Solo par piste. 
+    - Waveform interactive (WaveSurfer.js) avec zoom et navigation granulaire.
+    - Option de Pitch Shifting et contrôle de vitesse (pour les pistes simples).
 *   **Audio Master Plan (Nouveau !) :**
     - **Volume Maître par Profil :** Chaque profil peut définir son propre volume système cible. Quand l'application détecte que vous ouvrez "Reaper", elle ajuste automatiquement le volume général de Windows pour vous !
     - **Volume Persistant par Média :** Les lecteurs (Web et Local) mémorisent le volume exact de chaque piste individuellement. Ajustez la jauge en direct, c'est sauvegardé instantanément !

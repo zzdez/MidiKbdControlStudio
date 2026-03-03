@@ -219,12 +219,7 @@
                     <div id="multitrack-artist" style="font-size:1em; color:#bbb;">Stems</div>
                 </div>
 
-                <div id="multitrack-loading"
-                    style="display:none; text-align:center; padding: 20px; color: var(--accent);">
-                    <i class="ph ph-spinner ph-spin" style="font-size: 2em; margin-bottom: 10px;"></i>
-                    <div style="font-size: 0.9em;">Décodage des stems audio en cours... Cela peut prendre quelques
-                        secondes.</div>
-                </div>
+
                 <!-- Controls bar for multitrack: reuse the existing logic, just add play/pause -->
                 <div class="audio-controls media-controls-bar"
                     style="margin-bottom:15px; flex-shrink:0; justify-content:center;">
@@ -246,12 +241,15 @@
                         <input type="range" id="multitrack-master-volume" min="0" max="1" step="0.01" value="1"
                             style="width:80px; height:4px;" oninput="updateMultitrackMasterVolume(this.value)">
                     </div>
+
+
+
                 </div>
 
                 <!-- The tracks grid: headers left, waveforms right -->
                 <div style="flex-grow:1; display:flex; gap:0; padding:0 10px; align-items: flex-start;">
                     <div id="multitrack-headers"
-                        style="width:180px; display:flex; flex-direction:column; flex-shrink:0;">
+                        style="width:200px; display:flex; flex-direction:column; flex-shrink:0;">
                         <!-- Headers injected via JS -->
                     </div>
                     <div id="multitrack-waveforms"

@@ -988,15 +988,37 @@ async function addLibraryFolder() {
             if (!currentSettings.media_folders) currentSettings.media_folders = [];
 
             // Avoid duplicates
-            if (!currentSettings.media_folders.includes(data.path)) {
-                currentSettings.media_folders.push(data.path);
-                renderSettingsFolders();
-            }
+            renderSettingsFolders();
         }
-    } catch (e) {
-        console.error("Add Folder Error", e);
+    } catch (error) {
+        console.error("Add Folder Error", error);
     }
 }
+
+/**
+ * Move stems with drag and drop
+ */
+function moveStem(fromIndex, toIndex) {
+    if (window.currentPlayingIndex === undefined || !localFiles[window.currentPlayingIndex]) return;
+    const currentFile = localFiles[window.currentPlayingIndex];
+    if (!currentFile || !currentFile.is_multitrack || !currentFile.stems) return;
+
+    if (fromIndex === toIndex) return;
+
+    // move element
+    const stem = currentFile.stems.splice(fromIndex, 1)[0];
+    currentFile.stems.splice(toIndex, 0, stem);
+
+    if (window.multitrack) {
+        window.multitrack.destroy();
+        window.multitrack = null;
+    }
+
+    // UI reload
+    playLocal(window.currentPlayingIndex);
+}
+
+
 
 async function saveSettings() {
     // Harvest Data
@@ -1899,6 +1921,11 @@ function toggleTheaterMode() {
         if (pedalboard) pedalboard.style.display = "block";
         if (mediaZone) mediaZone.style.borderRight = "1px solid #333";
     }
+
+    // Force wavesurfer redraw for multitrack expansion
+    setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+    }, 100);
 }
 
 function renderPedalboard(profile) {
@@ -2344,6 +2371,11 @@ async function playLocal(index) {
     v.volume = normalizedVolume; // SET HTML5 VOLUME
 
     if (isMultitrack) {
+        // Normalize stems to array of objects if they are strings
+        if (file.stems && file.stems.length > 0 && typeof file.stems[0] === 'string') {
+            file.stems = file.stems.map(s => ({ path: s, name: s.split(/[\\/]/).pop().replace(/\.[^/.]+$/, "") }));
+        }
+
         // --- MULTITRACK MODE ---
         const target = getProfile(file, "Web Audio Local");
         console.log("[DEBUG JS] Envoi demande setMode (MULTITRACK) avec profil :", target);
@@ -2366,44 +2398,114 @@ async function playLocal(index) {
         const loadingIndicator = document.getElementById("multitrack-loading");
 
         if (loadingIndicator) loadingIndicator.style.display = "block";
-        if (trackHeaders) trackHeaders.innerHTML = "";
         if (trackWaveforms) trackWaveforms.innerHTML = "";
-
-        const mtOptions = await Promise.all(file.stems.map(async (stemPath, i) => {
-            const name = stemPath.split(/[\\/]/).pop().replace(/\.[^/.]+$/, "");
-
-            const header = document.createElement("div");
-            header.className = "track-header";
+        // Inject track headers
+        trackHeaders.innerHTML = '';
+        file.stems.forEach((stem, i) => {
+            const stemName = stem.name || stem.path.split(/[\\/]/).pop().replace(/\.[^/.]+$/, "");
+            const header = document.createElement('div');
+            header.className = 'track-header';
             header.id = `mt-header-${i}`;
-            // Align with multitrack's background to make it seamless
             header.innerHTML = `
-                <div class="track-title" title="${name}">${name}</div>
-                <div class="track-controls">
-                    <button class="btn-mute" id="mt-mute-${i}" title="Mute">M</button>
-                    <button class="btn-solo" id="mt-solo-${i}" title="Solo">S</button>
+                <div class="track-title-row" style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 2px;">
+                    <span class="track-title" id="mt-title-${i}" title="Double-clic pour renommer">${stemName}</span>
                 </div>
-                <div class="track-slider-row">
-                    <i class="ph ph-speaker-low" title="Volume"></i>
-                    <input type="range" class="slider-vol" id="mt-vol-${i}" min="0" max="1" step="0.01" value="1" title="Volume">
+                <div class="track-controls" style="display:flex; gap:3px; align-items:center; margin-bottom:2px;">
+                    <button class="btn-mute" id="mt-mute-${i}" style="flex: 0 0 24px;">M</button>
+                    <button class="btn-solo" id="mt-solo-${i}" style="flex: 0 0 24px;">S</button>
+                    <div style="flex:1"></div>
+                    <i class="ph ph-hand-grabbing drag-handle" title="Déplacer" style="cursor: grab; font-size: 1.1em; color: #888;"></i>
                 </div>
-                <div class="track-slider-row">
-                    <span class="pan-lbl">L</span>
-                    <input type="range" class="slider-pan" id="mt-pan-${i}" min="-1" max="1" step="0.01" value="0" title="Pan">
-                    <span class="pan-lbl">R</span>
+                <div class="track-slider-row" style="margin-top:4px; margin-bottom:4px;">
+                    <i class="ph ph-speaker-simple-high" style="color:var(--accent);"></i>
+                    <input type="range" class="slider-vol" id="mt-vol-${i}" min="0" max="1" step="0.01" value="1">
+                </div>
+                <div class="track-slider-row" style="margin-top:4px;">
+                    <span class="pan-lbl" style="color:#03dac6;">L</span>
+                    <input type="range" class="slider-pan" id="mt-pan-${i}" min="-1" max="1" step="0.1" value="0">
+                    <span class="pan-lbl" style="color:#03dac6;">R</span>
                 </div>
             `;
-            if (trackHeaders) trackHeaders.appendChild(header);
+            trackHeaders.appendChild(header);
+
+            // Setup Drag and Drop
+            const dragHandle = header.querySelector('.drag-handle');
+            dragHandle.onmouseenter = () => header.draggable = true;
+            dragHandle.onmouseleave = () => header.draggable = false;
+
+            header.ondragstart = (e) => {
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", i.toString());
+                header.style.opacity = "0.5";
+            };
+            header.ondragend = () => {
+                header.style.opacity = "1";
+                document.querySelectorAll('.track-header').forEach(h => h.style.borderBottom = '1px solid #333');
+            };
+            header.ondragover = (e) => {
+                e.preventDefault(); // Necessary to allow dropping
+                e.dataTransfer.dropEffect = "move";
+                header.style.borderBottom = "2px solid var(--accent)";
+            };
+            header.ondragleave = () => {
+                header.style.borderBottom = '1px solid #333';
+            };
+            header.ondrop = (e) => {
+                e.preventDefault();
+                header.style.borderBottom = '1px solid #333';
+                const fromIdx = parseInt(e.dataTransfer.getData("text/plain"));
+                if (!isNaN(fromIdx) && fromIdx !== i) {
+                    moveStem(fromIdx, i);
+                }
+            };
+
+            // Double click to rename
+            const titleSpan = header.querySelector('.track-title');
+            titleSpan.ondblclick = () => {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = titleSpan.innerText;
+                input.style.width = '100%';
+                input.style.fontSize = 'inherit';
+                input.style.background = '#333';
+                input.style.color = '#fff';
+                input.style.border = '1px solid var(--accent)';
+
+                input.onblur = () => {
+                    const newName = input.value.trim();
+                    if (newName) {
+                        file.stems[i].name = newName;
+                        titleSpan.innerText = newName;
+                    }
+                    input.replaceWith(titleSpan);
+                };
+
+                input.onkeydown = (e) => {
+                    if (e.key === 'Enter') input.blur();
+                    if (e.key === 'Escape') {
+                        input.value = titleSpan.innerText;
+                        input.blur();
+                    }
+                };
+
+                titleSpan.replaceWith(input);
+                input.focus();
+                input.select();
+            };
+        });
+        const mtOptions = await Promise.all(file.stems.map(async (stem, i) => {
+            const name = stem.name || stem.path.split(/[\\/]/).pop().replace(/\.[^/.]+$/, "");
 
             // Fetch pre-calculated peaks AND the audio file entirely to RAM
             let peaksArray = undefined;
-            let audioUrl = "/api/stream?path=" + encodeURIComponent(stemPath); // fallback
+            let audioUrl = "/api/stream?path=" + encodeURIComponent(stem.path); // fallback
             let mediaElement = null;
 
             try {
                 // Parallel fetch limits network bottleneck
                 const [peaksRes, audioRes] = await Promise.all([
                     fetch(`/api/local/peaks/${index}/${i}`),
-                    fetch("/api/stream?path=" + encodeURIComponent(stemPath))
+                    fetch("/api/stream?path=" + encodeURIComponent(stem.path))
                 ]);
 
                 if (peaksRes.ok) {
