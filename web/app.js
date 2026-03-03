@@ -1923,9 +1923,53 @@ function toggleTheaterMode() {
     }
 
     // Force wavesurfer redraw for multitrack expansion
+    console.log("[DEBUG MT] Theater Mode Toggled:", isTheaterMode);
+
     setTimeout(() => {
+        // Dispatch window resize for any generic listeners
         window.dispatchEvent(new Event('resize'));
-    }, 100);
+
+        if (window.multitrack && window.multitrack.rendering && window.multitrack.rendering.containers) {
+            // wavesurfer-multitrack caches its initial clientWidth and never recalculates it.
+            // We must manually grab the actual new width and force the inner DOM to scale.
+            const mtContainer = document.getElementById('multitrack-waveforms');
+            if (mtContainer) {
+                const newWidth = mtContainer.clientWidth;
+                const maxDuration = window.multitrack.maxDuration;
+
+                if (newWidth > 0 && maxDuration > 0) {
+                    const pxPerSec = newWidth / maxDuration;
+
+                    // 1. Update the parent wrapper div width
+                    const scrollDiv = mtContainer.firstElementChild;
+                    if (scrollDiv) {
+                        const wrapperDiv = scrollDiv.firstElementChild;
+                        if (wrapperDiv) {
+                            wrapperDiv.style.width = newWidth + 'px';
+                        }
+                    }
+
+                    // 2. Scale each individual track container and its internal wavesurfer
+                    window.multitrack.rendering.containers.forEach((container, idx) => {
+                        const duration = window.multitrack.durations[idx];
+                        const startPos = window.multitrack.tracks[idx].startPosition || 0;
+
+                        if (container && duration) {
+                            container.style.width = (duration * pxPerSec) + 'px';
+                            container.style.transform = `translateX(${startPos * pxPerSec}px)`;
+                        }
+
+                        // Tell the underlying wavesurfer to draw at the new scale
+                        if (window.multitrack.wavesurfers && window.multitrack.wavesurfers[idx]) {
+                            window.multitrack.wavesurfers[idx].zoom(pxPerSec);
+                        }
+                    });
+
+                    console.log("[DEBUG MT] Dynamically rescaled multitrack to width:", newWidth);
+                }
+            }
+        }
+    }, 150); // slight delay to let CSS flex layout settle
 }
 
 function renderPedalboard(profile) {
