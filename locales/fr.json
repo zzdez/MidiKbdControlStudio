@@ -188,7 +188,10 @@
         "lbl_youtube_api": "Clé API YouTube (Optionnelle)",
         "lbl_youtube_api_key": "YouTube Data API Key",
         "placeholder_youtube_api": "Laisser vide si aucune clé...",
-        "hint_youtube_api": "<strong>Optionnel :</strong> Cette clé gratuite permet de récupérer automatiquement les titres, descriptions et miniatures lors de l'ajout d'un lien YouTube. Si aucune clé n'est fournie, <strong>la lecture vidéo et le pédalier MIDI fonctionneront parfaitement</strong>, mais vous devrez taper les titres manuellement.",
+        "lbl_playback_options": "Options de Lecture",
+        "lbl_autoplay": "Lecture auto à la sélection",
+        "lbl_autoreplay": "Rejouer en boucle à la fin",
+        "msg_api_info": "<strong>Optionnel :</strong> Cette clé gratuite permet de récupérer automatiquement les titres, descriptions et miniatures lors de l'ajout d'un lien YouTube. Si aucune clé n'est fournie, <strong>la lecture vidéo et le pédalier MIDI fonctionneront parfaitement</strong>, mais vous devrez taper les titres manuellement.",
         "link_get_api_key": "Obtenir une clé API gratuite ↗",
         "btn_restart": "Redémarrer",
         "btn_prev": "Retour 5s",
@@ -272,7 +275,6 @@
         "tab_local": "Fichiers Locaux",
         "tab_apps": "Applications",
         "hint_sub_pos": "Hauteur des sous-titres",
-        "hint_musicbrainz": "Rechercher sur MusicBrainz",
-        "msg_api_info": "<strong>Optionnel :</strong> Cette clé gratuite permet de récupérer automatiquement les titres, descriptions et miniatures lors de l'ajout d'un lien YouTube. Si aucune clé n'est fournie, <strong>la lecture vidéo et le pédalier MIDI fonctionneront parfaitement</strong>, mais vous devrez taper les titres manuellement."
+        "hint_musicbrainz": "Rechercher sur MusicBrainz"
     }
 }

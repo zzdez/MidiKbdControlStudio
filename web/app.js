@@ -383,7 +383,11 @@ function onPlayerReady() {
     console.log("Player Ready");
     if (queuedVideoId) {
         console.log("Playing queued video:", queuedVideoId);
-        if (!currentSettings || currentSettings.autoplay !== false) {
+        // Find track for current ID to check its per-track settings
+        const track = currentTrackList.find(t => t.id === queuedVideoId);
+        const isAutoplay = (track && track.autoplay !== undefined) ? track.autoplay : (currentSettings.autoplay || false);
+
+        if (isAutoplay) {
             player.loadVideoById(queuedVideoId);
         } else {
             player.cueVideoById(queuedVideoId);
@@ -395,7 +399,7 @@ function onPlayerReady() {
 function onPlayerStateChange(event) {
     if (currentWebMode === 'GENERIC' || currentActivePlayer === 'youtube') {
         if (event.data === YT.PlayerState.ENDED) {
-            if (currentSettings && currentSettings.autoreplay === true) {
+            if (window.currentAutoreplay === true) {
                 player.playVideo();
             }
         } else if (event.data === YT.PlayerState.PLAYING) {
@@ -1182,6 +1186,8 @@ function openEditModal(index) {
     document.getElementById("edit-volume").value = volValEdit;
     const evp2 = document.getElementById("edit-volume-percent"); if (evp2) evp2.innerText = volValEdit + "%";
 
+    syncPlaybackSettingsToModals(track);
+
     // Legacy support: if description exists but not youtube_description, assume it was generic description (or user note?)
     // Since we just migrated, we can put old description into user_notes if user_notes empty
     document.getElementById("youtube-desc-input").value = track.youtube_description || "";
@@ -1581,7 +1587,9 @@ async function saveItem() {
         youtube_description: youtube_description,
         user_notes: user_notes,
         thumbnail: thumbnail,
-        volume: volume
+        volume: volume,
+        autoplay: document.getElementById("edit-autoplay").checked,
+        autoreplay: document.getElementById("edit-autoreplay").checked
     };
 
     if (editingIndex !== null) {
@@ -1807,6 +1815,12 @@ function playTrack(track) {
 
     // STOP ALL MEDIA first
     stopAllMedia();
+
+    // Determine Autoplay/Autoreplay
+    const isAutoplay = (track.autoplay !== undefined) ? track.autoplay : (currentSettings.autoplay || false);
+    const isAutoreplay = (track.autoreplay !== undefined) ? track.autoreplay : (currentSettings.autoreplay || false);
+    window.currentAutoreplay = isAutoreplay; // Global state for end-of-track logic
+    updatePlaybackOptionsUI(isAutoreplay, isAutoplay);
 
     // Reset Containers
     const videoContainer = document.getElementById("video-container");
@@ -2419,6 +2433,8 @@ function saveMultitrackSettings(file) {
     mtSaveTimeout = setTimeout(() => {
         const settings = {
             masterVolume: document.getElementById("multitrack-master-volume") ? parseFloat(document.getElementById("multitrack-master-volume").value) : 1.0,
+            autoplay: file.autoplay,
+            autoreplay: file.autoreplay,
             tracks: []
         };
 
@@ -2459,6 +2475,9 @@ function loadMultitrackSettings(file) {
                 if (mstPerc) mstPerc.innerText = Math.round(settings.masterVolume * 100) + '%';
             }
         }
+
+        if (settings.autoplay !== undefined) file.autoplay = settings.autoplay;
+        if (settings.autoreplay !== undefined) file.autoreplay = settings.autoreplay;
 
         if (settings.tracks && Array.isArray(settings.tracks)) {
             settings.tracks.forEach((trackData, i) => {
@@ -2564,6 +2583,12 @@ async function playLocal(index) {
 
     // Load saved loops for this file
     loadLoopsForTrack(file);
+
+    // Determine Autoplay/Autoreplay
+    const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+    const isAutoreplay = (file.autoreplay !== undefined) ? file.autoreplay : (currentSettings.autoreplay || false);
+    window.currentAutoreplay = isAutoreplay;
+    updatePlaybackOptionsUI(isAutoreplay, isAutoplay);
 
     // Common Resets
     document.getElementById("player").style.display = "none";
@@ -2909,7 +2934,8 @@ async function playLocal(index) {
             // Restore saved settings on load
             loadMultitrackSettings(file);
 
-            if (!currentSettings || currentSettings.autoplay !== false) {
+            const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+            if (isAutoplay) {
                 window.multitrack.play();
             }
             updatePlayPauseUI();
@@ -2951,7 +2977,7 @@ async function playLocal(index) {
                 }
                 window.multitrack.setTime(0);
 
-                if (currentSettings && currentSettings.autoreplay === true) {
+                if (window.currentAutoreplay === true) {
                     window.multitrack.play();
                 }
 
@@ -3001,11 +3027,25 @@ async function playLocal(index) {
         if (wavesurfer) {
             wavesurfer.setVolume(normalizedVolume); // SET WAVESURFER VOLUME
             wavesurfer.load("/api/stream?path=" + encodeURIComponent(file.path));
+
+            const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+            const isAutoreplay = (file.autoreplay !== undefined) ? file.autoreplay : (currentSettings.autoreplay || false);
+            window.currentAutoreplay = isAutoreplay;
+            updateRepeatUI(isAutoreplay);
+
             wavesurfer.on('ready', () => {
-                if (!currentSettings || currentSettings.autoplay !== false) {
+                if (isAutoplay) {
                     wavesurfer.play();
                 }
                 if (isPitchEnabled) connectPitchEngine();
+                updatePlayPauseUI();
+            });
+
+            wavesurfer.on('finish', () => {
+                if (window.currentAutoreplay === true) {
+                    wavesurfer.play();
+                    updatePlayPauseUI();
+                }
             });
         }
 
@@ -3066,7 +3106,8 @@ async function playLocal(index) {
 
 
         const startPlay = () => {
-            if (!currentSettings || currentSettings.autoplay !== false) {
+            const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+            if (isAutoplay) {
                 v.play().catch(e => console.warn("Auto-play aborted", e));
             }
             v.removeEventListener('canplay', startPlay);
@@ -3077,7 +3118,7 @@ async function playLocal(index) {
         v.onended = () => {
             v.pause();
             v.currentTime = 0;
-            if (currentSettings && currentSettings.autoreplay === true) {
+            if (window.currentAutoreplay === true) {
                 v.play();
             }
         };
@@ -3270,6 +3311,7 @@ function multitrackControl(action) {
             } else {
                 window.multitrack.play();
             }
+            updatePlayPauseUI();
             break;
         case 'restart':
             window.multitrack.setTime(0);
@@ -3296,6 +3338,7 @@ function multitrackControl(action) {
                 window.multitrack.setTime(currentTime);
 
                 if (wasPlaying) window.multitrack.play();
+                updatePlayPauseUI();
             }
             break;
         case 'speed_down':
@@ -3319,6 +3362,7 @@ function multitrackControl(action) {
                 window.multitrack.setTime(currentTime);
 
                 if (wasPlaying) window.multitrack.play();
+                updatePlayPauseUI();
             }
             break;
     }
@@ -4036,6 +4080,8 @@ function openEditLocalModal(index) {
     const lvp = document.getElementById("local-volume-percent"); if (lvp) lvp.innerText = volValLoc + "%";
     document.getElementById("local-notes").value = item.user_notes || "";
 
+    syncPlaybackSettingsToModals(item);
+
     // Load Art
     currentCoverData = null;
     document.getElementById("cover-upload").value = "";
@@ -4080,7 +4126,9 @@ async function saveLocalItem() {
         subtitle_pos_y: 100 - parseInt(document.getElementById("local-sub-pos").value, 10),
         subtitle_track: window.tempModalSelectedTrack || "",
         cover_data: currentCoverData, // Send base64 data if changed
-        volume: parseInt(document.getElementById("local-volume").value, 10) || 100
+        volume: parseInt(document.getElementById("local-volume").value, 10) || 100,
+        autoplay: document.getElementById("local-autoplay").checked,
+        autoreplay: document.getElementById("local-autoreplay").checked
     };
 
     const res = await fetch(`/api/local/${editingLocalIndex}`, {
@@ -5116,4 +5164,136 @@ function loadLoopsForTrack(trackOrItem) {
     currentLoops = trackOrItem.loops || [];
     renderLoopsUI();
     updateLoopUI(); // Refresh Toolbar Buttons visibility
+}
+
+// --- PLAYBACK TOGGLE UTILITIES ---
+
+function togglePlaybackOption(option) {
+    if (window.currentPlayingIndex === undefined) return;
+
+    let item = null;
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'multitrack' || currentActivePlayer === 'waveform') {
+        item = localFiles[window.currentPlayingIndex];
+    } else if (currentActivePlayer === 'youtube') {
+        item = currentTrackList.find(t => t.originalIndex === window.currentPlayingIndex);
+    }
+    if (!item) return;
+
+    if (option === 'autoreplay') {
+        window.currentAutoreplay = !window.currentAutoreplay;
+        item.autoreplay = window.currentAutoreplay;
+        updatePlaybackOptionsUI(window.currentAutoreplay, item.autoplay);
+        syncPlaybackSettingsToModals(item);
+
+        // Save based on type
+        if (item.is_multitrack) saveMultitrackSettings(item);
+        else if (item.path) saveLocalItemQuiet(window.currentPlayingIndex, item);
+        else saveItemQuiet(window.currentPlayingIndex, item);
+
+    } else if (option === 'autoplay') {
+        const currentAutoplay = (item.autoplay !== undefined) ? item.autoplay : (currentSettings.autoplay || false);
+        item.autoplay = !currentAutoplay;
+        updatePlaybackOptionsUI(window.currentAutoreplay, item.autoplay);
+        syncPlaybackSettingsToModals(item);
+
+        // Save based on type
+        if (item.is_multitrack) saveMultitrackSettings(item);
+        else if (item.path) saveLocalItemQuiet(window.currentPlayingIndex, item);
+        else saveItemQuiet(window.currentPlayingIndex, item);
+    }
+}
+
+function updatePlaybackOptionsUI(repeatActive, autoplayActive) {
+    const repeatBtns = ["btn-audio-repeat-toggle", "btn-multitrack-repeat-toggle", "btn-video-repeat-toggle"];
+    const autoplayBtns = ["btn-audio-autoplay-toggle", "btn-multitrack-autoplay-toggle", "btn-video-autoplay-toggle"];
+
+    repeatBtns.forEach(id => {
+        const b = document.getElementById(id);
+        if (b) {
+            if (repeatActive) b.classList.add("active");
+            else b.classList.remove("active");
+        }
+    });
+
+    autoplayBtns.forEach(id => {
+        const b = document.getElementById(id);
+        if (b) {
+            if (autoplayActive) b.classList.add("active");
+            else b.classList.remove("active");
+        }
+    });
+}
+
+function syncPlaybackSettingsToModals(item) {
+    const isAutoreplay = (item.autoreplay !== undefined) ? item.autoreplay : (currentSettings.autoreplay || false);
+    const isAutoplay = (item.autoplay !== undefined) ? item.autoplay : (currentSettings.autoplay || false);
+
+    // YouTube / Setlist Modal
+    const editAutoreplay = document.getElementById("edit-autoreplay");
+    const editAutoplay = document.getElementById("edit-autoplay");
+    if (editAutoreplay) editAutoreplay.checked = isAutoreplay;
+    if (editAutoplay) editAutoplay.checked = isAutoplay;
+
+    // Local Modal
+    const localAutoreplay = document.getElementById("local-autoreplay");
+    const localAutoplay = document.getElementById("local-autoplay");
+    if (localAutoreplay) localAutoreplay.checked = isAutoreplay;
+    if (localAutoplay) localAutoplay.checked = isAutoplay;
+}
+
+function updateRepeatUI(active) {
+    let itemAutoplay = false;
+    if (window.currentPlayingIndex !== undefined) {
+        let item = null;
+        if (currentActivePlayer === 'local' || currentActivePlayer === 'multitrack' || currentActivePlayer === 'waveform') {
+            item = localFiles[window.currentPlayingIndex];
+        } else if (currentActivePlayer === 'youtube') {
+            item = currentTrackList.find(t => t.originalIndex === window.currentPlayingIndex);
+        }
+        if (item) itemAutoplay = (item.autoplay !== undefined) ? item.autoplay : (currentSettings.autoplay || false);
+    }
+    updatePlaybackOptionsUI(active, itemAutoplay);
+}
+
+async function saveLocalItemQuiet(index, item) {
+    await fetch(`/api/local/${index}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item)
+    });
+}
+
+async function saveItemQuiet(index, item) {
+    await fetch(`/api/setlist/${index}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item)
+    });
+}
+
+function liveUpdatePlaybackOption(option, value) {
+    if (window.currentPlayingIndex === undefined) return;
+
+    let item = null;
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'multitrack' || currentActivePlayer === 'waveform') {
+        item = localFiles[window.currentPlayingIndex];
+    } else if (currentActivePlayer === 'youtube') {
+        item = currentTrackList.find(t => t.originalIndex === window.currentPlayingIndex);
+    }
+    if (!item) return;
+
+    if (option === 'autoreplay') {
+        window.currentAutoreplay = value;
+        item.autoreplay = value;
+    } else if (option === 'autoplay') {
+        item.autoplay = value;
+    }
+
+    // Sync UI & Save
+    updatePlaybackOptionsUI(window.currentAutoreplay, item.autoplay);
+    syncPlaybackSettingsToModals(item);
+
+    if (item.is_multitrack) saveMultitrackSettings(item);
+    else if (item.path) saveLocalItemQuiet(window.currentPlayingIndex, item);
+    else saveItemQuiet(window.currentPlayingIndex, item);
 }

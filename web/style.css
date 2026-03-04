@@ -732,6 +732,11 @@ dialog::backdrop {
     transform: scale(0.95);
 }
 
+.control-btn.active {
+    color: var(--accent);
+    filter: drop-shadow(0 0 5px rgba(187, 134, 252, 0.4));
+}
+
 .control-btn-large {
     font-size: 38px;
     /* Big Play Button, slightly reduced */
