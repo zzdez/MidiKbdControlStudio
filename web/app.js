@@ -2825,7 +2825,13 @@ async function playLocal(index) {
             cursorColor: 'var(--accent)',
             trackBackground: '#2d2d2d',
             trackBorderColor: '#7C7C7C',
-            timelineOptions: { height: 0 }
+            timelineOptions: {
+                height: 20,
+                style: {
+                    color: '#888',
+                    fontSize: '10px'
+                }
+            }
         });
 
         window.multitrack.once('canplay', () => {
@@ -2939,6 +2945,7 @@ async function playLocal(index) {
                 window.multitrack.play();
             }
             updatePlayPauseUI();
+            setupMultitrackLoopSelection();
         });
 
         window.multitrack.on('play', () => {
@@ -4652,9 +4659,9 @@ function setLoopA() {
 }
 
 function setLoopB() {
-    const t = getCurrentPlayerTime();
-    if (loopA !== null && t > loopA) {
-        loopB = t;
+    const currentTime = getCurrentPlayerTime();
+    if (loopA !== null && currentTime > loopA) {
+        loopB = currentTime;
         isLoopActive = true;
     } else {
         alert(t("web.msg_loop_b_after_a"));
@@ -4769,11 +4776,14 @@ function updateLoopUI() {
     if (btnPrev_m) btnPrev_m.style.display = hasSavedLoops ? "inline-block" : "none";
     if (btnNext_m) btnNext_m.style.display = hasSavedLoops ? "inline-block" : "none";
 
-    // Visual Timeline Markers for Local Video / Audio
+    // Visual Timeline Markers for Local Video / Audio / Multitrack
     const isAudio = (currentActivePlayer === 'waveform');
-    const markerA = isAudio ? document.getElementById("audio-loop-marker-a") : document.getElementById("video-loop-marker-a");
-    const markerB = isAudio ? document.getElementById("audio-loop-marker-b") : document.getElementById("video-loop-marker-b");
-    const area = isAudio ? document.getElementById("audio-loop-area") : document.getElementById("video-loop-area");
+    const isMultitrack = (currentActivePlayer === 'multitrack');
+
+    const markerA = isMultitrack ? document.getElementById("mt-loop-marker-a") : (isAudio ? document.getElementById("audio-loop-marker-a") : document.getElementById("video-loop-marker-a"));
+    const markerB = isMultitrack ? document.getElementById("mt-loop-marker-b") : (isAudio ? document.getElementById("audio-loop-marker-b") : document.getElementById("video-loop-marker-b"));
+    const area = isMultitrack ? document.getElementById("mt-loop-area") : (isAudio ? document.getElementById("audio-loop-area") : document.getElementById("video-loop-area"));
+    const visualOverlay = document.getElementById("mt-visual-loop-overlay");
 
     let duration = 0;
     if (currentActivePlayer === 'local') {
@@ -4782,7 +4792,6 @@ function updateLoopUI() {
     } else if (currentActivePlayer === 'waveform') {
         if (wavesurfer) duration = wavesurfer.getDuration() || 0;
     } else if (currentActivePlayer === 'multitrack') {
-        // Find longest wavesurfer track
         if (window.multitrack) {
             let maxDur = 0;
             window.multitrack.wavesurfers.forEach(ws => {
@@ -4810,19 +4819,32 @@ function updateLoopUI() {
                 area.style.display = "block";
                 area.style.left = pctA + "%";
                 area.style.width = (pctB - pctA) + "%";
-                // UX Feedback: Make area semi-transparent if inactive
-                area.style.backgroundColor = isLoopActive ? "rgba(3, 218, 198, 0.4)" : "rgba(100, 100, 100, 0.3)";
+                area.style.backgroundColor = isLoopActive ? "rgba(187,134,252, 0.4)" : "rgba(100, 100, 100, 0.3)";
                 area.style.border = isLoopActive ? "1px dashed var(--accent)" : "1px dashed #666";
+            }
+
+            // Moises Style Visual Overlay for Multitrack
+            if (isMultitrack && visualOverlay) {
+                if (isLoopActive) {
+                    visualOverlay.style.display = "block";
+                    // Reverse clip-path: show everything EXCEPT the loop area is NOT what we want.
+                    // Actually, we want a hole in the dimmed overlay.
+                    // mask-image or clip-path: polygon with "hole" logic
+                    visualOverlay.style.clipPath = `polygon(0% 0%, 0% 100%, ${pctA}% 100%, ${pctA}% 0%, ${pctB}% 0%, ${pctB}% 100%, ${pctA}% 100%, 100% 100%, 100% 0%)`;
+                } else {
+                    visualOverlay.style.display = "none";
+                }
             }
         } else {
             if (markerB) markerB.style.display = "none";
             if (area) area.style.display = "none";
+            if (visualOverlay) visualOverlay.style.display = "none";
         }
     } else {
-        // Fallback or Youtube without timeline tracking
         if (markerA) markerA.style.display = "none";
         if (markerB) markerB.style.display = "none";
         if (area) area.style.display = "none";
+        if (visualOverlay) visualOverlay.style.display = "none";
     }
 }
 
@@ -5009,7 +5031,16 @@ function playSavedLoop(l, forceActive = true) {
 function renderLoopsUI() {
     // We now render loops as shaded regions on the timeline
     const isAudio = (currentActivePlayer === 'waveform');
-    const timelineBg = isAudio ? document.getElementById("audio-loop-overlay") : document.getElementById("video-progress-bar-bg");
+    const isMultitrack = (currentActivePlayer === 'multitrack');
+
+    let timelineBg = null;
+    if (isMultitrack) {
+        timelineBg = document.getElementById("mt-loop-bar");
+    } else if (isAudio) {
+        timelineBg = document.getElementById("audio-loop-overlay");
+    } else {
+        timelineBg = document.getElementById("video-progress-bar-bg");
+    }
 
     if (!timelineBg) return;
 
@@ -5026,6 +5057,11 @@ function renderLoopsUI() {
         if (vid && !isNaN(vid.duration)) dur = vid.duration;
     } else if (currentActivePlayer === 'waveform') {
         if (wavesurfer && !isNaN(wavesurfer.getDuration())) dur = wavesurfer.getDuration();
+    } else if (currentActivePlayer === 'multitrack' && window.multitrack) {
+        window.multitrack.wavesurfers.forEach(ws => {
+            const wsDur = ws.getDuration();
+            if (wsDur > dur) dur = wsDur;
+        });
     }
 
     // Fallback if metadata is not loaded yet. Will re-render on next tick.
@@ -5037,7 +5073,7 @@ function renderLoopsUI() {
     currentLoops.forEach(l => {
         // Create region
         const region = document.createElement("div");
-        region.className = "saved-loop-region";
+        region.className = isMultitrack ? "saved-loop-region mt-saved-loop" : "saved-loop-region";
 
         // Calculate position and width based on loop start and end
         const pctLeft = Math.max(0, Math.min(100, (l.start / dur) * 100));
@@ -5296,4 +5332,128 @@ function liveUpdatePlaybackOption(option, value) {
     if (item.is_multitrack) saveMultitrackSettings(item);
     else if (item.path) saveLocalItemQuiet(window.currentPlayingIndex, item);
     else saveItemQuiet(window.currentPlayingIndex, item);
+}
+
+// --- MULTITRACK MOUSE LOOP SELECTION ---
+function setupMultitrackLoopSelection() {
+    const timeline = document.getElementById("mt-timeline-container");
+    const waveformWrapper = document.getElementById("mt-waveform-wrapper");
+
+    let isDragging = false;
+    let dragMode = 'CREATE'; // 'CREATE', 'RESIZE_A', 'RESIZE_B'
+    let startX = 0;
+
+    const getDur = () => {
+        let dur = 0;
+        if (window.multitrack && window.multitrack.wavesurfers) {
+            window.multitrack.wavesurfers.forEach(ws => {
+                const wsDur = ws.getDuration();
+                if (wsDur > dur) dur = wsDur;
+            });
+        }
+        return dur;
+    };
+
+    const getXTime = (clientX, rect) => {
+        const x = clientX - rect.left;
+        const dur = getDur();
+        return (x / rect.width) * dur;
+    };
+
+    const onMouseDown = (e) => {
+        if (currentActivePlayer !== 'multitrack' || !window.multitrack) return;
+
+        const rect = (timeline && timeline.contains(e.target) ? timeline : waveformWrapper).getBoundingClientRect();
+        const time = getXTime(e.clientX, rect);
+        const dur = getDur();
+        if (dur === 0) return;
+
+        // Threshold for resizing (in seconds, roughly 1% of duration or fixed pixels)
+        const thresholdPx = 10;
+        const thresholdSec = (thresholdPx / rect.width) * dur;
+
+        if (loopA !== null && Math.abs(time - loopA) < thresholdSec) {
+            dragMode = 'RESIZE_A';
+        } else if (loopB !== null && Math.abs(time - loopB) < thresholdSec) {
+            dragMode = 'RESIZE_B';
+        } else {
+            dragMode = 'CREATE';
+            loopA = time;
+            loopB = null;
+            isLoopActive = false;
+        }
+
+        e.preventDefault();
+        isDragging = true;
+        updateLoopUI();
+    };
+
+    const onMouseMove = (e) => {
+        const rect = waveformWrapper.getBoundingClientRect();
+        const time = getXTime(e.clientX, rect);
+
+        if (!isDragging) {
+            // Cursor feedback
+            if (currentActivePlayer === 'multitrack' && window.multitrack) {
+                const dur = getDur();
+                if (dur > 0) {
+                    const thresholdSec = (10 / rect.width) * dur;
+                    const isNearA = loopA !== null && Math.abs(time - loopA) < thresholdSec;
+                    const isNearB = loopB !== null && Math.abs(time - loopB) < thresholdSec;
+
+                    const target = timeline.contains(e.target) ? timeline : (waveformWrapper.contains(e.target) ? waveformWrapper : null);
+                    if (target) {
+                        target.style.cursor = (isNearA || isNearB) ? 'ew-resize' : 'crosshair';
+                    }
+                }
+            }
+            return;
+        }
+
+        if (currentActivePlayer !== 'multitrack' || !window.multitrack) return;
+
+        const dur = getDur();
+        const clampedTime = Math.max(0, Math.min(dur, time));
+
+        if (dragMode === 'CREATE') {
+            if (clampedTime > loopA) {
+                loopB = clampedTime;
+            } else {
+                loopB = loopA;
+                loopA = clampedTime;
+            }
+            isLoopActive = true;
+        } else if (dragMode === 'RESIZE_A') {
+            loopA = Math.min(clampedTime, (loopB !== null ? loopB - 0.1 : dur));
+            isLoopActive = true;
+        } else if (dragMode === 'RESIZE_B') {
+            loopB = Math.max(clampedTime, (loopA !== null ? loopA + 0.1 : 0));
+            isLoopActive = true;
+        }
+
+        updateLoopUI();
+    };
+
+    const onMouseUp = () => {
+        if (!isDragging) return;
+        isDragging = false;
+
+        if (loopA !== null && loopB !== null && Math.abs(loopB - loopA) > 0.1) {
+            isLoopActive = true;
+            // Only seek if we created or moved A
+            if (dragMode === 'CREATE' || dragMode === 'RESIZE_A') {
+                seekPlayerTo(loopA);
+            }
+        } else if (dragMode === 'CREATE') {
+            if (loopA !== null) seekPlayerTo(loopA);
+            clearLoop();
+        }
+        updateLoopUI();
+    };
+
+    if (timeline) timeline.addEventListener('mousedown', onMouseDown);
+    if (waveformWrapper) waveformWrapper.addEventListener('mousedown', onMouseDown);
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
 }

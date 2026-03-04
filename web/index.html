@@ -303,15 +303,46 @@
                     </div>
                 </div>
 
+                <!-- Multitrack Timeline & Loop Bar Row -->
+                <div id="multitrack-timeline-row"
+                    style="display:flex; gap:0; padding:0 10px; align-items: center; margin-bottom: 5px; height: 15px;">
+                    <div style="width:200px; flex-shrink:0;"></div> <!-- Header Spacer -->
+                    <div id="mt-timeline-container"
+                        style="flex-grow:1; position:relative; height:100%; cursor: crosshair; background: #1a1a1a; border-radius: 2px;">
+                        <!-- Time labels and loop markers go here -->
+                        <div id="mt-loop-bar" style="width:100%; height:100%; position:relative;">
+                            <div id="mt-loop-marker-a"
+                                style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#fff; z-index:20; pointer-events:none;">
+                            </div>
+                            <div id="mt-loop-marker-b"
+                                style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#555; z-index:20; pointer-events:none;">
+                            </div>
+                            <div id="mt-loop-area"
+                                style="display:none; position:absolute; top:0; height:100%; background:rgba(187,134,252,0.3); z-index:10; pointer-events:none;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- The tracks grid: headers left, waveforms right -->
-                <div style="flex-grow:1; display:flex; gap:0; padding:0 10px; align-items: flex-start;">
+                <div
+                    style="flex-grow:1; display:flex; gap:0; padding:0 10px; align-items: flex-start; position: relative;">
                     <div id="multitrack-headers"
                         style="width:200px; display:flex; flex-direction:column; flex-shrink:0;">
                         <!-- Headers injected via JS -->
                     </div>
-                    <div id="multitrack-waveforms"
-                        style="flex-grow:1; background:#1e1e1e; overflow:hidden; box-sizing: border-box;">
-                        <!-- Multitrack plugin injects here -->
+
+                    <!-- Waveform Wrapper for Visual Overlay -->
+                    <div id="mt-waveform-wrapper"
+                        style="flex-grow:1; position:relative; background:#1e1e1e; overflow:hidden;">
+                        <div id="multitrack-waveforms" style="width:100%;">
+                            <!-- Multitrack plugin injects here -->
+                        </div>
+
+                        <!-- Visual Loop Overlay (Moises Style) -->
+                        <div id="mt-visual-loop-overlay"
+                            style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:100; display:none;">
+                        </div>
                     </div>
                 </div>
                 <div style="height:20px; flex-shrink:0;"></div>
