@@ -368,7 +368,10 @@ function onYouTubeIframeAPIReady() {
         height: '100%',
         width: '100%',
         videoId: '',
-        events: { 'onReady': onPlayerReady }
+        events: {
+            'onReady': onPlayerReady,
+            'onStateChange': onPlayerStateChange
+        }
     });
 }
 window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
@@ -380,8 +383,26 @@ function onPlayerReady() {
     console.log("Player Ready");
     if (queuedVideoId) {
         console.log("Playing queued video:", queuedVideoId);
-        player.loadVideoById(queuedVideoId);
+        if (!currentSettings || currentSettings.autoplay !== false) {
+            player.loadVideoById(queuedVideoId);
+        } else {
+            player.cueVideoById(queuedVideoId);
+        }
         queuedVideoId = null;
+    }
+}
+
+function onPlayerStateChange(event) {
+    if (currentWebMode === 'GENERIC' || currentActivePlayer === 'youtube') {
+        if (event.data === YT.PlayerState.ENDED) {
+            if (currentSettings && currentSettings.autoreplay === true) {
+                player.playVideo();
+            }
+        } else if (event.data === YT.PlayerState.PLAYING) {
+            updatePlayPauseIcon('video', true);
+        } else if (event.data === YT.PlayerState.PAUSED) {
+            updatePlayPauseIcon('video', false);
+        }
     }
 }
 
@@ -908,6 +929,12 @@ async function openSettingsModal() {
         if (langDropdown) langDropdown.value = currentSettings.language || "fr";
 
         document.getElementById("setting-youtube-key").value = currentSettings.YOUTUBE_API_KEY || "";
+
+        const apCb = document.getElementById("setting-autoplay");
+        if (apCb) apCb.checked = currentSettings.autoplay !== false; // Default to true
+
+        const arCb = document.getElementById("setting-autoreplay");
+        if (arCb) arCb.checked = currentSettings.autoreplay === true; // Default to false
         renderSettingsFolders();
 
         // Show Modal
@@ -1037,6 +1064,12 @@ function moveStem(fromIndex, toIndex) {
 async function saveSettings() {
     // Harvest Data
     currentSettings.YOUTUBE_API_KEY = document.getElementById("setting-youtube-key").value;
+
+    const apCb = document.getElementById("setting-autoplay");
+    if (apCb) currentSettings.autoplay = apCb.checked;
+
+    const arCb = document.getElementById("setting-autoreplay");
+    if (arCb) currentSettings.autoreplay = arCb.checked;
 
     try {
         await fetch("/api/settings", {
@@ -1858,8 +1891,12 @@ function playTrack(track) {
         const vPitch = document.getElementById("video-pitch-control-inline");
         if (vPitch) vPitch.style.display = "none";
 
-        if (player && typeof player.loadVideoById === "function") {
-            player.loadVideoById(track.id);
+        if (player && (typeof player.loadVideoById === "function" || typeof player.cueVideoById === "function")) {
+            if (!currentSettings || currentSettings.autoplay !== false) {
+                player.loadVideoById(track.id);
+            } else {
+                player.cueVideoById(track.id);
+            }
             // Apply volume AFTER load, sometimes YT API needs a tick but usually loadVideoById is sync enough for state prep
             player.setVolume(trackVolume);
             // playerState = 1; // Handled by API
@@ -2234,7 +2271,10 @@ function initWaveSurfer() {
         });
 
         wavesurfer.on('interaction', () => { wavesurfer.play(); });
-        wavesurfer.on('finish', () => { /* Loop or Next */ });
+        wavesurfer.on('finish', () => {
+            wavesurfer.pause();
+            wavesurfer.seekTo(0);
+        });
         wavesurfer.on('timeupdate', (currentTime) => {
             checkLoop(currentTime);
             const duration = wavesurfer.getDuration();
@@ -2378,7 +2418,6 @@ function saveMultitrackSettings(file) {
     clearTimeout(mtSaveTimeout);
     mtSaveTimeout = setTimeout(() => {
         const settings = {
-            position: window.multitrack.getCurrentTime() || 0,
             masterVolume: document.getElementById("multitrack-master-volume") ? parseFloat(document.getElementById("multitrack-master-volume").value) : 1.0,
             tracks: []
         };
@@ -2475,9 +2514,6 @@ function loadMultitrackSettings(file) {
             });
         }
 
-        if (settings.position !== undefined && settings.position > 0) {
-            window.multitrack.setTime(settings.position);
-        }
     } catch (e) {
         console.error("Failed to parse saved multitrack settings:", e);
     }
@@ -2873,7 +2909,9 @@ async function playLocal(index) {
             // Restore saved settings on load
             loadMultitrackSettings(file);
 
-            window.multitrack.play();
+            if (!currentSettings || currentSettings.autoplay !== false) {
+                window.multitrack.play();
+            }
             updatePlayPauseUI();
         });
 
@@ -2894,14 +2932,32 @@ async function playLocal(index) {
             saveMultitrackSettings(file); // Save exact stop time
         });
 
-        // Save bounds periodically on seek/play
-        window.multitrack.on('timeupdate', () => {
-            if (isLoopActive) checkLoop(window.multitrack.getCurrentTime());
-
-            if (!window.multitrack.isPlaying()) {
-                saveMultitrackSettings(file);
+        // Remove the broken finish/timeupdate events since multitrack doesn't emit it.
+        // Use a robust setInterval to monitor playback position for loops and end-of-track.
+        if (window.mtInterval) clearInterval(window.mtInterval);
+        window.mtInterval = setInterval(() => {
+            if (!window.multitrack) {
+                clearInterval(window.mtInterval);
+                return;
             }
-        });
+
+            const currentTime = window.multitrack.getCurrentTime();
+            if (isLoopActive) checkLoop(currentTime);
+
+            // Check if playback reached the end
+            if (currentTime >= window.multitrack.maxDuration - 0.05) {
+                if (window.multitrack.isPlaying()) {
+                    window.multitrack.pause();
+                }
+                window.multitrack.setTime(0);
+
+                if (currentSettings && currentSettings.autoreplay === true) {
+                    window.multitrack.play();
+                }
+
+                updatePlayPauseUI();
+            }
+        }, 50);
 
         currentActivePlayer = 'multitrack';
 
@@ -2946,7 +3002,9 @@ async function playLocal(index) {
             wavesurfer.setVolume(normalizedVolume); // SET WAVESURFER VOLUME
             wavesurfer.load("/api/stream?path=" + encodeURIComponent(file.path));
             wavesurfer.on('ready', () => {
-                wavesurfer.play();
+                if (!currentSettings || currentSettings.autoplay !== false) {
+                    wavesurfer.play();
+                }
                 if (isPitchEnabled) connectPitchEngine();
             });
         }
@@ -3008,11 +3066,21 @@ async function playLocal(index) {
 
 
         const startPlay = () => {
-            v.play().catch(e => console.warn("Auto-play aborted", e));
+            if (!currentSettings || currentSettings.autoplay !== false) {
+                v.play().catch(e => console.warn("Auto-play aborted", e));
+            }
             v.removeEventListener('canplay', startPlay);
             if (isPitchEnabled) connectPitchEngine();
         };
         v.addEventListener('canplay', startPlay);
+
+        v.onended = () => {
+            v.pause();
+            v.currentTime = 0;
+            if (currentSettings && currentSettings.autoreplay === true) {
+                v.play();
+            }
+        };
 
         currentActivePlayer = 'local';
     }
@@ -4442,11 +4510,12 @@ function updatePlayPauseIcon(type, isPlaying) {
     const icon = document.getElementById(btnId);
     if (!icon) return;
 
-    // Use replace to swap the specific icon class, preserving 'ph' and 'ph-fill'
     if (isPlaying) {
-        icon.classList.replace('ph-play-circle', 'ph-pause-circle');
+        icon.classList.remove('ph-play-circle');
+        icon.classList.add('ph-pause-circle');
     } else {
-        icon.classList.replace('ph-pause-circle', 'ph-play-circle');
+        icon.classList.remove('ph-pause-circle');
+        icon.classList.add('ph-play-circle');
     }
 }
 

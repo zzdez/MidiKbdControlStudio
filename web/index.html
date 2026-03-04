@@ -956,6 +956,20 @@
                         <option value="fr">Français</option>
                         <option value="en">English</option>
                     </select>
+
+                    <h4 data-i18n="web.lbl_playback_options">Options de Lecture</h4>
+                    <div
+                        style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-bottom: 20px;">
+                        <label style="display:flex; align-items:center; gap:10px; margin-bottom:10px; cursor:pointer;">
+                            <input type="checkbox" id="setting-autoplay" style="width:18px; height:18px;">
+                            <span data-i18n="web.lbl_autoplay">Lancer automatiquement la lecture à la sélection</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                            <input type="checkbox" id="setting-autoreplay" style="width:18px; height:18px;">
+                            <span data-i18n="web.lbl_autoreplay">Rejouer le morceau en boucle à la fin</span>
+                        </label>
+                    </div>
+
                     <h4 data-i18n="web.lbl_youtube_api">Clé API YouTube (Optionnelle)</h4>
                     <label data-i18n="web.lbl_youtube_api_key">YouTube Data API Key</label>
                     <input type="password" id="setting-youtube-key" data-i18n-placeholder="web.placeholder_youtube_api"
