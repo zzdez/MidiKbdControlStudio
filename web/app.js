@@ -2414,7 +2414,11 @@ function loadMultitrackSettings(file) {
 
         if (settings.masterVolume !== undefined) {
             const mst = document.getElementById("multitrack-master-volume");
-            if (mst) mst.value = settings.masterVolume;
+            if (mst) {
+                mst.value = settings.masterVolume;
+                const mstPerc = document.getElementById("multitrack-master-volume-percent");
+                if (mstPerc) mstPerc.innerText = Math.round(settings.masterVolume * 100) + '%';
+            }
         }
 
         if (settings.tracks && Array.isArray(settings.tracks)) {
@@ -2426,13 +2430,19 @@ function loadMultitrackSettings(file) {
 
                 if (muteBtn && trackData.mute) muteBtn.classList.add('active');
                 if (soloBtn && trackData.solo) soloBtn.classList.add('active');
-                if (volSlider && trackData.volume !== undefined) volSlider.value = trackData.volume;
+                if (volSlider && trackData.volume !== undefined) {
+                    volSlider.value = trackData.volume;
+                    const valSpan = document.getElementById(`mt-vol-val-${i}`);
+                    if (valSpan) valSpan.innerText = Math.round(trackData.volume * 100) + '%';
+                }
                 if (panSlider && trackData.pan !== undefined) {
                     panSlider.value = trackData.pan;
                     const ws = window.multitrack.wavesurfers[i];
                     if (ws && ws.media && ws.media._panner) {
                         ws.media._panner.pan.value = trackData.pan;
                     }
+                    const panSpan = document.getElementById(`mt-pan-val-${i}`);
+                    if (panSpan) panSpan.innerText = trackData.pan > 0 ? `R${Math.round(trackData.pan * 100)}` : (trackData.pan < 0 ? `L${Math.round(Math.abs(trackData.pan) * 100)}` : 'C');
                 }
             });
 
@@ -2601,14 +2611,16 @@ async function playLocal(index) {
                     <div style="flex:1"></div>
                     <i class="ph ph-hand-grabbing drag-handle" title="Déplacer" style="cursor: grab; font-size: 1.1em; color: #888;"></i>
                 </div>
-                <div class="track-slider-row" style="margin-top:4px; margin-bottom:4px;">
+                <div class="track-slider-row" style="margin-top:4px; margin-bottom:4px; display:flex; align-items:center;">
                     <i class="ph ph-speaker-simple-high" style="color:var(--accent);"></i>
-                    <input type="range" class="slider-vol" id="mt-vol-${i}" min="0" max="1" step="0.01" value="1">
+                    <input type="range" class="slider-vol" id="mt-vol-${i}" min="0" max="1" step="0.01" value="1" style="flex:1;">
+                    <span id="mt-vol-val-${i}" style="font-size:0.7em; color:#bbb; min-width:30px; text-align:right;">100%</span>
                 </div>
-                <div class="track-slider-row" style="margin-top:4px;">
+                <div class="track-slider-row" style="margin-top:4px; display:flex; align-items:center;">
                     <span class="pan-lbl" style="color:#03dac6;">L</span>
-                    <input type="range" class="slider-pan" id="mt-pan-${i}" min="-1" max="1" step="0.1" value="0">
+                    <input type="range" class="slider-pan" id="mt-pan-${i}" min="-1" max="1" step="0.1" value="0" style="flex:1;">
                     <span class="pan-lbl" style="color:#03dac6;">R</span>
+                    <span id="mt-pan-val-${i}" style="font-size:0.7em; color:#03dac6; min-width:30px; text-align:right;">C</span>
                 </div>
             `;
             trackHeaders.appendChild(header);
@@ -2826,7 +2838,10 @@ async function playLocal(index) {
                     saveMultitrackSettings(file);
                 };
 
-                volSlider.oninput = () => {
+                volSlider.oninput = (e) => {
+                    const valSpan = document.getElementById(`mt-vol-val-${i}`);
+                    if (valSpan) valSpan.innerText = Math.round(parseFloat(e.target.value) * 100) + '%';
+
                     // Unmute if changing volume
                     if (muteBtn.classList.contains('active')) {
                         muteBtn.classList.remove('active');
@@ -2842,6 +2857,14 @@ async function playLocal(index) {
                         if (ws && ws.media && ws.media._panner) {
                             ws.media._panner.pan.value = pan;
                         }
+
+                        const panSpan = document.getElementById(`mt-pan-val-${i}`);
+                        if (panSpan) {
+                            if (pan === 0) panSpan.innerText = 'C';
+                            else if (pan < 0) panSpan.innerText = 'L' + Math.round(Math.abs(pan) * 100);
+                            else panSpan.innerText = 'R' + Math.round(pan * 100);
+                        }
+
                         saveMultitrackSettings(file);
                     };
                 }
@@ -2857,6 +2880,14 @@ async function playLocal(index) {
         window.multitrack.on('play', () => {
             updatePlayPauseUI();
             saveMultitrackSettings(file);
+
+            // Re-apply playback rate to all WebAudio instances upon playback
+            // (WebAudio bufferNodes are recreated on play and default back to 1.0)
+            const rateStr = document.getElementById("btn-multitrack-speed").innerText.replace("x", "");
+            const rate = parseFloat(rateStr) || 1.0;
+            if (window.multitrack.audios) {
+                window.multitrack.audios.forEach(a => { if (a) a.playbackRate = rate; });
+            }
         });
         window.multitrack.on('pause', () => {
             updatePlayPauseUI();
@@ -2865,6 +2896,8 @@ async function playLocal(index) {
 
         // Save bounds periodically on seek/play
         window.multitrack.on('timeupdate', () => {
+            if (isLoopActive) checkLoop(window.multitrack.getCurrentTime());
+
             if (!window.multitrack.isPlaying()) {
                 saveMultitrackSettings(file);
             }
@@ -3172,6 +3205,53 @@ function multitrackControl(action) {
             break;
         case 'restart':
             window.multitrack.setTime(0);
+            updatePlayPauseUI();
+            break;
+        case 'speed_up':
+            {
+                const wasPlaying = window.multitrack.isPlaying();
+                const currentTime = window.multitrack.getCurrentTime();
+                if (wasPlaying) window.multitrack.pause();
+
+                let rate = window.multitrack.wavesurfers[0]?.getPlaybackRate() || 1.0;
+                rate = Math.min(rate + 0.05, 2.0);
+                rate = Math.round(rate * 100) / 100;
+
+                window.multitrack.wavesurfers.forEach(ws => ws.setPlaybackRate(rate));
+                if (window.multitrack.audios) {
+                    window.multitrack.audios.forEach(a => { if (a) a.playbackRate = rate; });
+                }
+
+                document.getElementById("btn-multitrack-speed").innerText = rate + "x";
+
+                // Force a total resynchronization of multitrack internals to the new speed
+                window.multitrack.setTime(currentTime);
+
+                if (wasPlaying) window.multitrack.play();
+            }
+            break;
+        case 'speed_down':
+            {
+                const wasPlaying = window.multitrack.isPlaying();
+                const currentTime = window.multitrack.getCurrentTime();
+                if (wasPlaying) window.multitrack.pause();
+
+                let rate = window.multitrack.wavesurfers[0]?.getPlaybackRate() || 1.0;
+                rate = Math.max(rate - 0.05, 0.5);
+                rate = Math.round(rate * 100) / 100;
+
+                window.multitrack.wavesurfers.forEach(ws => ws.setPlaybackRate(rate));
+                if (window.multitrack.audios) {
+                    window.multitrack.audios.forEach(a => { if (a) a.playbackRate = rate; });
+                }
+
+                document.getElementById("btn-multitrack-speed").innerText = rate + "x";
+
+                // Force a total resynchronization of multitrack internals to the new speed
+                window.multitrack.setTime(currentTime);
+
+                if (wasPlaying) window.multitrack.play();
+            }
             break;
     }
 }
@@ -3185,6 +3265,9 @@ function updatePlayPauseUI() {
 function updateMultitrackMasterVolume(val) {
     if (!window.multitrack) return;
     const master = parseFloat(val);
+
+    const mstPerc = document.getElementById("multitrack-master-volume-percent");
+    if (mstPerc) mstPerc.innerText = Math.round(master * 100) + '%';
 
     const anySolo = Array.from(document.querySelectorAll('.btn-solo')).some(b => b.classList.contains('active'));
 
@@ -3206,6 +3289,11 @@ function updateMultitrackMasterVolume(val) {
             }
         }
     });
+
+    // Save master volume to the currently playing stem settings
+    if (window.currentPlayingIndex !== undefined && localFiles[window.currentPlayingIndex]) {
+        saveMultitrackSettings(localFiles[window.currentPlayingIndex]);
+    }
 }
 
 // --- VOLUME LOGIC (Live Persistence) ---
@@ -4415,7 +4503,9 @@ function updateActiveChapter(currentTime) {
 // ==========================================
 
 function getCurrentPlayerTime() {
-    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+    if (currentActivePlayer === 'multitrack' && window.multitrack) {
+        return window.multitrack.getCurrentTime();
+    } else if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
         const vid = document.getElementById("html5-player");
         if (vid && vid.style.display !== "none") return vid.currentTime;
         if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none") return wavesurfer.getCurrentTime();
@@ -4426,7 +4516,9 @@ function getCurrentPlayerTime() {
 }
 
 function seekPlayerTo(time) {
-    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+    if (currentActivePlayer === 'multitrack' && window.multitrack) {
+        window.multitrack.setTime(time);
+    } else if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
         const vid = document.getElementById("html5-player");
         if (vid && vid.style.display !== "none") vid.currentTime = time;
         if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none") wavesurfer.seekTo(time / wavesurfer.getDuration());
@@ -4491,10 +4583,22 @@ function updateLoopUI() {
     const btnPrev_v = document.getElementById("btn-loop-prev-video");
     const btnNext_v = document.getElementById("btn-loop-next-video");
 
+    // Multitrack UI
+    const btnA_m = document.getElementById("btn-loop-a-mt");
+    const btnB_m = document.getElementById("btn-loop-b-mt");
+    const btnSave_m = document.getElementById("btn-loop-save-mt");
+    const btnToggle_m = document.getElementById("btn-loop-toggle-mt");
+    const btnPrev_m = document.getElementById("btn-loop-prev-mt");
+    const btnNext_m = document.getElementById("btn-loop-next-mt");
+
     const activeMode = (loopA !== null || loopB !== null); // Some points are marked
 
     if (btnA_a) btnA_a.style.color = loopA !== null ? "var(--accent)" : "#fff";
     if (btnB_a) btnB_a.style.color = loopB !== null ? "var(--accent)" : "#555";
+    if (btnA_v) btnA_v.style.color = loopA !== null ? "var(--accent)" : "#fff";
+    if (btnB_v) btnB_v.style.color = loopB !== null ? "var(--accent)" : "#555";
+    if (btnA_m) btnA_m.style.color = loopA !== null ? "var(--accent)" : "#fff";
+    if (btnB_m) btnB_m.style.color = loopB !== null ? "var(--accent)" : "#555";
 
     // Prev/Next Navigation visibility
     const hasSavedLoops = (currentLoops && currentLoops.length > 0);
@@ -4522,9 +4626,6 @@ function updateLoopUI() {
         btnToggle_a.title = toggleTooltip;
     }
 
-    if (btnA_v) btnA_v.style.color = loopA !== null ? "var(--accent)" : "#fff";
-    if (btnB_v) btnB_v.style.color = loopB !== null ? "var(--accent)" : "#555";
-
     if (btnToggle_v) {
         btnToggle_v.style.display = showToggle ? "inline-block" : "none";
         btnToggle_v.style.color = toggleColor;
@@ -4532,14 +4633,24 @@ function updateLoopUI() {
         btnToggle_v.title = toggleTooltip;
     }
 
+    if (btnToggle_m) {
+        btnToggle_m.style.display = showToggle ? "inline-block" : "none";
+        btnToggle_m.style.color = toggleColor;
+        btnToggle_m.innerHTML = toggleHtml;
+        btnToggle_m.title = toggleTooltip;
+    }
+
     // Save Button Logic
     if (btnSave_a) btnSave_a.style.display = (loopA !== null && loopB !== null && isLoopActive) ? "inline-block" : "none";
     if (btnSave_v) btnSave_v.style.display = (loopA !== null && loopB !== null && isLoopActive) ? "inline-block" : "none";
+    if (btnSave_m) btnSave_m.style.display = (loopA !== null && loopB !== null && isLoopActive) ? "inline-block" : "none";
 
     if (btnPrev_a) btnPrev_a.style.display = hasSavedLoops ? "inline-block" : "none";
     if (btnNext_a) btnNext_a.style.display = hasSavedLoops ? "inline-block" : "none";
     if (btnPrev_v) btnPrev_v.style.display = hasSavedLoops ? "inline-block" : "none";
     if (btnNext_v) btnNext_v.style.display = hasSavedLoops ? "inline-block" : "none";
+    if (btnPrev_m) btnPrev_m.style.display = hasSavedLoops ? "inline-block" : "none";
+    if (btnNext_m) btnNext_m.style.display = hasSavedLoops ? "inline-block" : "none";
 
     // Visual Timeline Markers for Local Video / Audio
     const isAudio = (currentActivePlayer === 'waveform');
@@ -4553,6 +4664,15 @@ function updateLoopUI() {
         if (vid && vid.style.display !== "none") duration = vid.duration || 0;
     } else if (currentActivePlayer === 'waveform') {
         if (wavesurfer) duration = wavesurfer.getDuration() || 0;
+    } else if (currentActivePlayer === 'multitrack') {
+        // Find longest wavesurfer track
+        if (window.multitrack) {
+            let maxDur = 0;
+            window.multitrack.wavesurfers.forEach(ws => {
+                if (ws.getDuration() > maxDur) maxDur = ws.getDuration();
+            });
+            duration = maxDur;
+        }
     } else if (currentActivePlayer === 'youtube' && player && typeof player.getDuration === "function") {
         duration = player.getDuration() || 0;
     }
