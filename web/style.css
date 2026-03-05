@@ -732,6 +732,11 @@ dialog::backdrop {
     transform: scale(0.95);
 }
 
+.control-btn.active {
+    color: var(--accent);
+    filter: drop-shadow(0 0 5px rgba(187, 134, 252, 0.4));
+}
+
 .control-btn-large {
     font-size: 38px;
     /* Big Play Button, slightly reduced */
@@ -1655,12 +1660,34 @@ dialog::backdrop {
     overflow-x: hidden !important;
 }
 
-#multitrack-waveforms {
-    overflow-x: hidden !important;
-}
 
 #multitrack-waveforms>div {
     /* Wavesurfer multitrack main wrapper */
     overflow-x: hidden !important;
     overflow-y: hidden !important;
+}
+
+#mt-visual-loop-overlay {
+    background-color: rgba(0, 0, 0, 0.5);
+    background-image:
+        linear-gradient(rgba(255, 255, 255, .05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .05) 1px, transparent 1px);
+    background-size: 20px 20px;
+    /* Moises style: default is dimmed, we use clip-path to show the bright part */
+    /* If no loop is active, we hide it or set clip-path to none */
+}
+
+#mt-timeline-container {
+    border: 1px solid #333;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+#mt-loop-area {
+    border-left: 1px solid var(--accent);
+    border-right: 1px solid var(--accent);
+}
+
+.saved-loop-region.mt-saved-loop {
+    /* Background and border are set dynamically in app.js */
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
 }

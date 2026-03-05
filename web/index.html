@@ -143,6 +143,14 @@
                     <button class="control-btn" onclick="audioControl('next')" title="+5s"
                         data-i18n-title="web.btn_next"><i class="ph ph-fast-forward"></i></button>
 
+                    <button class="control-btn" id="btn-audio-autoplay-toggle"
+                        onclick="togglePlaybackOption('autoplay')" title="Lancer automatiquement"
+                        data-i18n-title="web.lbl_autoplay"><i class="ph ph-lightning"></i></button>
+
+                    <button class="control-btn" id="btn-audio-repeat-toggle"
+                        onclick="togglePlaybackOption('autoreplay')" title="Répéter"
+                        data-i18n-title="web.lbl_autoreplay"><i class="ph ph-repeat"></i></button>
+
                     <div class="speed-pill">
                         <button onclick="audioControl('speed_down')" data-i18n-title="web.btn_slow" title="Ralentir"><i
                                 class="ph ph-minus"></i></button>
@@ -237,6 +245,14 @@
                     <button class="control-btn" onclick="multitrackControl('next')" title="+5s"
                         data-i18n-title="web.btn_next"><i class="ph ph-fast-forward"></i></button>
 
+                    <button class="control-btn" id="btn-multitrack-autoplay-toggle"
+                        onclick="togglePlaybackOption('autoplay')" title="Lancer automatiquement"
+                        data-i18n-title="web.lbl_autoplay"><i class="ph ph-lightning"></i></button>
+
+                    <button class="control-btn" id="btn-multitrack-repeat-toggle"
+                        onclick="togglePlaybackOption('autoreplay')" title="Répéter"
+                        data-i18n-title="web.lbl_autoreplay"><i class="ph ph-repeat"></i></button>
+
                     <!-- Speed Control -->
                     <div class="speed-pill">
                         <button onclick="multitrackControl('speed_down')" data-i18n-title="web.btn_slow"
@@ -287,15 +303,51 @@
                     </div>
                 </div>
 
+                <!-- Multitrack Timeline & Loop Bar Row -->
+                <div id="multitrack-timeline-row"
+                    style="display:flex; gap:0; padding:0 10px; align-items: stretch; margin-bottom: 5px; min-height: 16px;">
+                    <div
+                        style="width:200px; flex-shrink:0; display:flex; justify-content: flex-end; align-items: center; padding-right: 15px; box-sizing: border-box;">
+                        <span id="mt-time-display"
+                            style="font-family: monospace; font-size: 11px; color: #aaa; letter-spacing: 0.5px;">00:00 /
+                            00:00</span>
+                    </div> <!-- Header Spacer with Timer -->
+                    <div id="mt-timeline-container"
+                        style="flex-grow:1; position:relative; height:100%; cursor: crosshair; background: #1a1a1a; border-radius: 2px;">
+                        <!-- Time labels and loop markers go here -->
+                        <div id="mt-loop-bar" style="width:100%; height:100%; position:relative;">
+                            <div id="mt-loop-marker-a"
+                                style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#fff; z-index:20; pointer-events:none;">
+                            </div>
+                            <div id="mt-loop-marker-b"
+                                style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#555; z-index:20; pointer-events:none;">
+                            </div>
+                            <div id="mt-loop-area"
+                                style="display:none; position:absolute; top:0; height:100%; background:rgba(187,134,252,0.3); z-index:10; pointer-events:none;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- The tracks grid: headers left, waveforms right -->
-                <div style="flex-grow:1; display:flex; gap:0; padding:0 10px; align-items: flex-start;">
+                <div
+                    style="flex-grow:1; display:flex; gap:0; padding:0 10px; align-items: flex-start; position: relative;">
                     <div id="multitrack-headers"
                         style="width:200px; display:flex; flex-direction:column; flex-shrink:0;">
                         <!-- Headers injected via JS -->
                     </div>
-                    <div id="multitrack-waveforms"
-                        style="flex-grow:1; background:#1e1e1e; overflow:hidden; box-sizing: border-box;">
-                        <!-- Multitrack plugin injects here -->
+
+                    <!-- Waveform Wrapper for Visual Overlay -->
+                    <div id="mt-waveform-wrapper"
+                        style="flex-grow:1; position:relative; background:#1e1e1e; overflow:hidden;">
+                        <div id="multitrack-waveforms" style="width:100%;">
+                            <!-- Multitrack plugin injects here -->
+                        </div>
+
+                        <!-- Visual Loop Overlay (Moises Style) -->
+                        <div id="mt-visual-loop-overlay"
+                            style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:100; display:none;">
+                        </div>
                     </div>
                 </div>
                 <div style="height:20px; flex-shrink:0;"></div>
@@ -325,6 +377,13 @@
                 <!-- Standard Next (+5s) -->
                 <button class="control-btn" onclick="videoControl('next')" title="+5s" data-i18n-title="web.btn_next"><i
                         class="ph ph-fast-forward"></i></button>
+
+                <button class="control-btn" id="btn-video-autoplay-toggle" onclick="togglePlaybackOption('autoplay')"
+                    title="Lancer automatiquement" data-i18n-title="web.lbl_autoplay"><i
+                        class="ph ph-lightning"></i></button>
+
+                <button class="control-btn" id="btn-video-repeat-toggle" onclick="togglePlaybackOption('autoreplay')"
+                    title="Répéter" data-i18n-title="web.lbl_autoreplay"><i class="ph ph-repeat"></i></button>
 
                 <!-- Chapter Next -->
                 <button class="control-btn" onclick="videoControl('chapter_next')" title="Chapitre Suiv."
@@ -667,7 +726,25 @@
                             <option value="Auto" data-i18n="web.opt_auto_recommended">Auto (Recommandé)</option>
                         </select>
                     </div>
-                    <!-- Le volume a été déplacé à gauche de l'image -->
+                </div>
+
+                <div class="row-inputs" style="margin-top:10px;">
+                    <div class="col">
+                        <label data-i18n="web.lbl_playback_options">Options de Lecture</label>
+                        <div
+                            style="background:#222; padding:10px; border-radius:8px; border:1px solid #333; display: flex; gap: 20px;">
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <input type="checkbox" id="local-autoplay" style="width:16px; height:16px;"
+                                    onchange="liveUpdatePlaybackOption('autoplay', this.checked)">
+                                <span data-i18n="web.lbl_autoplay">Lecture auto</span>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <input type="checkbox" id="local-autoreplay" style="width:16px; height:16px;"
+                                    onchange="liveUpdatePlaybackOption('autoreplay', this.checked)">
+                                <span data-i18n="web.lbl_autoreplay">Boucle</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 <label data-i18n="web.lbl_notes">Notes</label>
@@ -805,6 +882,25 @@
                             <select id="edit-target-profile">
                                 <option value="Auto" data-i18n="web.opt_auto_recommended">Auto (Recommandé)</option>
                             </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row-inputs" style="margin-top:10px;">
+                    <div class="col">
+                        <label data-i18n="web.lbl_playback_options">Options de Lecture</label>
+                        <div
+                            style="background:#222; padding:10px; border-radius:8px; border:1px solid #333; display: flex; gap: 20px;">
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <input type="checkbox" id="edit-autoplay" style="width:16px; height:16px;"
+                                    onchange="liveUpdatePlaybackOption('autoplay', this.checked)">
+                                <span data-i18n="web.lbl_autoplay">Lecture auto</span>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <input type="checkbox" id="edit-autoreplay" style="width:16px; height:16px;"
+                                    onchange="liveUpdatePlaybackOption('autoreplay', this.checked)">
+                                <span data-i18n="web.lbl_autoreplay">Boucle</span>
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -956,16 +1052,29 @@
                         <option value="fr">Français</option>
                         <option value="en">English</option>
                     </select>
+
+                    <h4 data-i18n="web.lbl_playback_options">Options de Lecture</h4>
+                    <div
+                        style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                            <input type="checkbox" id="setting-autoplay" style="width:18px; height:18px;">
+                            <span data-i18n="web.lbl_autoplay">Lecture auto à la sélection</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                            <input type="checkbox" id="setting-autoreplay" style="width:18px; height:18px;">
+                            <span data-i18n="web.lbl_autoreplay">Rejouer en boucle à la fin</span>
+                        </label>
+                    </div>
+
                     <h4 data-i18n="web.lbl_youtube_api">Clé API YouTube (Optionnelle)</h4>
                     <label data-i18n="web.lbl_youtube_api_key">YouTube Data API Key</label>
                     <input type="password" id="setting-youtube-key" data-i18n-placeholder="web.placeholder_youtube_api"
                         placeholder="Laisser vide si aucune clé...">
                     <p class="hint" style="margin-top:5px;" data-i18n="web.msg_api_info" data-i18n-html="true">
-                        <strong>Optionnel
-                            :</strong> Cette clé gratuite permet de
-                        récupérer automatiquement les titres, descriptions et miniatures lors de l'ajout d'un lien
-                        YouTube. Si aucune clé n'est fournie, <strong>la lecture vidéo et le pédalier MIDI
-                            fonctionneront parfaitement</strong>, mais vous devrez taper les titres manuellement.
+                        <strong>Optionnel :</strong> Cette clé gratuite permet de récupérer automatiquement les titres,
+                        descriptions et miniatures lors de l'ajout d'un lien YouTube. Si aucune clé n'est fournie,
+                        <strong>la lecture vidéo et le pédalier MIDI fonctionneront parfaitement</strong>, mais vous
+                        devrez taper les titres manuellement.
                     </p>
                     <p class="hint"><a href="https://console.cloud.google.com/" target="_blank"
                             style="color:var(--accent); text-decoration:none;" data-i18n="web.link_get_api_key">Obtenir

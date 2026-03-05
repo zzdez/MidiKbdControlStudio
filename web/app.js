@@ -85,6 +85,7 @@ let loopB = null;
 let isLoopActive = false;
 let isSequentialLoop = false; // Toggle between loop 1 or loop sequential
 let currentLoops = []; // Array of saved loops for the active track
+let activeSavedLoopId = null; // Track which loop is being edited/resized
 
 // --- GLOBAL DEVICE STATUS ---
 let currentDeviceName = "Aucun";
@@ -368,7 +369,10 @@ function onYouTubeIframeAPIReady() {
         height: '100%',
         width: '100%',
         videoId: '',
-        events: { 'onReady': onPlayerReady }
+        events: {
+            'onReady': onPlayerReady,
+            'onStateChange': onPlayerStateChange
+        }
     });
 }
 window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
@@ -380,8 +384,30 @@ function onPlayerReady() {
     console.log("Player Ready");
     if (queuedVideoId) {
         console.log("Playing queued video:", queuedVideoId);
-        player.loadVideoById(queuedVideoId);
+        // Find track for current ID to check its per-track settings
+        const track = currentTrackList.find(t => t.id === queuedVideoId);
+        const isAutoplay = (track && track.autoplay !== undefined) ? track.autoplay : (currentSettings.autoplay || false);
+
+        if (isAutoplay) {
+            player.loadVideoById(queuedVideoId);
+        } else {
+            player.cueVideoById(queuedVideoId);
+        }
         queuedVideoId = null;
+    }
+}
+
+function onPlayerStateChange(event) {
+    if (currentWebMode === 'GENERIC' || currentActivePlayer === 'youtube') {
+        if (event.data === YT.PlayerState.ENDED) {
+            if (window.currentAutoreplay === true) {
+                player.playVideo();
+            }
+        } else if (event.data === YT.PlayerState.PLAYING) {
+            updatePlayPauseIcon('video', true);
+        } else if (event.data === YT.PlayerState.PAUSED) {
+            updatePlayPauseIcon('video', false);
+        }
     }
 }
 
@@ -908,6 +934,12 @@ async function openSettingsModal() {
         if (langDropdown) langDropdown.value = currentSettings.language || "fr";
 
         document.getElementById("setting-youtube-key").value = currentSettings.YOUTUBE_API_KEY || "";
+
+        const apCb = document.getElementById("setting-autoplay");
+        if (apCb) apCb.checked = currentSettings.autoplay !== false; // Default to true
+
+        const arCb = document.getElementById("setting-autoreplay");
+        if (arCb) arCb.checked = currentSettings.autoreplay === true; // Default to false
         renderSettingsFolders();
 
         // Show Modal
@@ -1038,6 +1070,12 @@ async function saveSettings() {
     // Harvest Data
     currentSettings.YOUTUBE_API_KEY = document.getElementById("setting-youtube-key").value;
 
+    const apCb = document.getElementById("setting-autoplay");
+    if (apCb) currentSettings.autoplay = apCb.checked;
+
+    const arCb = document.getElementById("setting-autoreplay");
+    if (arCb) currentSettings.autoreplay = arCb.checked;
+
     try {
         await fetch("/api/settings", {
             method: "POST",
@@ -1148,6 +1186,8 @@ function openEditModal(index) {
     let volValEdit = (track.volume !== undefined) ? track.volume : 100;
     document.getElementById("edit-volume").value = volValEdit;
     const evp2 = document.getElementById("edit-volume-percent"); if (evp2) evp2.innerText = volValEdit + "%";
+
+    syncPlaybackSettingsToModals(track);
 
     // Legacy support: if description exists but not youtube_description, assume it was generic description (or user note?)
     // Since we just migrated, we can put old description into user_notes if user_notes empty
@@ -1548,7 +1588,9 @@ async function saveItem() {
         youtube_description: youtube_description,
         user_notes: user_notes,
         thumbnail: thumbnail,
-        volume: volume
+        volume: volume,
+        autoplay: document.getElementById("edit-autoplay").checked,
+        autoreplay: document.getElementById("edit-autoreplay").checked
     };
 
     if (editingIndex !== null) {
@@ -1775,6 +1817,12 @@ function playTrack(track) {
     // STOP ALL MEDIA first
     stopAllMedia();
 
+    // Determine Autoplay/Autoreplay
+    const isAutoplay = (track.autoplay !== undefined) ? track.autoplay : (currentSettings.autoplay || false);
+    const isAutoreplay = (track.autoreplay !== undefined) ? track.autoreplay : (currentSettings.autoreplay || false);
+    window.currentAutoreplay = isAutoreplay; // Global state for end-of-track logic
+    updatePlaybackOptionsUI(isAutoreplay, isAutoplay);
+
     // Reset Containers
     const videoContainer = document.getElementById("video-container");
     const audioContainer = document.getElementById("audio-player-container");
@@ -1858,8 +1906,12 @@ function playTrack(track) {
         const vPitch = document.getElementById("video-pitch-control-inline");
         if (vPitch) vPitch.style.display = "none";
 
-        if (player && typeof player.loadVideoById === "function") {
-            player.loadVideoById(track.id);
+        if (player && (typeof player.loadVideoById === "function" || typeof player.cueVideoById === "function")) {
+            if (!currentSettings || currentSettings.autoplay !== false) {
+                player.loadVideoById(track.id);
+            } else {
+                player.cueVideoById(track.id);
+            }
             // Apply volume AFTER load, sometimes YT API needs a tick but usually loadVideoById is sync enough for state prep
             player.setVolume(trackVolume);
             // playerState = 1; // Handled by API
@@ -2234,7 +2286,10 @@ function initWaveSurfer() {
         });
 
         wavesurfer.on('interaction', () => { wavesurfer.play(); });
-        wavesurfer.on('finish', () => { /* Loop or Next */ });
+        wavesurfer.on('finish', () => {
+            wavesurfer.pause();
+            wavesurfer.seekTo(0);
+        });
         wavesurfer.on('timeupdate', (currentTime) => {
             checkLoop(currentTime);
             const duration = wavesurfer.getDuration();
@@ -2378,8 +2433,9 @@ function saveMultitrackSettings(file) {
     clearTimeout(mtSaveTimeout);
     mtSaveTimeout = setTimeout(() => {
         const settings = {
-            position: window.multitrack.getCurrentTime() || 0,
             masterVolume: document.getElementById("multitrack-master-volume") ? parseFloat(document.getElementById("multitrack-master-volume").value) : 1.0,
+            autoplay: file.autoplay,
+            autoreplay: file.autoreplay,
             tracks: []
         };
 
@@ -2420,6 +2476,9 @@ function loadMultitrackSettings(file) {
                 if (mstPerc) mstPerc.innerText = Math.round(settings.masterVolume * 100) + '%';
             }
         }
+
+        if (settings.autoplay !== undefined) file.autoplay = settings.autoplay;
+        if (settings.autoreplay !== undefined) file.autoreplay = settings.autoreplay;
 
         if (settings.tracks && Array.isArray(settings.tracks)) {
             settings.tracks.forEach((trackData, i) => {
@@ -2475,9 +2534,6 @@ function loadMultitrackSettings(file) {
             });
         }
 
-        if (settings.position !== undefined && settings.position > 0) {
-            window.multitrack.setTime(settings.position);
-        }
     } catch (e) {
         console.error("Failed to parse saved multitrack settings:", e);
     }
@@ -2528,6 +2584,12 @@ async function playLocal(index) {
 
     // Load saved loops for this file
     loadLoopsForTrack(file);
+
+    // Determine Autoplay/Autoreplay
+    const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+    const isAutoreplay = (file.autoreplay !== undefined) ? file.autoreplay : (currentSettings.autoreplay || false);
+    window.currentAutoreplay = isAutoreplay;
+    updatePlaybackOptionsUI(isAutoreplay, isAutoplay);
 
     // Common Resets
     document.getElementById("player").style.display = "none";
@@ -2764,7 +2826,13 @@ async function playLocal(index) {
             cursorColor: 'var(--accent)',
             trackBackground: '#2d2d2d',
             trackBorderColor: '#7C7C7C',
-            timelineOptions: { height: 0 }
+            timelineOptions: {
+                height: 20,
+                style: {
+                    color: '#888',
+                    fontSize: '10px'
+                }
+            }
         });
 
         window.multitrack.once('canplay', () => {
@@ -2873,8 +2941,12 @@ async function playLocal(index) {
             // Restore saved settings on load
             loadMultitrackSettings(file);
 
-            window.multitrack.play();
+            const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+            if (isAutoplay) {
+                window.multitrack.play();
+            }
             updatePlayPauseUI();
+            setupMultitrackLoopSelection();
         });
 
         window.multitrack.on('play', () => {
@@ -2894,14 +2966,35 @@ async function playLocal(index) {
             saveMultitrackSettings(file); // Save exact stop time
         });
 
-        // Save bounds periodically on seek/play
-        window.multitrack.on('timeupdate', () => {
-            if (isLoopActive) checkLoop(window.multitrack.getCurrentTime());
-
-            if (!window.multitrack.isPlaying()) {
-                saveMultitrackSettings(file);
+        // Remove the broken finish/timeupdate events since multitrack doesn't emit it.
+        // Use a robust setInterval to monitor playback position for loops and end-of-track.
+        if (window.mtInterval) clearInterval(window.mtInterval);
+        window.mtInterval = setInterval(() => {
+            if (!window.multitrack) {
+                clearInterval(window.mtInterval);
+                return;
             }
-        });
+
+            const currentTime = window.multitrack.getCurrentTime();
+            if (isLoopActive) checkLoop(currentTime);
+
+            // Update time display
+            updateMultitrackTimer();
+
+            // Check if playback reached the end
+            if (currentTime >= window.multitrack.maxDuration - 0.05) {
+                if (window.multitrack.isPlaying()) {
+                    window.multitrack.pause();
+                }
+                window.multitrack.setTime(0);
+
+                if (window.currentAutoreplay === true) {
+                    window.multitrack.play();
+                }
+
+                updatePlayPauseUI();
+            }
+        }, 50);
 
         currentActivePlayer = 'multitrack';
 
@@ -2945,9 +3038,25 @@ async function playLocal(index) {
         if (wavesurfer) {
             wavesurfer.setVolume(normalizedVolume); // SET WAVESURFER VOLUME
             wavesurfer.load("/api/stream?path=" + encodeURIComponent(file.path));
+
+            const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+            const isAutoreplay = (file.autoreplay !== undefined) ? file.autoreplay : (currentSettings.autoreplay || false);
+            window.currentAutoreplay = isAutoreplay;
+            updateRepeatUI(isAutoreplay);
+
             wavesurfer.on('ready', () => {
-                wavesurfer.play();
+                if (isAutoplay) {
+                    wavesurfer.play();
+                }
                 if (isPitchEnabled) connectPitchEngine();
+                updatePlayPauseUI();
+            });
+
+            wavesurfer.on('finish', () => {
+                if (window.currentAutoreplay === true) {
+                    wavesurfer.play();
+                    updatePlayPauseUI();
+                }
             });
         }
 
@@ -3008,11 +3117,22 @@ async function playLocal(index) {
 
 
         const startPlay = () => {
-            v.play().catch(e => console.warn("Auto-play aborted", e));
+            const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+            if (isAutoplay) {
+                v.play().catch(e => console.warn("Auto-play aborted", e));
+            }
             v.removeEventListener('canplay', startPlay);
             if (isPitchEnabled) connectPitchEngine();
         };
         v.addEventListener('canplay', startPlay);
+
+        v.onended = () => {
+            v.pause();
+            v.currentTime = 0;
+            if (window.currentAutoreplay === true) {
+                v.play();
+            }
+        };
 
         currentActivePlayer = 'local';
     }
@@ -3202,6 +3322,7 @@ function multitrackControl(action) {
             } else {
                 window.multitrack.play();
             }
+            updatePlayPauseUI();
             break;
         case 'restart':
             window.multitrack.setTime(0);
@@ -3228,6 +3349,7 @@ function multitrackControl(action) {
                 window.multitrack.setTime(currentTime);
 
                 if (wasPlaying) window.multitrack.play();
+                updatePlayPauseUI();
             }
             break;
         case 'speed_down':
@@ -3251,6 +3373,7 @@ function multitrackControl(action) {
                 window.multitrack.setTime(currentTime);
 
                 if (wasPlaying) window.multitrack.play();
+                updatePlayPauseUI();
             }
             break;
     }
@@ -3968,6 +4091,8 @@ function openEditLocalModal(index) {
     const lvp = document.getElementById("local-volume-percent"); if (lvp) lvp.innerText = volValLoc + "%";
     document.getElementById("local-notes").value = item.user_notes || "";
 
+    syncPlaybackSettingsToModals(item);
+
     // Load Art
     currentCoverData = null;
     document.getElementById("cover-upload").value = "";
@@ -4012,7 +4137,9 @@ async function saveLocalItem() {
         subtitle_pos_y: 100 - parseInt(document.getElementById("local-sub-pos").value, 10),
         subtitle_track: window.tempModalSelectedTrack || "",
         cover_data: currentCoverData, // Send base64 data if changed
-        volume: parseInt(document.getElementById("local-volume").value, 10) || 100
+        volume: parseInt(document.getElementById("local-volume").value, 10) || 100,
+        autoplay: document.getElementById("local-autoplay").checked,
+        autoreplay: document.getElementById("local-autoreplay").checked
     };
 
     const res = await fetch(`/api/local/${editingLocalIndex}`, {
@@ -4442,11 +4569,12 @@ function updatePlayPauseIcon(type, isPlaying) {
     const icon = document.getElementById(btnId);
     if (!icon) return;
 
-    // Use replace to swap the specific icon class, preserving 'ph' and 'ph-fill'
     if (isPlaying) {
-        icon.classList.replace('ph-play-circle', 'ph-pause-circle');
+        icon.classList.remove('ph-play-circle');
+        icon.classList.add('ph-pause-circle');
     } else {
-        icon.classList.replace('ph-pause-circle', 'ph-play-circle');
+        icon.classList.remove('ph-pause-circle');
+        icon.classList.add('ph-play-circle');
     }
 }
 
@@ -4535,9 +4663,9 @@ function setLoopA() {
 }
 
 function setLoopB() {
-    const t = getCurrentPlayerTime();
-    if (loopA !== null && t > loopA) {
-        loopB = t;
+    const currentTime = getCurrentPlayerTime();
+    if (loopA !== null && currentTime > loopA) {
+        loopB = currentTime;
         isLoopActive = true;
     } else {
         alert(t("web.msg_loop_b_after_a"));
@@ -4652,11 +4780,14 @@ function updateLoopUI() {
     if (btnPrev_m) btnPrev_m.style.display = hasSavedLoops ? "inline-block" : "none";
     if (btnNext_m) btnNext_m.style.display = hasSavedLoops ? "inline-block" : "none";
 
-    // Visual Timeline Markers for Local Video / Audio
+    // Visual Timeline Markers for Local Video / Audio / Multitrack
     const isAudio = (currentActivePlayer === 'waveform');
-    const markerA = isAudio ? document.getElementById("audio-loop-marker-a") : document.getElementById("video-loop-marker-a");
-    const markerB = isAudio ? document.getElementById("audio-loop-marker-b") : document.getElementById("video-loop-marker-b");
-    const area = isAudio ? document.getElementById("audio-loop-area") : document.getElementById("video-loop-area");
+    const isMultitrack = (currentActivePlayer === 'multitrack');
+
+    const markerA = isMultitrack ? document.getElementById("mt-loop-marker-a") : (isAudio ? document.getElementById("audio-loop-marker-a") : document.getElementById("video-loop-marker-a"));
+    const markerB = isMultitrack ? document.getElementById("mt-loop-marker-b") : (isAudio ? document.getElementById("audio-loop-marker-b") : document.getElementById("video-loop-marker-b"));
+    const area = isMultitrack ? document.getElementById("mt-loop-area") : (isAudio ? document.getElementById("audio-loop-area") : document.getElementById("video-loop-area"));
+    const visualOverlay = document.getElementById("mt-visual-loop-overlay");
 
     let duration = 0;
     if (currentActivePlayer === 'local') {
@@ -4665,7 +4796,6 @@ function updateLoopUI() {
     } else if (currentActivePlayer === 'waveform') {
         if (wavesurfer) duration = wavesurfer.getDuration() || 0;
     } else if (currentActivePlayer === 'multitrack') {
-        // Find longest wavesurfer track
         if (window.multitrack) {
             let maxDur = 0;
             window.multitrack.wavesurfers.forEach(ws => {
@@ -4693,19 +4823,32 @@ function updateLoopUI() {
                 area.style.display = "block";
                 area.style.left = pctA + "%";
                 area.style.width = (pctB - pctA) + "%";
-                // UX Feedback: Make area semi-transparent if inactive
-                area.style.backgroundColor = isLoopActive ? "rgba(3, 218, 198, 0.4)" : "rgba(100, 100, 100, 0.3)";
+                area.style.backgroundColor = isLoopActive ? "rgba(187,134,252, 0.4)" : "rgba(100, 100, 100, 0.3)";
                 area.style.border = isLoopActive ? "1px dashed var(--accent)" : "1px dashed #666";
+            }
+
+            // Moises Style Visual Overlay for Multitrack
+            if (isMultitrack && visualOverlay) {
+                if (isLoopActive) {
+                    visualOverlay.style.display = "block";
+                    // Reverse clip-path: show everything EXCEPT the loop area is NOT what we want.
+                    // Actually, we want a hole in the dimmed overlay.
+                    // mask-image or clip-path: polygon with "hole" logic
+                    visualOverlay.style.clipPath = `polygon(0% 0%, 0% 100%, ${pctA}% 100%, ${pctA}% 0%, ${pctB}% 0%, ${pctB}% 100%, ${pctA}% 100%, 100% 100%, 100% 0%)`;
+                } else {
+                    visualOverlay.style.display = "none";
+                }
             }
         } else {
             if (markerB) markerB.style.display = "none";
             if (area) area.style.display = "none";
+            if (visualOverlay) visualOverlay.style.display = "none";
         }
     } else {
-        // Fallback or Youtube without timeline tracking
         if (markerA) markerA.style.display = "none";
         if (markerB) markerB.style.display = "none";
         if (area) area.style.display = "none";
+        if (visualOverlay) visualOverlay.style.display = "none";
     }
 }
 
@@ -4757,7 +4900,18 @@ function openLoopModal() {
     // 2. Setup UI
     const modal = document.getElementById("loop-modal");
     document.getElementById("loop-modal-timing").innerText = `${formatTimeCustom(loopA)} - ${formatTimeCustom(loopB)}`;
-    document.getElementById("loop-modal-name").value = "";
+
+    const nameInput = document.getElementById("loop-modal-name");
+    const saveBtn = modal.querySelector(".btn-primary");
+
+    if (activeSavedLoopId) {
+        const loop = currentLoops.find(l => l.id === activeSavedLoopId);
+        nameInput.value = loop ? loop.name : "";
+        saveBtn.innerText = t("web.btn_update", "Mettre à jour");
+    } else {
+        nameInput.value = "";
+        saveBtn.innerText = t("web.btn_save");
+    }
 
     // 3. Populate existing loops for this track
     const existingContainer = document.getElementById("loop-modal-existing-container");
@@ -4854,14 +5008,23 @@ async function confirmSaveLoop() {
     const nameInput = document.getElementById("loop-modal-name");
     const name = nameInput.value.trim() || t("web.lbl_no_named_loop");
 
-    const newLoop = {
-        id: Date.now(),
-        name: name,
-        start: loopA,
-        end: loopB
-    };
+    if (activeSavedLoopId) {
+        const idx = currentLoops.findIndex(l => l.id === activeSavedLoopId);
+        if (idx !== -1) {
+            currentLoops[idx].name = name;
+            currentLoops[idx].start = loopA;
+            currentLoops[idx].end = loopB;
+        }
+    } else {
+        const newLoop = {
+            id: Date.now(),
+            name: name,
+            start: loopA,
+            end: loopB
+        };
+        currentLoops.push(newLoop);
+    }
 
-    currentLoops.push(newLoop);
     renderLoopsUI();
     closeLoopModal();
 
@@ -4872,6 +5035,7 @@ async function confirmSaveLoop() {
 function playSavedLoop(l, forceActive = true) {
     loopA = l.start;
     loopB = l.end;
+    activeSavedLoopId = l.id;
     if (forceActive) {
         isLoopActive = true;
     }
@@ -4890,80 +5054,156 @@ function playSavedLoop(l, forceActive = true) {
 }
 
 function renderLoopsUI() {
-    // We now render loops as shaded regions on the timeline
     const isAudio = (currentActivePlayer === 'waveform');
-    const timelineBg = isAudio ? document.getElementById("audio-loop-overlay") : document.getElementById("video-progress-bar-bg");
+    const isMultitrack = (currentActivePlayer === 'multitrack');
+
+    let timelineBg = null;
+    if (isMultitrack) {
+        timelineBg = document.getElementById("mt-loop-bar");
+    } else if (isAudio) {
+        timelineBg = document.getElementById("audio-loop-overlay");
+    } else {
+        timelineBg = document.getElementById("video-progress-bar-bg");
+    }
 
     if (!timelineBg) return;
 
-    // Clear existing saved loop regions
+    // Clear existing
     document.querySelectorAll('.saved-loop-region').forEach(el => el.remove());
-
     if (!currentLoops || currentLoops.length === 0) return;
 
-    // Current player duration is needed to position markers accurately
     let dur = 0;
     if (currentActivePlayer === 'youtube' && player && typeof player.getDuration === "function") dur = player.getDuration();
     if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
         if (vid && !isNaN(vid.duration)) dur = vid.duration;
-    } else if (currentActivePlayer === 'waveform') {
+    } else if (isAudio) {
         if (wavesurfer && !isNaN(wavesurfer.getDuration())) dur = wavesurfer.getDuration();
+    } else if (isMultitrack && window.multitrack) {
+        window.multitrack.wavesurfers.forEach(ws => {
+            const wsDur = ws.getDuration();
+            if (wsDur > dur) dur = wsDur;
+        });
     }
 
-    // Fallback if metadata is not loaded yet. Will re-render on next tick.
     if (dur === 0) {
-        setTimeout(renderLoopsUI, 500); // Retry automatically
+        setTimeout(renderLoopsUI, 500);
         return;
     }
 
-    currentLoops.forEach(l => {
-        // Create region
-        const region = document.createElement("div");
-        region.className = "saved-loop-region";
+    const multitrackColors = [
+        'rgba(187, 134, 252, 0.45)', // Amethyst
+        'rgba(3, 218, 198, 0.45)',   // Teal
+        'rgba(255, 121, 198, 0.45)', // Magenta/Pink
+        'rgba(241, 250, 140, 0.45)', // Bright Yellow
+        'rgba(139, 233, 253, 0.45)', // Electric Blue
+        'rgba(80, 250, 123, 0.45)',  // Neon Green
+        'rgba(255, 184, 108, 0.45)', // Orange
+        'rgba(255, 85, 85, 0.45)'    // Coral
+    ];
 
-        // Calculate position and width based on loop start and end
-        const pctLeft = Math.max(0, Math.min(100, (l.start / dur) * 100));
-        let pctWidth = ((l.end - l.start) / dur) * 100;
-        pctWidth = Math.max(0, Math.min(100 - pctLeft, pctWidth));
+    if (isMultitrack) {
+        // Multi-lane logic for multitrack
+        const sorted = [...currentLoops].sort((a, b) => a.start - b.start);
 
-        region.style.cssText = `
-            position: absolute;
-            bottom: 0;
-            left: ${pctLeft}%;
-            width: ${pctWidth}%;
-            height: 100%;
-            background-color: rgba(100, 100, 100, 0.4);
-            border-left: 1px dashed rgba(255, 255, 255, 0.4);
-            border-right: 1px dashed rgba(255, 255, 255, 0.4);
-            cursor: pointer;
-            z-index: 5;
-            box-sizing: border-box;
-        `;
+        // Step 1: Assign lanes to ALL loops first to find max lanes
+        const loopLanes = [];
+        const laneEnds = [];
 
-        // Add persistent label under the bar
-        const label = document.createElement("div");
-        label.innerText = l.name;
-        label.style.cssText = `
-            position: absolute;
-            top: 100%;
-            left: 0;
-            margin-top: 4px;
-            font-size: 10px;
-            color: #bbb;
-            white-space: nowrap;
-            text-shadow: 1px 1px 2px #000;
-        `;
-        region.appendChild(label);
+        sorted.forEach(l => {
+            let laneIndex = laneEnds.findIndex(endTime => endTime <= l.start);
+            if (laneIndex === -1) {
+                laneIndex = laneEnds.length;
+                laneEnds.push(l.end);
+            } else {
+                laneEnds[laneIndex] = l.end;
+            }
+            loopLanes.push(laneIndex);
+        });
 
-        // Click action on the region itself
-        region.onclick = (e) => {
-            e.stopPropagation();
-            playSavedLoop(l, true); // True = auto activate
-        };
+        const totalLanes = Math.max(1, laneEnds.length);
+        const SINGLE_LANE_HEIGHT = 16;
+        const targetHeight = totalLanes * SINGLE_LANE_HEIGHT;
 
-        timelineBg.appendChild(region);
-    });
+        // Update container heights
+        const row = document.getElementById("multitrack-timeline-row");
+        if (row) row.style.height = targetHeight + "px";
+
+        // Step 2: Render
+        sorted.forEach((l, i) => {
+            const laneIndex = loopLanes[i];
+            const region = document.createElement("div");
+            region.className = "saved-loop-region mt-saved-loop";
+
+            const pctLeft = Math.max(0, Math.min(100, (l.start / dur) * 100));
+            let pctWidth = ((l.end - l.start) / dur) * 100;
+            pctWidth = Math.max(0, Math.min(100 - pctLeft, pctWidth));
+
+            const top = laneIndex * SINGLE_LANE_HEIGHT;
+            const color = multitrackColors[i % multitrackColors.length];
+
+            region.style.cssText = `
+                position: absolute;
+                top: ${top}px;
+                left: ${pctLeft}%;
+                width: ${pctWidth}%;
+                height: ${SINGLE_LANE_HEIGHT}px;
+                background-color: ${color};
+                border-left: 1px solid rgba(255,255,255,0.2);
+                border-right: 1px solid rgba(255,255,255,0.2);
+                cursor: pointer;
+                z-index: 5;
+                box-sizing: border-box;
+                display: flex;
+                align-items: center;
+                overflow: hidden;
+                white-space: nowrap;
+                padding: 0 6px;
+                transition: background-color 0.2s;
+            `;
+
+            // show name inside
+            const nameLabel = document.createElement("span");
+            nameLabel.innerText = l.name;
+            nameLabel.style.cssText = "font-size: 11px; color: #fff; pointer-events: none; text-shadow: 1px 1px 2px rgba(0,0,0,0.9); font-weight: 600; overflow: hidden; text-overflow: ellipsis;";
+            region.appendChild(nameLabel);
+
+            region.title = l.name + " (" + formatTimeCustom(l.start) + " - " + formatTimeCustom(l.end) + ")";
+            region.onclick = (e) => { e.stopPropagation(); playSavedLoop(l, true); };
+            timelineBg.appendChild(region);
+        });
+    } else {
+        // Standard single-lane rendering for other players
+        currentLoops.forEach(l => {
+            const region = document.createElement("div");
+            region.className = "saved-loop-region";
+            const pctLeft = Math.max(0, Math.min(100, (l.start / dur) * 100));
+            let pctWidth = ((l.end - l.start) / dur) * 100;
+            pctWidth = Math.max(0, Math.min(100 - pctLeft, pctWidth));
+
+            region.style.cssText = `
+                position: absolute;
+                bottom: 0;
+                left: ${pctLeft}%;
+                width: ${pctWidth}%;
+                height: 100%;
+                background-color: rgba(100, 100, 100, 0.4);
+                border-left: 1px dashed rgba(255, 255, 255, 0.4);
+                border-right: 1px dashed rgba(255, 255, 255, 0.4);
+                cursor: pointer;
+                z-index: 5;
+                box-sizing: border-box;
+            `;
+
+            const label = document.createElement("div");
+            label.innerText = l.name;
+            label.style.cssText = "position:absolute; top:100%; left:0; margin-top:4px; font-size:10px; color:#bbb; white-space:nowrap; text-shadow:1px 1px 2px #000;";
+            region.appendChild(label);
+
+            region.onclick = (e) => { e.stopPropagation(); playSavedLoop(l, true); };
+            timelineBg.appendChild(region);
+        });
+    }
 }
 
 function toggleLoopState() {
@@ -5047,4 +5287,282 @@ function loadLoopsForTrack(trackOrItem) {
     currentLoops = trackOrItem.loops || [];
     renderLoopsUI();
     updateLoopUI(); // Refresh Toolbar Buttons visibility
+}
+
+// --- PLAYBACK TOGGLE UTILITIES ---
+
+function togglePlaybackOption(option) {
+    if (window.currentPlayingIndex === undefined) return;
+
+    let item = null;
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'multitrack' || currentActivePlayer === 'waveform') {
+        item = localFiles[window.currentPlayingIndex];
+    } else if (currentActivePlayer === 'youtube') {
+        item = currentTrackList.find(t => t.originalIndex === window.currentPlayingIndex);
+    }
+    if (!item) return;
+
+    if (option === 'autoreplay') {
+        window.currentAutoreplay = !window.currentAutoreplay;
+        item.autoreplay = window.currentAutoreplay;
+        updatePlaybackOptionsUI(window.currentAutoreplay, item.autoplay);
+        syncPlaybackSettingsToModals(item);
+
+        // Save based on type
+        if (item.is_multitrack) saveMultitrackSettings(item);
+        else if (item.path) saveLocalItemQuiet(window.currentPlayingIndex, item);
+        else saveItemQuiet(window.currentPlayingIndex, item);
+
+    } else if (option === 'autoplay') {
+        const currentAutoplay = (item.autoplay !== undefined) ? item.autoplay : (currentSettings.autoplay || false);
+        item.autoplay = !currentAutoplay;
+        updatePlaybackOptionsUI(window.currentAutoreplay, item.autoplay);
+        syncPlaybackSettingsToModals(item);
+
+        // Save based on type
+        if (item.is_multitrack) saveMultitrackSettings(item);
+        else if (item.path) saveLocalItemQuiet(window.currentPlayingIndex, item);
+        else saveItemQuiet(window.currentPlayingIndex, item);
+    }
+}
+
+function updatePlaybackOptionsUI(repeatActive, autoplayActive) {
+    const repeatBtns = ["btn-audio-repeat-toggle", "btn-multitrack-repeat-toggle", "btn-video-repeat-toggle"];
+    const autoplayBtns = ["btn-audio-autoplay-toggle", "btn-multitrack-autoplay-toggle", "btn-video-autoplay-toggle"];
+
+    repeatBtns.forEach(id => {
+        const b = document.getElementById(id);
+        if (b) {
+            if (repeatActive) b.classList.add("active");
+            else b.classList.remove("active");
+        }
+    });
+
+    autoplayBtns.forEach(id => {
+        const b = document.getElementById(id);
+        if (b) {
+            if (autoplayActive) b.classList.add("active");
+            else b.classList.remove("active");
+        }
+    });
+}
+
+function syncPlaybackSettingsToModals(item) {
+    const isAutoreplay = (item.autoreplay !== undefined) ? item.autoreplay : (currentSettings.autoreplay || false);
+    const isAutoplay = (item.autoplay !== undefined) ? item.autoplay : (currentSettings.autoplay || false);
+
+    // YouTube / Setlist Modal
+    const editAutoreplay = document.getElementById("edit-autoreplay");
+    const editAutoplay = document.getElementById("edit-autoplay");
+    if (editAutoreplay) editAutoreplay.checked = isAutoreplay;
+    if (editAutoplay) editAutoplay.checked = isAutoplay;
+
+    // Local Modal
+    const localAutoreplay = document.getElementById("local-autoreplay");
+    const localAutoplay = document.getElementById("local-autoplay");
+    if (localAutoreplay) localAutoreplay.checked = isAutoreplay;
+    if (localAutoplay) localAutoplay.checked = isAutoplay;
+}
+
+function updateRepeatUI(active) {
+    let itemAutoplay = false;
+    if (window.currentPlayingIndex !== undefined) {
+        let item = null;
+        if (currentActivePlayer === 'local' || currentActivePlayer === 'multitrack' || currentActivePlayer === 'waveform') {
+            item = localFiles[window.currentPlayingIndex];
+        } else if (currentActivePlayer === 'youtube') {
+            item = currentTrackList.find(t => t.originalIndex === window.currentPlayingIndex);
+        }
+        if (item) itemAutoplay = (item.autoplay !== undefined) ? item.autoplay : (currentSettings.autoplay || false);
+    }
+    updatePlaybackOptionsUI(active, itemAutoplay);
+}
+
+async function saveLocalItemQuiet(index, item) {
+    await fetch(`/api/local/${index}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item)
+    });
+}
+
+async function saveItemQuiet(index, item) {
+    await fetch(`/api/setlist/${index}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item)
+    });
+}
+
+function liveUpdatePlaybackOption(option, value) {
+    if (window.currentPlayingIndex === undefined) return;
+
+    let item = null;
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'multitrack' || currentActivePlayer === 'waveform') {
+        item = localFiles[window.currentPlayingIndex];
+    } else if (currentActivePlayer === 'youtube') {
+        item = currentTrackList.find(t => t.originalIndex === window.currentPlayingIndex);
+    }
+    if (!item) return;
+
+    if (option === 'autoreplay') {
+        window.currentAutoreplay = value;
+        item.autoreplay = value;
+    } else if (option === 'autoplay') {
+        item.autoplay = value;
+    }
+
+    // Sync UI & Save
+    updatePlaybackOptionsUI(window.currentAutoreplay, item.autoplay);
+    syncPlaybackSettingsToModals(item);
+
+    if (item.is_multitrack) saveMultitrackSettings(item);
+    else if (item.path) saveLocalItemQuiet(window.currentPlayingIndex, item);
+    else saveItemQuiet(window.currentPlayingIndex, item);
+}
+
+// --- MULTITRACK MOUSE LOOP SELECTION ---
+function setupMultitrackLoopSelection() {
+    const timeline = document.getElementById("mt-timeline-container");
+    const waveformWrapper = document.getElementById("mt-waveform-wrapper");
+
+    let isDragging = false;
+    let dragMode = 'CREATE'; // 'CREATE', 'RESIZE_A', 'RESIZE_B'
+    let startX = 0;
+
+    const getDur = () => {
+        let dur = 0;
+        if (window.multitrack && window.multitrack.wavesurfers) {
+            window.multitrack.wavesurfers.forEach(ws => {
+                const wsDur = ws.getDuration();
+                if (wsDur > dur) dur = wsDur;
+            });
+        }
+        return dur;
+    };
+
+    const getXTime = (clientX, rect) => {
+        const x = clientX - rect.left;
+        const dur = getDur();
+        return (x / rect.width) * dur;
+    };
+
+    const onMouseDown = (e) => {
+        if (currentActivePlayer !== 'multitrack' || !window.multitrack) return;
+
+        const rect = (timeline && timeline.contains(e.target) ? timeline : waveformWrapper).getBoundingClientRect();
+        const time = getXTime(e.clientX, rect);
+        const dur = getDur();
+        if (dur === 0) return;
+
+        // Threshold for resizing (in seconds, roughly 1% of duration or fixed pixels)
+        const thresholdPx = 10;
+        const thresholdSec = (thresholdPx / rect.width) * dur;
+
+        if (loopA !== null && Math.abs(time - loopA) < thresholdSec) {
+            dragMode = 'RESIZE_A';
+        } else if (loopB !== null && Math.abs(time - loopB) < thresholdSec) {
+            dragMode = 'RESIZE_B';
+        } else {
+            dragMode = 'CREATE';
+            activeSavedLoopId = null; // Important: reset when creating new
+            loopA = time;
+            loopB = null;
+            isLoopActive = false;
+        }
+
+        e.preventDefault();
+        isDragging = true;
+        updateLoopUI();
+    };
+
+    const onMouseMove = (e) => {
+        const rect = waveformWrapper.getBoundingClientRect();
+        const time = getXTime(e.clientX, rect);
+
+        if (!isDragging) {
+            // Cursor feedback
+            if (currentActivePlayer === 'multitrack' && window.multitrack) {
+                const dur = getDur();
+                if (dur > 0) {
+                    const thresholdSec = (10 / rect.width) * dur;
+                    const isNearA = loopA !== null && Math.abs(time - loopA) < thresholdSec;
+                    const isNearB = loopB !== null && Math.abs(time - loopB) < thresholdSec;
+
+                    const target = timeline.contains(e.target) ? timeline : (waveformWrapper.contains(e.target) ? waveformWrapper : null);
+                    if (target) {
+                        target.style.cursor = (isNearA || isNearB) ? 'ew-resize' : 'crosshair';
+                    }
+                }
+            }
+            return;
+        }
+
+        if (currentActivePlayer !== 'multitrack' || !window.multitrack) return;
+
+        const dur = getDur();
+        const clampedTime = Math.max(0, Math.min(dur, time));
+
+        if (dragMode === 'CREATE') {
+            if (clampedTime > loopA) {
+                loopB = clampedTime;
+            } else {
+                loopB = loopA;
+                loopA = clampedTime;
+            }
+            isLoopActive = true;
+        } else if (dragMode === 'RESIZE_A') {
+            loopA = Math.min(clampedTime, (loopB !== null ? loopB - 0.1 : dur));
+            isLoopActive = true;
+        } else if (dragMode === 'RESIZE_B') {
+            loopB = Math.max(clampedTime, (loopA !== null ? loopA + 0.1 : 0));
+            isLoopActive = true;
+        }
+
+        updateLoopUI();
+    };
+
+    const onMouseUp = () => {
+        if (!isDragging) return;
+        isDragging = false;
+
+        if (loopA !== null && loopB !== null && Math.abs(loopB - loopA) > 0.1) {
+            isLoopActive = true;
+            // Only seek if we created or moved A
+            if (dragMode === 'CREATE' || dragMode === 'RESIZE_A') {
+                seekPlayerTo(loopA);
+            }
+        } else if (dragMode === 'CREATE') {
+            if (loopA !== null) seekPlayerTo(loopA);
+            clearLoop();
+        }
+        updateLoopUI();
+    };
+
+    if (timeline) timeline.addEventListener('mousedown', onMouseDown);
+    if (waveformWrapper) waveformWrapper.addEventListener('mousedown', onMouseDown);
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+}
+// --- MULTITRACK TIMER ---
+function updateMultitrackTimer() {
+    const el = document.getElementById("mt-time-display");
+    if (!el || !window.multitrack || currentActivePlayer !== 'multitrack') return;
+
+    const cur = window.multitrack.getCurrentTime();
+    let dur = 0;
+    if (window.multitrack.wavesurfers) {
+        window.multitrack.wavesurfers.forEach(ws => {
+            const wsDur = ws.getDuration();
+            if (wsDur > dur) dur = wsDur;
+        });
+    }
+
+    if (dur === 0) return;
+
+    const elapsed = formatTimeCustom(cur);
+    const remaining = formatTimeCustom(Math.max(0, dur - cur));
+
+    el.innerText = `${elapsed} / -${remaining}`;
 }
