@@ -305,8 +305,13 @@
 
                 <!-- Multitrack Timeline & Loop Bar Row -->
                 <div id="multitrack-timeline-row"
-                    style="display:flex; gap:0; padding:0 10px; align-items: center; margin-bottom: 5px; height: 15px;">
-                    <div style="width:200px; flex-shrink:0;"></div> <!-- Header Spacer -->
+                    style="display:flex; gap:0; padding:0 10px; align-items: stretch; margin-bottom: 5px; min-height: 16px;">
+                    <div
+                        style="width:200px; flex-shrink:0; display:flex; justify-content: flex-end; align-items: center; padding-right: 15px; box-sizing: border-box;">
+                        <span id="mt-time-display"
+                            style="font-family: monospace; font-size: 11px; color: #aaa; letter-spacing: 0.5px;">00:00 /
+                            00:00</span>
+                    </div> <!-- Header Spacer with Timer -->
                     <div id="mt-timeline-container"
                         style="flex-grow:1; position:relative; height:100%; cursor: crosshair; background: #1a1a1a; border-radius: 2px;">
                         <!-- Time labels and loop markers go here -->

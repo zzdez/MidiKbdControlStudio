@@ -85,6 +85,7 @@ let loopB = null;
 let isLoopActive = false;
 let isSequentialLoop = false; // Toggle between loop 1 or loop sequential
 let currentLoops = []; // Array of saved loops for the active track
+let activeSavedLoopId = null; // Track which loop is being edited/resized
 
 // --- GLOBAL DEVICE STATUS ---
 let currentDeviceName = "Aucun";
@@ -2977,6 +2978,9 @@ async function playLocal(index) {
             const currentTime = window.multitrack.getCurrentTime();
             if (isLoopActive) checkLoop(currentTime);
 
+            // Update time display
+            updateMultitrackTimer();
+
             // Check if playback reached the end
             if (currentTime >= window.multitrack.maxDuration - 0.05) {
                 if (window.multitrack.isPlaying()) {
@@ -4896,7 +4900,18 @@ function openLoopModal() {
     // 2. Setup UI
     const modal = document.getElementById("loop-modal");
     document.getElementById("loop-modal-timing").innerText = `${formatTimeCustom(loopA)} - ${formatTimeCustom(loopB)}`;
-    document.getElementById("loop-modal-name").value = "";
+
+    const nameInput = document.getElementById("loop-modal-name");
+    const saveBtn = modal.querySelector(".btn-primary");
+
+    if (activeSavedLoopId) {
+        const loop = currentLoops.find(l => l.id === activeSavedLoopId);
+        nameInput.value = loop ? loop.name : "";
+        saveBtn.innerText = t("web.btn_update", "Mettre à jour");
+    } else {
+        nameInput.value = "";
+        saveBtn.innerText = t("web.btn_save");
+    }
 
     // 3. Populate existing loops for this track
     const existingContainer = document.getElementById("loop-modal-existing-container");
@@ -4993,14 +5008,23 @@ async function confirmSaveLoop() {
     const nameInput = document.getElementById("loop-modal-name");
     const name = nameInput.value.trim() || t("web.lbl_no_named_loop");
 
-    const newLoop = {
-        id: Date.now(),
-        name: name,
-        start: loopA,
-        end: loopB
-    };
+    if (activeSavedLoopId) {
+        const idx = currentLoops.findIndex(l => l.id === activeSavedLoopId);
+        if (idx !== -1) {
+            currentLoops[idx].name = name;
+            currentLoops[idx].start = loopA;
+            currentLoops[idx].end = loopB;
+        }
+    } else {
+        const newLoop = {
+            id: Date.now(),
+            name: name,
+            start: loopA,
+            end: loopB
+        };
+        currentLoops.push(newLoop);
+    }
 
-    currentLoops.push(newLoop);
     renderLoopsUI();
     closeLoopModal();
 
@@ -5011,6 +5035,7 @@ async function confirmSaveLoop() {
 function playSavedLoop(l, forceActive = true) {
     loopA = l.start;
     loopB = l.end;
+    activeSavedLoopId = l.id;
     if (forceActive) {
         isLoopActive = true;
     }
@@ -5029,7 +5054,6 @@ function playSavedLoop(l, forceActive = true) {
 }
 
 function renderLoopsUI() {
-    // We now render loops as shaded regions on the timeline
     const isAudio = (currentActivePlayer === 'waveform');
     const isMultitrack = (currentActivePlayer === 'multitrack');
 
@@ -5044,79 +5068,142 @@ function renderLoopsUI() {
 
     if (!timelineBg) return;
 
-    // Clear existing saved loop regions
+    // Clear existing
     document.querySelectorAll('.saved-loop-region').forEach(el => el.remove());
-
     if (!currentLoops || currentLoops.length === 0) return;
 
-    // Current player duration is needed to position markers accurately
     let dur = 0;
     if (currentActivePlayer === 'youtube' && player && typeof player.getDuration === "function") dur = player.getDuration();
     if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
         if (vid && !isNaN(vid.duration)) dur = vid.duration;
-    } else if (currentActivePlayer === 'waveform') {
+    } else if (isAudio) {
         if (wavesurfer && !isNaN(wavesurfer.getDuration())) dur = wavesurfer.getDuration();
-    } else if (currentActivePlayer === 'multitrack' && window.multitrack) {
+    } else if (isMultitrack && window.multitrack) {
         window.multitrack.wavesurfers.forEach(ws => {
             const wsDur = ws.getDuration();
             if (wsDur > dur) dur = wsDur;
         });
     }
 
-    // Fallback if metadata is not loaded yet. Will re-render on next tick.
     if (dur === 0) {
-        setTimeout(renderLoopsUI, 500); // Retry automatically
+        setTimeout(renderLoopsUI, 500);
         return;
     }
 
-    currentLoops.forEach(l => {
-        // Create region
-        const region = document.createElement("div");
-        region.className = isMultitrack ? "saved-loop-region mt-saved-loop" : "saved-loop-region";
+    const multitrackColors = [
+        'rgba(187, 134, 252, 0.45)', // Amethyst
+        'rgba(3, 218, 198, 0.45)',   // Teal
+        'rgba(255, 121, 198, 0.45)', // Magenta/Pink
+        'rgba(241, 250, 140, 0.45)', // Bright Yellow
+        'rgba(139, 233, 253, 0.45)', // Electric Blue
+        'rgba(80, 250, 123, 0.45)',  // Neon Green
+        'rgba(255, 184, 108, 0.45)', // Orange
+        'rgba(255, 85, 85, 0.45)'    // Coral
+    ];
 
-        // Calculate position and width based on loop start and end
-        const pctLeft = Math.max(0, Math.min(100, (l.start / dur) * 100));
-        let pctWidth = ((l.end - l.start) / dur) * 100;
-        pctWidth = Math.max(0, Math.min(100 - pctLeft, pctWidth));
+    if (isMultitrack) {
+        // Multi-lane logic for multitrack
+        const sorted = [...currentLoops].sort((a, b) => a.start - b.start);
 
-        region.style.cssText = `
-            position: absolute;
-            bottom: 0;
-            left: ${pctLeft}%;
-            width: ${pctWidth}%;
-            height: 100%;
-            background-color: rgba(100, 100, 100, 0.4);
-            border-left: 1px dashed rgba(255, 255, 255, 0.4);
-            border-right: 1px dashed rgba(255, 255, 255, 0.4);
-            cursor: pointer;
-            z-index: 5;
-            box-sizing: border-box;
-        `;
+        // Step 1: Assign lanes to ALL loops first to find max lanes
+        const loopLanes = [];
+        const laneEnds = [];
 
-        // Add persistent label under the bar
-        const label = document.createElement("div");
-        label.innerText = l.name;
-        label.style.cssText = `
-            position: absolute;
-            top: 100%;
-            left: 0;
-            margin-top: 4px;
-            font-size: 10px;
-            color: #bbb;
-            white-space: nowrap;
-            text-shadow: 1px 1px 2px #000;
-        `;
-        region.appendChild(label);
+        sorted.forEach(l => {
+            let laneIndex = laneEnds.findIndex(endTime => endTime <= l.start);
+            if (laneIndex === -1) {
+                laneIndex = laneEnds.length;
+                laneEnds.push(l.end);
+            } else {
+                laneEnds[laneIndex] = l.end;
+            }
+            loopLanes.push(laneIndex);
+        });
 
-        // Click action on the region itself
-        region.onclick = (e) => {
-            e.stopPropagation();
-            playSavedLoop(l, true); // True = auto activate
-        };
+        const totalLanes = Math.max(1, laneEnds.length);
+        const SINGLE_LANE_HEIGHT = 16;
+        const targetHeight = totalLanes * SINGLE_LANE_HEIGHT;
 
-        timelineBg.appendChild(region);
-    });
+        // Update container heights
+        const row = document.getElementById("multitrack-timeline-row");
+        if (row) row.style.height = targetHeight + "px";
+
+        // Step 2: Render
+        sorted.forEach((l, i) => {
+            const laneIndex = loopLanes[i];
+            const region = document.createElement("div");
+            region.className = "saved-loop-region mt-saved-loop";
+
+            const pctLeft = Math.max(0, Math.min(100, (l.start / dur) * 100));
+            let pctWidth = ((l.end - l.start) / dur) * 100;
+            pctWidth = Math.max(0, Math.min(100 - pctLeft, pctWidth));
+
+            const top = laneIndex * SINGLE_LANE_HEIGHT;
+            const color = multitrackColors[i % multitrackColors.length];
+
+            region.style.cssText = `
+                position: absolute;
+                top: ${top}px;
+                left: ${pctLeft}%;
+                width: ${pctWidth}%;
+                height: ${SINGLE_LANE_HEIGHT}px;
+                background-color: ${color};
+                border-left: 1px solid rgba(255,255,255,0.2);
+                border-right: 1px solid rgba(255,255,255,0.2);
+                cursor: pointer;
+                z-index: 5;
+                box-sizing: border-box;
+                display: flex;
+                align-items: center;
+                overflow: hidden;
+                white-space: nowrap;
+                padding: 0 6px;
+                transition: background-color 0.2s;
+            `;
+
+            // show name inside
+            const nameLabel = document.createElement("span");
+            nameLabel.innerText = l.name;
+            nameLabel.style.cssText = "font-size: 11px; color: #fff; pointer-events: none; text-shadow: 1px 1px 2px rgba(0,0,0,0.9); font-weight: 600; overflow: hidden; text-overflow: ellipsis;";
+            region.appendChild(nameLabel);
+
+            region.title = l.name + " (" + formatTimeCustom(l.start) + " - " + formatTimeCustom(l.end) + ")";
+            region.onclick = (e) => { e.stopPropagation(); playSavedLoop(l, true); };
+            timelineBg.appendChild(region);
+        });
+    } else {
+        // Standard single-lane rendering for other players
+        currentLoops.forEach(l => {
+            const region = document.createElement("div");
+            region.className = "saved-loop-region";
+            const pctLeft = Math.max(0, Math.min(100, (l.start / dur) * 100));
+            let pctWidth = ((l.end - l.start) / dur) * 100;
+            pctWidth = Math.max(0, Math.min(100 - pctLeft, pctWidth));
+
+            region.style.cssText = `
+                position: absolute;
+                bottom: 0;
+                left: ${pctLeft}%;
+                width: ${pctWidth}%;
+                height: 100%;
+                background-color: rgba(100, 100, 100, 0.4);
+                border-left: 1px dashed rgba(255, 255, 255, 0.4);
+                border-right: 1px dashed rgba(255, 255, 255, 0.4);
+                cursor: pointer;
+                z-index: 5;
+                box-sizing: border-box;
+            `;
+
+            const label = document.createElement("div");
+            label.innerText = l.name;
+            label.style.cssText = "position:absolute; top:100%; left:0; margin-top:4px; font-size:10px; color:#bbb; white-space:nowrap; text-shadow:1px 1px 2px #000;";
+            region.appendChild(label);
+
+            region.onclick = (e) => { e.stopPropagation(); playSavedLoop(l, true); };
+            timelineBg.appendChild(region);
+        });
+    }
 }
 
 function toggleLoopState() {
@@ -5378,6 +5465,7 @@ function setupMultitrackLoopSelection() {
             dragMode = 'RESIZE_B';
         } else {
             dragMode = 'CREATE';
+            activeSavedLoopId = null; // Important: reset when creating new
             loopA = time;
             loopB = null;
             isLoopActive = false;
@@ -5456,4 +5544,25 @@ function setupMultitrackLoopSelection() {
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+}
+// --- MULTITRACK TIMER ---
+function updateMultitrackTimer() {
+    const el = document.getElementById("mt-time-display");
+    if (!el || !window.multitrack || currentActivePlayer !== 'multitrack') return;
+
+    const cur = window.multitrack.getCurrentTime();
+    let dur = 0;
+    if (window.multitrack.wavesurfers) {
+        window.multitrack.wavesurfers.forEach(ws => {
+            const wsDur = ws.getDuration();
+            if (wsDur > dur) dur = wsDur;
+        });
+    }
+
+    if (dur === 0) return;
+
+    const elapsed = formatTimeCustom(cur);
+    const remaining = formatTimeCustom(Math.max(0, dur - cur));
+
+    el.innerText = `${elapsed} / -${remaining}`;
 }
