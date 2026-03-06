@@ -62,74 +62,121 @@
             </div>
 
             <!-- Custom Video Timeline (Overlay/Below) -->
-            <div id="video-timeline-container"
-                style="display:none; width:100%; padding: 0 10px; background:#121212; position:relative; height: 30px; align-items: center; gap: 8px;">
-                <span id="video-time-current"
-                    style="color:#aaa; font-size:0.8em; font-family:monospace; min-width:40px; text-align:right;">00:00</span>
-                <div id="video-progress-bar-bg"
-                    style="flex-grow:1; height:6px; background:#333; position:relative; cursor:pointer; border-radius:3px;">
-                    <div id="video-progress-fill"
-                        style="width:0%; height:100%; background:var(--accent); border-radius:3px; position:absolute; top:0; left:0;">
-                    </div>
-                    <!-- A-B LOOP MARKERS -->
-                    <div id="video-loop-marker-a"
-                        style="display:none; position:absolute; top:-2px; bottom:-2px; width:2px; background:#fff; z-index:10; border-radius:1px; pointer-events:none;">
-                    </div>
-                    <div id="video-loop-marker-b"
-                        style="display:none; position:absolute; top:-2px; bottom:-2px; width:2px; background:#555; z-index:10; border-radius:1px; pointer-events:none;">
-                    </div>
-                    <!-- BACKGROUND AREA FOR LOOP -->
-                    <div id="video-loop-area"
-                        style="display:none; position:absolute; top:0; height:100%; background:rgba(187,134,252,0.3); z-index:5; pointer-events:none;">
+            <div id="video-timeline-container" class="timeline-row"
+                style="display:none; padding: 0 10px; box-sizing: border-box; background:#121212; position:relative; min-height: 20px; align-items: stretch; margin-bottom: 5px;">
+
+                <div id="video-timeline-wrapper" class="timeline-content"
+                    style="background:#1a1a1a; border-radius: 2px; border: 1px solid #333; cursor: crosshair;">
+                    <!-- Progress Bar (legacy/base) -->
+                    <div id="video-progress-bar-bg"
+                        style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:1; pointer-events:none;">
+                        <div id="video-progress-fill"
+                            style="width:0%; height:100%; background:rgba(187,134,252,0.15); position:absolute; top:0; left:0;">
+                        </div>
                     </div>
 
-                    <!-- Chapter Markers will be injected here -->
-                    <div id="video-chapter-markers"></div>
+                    <!-- Loop Bar Area for lanes -->
+                    <div id="video-loop-bar" style="width:100%; height:100%; position:relative; z-index:5;">
+                        <!-- Time labels and loop markers go here -->
+                        <div id="video-loop-marker-a"
+                            style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#fff; z-index:20; pointer-events:none;">
+                        </div>
+                        <div id="video-loop-marker-b"
+                            style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#555; z-index:20; pointer-events:none;">
+                        </div>
+                        <div id="video-loop-area"
+                            style="display:none; position:absolute; top:0; height:100%; background:rgba(187,134,252,0.3); z-index:10; pointer-events:none;">
+                        </div>
+                    </div>
+
+                    <!-- Chapter Markers -->
+                    <div id="video-chapter-markers"
+                        style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:15; pointer-events:none;">
+                    </div>
+
                     <!-- Invisible Input for seeking -->
                     <input type="range" id="video-seek-slider" min="0" max="100" step="0.1" value="0"
-                        style="position:absolute; top:-10px; left:0; width:100%; height:26px; opacity:0; cursor:pointer; margin:0; z-index:20;">
+                        style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; margin:0; z-index:30;">
                 </div>
-                <span id="video-time-total"
-                    style="color:#666; font-size:0.8em; font-family:monospace; min-width:40px;">00:00</span>
+
+                <span id="video-time-current" style="display:none;">00:00</span>
+                <span id="video-time-total" style="display:none;">00:00</span>
             </div>
             </div>
 
             <!-- Audio Player (Waveform) - SEPARATE CONTAINER -->
             <div id="audio-player-container"
-                style="display:none; width:100%; height:100%; flex-direction:column; justify-content:center; align-items:center; background:#121212;">
-                <!-- Album Art -->
-                <img id="audio-art" src=""
-                    style="max-height: 40%; max-width: 80%; object-fit: contain; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); display:none;"
-                    onerror="this.style.display='none'">
+                style="display:none; width:100%; height:100%; flex-direction:column; align-items:center; background:#121212;">
 
-                <div id="audio-meta-display" style="text-align:center; margin-bottom:10px;">
-                    <div id="audio-title" data-i18n="web.lbl_title"
-                        style="font-size:1.5em; font-weight:bold; color:white;">Titre</div>
-                    <div id="audio-artist" data-i18n="web.lbl_artist" style="font-size:1em; color:#bbb;">Artiste</div>
-                    <div id="audio-album" data-i18n="web.lbl_album" style="font-size:0.8em; color:#888;">Album</div>
-                </div>
-                <div id="audio-waveform-container" style="position:relative; width:90%; height:100px;">
-                    <div id="waveform" style="width:100%; height:100%;"></div>
+                <!-- Display Content Wrapper -->
+                <div id="audio-display-content"
+                    style="width:100%; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; min-height:0; overflow:hidden;">
+                    <!-- Album Art -->
+                    <img id="audio-art" src=""
+                        style="max-height: 40%; max-width: 80%; object-fit: contain; margin-bottom: 0px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); display:none;"
+                        onerror="this.style.display='none'">
 
-                    <!-- A-B LOOP VISUALIZATION FOR AUDIO -->
-                    <div id="audio-loop-overlay"
-                        style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:10; pointer-events:none;">
-                        <div id="audio-loop-area"
-                            style="display:none; position:absolute; top:0; height:100%; background:rgba(3, 218, 198, 0.4); border-left:1px dashed var(--accent); border-right:1px dashed var(--accent); pointer-events:none; z-index:5;">
+                    <div id="audio-meta-display" style="text-align:center;">
+                        <div id="audio-title" data-i18n="web.lbl_title"
+                            style="font-size:1.5em; font-weight:bold; color:white;">Titre</div>
+                        <div id="audio-artist" data-i18n="web.lbl_artist" style="font-size:1em; color:#bbb;">Artiste
                         </div>
-                        <div id="audio-loop-marker-a"
-                            style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#fff; z-index:10; border-radius:1px; pointer-events:none;">
-                        </div>
-                        <div id="audio-loop-marker-b"
-                            style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#555; z-index:10; border-radius:1px; pointer-events:none;">
+                        <div id="audio-album" data-i18n="web.lbl_album" style="font-size:0.8em; color:#888;">Album</div>
+                    </div>
+                    <!-- Audio Timeline & Loop Bar Row (NEW) -->
+                    <div id="audio-timeline-row" class="timeline-row"
+                        style="display:flex; width: 100%; padding:0 10px; box-sizing: border-box; align-items: stretch; margin-bottom: 5px; min-height: 16px;">
+                        <div id="audio-timeline-container" class="timeline-content"
+                            style="cursor: crosshair; background: #1a1a1a; border-radius: 2px; border: 1px solid #333;">
+                            <div id="audio-loop-bar" style="width:100%; height:100%; position:relative;">
+                                <!-- Progress Fill -->
+                                <div id="audio-progress-fill"
+                                    style="position:absolute; top:0; left:0; height:100%; width:0%; background:rgba(255,255,255,0.1); pointer-events:none; z-index:5;">
+                                </div>
+
+                                <div id="audio-loop-marker-a-bar"
+                                    style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#fff; z-index:20; pointer-events:none;">
+                                </div>
+                                <div id="audio-loop-marker-b-bar"
+                                    style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#555; z-index:20; pointer-events:none;">
+                                </div>
+                                <div id="audio-loop-area-bar"
+                                    style="display:none; position:absolute; top:0; height:100%; background:rgba(187,134,252,0.3); z-index:10; pointer-events:none;">
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    <div id="audio-waveform-row" class="timeline-row"
+                        style="display:flex; width:100%; padding: 0 10px; box-sizing: border-box; height:170px;">
+                        <div id="audio-waveform-container" class="timeline-content"
+                            style="height:100%; border: 1px solid #333; border-radius: 2px;">
+                            <div id="waveform" style="width:100%; height:100%;"></div>
+
+                            <!-- A-B LOOP VISUALIZATION FOR AUDIO -->
+                            <div id="audio-loop-overlay"
+                                style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:10; pointer-events:none;">
+                                <div id="audio-loop-area"
+                                    style="display:none; position:absolute; top:0; height:100%; background:rgba(3, 218, 198, 0.4); border-left:1px dashed var(--accent); border-right:1px dashed var(--accent); pointer-events:none; z-index:5;">
+                                </div>
+                                <div id="audio-loop-marker-a"
+                                    style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#fff; z-index:10; border-radius:1px; pointer-events:none;">
+                                </div>
+                                <div id="audio-loop-marker-b"
+                                    style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#555; z-index:10; border-radius:1px; pointer-events:none;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div> <!-- End Display Content Wrapper -->
+                <!-- Time Label (legacy, kept for fallback) -->
+                <div id="audio-time" style="margin-top:5px; color:#666; font-size:0.8em; display:none;">00:00 / 00:00
                 </div>
-                <div id="audio-time" style="margin-top:10px; color:#666; font-size:0.8em;">00:00 / 00:00</div>
 
                 <!-- On Screen Controls -->
                 <!-- On Screen Controls -->
                 <div class="audio-controls media-controls-bar">
+                    <div id="audio-time-display-integrated" class="time-display-integrated">00:00 / -00:00</div>
                     <button class="control-btn" onclick="audioControl('restart')" title="Restart"
                         data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
                     <button class="control-btn" onclick="audioControl('prev')" title="-5s"
@@ -229,8 +276,8 @@
 
 
                 <!-- Controls bar for multitrack -->
-                <div class="audio-controls media-controls-bar"
-                    style="margin-bottom:15px; flex-shrink:0; justify-content:center;">
+                <div class="media-controls-bar" style="border-top:1px solid #333; flex-wrap:wrap;">
+                    <div id="mt-time-display-integrated" class="time-display-integrated">00:00 / -00:00</div>
 
                     <button class="control-btn" onclick="multitrackControl('restart')" title="Restart"
                         data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
@@ -304,18 +351,14 @@
                 </div>
 
                 <!-- Multitrack Timeline & Loop Bar Row -->
-                <div id="multitrack-timeline-row"
-                    style="display:flex; gap:0; padding:0 10px; align-items: stretch; margin-bottom: 5px; min-height: 16px;">
-                    <div
-                        style="width:200px; flex-shrink:0; display:flex; justify-content: flex-end; align-items: center; padding-right: 15px; box-sizing: border-box;">
-                        <span id="mt-time-display"
-                            style="font-family: monospace; font-size: 11px; color: #aaa; letter-spacing: 0.5px;">00:00 /
-                            00:00</span>
-                    </div> <!-- Header Spacer with Timer -->
-                    <div id="mt-timeline-container"
-                        style="flex-grow:1; position:relative; height:100%; cursor: crosshair; background: #1a1a1a; border-radius: 2px;">
+                <div id="multitrack-timeline-row" class="timeline-row"
+                    style="display:flex; width: 100%; padding:0 10px; box-sizing: border-box; margin-bottom: 5px; min-height: 16px;">
+                    <div class="timeline-spacer mt-spacer"></div> <!-- Header Spacer -->
+                    <div id="mt-timeline-container" class="timeline-content"
+                        style="cursor: crosshair; background: #1a1a1a; border-radius: 2px;">
                         <!-- Time labels and loop markers go here -->
-                        <div id="mt-loop-bar" style="width:100%; height:100%; position:relative;">
+                        <div id="mt-loop-bar"
+                            style="width:100%; height:100%; position:relative; box-sizing: border-box;">
                             <div id="mt-loop-marker-a"
                                 style="display:none; position:absolute; top:0; bottom:0; width:2px; background:#fff; z-index:20; pointer-events:none;">
                             </div>
@@ -330,8 +373,8 @@
                 </div>
 
                 <!-- The tracks grid: headers left, waveforms right -->
-                <div
-                    style="flex-grow:1; display:flex; gap:0; padding:0 10px; align-items: flex-start; position: relative;">
+                <div id="multitrack-display-row" class="timeline-row"
+                    style="display:flex; width: 100%; gap:0; padding:0 10px; box-sizing: border-box; align-items: flex-start; position: relative;">
                     <div id="multitrack-headers"
                         style="width:200px; display:flex; flex-direction:column; flex-shrink:0;">
                         <!-- Headers injected via JS -->
@@ -353,10 +396,9 @@
                 <div style="height:20px; flex-shrink:0;"></div>
             </div>
 
-            <!-- Video Controls (Overlay/Below) -->
-            <!-- Video Controls (Overlay/Below) -->
             <div id="video-controls-container" class="media-controls-bar"
-                style="display:none; width:100%; justify-content:center; align-items:center; gap:12px; flex-wrap:wrap; padding:5px 0;">
+                style="display:none; width:100%; flex-wrap:wrap; padding:5px 0; border-top:1px solid #333;">
+                <div id="video-time-display-integrated" class="time-display-integrated">00:00 / -00:00</div>
 
                 <button class="control-btn" onclick="videoControl('restart')" title="Restart"
                     data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
@@ -474,12 +516,6 @@
 
 
 
-            <!-- Pédalier Virtuel (Sync) -->
-            <div id="pedalboard-container">
-                <div id="pedalboard-grid">
-                    <div class="empty-state" data-i18n="web.status_waiting">Pédalier : En attente...</div>
-                </div>
-            </div>
         </section>
 
         <!-- COLONNE DROITE (30%) -->

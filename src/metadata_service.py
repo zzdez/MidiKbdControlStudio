@@ -139,6 +139,76 @@ class MetadataService:
                 "stems": stems
             }
 
+        # --- SINGLE FILE SCAN ---
+        ext = os.path.splitext(path)[1].lower()
+        try:
+            audio = None
+            if ext in ['.m4a', '.mp4']:
+                try: audio = EasyMP4(path)
+                except: pass
+            elif ext == '.ogg':
+                try: audio = OggVorbis(path)
+                except: pass
+
+            # Generic Fallback (Handles WebM/MKV if supported by installed mutagen)
+            if not audio:
+                audio = mutagen.File(path, easy=True)
+
+            if not audio:
+                # Fallback specifically for OGG if Easy failed and we didn't try OggVorbis yet
+                if ext == '.ogg':
+                    try: audio = OggVorbis(path)
+                    except: pass
+
+            if not audio: return {"title": os.path.basename(path)}
+
+            # Helper to get first item safely
+            def get_val(obj, keys):
+                for k in keys:
+                    if k in obj and obj[k]:
+                        return obj[k][0]
+                return ""
+
+            title = os.path.basename(path)
+            artist = ""
+            album = ""
+            genre = ""
+            year = ""
+
+            # Strategy: Duck Typing keys based on object type
+            # Matroska / OggVorbis use UPPERCASE keys usually (or simple tags)
+            # EasyID3/EasyMP4 use 'title', 'artist'
+
+            keys_title = ['title', 'TITLE', 'Title']
+            keys_artist = ['artist', 'ARTIST', 'Artist']
+            keys_album = ['album', 'ALBUM', 'Album']
+            keys_genre = ['genre', 'GENRE', 'Genre']
+            keys_date = ['date', 'DATE', 'year', 'YEAR']
+
+            t = get_val(audio, keys_title)
+            if t: title = t
+
+            artist = get_val(audio, keys_artist)
+            album = get_val(audio, keys_album)
+            genre = get_val(audio, keys_genre)
+            year = get_val(audio, keys_date)
+
+            length = 0
+            if hasattr(audio, 'info') and hasattr(audio.info, 'length'):
+                length = audio.info.length
+
+            return {
+                "title": title,
+                "artist": artist,
+                "album": album,
+                "genre": genre,
+                "year": year,
+                "duration": length
+            }
+        except Exception as e:
+            print(f"Metadata Read Error: {e}")
+            return {"title": os.path.basename(path)}
+
     def generate_peaks(self, file_path: str, num_samples: int = 8000) -> list:
         """
         Génère un tableau de 'peaks' (min/max) pour dessiner l'onde audio.
@@ -241,75 +311,6 @@ class MetadataService:
             import logging
             logging.error(f"Generate Peaks Error for {file_path} (wave module): {e}")
             return []
-
-        ext = os.path.splitext(path)[1].lower()
-        try:
-            audio = None
-            if ext in ['.m4a', '.mp4']:
-                try: audio = EasyMP4(path)
-                except: pass
-            elif ext == '.ogg':
-                try: audio = OggVorbis(path)
-                except: pass
-
-            # Generic Fallback (Handles WebM/MKV if supported by installed mutagen)
-            if not audio:
-                audio = mutagen.File(path, easy=True)
-
-            if not audio:
-                # Fallback specifically for OGG if Easy failed and we didn't try OggVorbis yet
-                if ext == '.ogg':
-                    try: audio = OggVorbis(path)
-                    except: pass
-
-            if not audio: return {"title": os.path.basename(path)}
-
-            # Helper to get first item safely
-            def get_val(obj, keys):
-                for k in keys:
-                    if k in obj and obj[k]:
-                        return obj[k][0]
-                return ""
-
-            title = os.path.basename(path)
-            artist = ""
-            album = ""
-            genre = ""
-            year = ""
-
-            # Strategy: Duck Typing keys based on object type
-            # Matroska / OggVorbis use UPPERCASE keys usually (or simple tags)
-            # EasyID3/EasyMP4 use 'title', 'artist'
-
-            keys_title = ['title', 'TITLE', 'Title']
-            keys_artist = ['artist', 'ARTIST', 'Artist']
-            keys_album = ['album', 'ALBUM', 'Album']
-            keys_genre = ['genre', 'GENRE', 'Genre']
-            keys_date = ['date', 'DATE', 'year', 'YEAR']
-
-            t = get_val(audio, keys_title)
-            if t: title = t
-
-            artist = get_val(audio, keys_artist)
-            album = get_val(audio, keys_album)
-            genre = get_val(audio, keys_genre)
-            year = get_val(audio, keys_date)
-
-            length = 0
-            if hasattr(audio, 'info') and hasattr(audio.info, 'length'):
-                length = audio.info.length
-
-            return {
-                "title": title,
-                "artist": artist,
-                "album": album,
-                "genre": genre,
-                "year": year,
-                "duration": length
-            }
-        except Exception as e:
-            print(f"Metadata Read Error: {e}")
-            return {"title": os.path.basename(path)}
 
     def write_file_metadata(self, path, data):
         logging.info(f"Attempting to write metadata for: {path}")

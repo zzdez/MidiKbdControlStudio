@@ -107,13 +107,13 @@ iframe {
     box-sizing: border-box;
     display: none;
     flex-direction: column;
-    justify-content: flex-start;
-    /* Stack from top */
+    justify-content: flex-end;
+    /* Pin controls to bottom */
     align-items: center;
     background: #121212;
     position: relative;
-    gap: 20px;
-    /* Force Space */
+    gap: 10px;
+    padding-bottom: 20px;
 }
 
 /* Specific Child Height Controls */
@@ -129,24 +129,52 @@ iframe {
 
 #waveform {
     width: 90%;
-    height: 128px;
-    /* Fixed Height */
-    flex: 0 0 128px;
+    height: 170px;
+    /* Fixed Height increased to 170px */
+    flex: 0 0 170px;
     /* Force rigid flex size */
     background: rgba(255, 255, 255, 0.02);
     border-radius: 4px;
 }
 
 .audio-controls {
-    flex: 0 0 auto;
-    /* Don't shrink */
+    flex: 0 0 55px;
+    /* Fixed height for audio controls */
+    height: 55px;
     z-index: 10;
-    position: relative;
-    background: #252525;
-    /* Solid bg */
-    padding: 10px 20px;
-    border-radius: 30px;
+    background: #1a1a1a;
+    padding: 0 20px;
+    border-top: 1px solid #333;
+    width: 98% !important;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    box-sizing: border-box;
     margin-bottom: 0;
+}
+
+.media-controls-bar {
+    height: 55px !important;
+    min-height: 55px !important;
+    max-height: 55px !important;
+    padding: 0 20px !important;
+    box-sizing: border-box !important;
+}
+
+/* Integrated Time Display */
+.time-display-integrated {
+    font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+    font-size: 14px;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+    position: absolute;
+    left: 20px;
+    padding-left: 10px;
+    min-width: 120px;
+    text-align: left;
+    pointer-events: none;
+    /* Don't block clicks to bar if it overlaps */
 }
 
 #audio-meta-display div {
@@ -649,7 +677,36 @@ dialog::backdrop {
     min-height: 80px;
 }
 
-/* BUTTONS & ICONS */
+/* --- UNIFIED TIMELINE ALIGNMENT --- */
+.timeline-row {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+}
+
+.timeline-spacer {
+    width: 100px;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding-right: 12px;
+    box-sizing: border-box;
+}
+
+/* Multitrack has a wider header (200px) */
+.timeline-spacer.mt-spacer {
+    width: 200px;
+    padding-right: 10px;
+}
+
+.timeline-content {
+    flex-grow: 1;
+    position: relative;
+    box-sizing: border-box;
+}
+
+/* --- BUTTONS & ICONS --- */
 .btn-primary {
     background: var(--accent);
     color: black;
@@ -696,6 +753,7 @@ dialog::backdrop {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
     gap: 20px;
     background: #1e1e1e;
     /* Slightly lighter than bg */
