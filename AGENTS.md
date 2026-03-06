@@ -198,3 +198,15 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
 *   **Intégration Backend (`library_manager.py` & `server.py`) :**
     *   **Smart Detection :** Détection automatique des dossiers contenant de multiples fichiers audio (`is_multitrack = True`) lors du scan de la bibliothèque.
     *   **Zero-Latency Preload :** Pour garantir une synchronisation parfaite des pistes (zéro décalage), les stems sont pré-téléchargés en mémoire vive (Blob) via `fetch` asynchrone avant l'initialisation du lecteur HTML5. Les `peaks` JSON des waveforms sont générés côté serveur en Python pour soulager le CPU du navigateur.
+### 20. Évolution V14 : Standardisation UI & Centrage Précis
+*   **Standardisation des Commandes (55px) :**
+    *   **Unified Height :** Toutes les barres de contrôle (`.media-controls-bar`) sont désormais fixées à une hauteur de **55px** avec un padding interne de `0 20px`.
+    *   **Nettoyage Layout :** Suppression de l'élément `#pedalboard-container` en bas de page pour épurer l'interface et éviter les redirections visuelles inutiles.
+*   **Centrage & Timer Intégré (`app.js` & `style.css`) :**
+    *   **Flex-Centering :** Utilisation de `justify-content: center` pour les boutons de contrôle, garantissant une symétrie parfaite sur tous les players.
+    *   **Absolute Timer :** Pour éviter que le compteur de temps (Elapsed/Remaining) ne décale les boutons, celui-ci est désormais en `position: absolute; left: 20px;`. Cela permet de l'épingler à gauche tout en laissant les boutons se centrer par rapport à la largeur totale de la barre.
+*   **Fix Multipistes (14px Offset) :**
+    *   **Standardisation des Spacers :** Alignement du `mt-spacer` (200px) et réduction de son `padding-right` à **10px** (au lieu de 15px) pour correspondre exactement au padding des conteneurs de formes d'onde.
+    *   **Box-Sizing :** Application systématique de `box-sizing: border-box` sur les lignes du multipiste pour éviter les débordements de pixels calculés.
+*   **Roadmap Stems :**
+    *   Validation du passage futur à `demucs-rs` (Rust) pour la séparation locale, visant une réduction de latence par rapport au moteur Python actuel.

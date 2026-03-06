@@ -39,12 +39,14 @@ Elle combine le meilleur de deux mondes :
 - **Lecteur Audio Local (Simple & Multipistes)**
     - Support MP3, WAV, FLAC, M4A, OGG.
     - **NOUVEAU ! Support Multipistes (Stems) :** Jouez vos morceaux décomposés (basse, batterie, guitare, etc.) en parfaite synchronisation.
+    - **Alignement de Précision :** Interface corrigée pour un alignement au pixel près entre les formes d'onde et la barre de bouclage (Multitrack offset fix).
     - Mini-DAW intégré : contrôles indépendants de Volume, Panoramique (L/R), Mute et Solo par piste. 
     - Waveform interactive (WaveSurfer.js) avec zoom et navigation granulaire.
     - Option de Pitch Shifting et contrôle de vitesse (pour les pistes simples).
 *   **Audio Master Plan (Nouveau !) :**
     - **Volume Maître par Profil :** Chaque profil peut définir son propre volume système cible. Quand l'application détecte que vous ouvrez "Reaper", elle ajuste automatiquement le volume général de Windows pour vous !
     - **Volume Persistant par Média :** Les lecteurs (Web et Local) mémorisent le volume exact de chaque piste individuellement. Ajustez la jauge en direct, c'est sauvegardé instantanément !
+    - **UI Standardisée (55px) :** Toutes les barres de commandes sont désormais harmonisées à une hauteur de 55px, avec des boutons centrés et un compteur de temps (écoulé/restant) intégré à gauche.
     - Contrôle UX unifié avec pourcentage en temps réel et fonction *Mute* rapide.
 *   **Système d'Entraînement Avancé (A-B Looping 3 États) :**
     - **Boucles Multiples :** Définissez, nommez et sauvegardez plusieurs boucles (Points A & B) pour chaque morceau, incluant **désormais un support total et visuel pour les vidéos YouTube en streaming**.
@@ -99,6 +101,9 @@ Pour contrôler votre DAW depuis AirstepStudio, vous **DEVEZ** utiliser un câbl
 | **Boucle Précédente** | `Shift` + `Flèche Gauche` |
 | **Activer/Désactiver Boucle** | `R` (Toggle 3 États) |
 | **Redémarrer** | `0` ou `Début` |
+
+## 🚀 Prochaines Évolutions (Roadmap)
+*   **Intégration `demucs-rs` :** Support local haute performance pour la séparation de stems.
 
 ## 🛠️ Installation (Développeurs)
 
