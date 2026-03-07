@@ -139,15 +139,15 @@ iframe {
 
 .audio-controls {
     flex: 0 0 55px;
-    /* Fixed height for audio controls */
     height: 55px;
     z-index: 10;
     background: #1a1a1a;
     padding: 0 20px;
     border-top: 1px solid #333;
-    width: 98% !important;
+    width: 100% !important;
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
+    /* Change to space-between for smarter alignment */
     align-items: center;
     gap: 12px;
     box-sizing: border-box;
@@ -160,6 +160,12 @@ iframe {
     max-height: 55px !important;
     padding: 0 20px !important;
     box-sizing: border-box !important;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    gap: 15px;
+    /* Unified gap */
 }
 
 /* Integrated Time Display */
@@ -168,13 +174,26 @@ iframe {
     font-size: 14px;
     color: var(--accent);
     letter-spacing: 0.5px;
-    position: absolute;
-    left: 20px;
-    padding-left: 10px;
     min-width: 120px;
     text-align: left;
     pointer-events: none;
-    /* Don't block clicks to bar if it overlaps */
+    flex: 0 0 130px;
+    /* Take fixed space to allow centering of middle group */
+    z-index: 5;
+}
+
+.controls-center-group {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex: 1;
+}
+
+/* Spacer to balance the time-display on the right */
+.controls-right-spacer {
+    min-width: 120px;
+    flex: 0 0 130px;
 }
 
 #audio-meta-display div {
@@ -182,6 +201,62 @@ iframe {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 80vw;
+}
+
+/* Responsive Adjustments for Media Controls */
+@media (max-width: 1100px) {
+    .media-controls-bar {
+        gap: 8px !important;
+        padding: 0 10px !important;
+    }
+
+    .time-display-integrated,
+    .controls-right-spacer {
+        min-width: 100px !important;
+        flex: 0 0 110px !important;
+        font-size: 13px !important;
+    }
+
+    .control-btn {
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 1.1em !important;
+    }
+
+    .control-btn-large {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 1.8em !important;
+    }
+
+    .speed-pill,
+    .pitch-pill,
+    .speed-display {
+        font-size: 11px !important;
+        padding: 2px 6px !important;
+    }
+
+    /* Hide less critical elements on small width */
+    .pitch-pill {
+        display: none !important;
+    }
+}
+
+@media (max-width: 850px) {
+
+    .time-display-integrated,
+    .controls-right-spacer {
+        min-width: 80px !important;
+        flex: 0 0 90px !important;
+    }
+
+    .media-controls-bar {
+        gap: 4px !important;
+    }
+
+    .speed-pill {
+        display: none !important;
+    }
 }
 
 /* PEDALBOARD GRID (Bottom Left) */
@@ -752,16 +827,17 @@ dialog::backdrop {
 .media-controls-bar {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
+    /* Important for 3-part layout */
     position: relative;
-    gap: 20px;
+    gap: 15px;
     background: #1e1e1e;
-    /* Slightly lighter than bg */
-    padding: 10px 20px;
-    border-radius: 50px;
-    /* Pill shape container */
-    margin-top: 10px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    padding: 0 20px;
+    border-radius: 0;
+    /* Reset pill shape as it's now pinned to bottom */
+    margin-top: 0;
+    box-shadow: none;
+    border-top: 1px solid #333;
 }
 
 .control-btn {

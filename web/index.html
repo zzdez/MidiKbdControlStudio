@@ -177,91 +177,95 @@
                 <!-- On Screen Controls -->
                 <div class="audio-controls media-controls-bar">
                     <div id="audio-time-display-integrated" class="time-display-integrated">00:00 / -00:00</div>
-                    <button class="control-btn" onclick="audioControl('restart')" title="Restart"
-                        data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
-                    <button class="control-btn" onclick="audioControl('prev')" title="-5s"
-                        data-i18n-title="web.btn_prev"><i class="ph ph-rewind"></i></button>
 
-                    <button class="control-btn control-btn-large" onclick="audioControl('playpause')"
-                        data-i18n-title="web.btn_playpause" title="Lecture/Pause">
-                        <i id="btn-audio-play-toggle" class="ph ph-play-circle ph-fill"></i>
-                    </button>
+                    <div class="controls-center-group">
+                        <button class="control-btn" onclick="audioControl('restart')" title="Restart"
+                            data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
+                        <button class="control-btn" onclick="audioControl('prev')" title="-5s"
+                            data-i18n-title="web.btn_prev"><i class="ph ph-rewind"></i></button>
 
-                    <button class="control-btn" onclick="audioControl('next')" title="+5s"
-                        data-i18n-title="web.btn_next"><i class="ph ph-fast-forward"></i></button>
+                        <button class="control-btn control-btn-large" onclick="audioControl('playpause')"
+                            data-i18n-title="web.btn_playpause" title="Lecture/Pause">
+                            <i id="btn-audio-play-toggle" class="ph ph-play-circle ph-fill"></i>
+                        </button>
 
-                    <button class="control-btn" id="btn-audio-autoplay-toggle"
-                        onclick="togglePlaybackOption('autoplay')" title="Lancer automatiquement"
-                        data-i18n-title="web.lbl_autoplay"><i class="ph ph-lightning"></i></button>
+                        <button class="control-btn" onclick="audioControl('next')" title="+5s"
+                            data-i18n-title="web.btn_next"><i class="ph ph-fast-forward"></i></button>
 
-                    <button class="control-btn" id="btn-audio-repeat-toggle"
-                        onclick="togglePlaybackOption('autoreplay')" title="Répéter"
-                        data-i18n-title="web.lbl_autoreplay"><i class="ph ph-repeat"></i></button>
+                        <button class="control-btn" id="btn-audio-autoplay-toggle"
+                            onclick="togglePlaybackOption('autoplay')" title="Lancer automatiquement"
+                            data-i18n-title="web.lbl_autoplay"><i class="ph ph-lightning"></i></button>
 
-                    <div class="speed-pill">
-                        <button onclick="audioControl('speed_down')" data-i18n-title="web.btn_slow" title="Ralentir"><i
-                                class="ph ph-minus"></i></button>
-                        <span id="btn-audio-speed" class="speed-display">1.0x</span>
-                        <button onclick="audioControl('speed_up')" data-i18n-title="web.btn_fast" title="Accélérer"><i
-                                class="ph ph-plus"></i></button>
+                        <button class="control-btn" id="btn-audio-repeat-toggle"
+                            onclick="togglePlaybackOption('autoreplay')" title="Répéter"
+                            data-i18n-title="web.lbl_autoreplay"><i class="ph ph-repeat"></i></button>
+
+                        <div class="speed-pill">
+                            <button onclick="audioControl('speed_down')" data-i18n-title="web.btn_slow"
+                                title="Ralentir"><i class="ph ph-minus"></i></button>
+                            <span id="btn-audio-speed" class="speed-display">1.0x</span>
+                            <button onclick="audioControl('speed_up')" data-i18n-title="web.btn_fast"
+                                title="Accélérer"><i class="ph ph-plus"></i></button>
+                        </div>
+
+                        <!-- Pitch Control (Compact) -->
+                        <div class="pitch-pill"
+                            style="display:flex; align-items:center; gap:6px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
+                            <input type="checkbox" id="pitch-enable-toggle" onchange="togglePitchEngine(this.checked)"
+                                title="Activer DSP" data-i18n-title="web.hint_pitch">
+                            <i class="ph ph-wave-sine" style="color:#aaa; font-size:1.1em;" title="Pitch"></i>
+                            <input type="range" id="pitch-slider" min="-6" max="6" step="0.1" value="0" disabled
+                                style="width:60px; height:4px;" oninput="updatePitch(this.value)">
+                            <span id="pitch-value"
+                                style="font-size:0.85em; color:#ccc; min-width:25px; text-align:right;">0.0</span>
+                            <button class="btn-icon" onclick="updatePitch(0)" title="Reset"
+                                style="font-size:12px; margin-left:2px; padding:0;">↺</button>
+                        </div>
+
+                        <!-- Volume Control (Compact) -->
+                        <div
+                            style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
+                            <i id="audio-mute-icon" class="ph ph-speaker-high"
+                                style="color:#888; font-size:1em; cursor:pointer;" title="Mute/Unmute"
+                                data-i18n-title="web.hint_mute" onclick="toggleMute('audio')"></i>
+                            <input type="range" id="audio-volume" min="0" max="1" step="0.01" value="1"
+                                style="width:80px; height:4px;"
+                                oninput="updateAudioVolume(this.value); document.getElementById('audio-volume-percent').innerText = Math.round(this.value * 100) + '%'; syncVolumeToModals(Math.round(this.value * 100));">
+                            <span id="audio-volume-percent"
+                                style="font-size:0.75em; color:#aaa; min-width:28px; text-align:right;">100%</span>
+                        </div>
+
+                        <!-- A-B LOOP AUDIO -->
+                        <div
+                            style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left: 5px;">
+                            <button class="control-btn" id="btn-loop-a-audio" onclick="setLoopA()"
+                                title="Définir Point A" data-i18n-title="web.hint_loop_a"
+                                style="font-weight:bold; font-size:0.9em; padding:2px 6px;">A</button>
+                            <button class="control-btn" id="btn-loop-b-audio" onclick="setLoopB()"
+                                title="Définir Point B" data-i18n-title="web.hint_loop_b"
+                                style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
+
+                            <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
+
+                            <button class="control-btn" id="btn-loop-prev-audio" onclick="navigateLoop(-1)"
+                                title="Boucle Précédente" data-i18n-title="web.hint_loop_prev"
+                                style="display:none; padding:2px 2px;"><i class="ph ph-skip-back"></i></button>
+                            <button class="control-btn" id="btn-loop-toggle-audio" onclick="toggleLoopState()"
+                                title="Activer/Désactiver" data-i18n-title="web.hint_loop_toggle"
+                                style="display:none; padding:2px 4px; color:var(--accent);"><i
+                                    class="ph ph-repeat"></i></button>
+                            <button class="control-btn" id="btn-loop-next-audio" onclick="navigateLoop(1)"
+                                title="Boucle Suivante" data-i18n-title="web.hint_loop_next"
+                                style="display:none; padding:2px 2px;"><i class="ph ph-skip-forward"></i></button>
+
+                            <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
+                            <button class="control-btn" id="btn-loop-save-audio" onclick="openLoopModal()"
+                                title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
+                                style="display:none; padding:2px 4px; color:var(--accent);"><i
+                                    class="ph ph-floppy-disk"></i></button>
+                        </div>
                     </div>
-
-                    <!-- Pitch Control (Compact) -->
-                    <div class="pitch-pill"
-                        style="display:flex; align-items:center; gap:6px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
-                        <input type="checkbox" id="pitch-enable-toggle" onchange="togglePitchEngine(this.checked)"
-                            title="Activer DSP" data-i18n-title="web.hint_pitch">
-                        <i class="ph ph-wave-sine" style="color:#aaa; font-size:1.1em;" title="Pitch"></i>
-                        <input type="range" id="pitch-slider" min="-6" max="6" step="0.1" value="0" disabled
-                            style="width:60px; height:4px;" oninput="updatePitch(this.value)">
-                        <span id="pitch-value"
-                            style="font-size:0.85em; color:#ccc; min-width:25px; text-align:right;">0.0</span>
-                        <button class="btn-icon" onclick="updatePitch(0)" title="Reset"
-                            style="font-size:12px; margin-left:2px; padding:0;">↺</button>
-                    </div>
-
-                    <!-- Volume Control (Compact) -->
-                    <div
-                        style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
-                        <i id="audio-mute-icon" class="ph ph-speaker-high"
-                            style="color:#888; font-size:1em; cursor:pointer;" title="Mute/Unmute"
-                            data-i18n-title="web.hint_mute" onclick="toggleMute('audio')"></i>
-                        <input type="range" id="audio-volume" min="0" max="1" step="0.01" value="1"
-                            style="width:80px; height:4px;"
-                            oninput="updateAudioVolume(this.value); document.getElementById('audio-volume-percent').innerText = Math.round(this.value * 100) + '%'; syncVolumeToModals(Math.round(this.value * 100));">
-                        <span id="audio-volume-percent"
-                            style="font-size:0.75em; color:#aaa; min-width:28px; text-align:right;">100%</span>
-                    </div>
-
-                    <!-- A-B LOOP AUDIO -->
-                    <div
-                        style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left: 5px;">
-                        <button class="control-btn" id="btn-loop-a-audio" onclick="setLoopA()" title="Définir Point A"
-                            data-i18n-title="web.hint_loop_a"
-                            style="font-weight:bold; font-size:0.9em; padding:2px 6px;">A</button>
-                        <button class="control-btn" id="btn-loop-b-audio" onclick="setLoopB()" title="Définir Point B"
-                            data-i18n-title="web.hint_loop_b"
-                            style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
-
-                        <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
-
-                        <button class="control-btn" id="btn-loop-prev-audio" onclick="navigateLoop(-1)"
-                            title="Boucle Précédente" data-i18n-title="web.hint_loop_prev"
-                            style="display:none; padding:2px 2px;"><i class="ph ph-skip-back"></i></button>
-                        <button class="control-btn" id="btn-loop-toggle-audio" onclick="toggleLoopState()"
-                            title="Activer/Désactiver" data-i18n-title="web.hint_loop_toggle"
-                            style="display:none; padding:2px 4px; color:var(--accent);"><i
-                                class="ph ph-repeat"></i></button>
-                        <button class="control-btn" id="btn-loop-next-audio" onclick="navigateLoop(1)"
-                            title="Boucle Suivante" data-i18n-title="web.hint_loop_next"
-                            style="display:none; padding:2px 2px;"><i class="ph ph-skip-forward"></i></button>
-
-                        <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
-                        <button class="control-btn" id="btn-loop-save-audio" onclick="openLoopModal()"
-                            title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
-                            style="display:none; padding:2px 4px; color:var(--accent);"><i
-                                class="ph ph-floppy-disk"></i></button>
-                    </div>
+                    <div class="controls-right-spacer"></div>
                 </div>
 
             </div>
@@ -279,75 +283,78 @@
                 <div class="media-controls-bar" style="border-top:1px solid #333; flex-wrap:wrap;">
                     <div id="mt-time-display-integrated" class="time-display-integrated">00:00 / -00:00</div>
 
-                    <button class="control-btn" onclick="multitrackControl('restart')" title="Restart"
-                        data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
-                    <button class="control-btn" onclick="multitrackControl('prev')" title="-5s"
-                        data-i18n-title="web.btn_prev"><i class="ph ph-rewind"></i></button>
+                    <div class="controls-center-group">
+                        <button class="control-btn" onclick="multitrackControl('restart')" title="Restart"
+                            data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
+                        <button class="control-btn" onclick="multitrackControl('prev')" title="-5s"
+                            data-i18n-title="web.btn_prev"><i class="ph ph-rewind"></i></button>
 
-                    <button class="control-btn control-btn-large" onclick="multitrackControl('playpause')"
-                        title="Lecture/Pause" data-i18n-title="web.btn_playpause">
-                        <i id="btn-multitrack-play-toggle" class="ph ph-play-circle ph-fill"></i>
-                    </button>
+                        <button class="control-btn control-btn-large" onclick="multitrackControl('playpause')"
+                            title="Lecture/Pause" data-i18n-title="web.btn_playpause">
+                            <i id="btn-multitrack-play-toggle" class="ph ph-play-circle ph-fill"></i>
+                        </button>
 
-                    <button class="control-btn" onclick="multitrackControl('next')" title="+5s"
-                        data-i18n-title="web.btn_next"><i class="ph ph-fast-forward"></i></button>
+                        <button class="control-btn" onclick="multitrackControl('next')" title="+5s"
+                            data-i18n-title="web.btn_next"><i class="ph ph-fast-forward"></i></button>
 
-                    <button class="control-btn" id="btn-multitrack-autoplay-toggle"
-                        onclick="togglePlaybackOption('autoplay')" title="Lancer automatiquement"
-                        data-i18n-title="web.lbl_autoplay"><i class="ph ph-lightning"></i></button>
+                        <button class="control-btn" id="btn-multitrack-autoplay-toggle"
+                            onclick="togglePlaybackOption('autoplay')" title="Lancer automatiquement"
+                            data-i18n-title="web.lbl_autoplay"><i class="ph ph-lightning"></i></button>
 
-                    <button class="control-btn" id="btn-multitrack-repeat-toggle"
-                        onclick="togglePlaybackOption('autoreplay')" title="Répéter"
-                        data-i18n-title="web.lbl_autoreplay"><i class="ph ph-repeat"></i></button>
+                        <button class="control-btn" id="btn-multitrack-repeat-toggle"
+                            onclick="togglePlaybackOption('autoreplay')" title="Répéter"
+                            data-i18n-title="web.lbl_autoreplay"><i class="ph ph-repeat"></i></button>
 
-                    <!-- Speed Control -->
-                    <div class="speed-pill">
-                        <button onclick="multitrackControl('speed_down')" data-i18n-title="web.btn_slow"
-                            title="Ralentir"><i class="ph ph-minus"></i></button>
-                        <span id="btn-multitrack-speed" class="speed-display">1.0x</span>
-                        <button onclick="multitrackControl('speed_up')" data-i18n-title="web.btn_fast"
-                            title="Accélérer"><i class="ph ph-plus"></i></button>
+                        <!-- Speed Control -->
+                        <div class="speed-pill">
+                            <button onclick="multitrackControl('speed_down')" data-i18n-title="web.btn_slow"
+                                title="Ralentir"><i class="ph ph-minus"></i></button>
+                            <span id="btn-multitrack-speed" class="speed-display">1.0x</span>
+                            <button onclick="multitrackControl('speed_up')" data-i18n-title="web.btn_fast"
+                                title="Accélérer"><i class="ph ph-plus"></i></button>
+                        </div>
+
+                        <!-- Master Volume Control -->
+                        <div
+                            style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left:10px;">
+                            <i class="ph ph-speaker-high" style="color:#888; font-size:1em;"></i>
+                            <input type="range" id="multitrack-master-volume" min="0" max="1" step="0.01" value="1"
+                                style="width:80px; height:4px;" oninput="updateMultitrackMasterVolume(this.value)">
+                            <span id="multitrack-master-volume-percent"
+                                style="color:#bbb; font-size:0.8em; min-width:35px; text-align:right;">100%</span>
+                        </div>
+
+                        <!-- A-B LOOP MULTITRACK -->
+                        <div
+                            style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left: 5px;">
+                            <button class="control-btn" id="btn-loop-a-mt" onclick="setLoopA()" title="Définir Point A"
+                                data-i18n-title="web.hint_loop_a"
+                                style="font-weight:bold; font-size:0.9em; padding:2px 6px;">A</button>
+                            <button class="control-btn" id="btn-loop-b-mt" onclick="setLoopB()" title="Définir Point B"
+                                data-i18n-title="web.hint_loop_b"
+                                style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
+
+                            <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
+
+                            <button class="control-btn" id="btn-loop-prev-mt" onclick="navigateLoop(-1)"
+                                title="Boucle Précédente" data-i18n-title="web.hint_loop_prev"
+                                style="display:none; padding:2px 2px;"><i class="ph ph-skip-back"></i></button>
+                            <button class="control-btn" id="btn-loop-toggle-mt" onclick="toggleLoopState()"
+                                title="Activer/Désactiver" data-i18n-title="web.hint_loop_toggle"
+                                style="display:none; padding:2px 4px; color:var(--accent);"><i
+                                    class="ph ph-repeat"></i></button>
+                            <button class="control-btn" id="btn-loop-next-mt" onclick="navigateLoop(1)"
+                                title="Boucle Suivante" data-i18n-title="web.hint_loop_next"
+                                style="display:none; padding:2px 2px;"><i class="ph ph-skip-forward"></i></button>
+
+                            <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
+                            <button class="control-btn" id="btn-loop-save-mt" onclick="openLoopModal()"
+                                title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
+                                style="display:none; padding:2px 4px; color:var(--accent);"><i
+                                    class="ph ph-floppy-disk"></i></button>
+                        </div>
                     </div>
-
-                    <!-- Master Volume Control -->
-                    <div
-                        style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left:10px;">
-                        <i class="ph ph-speaker-high" style="color:#888; font-size:1em;"></i>
-                        <input type="range" id="multitrack-master-volume" min="0" max="1" step="0.01" value="1"
-                            style="width:80px; height:4px;" oninput="updateMultitrackMasterVolume(this.value)">
-                        <span id="multitrack-master-volume-percent"
-                            style="color:#bbb; font-size:0.8em; min-width:35px; text-align:right;">100%</span>
-                    </div>
-
-                    <!-- A-B LOOP MULTITRACK -->
-                    <div
-                        style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left: 5px;">
-                        <button class="control-btn" id="btn-loop-a-mt" onclick="setLoopA()" title="Définir Point A"
-                            data-i18n-title="web.hint_loop_a"
-                            style="font-weight:bold; font-size:0.9em; padding:2px 6px;">A</button>
-                        <button class="control-btn" id="btn-loop-b-mt" onclick="setLoopB()" title="Définir Point B"
-                            data-i18n-title="web.hint_loop_b"
-                            style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
-
-                        <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
-
-                        <button class="control-btn" id="btn-loop-prev-mt" onclick="navigateLoop(-1)"
-                            title="Boucle Précédente" data-i18n-title="web.hint_loop_prev"
-                            style="display:none; padding:2px 2px;"><i class="ph ph-skip-back"></i></button>
-                        <button class="control-btn" id="btn-loop-toggle-mt" onclick="toggleLoopState()"
-                            title="Activer/Désactiver" data-i18n-title="web.hint_loop_toggle"
-                            style="display:none; padding:2px 4px; color:var(--accent);"><i
-                                class="ph ph-repeat"></i></button>
-                        <button class="control-btn" id="btn-loop-next-mt" onclick="navigateLoop(1)"
-                            title="Boucle Suivante" data-i18n-title="web.hint_loop_next"
-                            style="display:none; padding:2px 2px;"><i class="ph ph-skip-forward"></i></button>
-
-                        <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
-                        <button class="control-btn" id="btn-loop-save-mt" onclick="openLoopModal()"
-                            title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
-                            style="display:none; padding:2px 4px; color:var(--accent);"><i
-                                class="ph ph-floppy-disk"></i></button>
-                    </div>
+                    <div class="controls-right-spacer"></div>
                 </div>
 
                 <!-- Multitrack Timeline & Loop Bar Row -->
@@ -400,110 +407,114 @@
                 style="display:none; width:100%; flex-wrap:wrap; padding:5px 0; border-top:1px solid #333;">
                 <div id="video-time-display-integrated" class="time-display-integrated">00:00 / -00:00</div>
 
-                <button class="control-btn" onclick="videoControl('restart')" title="Restart"
-                    data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
+                <div class="controls-center-group">
+                    <button class="control-btn" onclick="videoControl('restart')" title="Restart"
+                        data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
 
-                <!-- Chapter Prev -->
-                <button class="control-btn" onclick="videoControl('chapter_prev')" title="Chapitre Préc."
-                    data-i18n-title="web.btn_chapter_prev"><i class="ph ph-skip-back"></i></button>
+                    <!-- Chapter Prev -->
+                    <button class="control-btn" onclick="videoControl('chapter_prev')" title="Chapitre Préc."
+                        data-i18n-title="web.btn_chapter_prev"><i class="ph ph-skip-back"></i></button>
 
-                <!-- Standard Prev (-5s) -->
-                <button class="control-btn" onclick="videoControl('prev')" title="-5s" data-i18n-title="web.btn_prev"><i
-                        class="ph ph-rewind"></i></button>
+                    <!-- Standard Prev (-5s) -->
+                    <button class="control-btn" onclick="videoControl('prev')" title="-5s"
+                        data-i18n-title="web.btn_prev"><i class="ph ph-rewind"></i></button>
 
-                <button class="control-btn control-btn-large" onclick="videoControl('playpause')" title="Lecture/Pause"
-                    data-i18n-title="web.btn_playpause">
-                    <i id="btn-video-play-toggle" class="ph ph-play-circle ph-fill"></i>
-                </button>
-
-                <!-- Standard Next (+5s) -->
-                <button class="control-btn" onclick="videoControl('next')" title="+5s" data-i18n-title="web.btn_next"><i
-                        class="ph ph-fast-forward"></i></button>
-
-                <button class="control-btn" id="btn-video-autoplay-toggle" onclick="togglePlaybackOption('autoplay')"
-                    title="Lancer automatiquement" data-i18n-title="web.lbl_autoplay"><i
-                        class="ph ph-lightning"></i></button>
-
-                <button class="control-btn" id="btn-video-repeat-toggle" onclick="togglePlaybackOption('autoreplay')"
-                    title="Répéter" data-i18n-title="web.lbl_autoreplay"><i class="ph ph-repeat"></i></button>
-
-                <!-- Chapter Next -->
-                <button class="control-btn" onclick="videoControl('chapter_next')" title="Chapitre Suiv."
-                    data-i18n-title="web.btn_chapter_next"><i class="ph ph-skip-forward"></i></button>
-
-                <div class="speed-pill">
-                    <button onclick="videoControl('speed_down')" title="Ralentir" data-i18n-title="web.btn_slow"><i
-                            class="ph ph-minus"></i></button>
-                    <span id="btn-video-speed" class="speed-display">1.0x</span>
-                    <button onclick="videoControl('speed_up')" title="Accélérer" data-i18n-title="web.btn_fast"><i
-                            class="ph ph-plus"></i></button>
-                </div>
-
-                <!-- Subtitle Toggle Area -->
-                <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
-                    <button class="control-btn" id="btn-toggle-subs" onclick="toggleSubtitles()"
-                        title="Afficher/Masquer Sous-titres" data-i18n-title="web.hint_subs_toggle"
-                        style="display:none; padding:0 5px;">
-                        <i id="icon-toggle-subs" class="ph ph-closed-captioning"></i>
+                    <button class="control-btn control-btn-large" onclick="videoControl('playpause')"
+                        title="Lecture/Pause" data-i18n-title="web.btn_playpause">
+                        <i id="btn-video-play-toggle" class="ph ph-play-circle ph-fill"></i>
                     </button>
+
+                    <!-- Standard Next (+5s) -->
+                    <button class="control-btn" onclick="videoControl('next')" title="+5s"
+                        data-i18n-title="web.btn_next"><i class="ph ph-fast-forward"></i></button>
+
+                    <button class="control-btn" id="btn-video-autoplay-toggle"
+                        onclick="togglePlaybackOption('autoplay')" title="Lancer automatiquement"
+                        data-i18n-title="web.lbl_autoplay"><i class="ph ph-lightning"></i></button>
+
+                    <button class="control-btn" id="btn-video-repeat-toggle"
+                        onclick="togglePlaybackOption('autoreplay')" title="Répéter"
+                        data-i18n-title="web.lbl_autoreplay"><i class="ph ph-repeat"></i></button>
+
+                    <!-- Chapter Next -->
+                    <button class="control-btn" onclick="videoControl('chapter_next')" title="Chapitre Suiv."
+                        data-i18n-title="web.btn_chapter_next"><i class="ph ph-skip-forward"></i></button>
+
+                    <div class="speed-pill">
+                        <button onclick="videoControl('speed_down')" title="Ralentir" data-i18n-title="web.btn_slow"><i
+                                class="ph ph-minus"></i></button>
+                        <span id="btn-video-speed" class="speed-display">1.0x</span>
+                        <button onclick="videoControl('speed_up')" title="Accélérer" data-i18n-title="web.btn_fast"><i
+                                class="ph ph-plus"></i></button>
+                    </div>
+
+                    <!-- Subtitle Toggle Area -->
+                    <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
+                        <button class="control-btn" id="btn-toggle-subs" onclick="toggleSubtitles()"
+                            title="Afficher/Masquer Sous-titres" data-i18n-title="web.hint_subs_toggle"
+                            style="display:none; padding:0 5px;">
+                            <i id="icon-toggle-subs" class="ph ph-closed-captioning"></i>
+                        </button>
+                    </div>
+
+                    <!-- Volume Control (Compact Video) -->
+                    <div
+                        style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
+                        <i id="video-mute-icon" class="ph ph-speaker-high"
+                            style="color:#888; font-size:1em; cursor:pointer;" title="Mute/Unmute"
+                            data-i18n-title="web.hint_mute" onclick="toggleMute('video')"></i>
+                        <input type="range" id="video-volume" min="0" max="1" step="0.01" value="1"
+                            style="width:80px; height:4px;"
+                            oninput="updateVideoVolume(this.value); document.getElementById('video-volume-percent').innerText = Math.round(this.value * 100) + '%'; syncVolumeToModals(Math.round(this.value * 100));">
+                        <span id="video-volume-percent"
+                            style="font-size:0.75em; color:#aaa; min-width:28px; text-align:right;">100%</span>
+                    </div>
+
+                    <!-- Pitch Control (Compact Video) -->
+                    <div id="video-pitch-control-inline"
+                        style="display:flex; align-items:center; gap:6px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
+                        <input type="checkbox" id="pitch-enable-toggle-video" onchange="togglePitchEngine(this.checked)"
+                            title="Activer DSP" data-i18n-title="web.hint_pitch">
+                        <i class="ph ph-wave-sine" style="color:#aaa; font-size:1.1em;" title="Pitch"></i>
+                        <input type="range" id="pitch-slider-video" min="-6" max="6" step="0.1" value="0" disabled
+                            style="width:60px; height:4px;" oninput="updatePitch(this.value)">
+                        <span id="pitch-value-video"
+                            style="font-size:0.85em; color:#ccc; min-width:25px; text-align:right;">0.0</span>
+                        <button class="btn-icon" onclick="updatePitch(0)" title="Reset"
+                            style="font-size:12px; margin-left:2px; padding:0;">↺</button>
+                    </div>
+
+                    <!-- A-B LOOP VIDEO -->
+                    <div
+                        style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left: 5px;">
+                        <button class="control-btn" id="btn-loop-a-video" onclick="setLoopA()" title="Définir Point A"
+                            data-i18n-title="web.hint_loop_a"
+                            style="font-weight:bold; font-size:0.9em; padding:2px 6px;">A</button>
+                        <button class="control-btn" id="btn-loop-b-video" onclick="setLoopB()" title="Définir Point B"
+                            data-i18n-title="web.hint_loop_b"
+                            style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
+
+                        <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
+
+                        <button class="control-btn" id="btn-loop-prev-video" onclick="navigateLoop(-1)"
+                            title="Boucle Précédente" data-i18n-title="web.hint_loop_prev"
+                            style="display:none; padding:2px 2px;"><i class="ph ph-skip-back"></i></button>
+                        <button class="control-btn" id="btn-loop-toggle-video" onclick="toggleLoopState()"
+                            title="Activer/Désactiver" data-i18n-title="web.hint_loop_toggle"
+                            style="display:none; padding:2px 4px; color:var(--accent);"><i
+                                class="ph ph-repeat"></i></button>
+                        <button class="control-btn" id="btn-loop-next-video" onclick="navigateLoop(1)"
+                            title="Boucle Suivante" data-i18n-title="web.hint_loop_next"
+                            style="display:none; padding:2px 2px;"><i class="ph ph-skip-forward"></i></button>
+
+                        <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
+                        <button class="control-btn" id="btn-loop-save-video" onclick="openLoopModal()"
+                            title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
+                            style="display:none; padding:2px 4px; color:var(--accent);"><i
+                                class="ph ph-floppy-disk"></i></button>
+                    </div>
                 </div>
-
-                <!-- Volume Control (Compact Video) -->
-                <div
-                    style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
-                    <i id="video-mute-icon" class="ph ph-speaker-high"
-                        style="color:#888; font-size:1em; cursor:pointer;" title="Mute/Unmute"
-                        data-i18n-title="web.hint_mute" onclick="toggleMute('video')"></i>
-                    <input type="range" id="video-volume" min="0" max="1" step="0.01" value="1"
-                        style="width:80px; height:4px;"
-                        oninput="updateVideoVolume(this.value); document.getElementById('video-volume-percent').innerText = Math.round(this.value * 100) + '%'; syncVolumeToModals(Math.round(this.value * 100));">
-                    <span id="video-volume-percent"
-                        style="font-size:0.75em; color:#aaa; min-width:28px; text-align:right;">100%</span>
-                </div>
-
-                <!-- Pitch Control (Compact Video) -->
-                <div id="video-pitch-control-inline"
-                    style="display:flex; align-items:center; gap:6px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
-                    <input type="checkbox" id="pitch-enable-toggle-video" onchange="togglePitchEngine(this.checked)"
-                        title="Activer DSP" data-i18n-title="web.hint_pitch">
-                    <i class="ph ph-wave-sine" style="color:#aaa; font-size:1.1em;" title="Pitch"></i>
-                    <input type="range" id="pitch-slider-video" min="-6" max="6" step="0.1" value="0" disabled
-                        style="width:60px; height:4px;" oninput="updatePitch(this.value)">
-                    <span id="pitch-value-video"
-                        style="font-size:0.85em; color:#ccc; min-width:25px; text-align:right;">0.0</span>
-                    <button class="btn-icon" onclick="updatePitch(0)" title="Reset"
-                        style="font-size:12px; margin-left:2px; padding:0;">↺</button>
-                </div>
-
-                <!-- A-B LOOP VIDEO -->
-                <div
-                    style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left: 5px;">
-                    <button class="control-btn" id="btn-loop-a-video" onclick="setLoopA()" title="Définir Point A"
-                        data-i18n-title="web.hint_loop_a"
-                        style="font-weight:bold; font-size:0.9em; padding:2px 6px;">A</button>
-                    <button class="control-btn" id="btn-loop-b-video" onclick="setLoopB()" title="Définir Point B"
-                        data-i18n-title="web.hint_loop_b"
-                        style="font-weight:bold; font-size:0.9em; color:#555; padding:2px 6px;">B</button>
-
-                    <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
-
-                    <button class="control-btn" id="btn-loop-prev-video" onclick="navigateLoop(-1)"
-                        title="Boucle Précédente" data-i18n-title="web.hint_loop_prev"
-                        style="display:none; padding:2px 2px;"><i class="ph ph-skip-back"></i></button>
-                    <button class="control-btn" id="btn-loop-toggle-video" onclick="toggleLoopState()"
-                        title="Activer/Désactiver" data-i18n-title="web.hint_loop_toggle"
-                        style="display:none; padding:2px 4px; color:var(--accent);"><i
-                            class="ph ph-repeat"></i></button>
-                    <button class="control-btn" id="btn-loop-next-video" onclick="navigateLoop(1)"
-                        title="Boucle Suivante" data-i18n-title="web.hint_loop_next"
-                        style="display:none; padding:2px 2px;"><i class="ph ph-skip-forward"></i></button>
-
-                    <div style="width:1px; height:15px; background:#444; margin:0 2px;"></div>
-                    <button class="control-btn" id="btn-loop-save-video" onclick="openLoopModal()"
-                        title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
-                        style="display:none; padding:2px 4px; color:var(--accent);"><i
-                            class="ph ph-floppy-disk"></i></button>
-                </div>
+                <div class="controls-right-spacer"></div>
             </div>
 
             </div>
