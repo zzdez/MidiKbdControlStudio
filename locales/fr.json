@@ -157,6 +157,7 @@
         "modal_app_name": "Nom",
         "modal_app_path": "Chemin Exécutable",
         "modal_local_title": "Éditer Fichier Local",
+        "modal_mt_title": "Éditer Dossier Multipiste",
         "modal_youtube_title": "Éditer Lien YouTube",
         "btn_cancel": "Annuler",
         "btn_save": "Sauvegarder",
@@ -270,12 +271,21 @@
         "placeholder_genre_ex": "Ex: Rock",
         "default_category": "Général",
         "default_genre": "Divers",
+        "default_mt_category": "Multipiste",
         "opt_auto_recommended": "Auto (Recommandé)",
         "opt_auto": "Auto",
         "msg_url_required": "L'URL est obligatoire.",
         "tab_local": "Fichiers Locaux",
         "tab_apps": "Applications",
         "hint_sub_pos": "Hauteur des sous-titres",
-        "hint_musicbrainz": "Rechercher sur MusicBrainz"
+        "hint_musicbrainz": "Rechercher sur MusicBrainz",
+        "hint_autotag": "Rechercher sur MusicBrainz/YouTube",
+        "lbl_add_photo": "+ Photo",
+        "hint_delete_cover": "Supprimer la pochette",
+        "lbl_bpm": "BPM",
+        "lbl_key": "Tonalité (Key)",
+        "placeholder_key": "Ex: Am, G...",
+        "lbl_original_pitch": "Pitch Original (Hz)",
+        "lbl_target_pitch": "Pitch du média (Hz)"
     }
 }

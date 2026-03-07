@@ -29,16 +29,10 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-try:
-    from config_manager import ConfigManager
-    from library_manager import LibraryManager
-    from metadata_service import MetadataService
-    from download_service import DownloadService
-except ImportError:
-    from src.config_manager import ConfigManager
-    from src.library_manager import LibraryManager
-    from src.metadata_service import MetadataService
-    from src.download_service import DownloadService
+from config_manager import ConfigManager
+from library_manager import LibraryManager
+from metadata_service import MetadataService
+from download_service import DownloadService
 
 app = FastAPI()
 library_manager = LibraryManager()
@@ -701,67 +695,14 @@ async def get_local_art(index: int):
     if not path or not os.path.exists(path):
         return Response(status_code=404)
 
-    logging.debug(f"Fetching art for: {path}")
     try:
-        # 1. Try Embedded Tags
-        try:
-            audio = mutagen.File(path)
-            if audio:
-                logging.debug(f"Audio loaded for art: {type(audio)}")
-                # ID3 (MP3)
-                if hasattr(audio, 'tags') and audio.tags:
-                    for key in audio.tags.keys():
-                        if key.startswith('APIC'):
-                            logging.debug(f"Found APIC: {key}")
-                            frame = audio.tags[key]
-                            if hasattr(frame, 'data'):
-                                return Response(content=frame.data, media_type=frame.mime)
-                
-                # MP4 (M4A)
-                if 'covr' in audio:
-                    logging.debug("Found MP4 covr")
-                    return Response(content=audio['covr'][0], media_type="image/jpeg")
-                    
-                # FLAC
-                if hasattr(audio, 'pictures') and audio.pictures:
-                    logging.debug("Found FLAC Picture")
-                    return Response(content=audio.pictures[0].data, media_type=audio.pictures[0].mime)
-                
-                # OGG Vorbis
-                if isinstance(audio, mutagen.oggvorbis.OggVorbis):
-                    if 'metadata_block_picture' in audio:
-                        try:
-                            b64_data = audio['metadata_block_picture'][0]
-                            pic_data = base64.b64decode(b64_data)
-                            pic = Picture(pic_data)
-                            return Response(content=pic.data, media_type=pic.mime)
-                        except Exception as e:
-                            logging.error(f"OGG Picture Decode Error: {e}")
-
-        except Exception as e_art:
-             logging.error(f"Art Extraction Error: {e_art}")
-
-        # 2. Try Local File Fallback (folder.jpg, cover.jpg, etc)
-        directory = os.path.dirname(path)
-        for cand in ["folder.jpg", "cover.jpg", "album.jpg", "folder.png", "cover.png"]:
-            cand_path = os.path.join(directory, cand)
-            if os.path.exists(cand_path):
-                logging.debug(f"Found local art file: {cand}")
-                return FileResponse(cand_path)
-        
-        # 3. Try looking for image with same name as audio file
-        base_name = os.path.splitext(os.path.basename(path))[0]
-        for ext in [".jpg", ".png", ".jpeg"]:
-           img_path = os.path.join(directory, base_name + ext)
-           if os.path.exists(img_path):
-               logging.debug(f"Found sibling art file: {img_path}")
-               return FileResponse(img_path)
-
+        data, mime = metadata_service.get_file_cover(path)
+        if data:
+            return Response(content=data, media_type=mime)
+        return Response(status_code=404)
     except Exception as e:
-        logging.error(f"Art Fatal Error: {e}")
-
-    logging.debug("No art found")
-    return Response(status_code=404)
+        logging.error(f"Error fetching art for {path}: {e}")
+        return Response(status_code=404)
 
 @app.post("/api/local/add")
 async def add_local_file():
@@ -986,6 +927,12 @@ async def update_local_file(index: int, item: Dict):
             current["subtitle_pos_y"] = item.get("subtitle_pos_y", current.get("subtitle_pos_y", 80))
             current["volume"] = item.get("volume", current.get("volume", 100))
             current["loops"] = item.get("loops", current.get("loops", []))
+            current["bpm"] = item.get("bpm", current.get("bpm", ""))
+            current["key"] = item.get("key", current.get("key", ""))
+            current["original_pitch"] = item.get("original_pitch", current.get("original_pitch", ""))
+            current["target_pitch"] = item.get("target_pitch", current.get("target_pitch", ""))
+            current["autoplay"] = item.get("autoplay", current.get("autoplay", False))
+            current["autoreplay"] = item.get("autoreplay", current.get("autoreplay", False))
             
             # 1. Save JSON (Database Priority)
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:

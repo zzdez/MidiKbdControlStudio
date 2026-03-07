@@ -3,11 +3,8 @@ import time
 import json
 import logging
 
-try:
-    from server import broadcast_sync
-except ImportError:
-    from src.server import broadcast_sync
-
+# context_monitor.py
+# (broadcast_sync import removed to break circular dependency)
 class ContextMonitor(threading.Thread):
     def __init__(self, profile_manager, action_handler, callback=None):
         super().__init__(daemon=True)

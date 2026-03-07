@@ -114,6 +114,17 @@ class MetadataService:
             stems = []
             max_duration = 0
             
+            # --- SIDECAR JSON LOADING ---
+            sidecar_path = os.path.join(path, "airstep_meta.json")
+            sidecar_data = {}
+            if os.path.exists(sidecar_path):
+                import json
+                try:
+                    with open(sidecar_path, "r", encoding="utf-8") as f:
+                        sidecar_data = json.load(f)
+                except Exception as e:
+                    logging.error(f"Error reading sidecar JSON: {e}")
+
             # Scan for audio files in the top level of the directory
             for f in os.listdir(path):
                 if f.lower().endswith(('.mp3', '.wav', '.flac', '.ogg', '.m4a')):
@@ -129,11 +140,17 @@ class MetadataService:
                 except: pass
 
             return {
-                "title": title,
-                "artist": "Multipistes",
-                "album": "Stems",
-                "genre": "",
-                "year": "",
+                "title": sidecar_data.get("title", title),
+                "artist": sidecar_data.get("artist", "Multipistes"),
+                "album": sidecar_data.get("album", "Stems"),
+                "genre": sidecar_data.get("genre", ""),
+                "year": sidecar_data.get("year", ""),
+                "bpm": sidecar_data.get("bpm", ""),
+                "key": sidecar_data.get("key", ""),
+                "original_pitch": sidecar_data.get("original_pitch", ""),
+                "target_pitch": sidecar_data.get("target_pitch", ""),
+                "category": sidecar_data.get("category", ""),
+                "user_notes": sidecar_data.get("user_notes", ""),
                 "duration": max_duration,
                 "is_multitrack": True,
                 "stems": stems
@@ -314,40 +331,40 @@ class MetadataService:
 
     def write_file_metadata(self, path, data):
         logging.info(f"Attempting to write metadata for: {path}")
+        
+        # --- MULTITRACK (DIRECTORY) CASE ---
+        if os.path.isdir(path):
+            sidecar_path = os.path.join(path, "airstep_meta.json")
+            import json
+            
+            # Clean cover_data from main JSON to keep file small (it's in folder.jpg or DB)
+            meta_to_save = {k: v for k, v in data.items() if k not in ["cover_data", "stems", "is_multitrack", "duration"]}
+            
+            try:
+                # 1. Update JSON
+                with open(sidecar_path, "w", encoding="utf-8") as f:
+                    json.dump(meta_to_save, f, indent=4)
+                
+                # 2. Handle Cover if provided
+                if "cover_data" in data and data["cover_data"]:
+                    cover_data_bin, mime = self._resolve_cover_bin(data["cover_data"])
+                    if cover_data_bin:
+                        dest_img = os.path.join(path, "folder.jpg")
+                        if cover_data_bin == "DELETE":
+                            if os.path.exists(dest_img): os.remove(dest_img)
+                        else:
+                            with open(dest_img, "wb") as img_f:
+                                img_f.write(cover_data_bin)
+                
+                return True
+            except Exception as e:
+                logging.error(f"Multitrack Sidecar Write Error: {e}")
+                return False
+
         ext = os.path.splitext(path)[1].lower()
 
         # --- 0. PREPARE COVER DATA ---
-        cover_data_bin = None
-        mime_type = "image/jpeg" # Default
-
-        if "cover_data" in data and data["cover_data"]:
-            # Case A: DELETE
-            if data["cover_data"] == "DELETE":
-                cover_data_bin = "DELETE"
-
-            # Case B: URL (from Auto-Tag)
-            elif data["cover_data"].startswith("http"):
-                try:
-                    logging.info(f"Downloading cover from: {data['cover_data']}")
-                    resp = requests.get(data["cover_data"], timeout=10)
-                    if resp.status_code == 200:
-                        cover_data_bin = resp.content
-                        if "image/png" in resp.headers.get("Content-Type", ""):
-                            mime_type = "image/png"
-                        logging.info(f"Image downloaded: {len(cover_data_bin)} bytes")
-                    else:
-                        logging.warning(f"Download failed: {resp.status_code}")
-                except Exception as e:
-                    logging.error(f"Download Error: {e}")
-
-            # Case C: Base64 (starts with "data:")
-            elif data["cover_data"].startswith("data:"):
-                try:
-                    header, encoded = data["cover_data"].split(",", 1)
-                    cover_data_bin = base64.b64decode(encoded)
-                    if "image/png" in header: mime_type = "image/png"
-                except Exception as e:
-                    logging.error(f"Base64 Decode Error: {e}")
+        cover_data_bin, mime_type = self._resolve_cover_bin(data.get("cover_data"))
 
         # --- 1. FILTER READ-ONLY FORMATS ---
         if ext in ['.mkv', '.webm']:
@@ -539,13 +556,54 @@ class MetadataService:
 
         return False
 
+    def _resolve_cover_bin(self, cover_source):
+        """Helper to resolve different cover sources to binary data."""
+        if not cover_source: return None, None
+        
+        cover_data_bin = None
+        mime_type = "image/jpeg"
+
+        # Case A: DELETE
+        if cover_source == "DELETE":
+            return "DELETE", None
+
+        # Case B: URL
+        elif cover_source.startswith("http"):
+            try:
+                resp = requests.get(cover_source, timeout=10)
+                if resp.status_code == 200:
+                    cover_data_bin = resp.content
+                    if "image/png" in resp.headers.get("Content-Type", ""):
+                        mime_type = "image/png"
+            except: pass
+
+        # Case C: Base64
+        elif cover_source.startswith("data:"):
+            try:
+                header, encoded = cover_source.split(",", 1)
+                cover_data_bin = base64.b64decode(encoded)
+                if "image/png" in header: mime_type = "image/png"
+            except: pass
+            
+        return cover_data_bin, mime_type
+
     def get_file_cover(self, path):
         """
-        Extracts embedded cover art from file.
+        Extracts embedded cover art from file or directory.
         Returns (data: bytes, mime_type: str) or (None, None).
         """
         if not os.path.exists(path): return None, None
         
+        # --- DIR CASE (Multitrack folder.jpg) ---
+        if os.path.isdir(path):
+            img_path = os.path.join(path, "folder.jpg")
+            if os.path.exists(img_path):
+                try:
+                    with open(img_path, "rb") as f:
+                        return f.read(), "image/jpeg"
+                except: pass
+            return None, None
+
         ext = os.path.splitext(path)[1].lower()
         
         try:

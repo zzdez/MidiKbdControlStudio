@@ -804,6 +804,167 @@
         </div>
     </dialog>
 
+    <!-- MULTITRACK MODAL -->
+    <dialog id="modal-multitrack">
+        <div class="modal-header">
+            <h3 data-i18n="web.modal_mt_title">Éditer Dossier Multipiste</h3>
+            <button onclick="closeMultitrackModal()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body">
+            <!-- ART PREVIEW -->
+            <div
+                style="display:flex; justify-content:center; align-items:center; margin-bottom:15px; position:relative;">
+                <div id="mt-art-container" class="art-container" data-i18n-title="web.lbl_click_to_change_cover"
+                    onclick="document.getElementById('mt-cover-upload').click()"
+                    style="position:relative; width:220px; height:220px; margin: 0 auto; overflow: hidden; border-radius: 8px;">
+                    <img id="mt-art-img" src="" style="display:none; width:100%; height:100%; object-fit:cover;">
+                    <div id="mt-art-placeholder"
+                        style="width: 100%; height: 100%; border: 2px dashed #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888; background: #222;">
+                        <span data-i18n="web.lbl_add_photo">+ Photo</span>
+                    </div>
+                    <div id="btn-mt-delete-cover"
+                        style="position:absolute; top:5px; right:5px; background:rgba(0,0,0,0.7); border-radius:50%; width:24px; height:24px; display:none; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:14px; z-index:10;"
+                        onclick="event.stopPropagation(); removeMultitrackCover();" title="Supprimer la pochette"
+                        data-i18n-title="web.hint_delete_cover">
+                        ×
+                    </div>
+                </div>
+                <input type="file" id="mt-cover-upload" accept="image/*" style="display:none"
+                    onchange="handleMultitrackCover(this)">
+            </div>
+
+            <!-- SETTINGS SLIDERS -->
+            <div style="display:flex; gap:15px; margin-bottom:15px; align-items:center; width:100%;">
+                <div id="mt-volume-settings"
+                    style="flex:1; display:flex; align-items:center; justify-content: space-between; gap:10px; background:#222; border:1px solid #333; border-radius:8px; padding:10px;">
+                    <i class="ph ph-speaker-high" style="font-size:1.4em; color:#888;" title="Volume Master"
+                        data-i18n-title="gui.lbl_master_vol"></i>
+                    <input type="range" id="mt-modal-volume" min="0" max="100" value="100" title="Volume"
+                        data-i18n-title="gui.lbl_master_vol" style="flex:1; cursor:pointer;"
+                        oninput="liveUpdateModalVolume('mt', this.value); document.getElementById('mt-modal-volume-percent').innerText = this.value + '%';">
+                    <span id="mt-modal-volume-percent"
+                        style="font-size:0.9em; color:#aaa; min-width:35px; text-align:right;">100%</span>
+                </div>
+            </div>
+
+            <div class="edit-form">
+                <div id="mt-path-display"
+                    style="font-size:0.8em; color:#888; background:#222; padding:5px; border-radius:4px; margin-bottom:10px; word-break:break-all;">
+                </div>
+
+                <label data-i18n="web.lbl_title">Titre</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="mt-title" style="flex:1;">
+                    <button class="btn-secondary" onclick="autoTagMultitrack()"
+                        title="Rechercher sur MusicBrainz/YouTube" data-i18n-title="web.hint_autotag">🔍
+                        Auto-Tag</button>
+                </div>
+                <div id="mt-auto-tag-results"
+                    style="margin-top:5px; margin-bottom:10px; display:none; flex-direction:column; gap:5px; background:#1a1a1a; padding:5px; border-radius:4px; max-height:200px; overflow-y:auto;">
+                </div>
+
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_artist">Artiste</label>
+                        <input type="text" id="mt-artist" list="artists">
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_category">Catégorie</label>
+                        <input type="text" id="mt-category" list="categories">
+                    </div>
+                </div>
+
+                <!-- NEW FIELDS: BPM, Key, Pitch -->
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_bpm">BPM</label>
+                        <input type="number" id="mt-bpm" placeholder="120">
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_key">Tonalité (Key)</label>
+                        <input type="text" id="mt-key" placeholder="Ex: Am, G..."
+                            data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
+                        <datalist id="mt-key-suggestions">
+                            <option value="C">C (Do)</option>
+                            <option value="Cm">Cm (Do mineur)</option>
+                            <option value="D">D (Ré)</option>
+                            <option value="Dm">Dm (Ré mineur)</option>
+                            <option value="E">E (Mi)</option>
+                            <option value="Em">Em (Mi mineur)</option>
+                            <option value="F">F (Fa)</option>
+                            <option value="Fm">Fm (Fa mineur)</option>
+                            <option value="G">G (Sol)</option>
+                            <option value="Gm">Gm (Sol mineur)</option>
+                            <option value="A">A (La)</option>
+                            <option value="Am">Am (La mineur)</option>
+                            <option value="B">B (Si)</option>
+                            <option value="Bm">Bm (Si mineur)</option>
+                        </datalist>
+                    </div>
+                </div>
+
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_original_pitch">Pitch Original (Hz)</label>
+                        <input type="text" id="mt-original-pitch" placeholder="432">
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_target_pitch">Pitch Pratique (Hz)</label>
+                        <input type="text" id="mt-target-pitch" placeholder="440">
+                    </div>
+                </div>
+
+                <div class="row-inputs">
+                    <div class="col" style="flex:2;">
+                        <label data-i18n="web.lbl_album">Album</label>
+                        <input type="text" id="mt-album">
+                    </div>
+                    <div class="col" style="flex:2;">
+                        <label data-i18n="web.lbl_genre">Genre</label>
+                        <input type="text" id="mt-genre" list="genres">
+                    </div>
+                    <div class="col" style="flex:0.8;">
+                        <label data-i18n="web.lbl_year">Année</label>
+                        <input type="text" id="mt-year">
+                    </div>
+                </div>
+
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_profile_device">Profil Appareil</label>
+                        <select id="mt-target-profile">
+                            <option value="Auto" data-i18n="web.opt_auto_recommended">Auto (Recommandé)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row-inputs" style="margin-top:10px;">
+                    <div class="col">
+                        <label data-i18n="web.lbl_playback_options">Options de Lecture</label>
+                        <div
+                            style="background:#222; padding:10px; border-radius:8px; border:1px solid #333; display: flex; gap: 20px;">
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <input type="checkbox" id="mt-autoplay" style="width:16px; height:16px;">
+                                <span data-i18n="web.lbl_autoplay">Lecture auto</span>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <input type="checkbox" id="mt-autoreplay" style="width:16px; height:16px;">
+                                <span data-i18n="web.lbl_autoreplay">Boucle</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <label data-i18n="web.lbl_notes">Notes</label>
+                <textarea id="mt-notes" rows="3"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-text" onclick="closeMultitrackModal()" data-i18n="web.btn_cancel">Annuler</button>
+            <button class="btn-primary" onclick="saveMultitrackItem()" data-i18n="web.btn_save">Sauvegarder</button>
+        </div>
+    </dialog>
+
     <!-- MEDIA MODAL -->
     <dialog id="media-modal">
         <div class="modal-header">
