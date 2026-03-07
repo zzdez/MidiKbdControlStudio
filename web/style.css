@@ -701,19 +701,15 @@ dialog::backdrop {
 .edit-form label {
     display: block;
     margin-top: 3px;
-    /* Reduced gap */
-    margin-bottom: 1px;
-    /* Reduced gap */
-    font-size: 0.8em;
+    margin-bottom: 2px;
+    font-size: 13px;
     color: #aaa;
 }
 
 .row-inputs {
     display: flex;
     gap: 8px;
-    /* Compact gap */
     margin-bottom: 5px;
-    /* Compact margin */
 }
 
 .col {
@@ -727,7 +723,18 @@ dialog::backdrop {
 }
 
 .edit-form input,
-.edit-form select,
+.edit-form select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 2px 8px;
+    height: 22px;
+    background: #121212;
+    border: 1px solid #333;
+    color: white;
+    font-family: inherit;
+    font-size: 11px;
+}
+
 .edit-form textarea {
     width: 100%;
     box-sizing: border-box;
@@ -737,9 +744,6 @@ dialog::backdrop {
     color: white;
     font-family: inherit;
     font-size: 0.9em;
-}
-
-.edit-form textarea {
     resize: vertical;
 }
 
