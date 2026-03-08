@@ -1994,9 +1994,14 @@ dialog::backdrop {
 }
 
 .edit-form input,
-.edit-form select {
+.edit-form select,
+.edit-form button {
     height: 22px !important;
     font-size: 11px !important;
+}
+
+.edit-form button {
+    padding: 0 10px !important;
 }
 
 .zone-notes textarea {

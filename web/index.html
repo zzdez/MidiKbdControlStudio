@@ -968,7 +968,7 @@
             <button onclick="closeModal()" class="btn-close">×</button>
         </div>
 
-        <div class="modal-body">
+        <div class="modal-body edit-form">
             <!-- Search Zone -->
             <div id="search-zone-container">
                 <div class="input-group">
@@ -1040,9 +1040,8 @@
 
             <!-- NEW Zone: Back Button + Title (Under Poster) -->
             <div class="zone-title" style="display:flex; gap:10px; align-items:flex-end; margin-top:10px;">
-                <button id="btn-back-search" class="btn-secondary" onclick="resetSearchMode()"
-                    style="display:none; height:22px; padding:0 10px;" data-i18n-title="web.btn_back_search"
-                    title="Retour Recherche">
+                <button id="btn-back-search" class="btn-secondary" onclick="resetSearchMode()" style="display:none;"
+                    data-i18n-title="web.btn_back_search" title="Retour Recherche">
                     🔍
                 </button>
                 <div style="flex:1; min-width: 0;">
@@ -1050,8 +1049,7 @@
                     <input type="text" id="edit-title" data-i18n-placeholder="web.placeholder_song_title"
                         placeholder="Titre de la chanson">
                 </div>
-                <button class="btn-secondary" onclick="openNotesDescModal()"
-                    style="height:22px; padding:0 8px; font-size:10px; flex-shrink:0;"
+                <button class="btn-secondary" onclick="openNotesDescModal()" style="flex-shrink:0;"
                     data-i18n="web.btn_notes_desc">Notes & Desc</button>
             </div>
 
@@ -1173,11 +1171,11 @@
                 </div>
 
                 <div style="display:flex; gap:15px; margin-top:20px; align-items:center;">
-                    <button class="btn-primary" onclick="startDownload()"
-                        style="background:var(--accent); padding:10px 20px;" data-i18n="web.btn_start_dl">
+                    <button class="btn-primary" onclick="startDownload()" style="background:var(--accent);"
+                        data-i18n="web.btn_start_dl">
                         <i class="ph ph-download"></i> Lancer
                     </button>
-                    <div id="dl-status" style="font-size:0.9em; color:#ccc; flex:1; text-align:right;"
+                    <div id="dl-status" style="font-size:11px; color:#ccc; flex:1; text-align:right;"
                         data-i18n="web.status_ready">Prêt</div>
                 </div>
 
