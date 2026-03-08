@@ -157,6 +157,7 @@
         "modal_app_name": "Name",
         "modal_app_path": "Executable Path",
         "modal_local_title": "Edit Local File",
+        "modal_mt_title": "Edit Multitrack Folder",
         "modal_youtube_title": "Edit YouTube Link",
         "btn_cancel": "Cancel",
         "btn_save": "Save",
@@ -270,13 +271,23 @@
         "placeholder_genre_ex": "Ex: Rock",
         "default_category": "General",
         "default_genre": "Miscellaneous",
+        "default_mt_category": "Multitrack",
         "opt_auto_recommended": "Auto (Recommended)",
         "opt_auto": "Auto",
         "msg_url_required": "URL is required.",
         "tab_local": "Local Files",
         "tab_apps": "Applications",
+        "lbl_subs_height": "Subtitle Height",
+        "btn_notes_desc": "Notes & Description",
         "hint_sub_pos": "Subtitle Height",
         "hint_musicbrainz": "Search on MusicBrainz",
-        "msg_api_info": "<strong>Optional:</strong> This free key allows automatic retrieval of titles, descriptions, and thumbnails when adding a YouTube link. If no key is provided, <strong>video playback and MIDI pedalboard will work perfectly</strong>, but you will have to type titles manually."
+        "hint_autotag": "Search on MusicBrainz/YouTube",
+        "lbl_add_photo": "+ Photo",
+        "hint_delete_cover": "Remove cover art",
+        "lbl_bpm": "BPM",
+        "lbl_key": "Musical Key",
+        "placeholder_key": "e.g., Am, G...",
+        "lbl_original_pitch": "Original Pitch (Hz)",
+        "lbl_target_pitch": "Media Pitch (Hz)"
     }
 }

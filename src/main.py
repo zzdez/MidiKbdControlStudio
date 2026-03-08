@@ -16,23 +16,21 @@ class NullWriter:
 if sys.stdout is None: sys.stdout = NullWriter()
 if sys.stderr is None: sys.stderr = NullWriter()
 
-# --- FORCE MIDI BACKEND ---
-# Globals
-# (Removed the forced MIDO_BACKEND to allow standard auto-selection which worked for LoopMIDI)
-
-if sys.stdout is None: sys.stdout = NullWriter()
-if sys.stderr is None: sys.stderr = NullWriter()
-
 # --- FIX CHEMINS ---
+# S'assurer que le dossier src (ou le root du bundle) est dans le path
 current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path: sys.path.insert(0, current_dir)
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+# Si on est dans src, ajouter aussi le parent pour les imports absolus type 'src.xxx'
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 
 # --- IMPORTS ---
-# --- IMPORTS ---
-# Note: sys.path hack above ensures we can import modules directly
 from server import app as fastapi_app
 from config_manager import ConfigManager
 from gui import MidiKbdApp
+from midi_engine import MidiManager
 from utils import get_app_dir
 
 # Globals
