@@ -2002,3 +2002,29 @@ dialog::backdrop {
 .zone-notes textarea {
     min-height: 35px !important;
 }
+
+/* Modal YouTube Refactor */
+.zone-title label {
+    display: block !important;
+    font-size: 10px !important;
+    color: #888 !important;
+    margin-bottom: 2px !important;
+    margin-top: 0 !important;
+}
+
+.zone-title input {
+    width: 100% !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid #333 !important;
+    border-radius: 4px !important;
+    padding: 2px 8px !important;
+    color: white !important;
+    height: 22px !important;
+    font-size: 11px !important;
+    font-weight: normal !important;
+}
+
+#modal-notes-desc .modal-body {
+    width: 650px;
+    max-width: 90vw;
+}

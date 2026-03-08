@@ -697,7 +697,7 @@
                 <div style="display:flex; align-items:center; gap:12px; min-width:140px; justify-content: flex-start;">
                     <!-- Vertical Sub Slider -->
                     <div id="local-subtitle-settings" class="vertical-slider-container" style="display:none;">
-                        <span class="slider-label">SUBS</span>
+                        <span class="slider-label" data-i18n="web.lbl_subs_height">Hauteur</span>
                         <input type="range" id="local-sub-pos" min="0" max="100" value="20" orient="vertical"
                             oninput="updateLiveSubtitlePos(this.value)">
                         <span id="local-sub-pos-percent" class="slider-percent">20%</span>
@@ -987,218 +987,208 @@
                     Pour obtenir une clé API (gratuite), <a href="https://console.cloud.google.com/" target="_blank"
                         style="color:var(--accent); text-decoration:none;">allez a cette adresse ↗</a>.
                 </div>
-                <div id="search-results" class="results-grid"></div>
+                <!-- Search Results Grid (Temporary) -->
+                <div id="search-results" class="results-grid" style="margin-top:10px;"></div>
             </div>
 
             <hr class="separator">
 
-            <!-- Edit Form -->
-            <div class="edit-form edit-layout">
+            <!-- Edit Form Content (Directly in body to avoid display issues) -->
 
-                <!-- Zone 1: Title (Full Width) -->
-                <div class="zone-title" style="display:flex; gap:10px; align-items:center;">
-                    <button id="btn-back-search" class="btn-secondary" onclick="resetSearchMode()" style="display:none;"
-                        data-i18n-title="web.btn_back_search" title="Retour Recherche">
-                        🔍 <span data-i18n="web.btn_back_search">Retour</span>
-                    </button>
-                    <div style="flex:1;">
-                        <label data-i18n="web.lbl_title">Titre</label>
-                        <input type="text" id="edit-title" data-i18n-placeholder="web.placeholder_song_title"
-                            placeholder="Titre de la chanson" style="font-size:1.1em; font-weight:bold;">
-                    </div>
+            <!-- Zone 2: Media Stack (Sliders | Image | Switches) -->
+            <div class="modal-media-stack" style="margin-top:10px;">
+                <!-- Volume (Left) -->
+                <div class="vertical-slider-container">
+                    <span class="slider-label">VOL</span>
+                    <input type="range" id="edit-volume" min="0" max="100" value="100" orient="vertical"
+                        oninput="liveUpdateModalVolume('edit', this.value); document.getElementById('edit-volume-percent').innerText = this.value + '%';">
+                    <span id="edit-volume-percent" class="slider-percent">100%</span>
                 </div>
 
-                <!-- Zone 2: Media Stack (Sliders | Image | Switches) -->
-                <div class="modal-media-stack" style="margin-top:10px;">
-                    <!-- Volume (Left) -->
-                    <div class="vertical-slider-container">
-                        <span class="slider-label">VOL</span>
-                        <input type="range" id="edit-volume" min="0" max="100" value="100" orient="vertical"
-                            oninput="liveUpdateModalVolume('edit', this.value); document.getElementById('edit-volume-percent').innerText = this.value + '%';">
-                        <span id="edit-volume-percent" class="slider-percent">100%</span>
-                    </div>
-
-                    <!-- Poster (Center) -->
-                    <div id="preview-thumbnail" class="art-container square-art" title="Aperçu Thumbnail">
-                        <span style="font-size:40px;">🎵</span>
-                        <div id="btn-edit-delete-cover" class="btn-delete-cover" style="display:none;"
-                            onclick="event.stopPropagation(); removeEditCover();">×</div>
-                    </div>
-
-                    <!-- Controls Group (Right) -->
-                    <div
-                        style="display:flex; align-items:center; gap:12px; min-width:140px; justify-content: flex-start;">
-                        <!-- Vertical Sub Slider -->
-                        <div id="edit-subtitle-settings" class="vertical-slider-container" style="display:none;">
-                            <span class="slider-label">SUBS</span>
-                            <input type="range" id="edit-sub-pos" min="0" max="100" value="20" orient="vertical"
-                                oninput="updateLiveSubtitlePos(this.value)">
-                            <span id="edit-sub-pos-percent" class="slider-percent">20%</span>
-                        </div>
-
-                        <!-- Switches -->
-                        <div style="display:flex; flex-direction:column; gap:8px;">
-                            <label class="modern-switch">
-                                <input type="checkbox" id="edit-autoplay">
-                                <span class="switch-slider"></span>
-                                <span class="switch-label" data-i18n="web.lbl_autoplay">Auto</span>
-                            </label>
-                            <label class="modern-switch">
-                                <input type="checkbox" id="edit-autoreplay">
-                                <span class="switch-slider"></span>
-                                <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
-                            </label>
-                        </div>
-                    </div>
+                <!-- Poster (Center) -->
+                <div id="preview-thumbnail" class="art-container square-art" title="Aperçu Thumbnail">
+                    <span style="font-size:40px;">🎵</span>
+                    <div id="btn-edit-delete-cover" class="btn-delete-cover" style="display:none;"
+                        onclick="event.stopPropagation(); removeEditCover();">×</div>
                 </div>
 
-                <!-- Description Area -->
-                <div class="zone-notes" style="margin-top:10px;">
-                    <label data-i18n="web.lbl_yt_description">Description YouTube</label>
-                    <textarea id="youtube-desc-input" data-i18n-placeholder="web.placeholder_yt_description"
-                        placeholder="Description officielle..." readonly rows="2"></textarea>
-                </div>
-
-                <!-- Zone 3: Metadata Grid -->
-                <div class="zone-metadata">
-                    <div class="row-inputs">
-                        <div class="col">
-                            <label data-i18n="web.lbl_artist">Artiste</label>
-                            <input type="text" id="edit-artist" data-i18n-placeholder="web.placeholder_artist_ex"
-                                placeholder="Ex: Metallica">
-                        </div>
-                        <div class="col">
-                            <label data-i18n="web.lbl_channel">Chaîne</label>
-                            <input type="text" id="edit-channel" data-i18n-placeholder="web.placeholder_channel_name"
-                                placeholder="Nom de la chaîne">
-                        </div>
-                        <div class="col">
-                            <label data-i18n="web.lbl_url">URL</label>
-                            <input type="text" id="edit-url" data-i18n-placeholder="web.placeholder_url_https"
-                                placeholder="https://...">
-                        </div>
-                    </div>
-                    <div class="row-inputs">
-                        <div class="col">
-                            <label data-i18n="web.lbl_category">Catégorie</label>
-                            <div class="autocomplete-wrapper">
-                                <input type="text" id="edit-category"
-                                    data-i18n-placeholder="web.placeholder_category_ex" placeholder="Ex: Cours"
-                                    autocomplete="off">
-                                <div id="suggestions-category" class="suggestions-box"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <label data-i18n="web.lbl_genre">Genre</label>
-                            <div class="autocomplete-wrapper">
-                                <input type="text" id="edit-genre" data-i18n-placeholder="web.placeholder_genre_ex"
-                                    placeholder="Ex: Rock" autocomplete="off">
-                                <div id="suggestions-genre" class="suggestions-box"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <label data-i18n="web.lbl_mode">Mode</label>
-                            <select id="edit-mode">
-                                <option value="auto" data-i18n="web.opt_auto">Auto</option>
-                                <option value="iframe" data-i18n="web.opt_mode_iframe">Intégré (YouTube)</option>
-                                <option value="external" data-i18n="web.opt_mode_external">Externe</option>
-                            </select>
-                        </div>
-                        <div class="col">
-                            <label data-i18n="web.lbl_profile_device">Profil Appareil</label>
-                            <select id="edit-target-profile">
-                                <option value="Auto" data-i18n="web.opt_auto_recommended">Auto (Recommandé)</option>
-                            </select>
-                        </div>
+                <!-- Controls Group (Right) -->
+                <div style="display:flex; align-items:center; gap:12px; min-width:140px; justify-content: flex-start;">
+                    <!-- Vertical Sub Slider -->
+                    <div id="edit-subtitle-settings" class="vertical-slider-container" style="display:none;">
+                        <span class="slider-label" data-i18n="web.lbl_subs_height">Hauteur</span>
+                        <input type="range" id="edit-sub-pos" min="0" max="100" value="20" orient="vertical"
+                            oninput="updateLiveSubtitlePos(this.value)">
+                        <span id="edit-sub-pos-percent" class="slider-percent">20%</span>
                     </div>
 
-                    <div class="row-inputs">
-                        <div class="col">
-                            <label data-i18n="web.lbl_bpm">BPM</label>
-                            <input type="number" id="edit-bpm" placeholder="120">
-                        </div>
-                        <div class="col">
-                            <label data-i18n="web.lbl_key">Tonalité (Key)</label>
-                            <input type="text" id="edit-key" placeholder="Ex: Am, G..."
-                                data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
-                        </div>
-                    </div>
-
-                    <div class="row-inputs">
-                        <div class="col">
-                            <label data-i18n="web.lbl_original_pitch">Pitch Original (Hz)</label>
-                            <input type="text" id="edit-original-pitch" placeholder="432">
-                        </div>
-                        <div class="col">
-                            <label data-i18n="web.lbl_target_pitch">Pitch du média (Hz)</label>
-                            <input type="text" id="edit-target-pitch" placeholder="440">
-                        </div>
+                    <!-- Switches -->
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                        <label class="modern-switch">
+                            <input type="checkbox" id="edit-autoplay">
+                            <span class="switch-slider"></span>
+                            <span class="switch-label" data-i18n="web.lbl_autoplay">Auto</span>
+                        </label>
+                        <label class="modern-switch">
+                            <input type="checkbox" id="edit-autoreplay">
+                            <span class="switch-slider"></span>
+                            <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
+                        </label>
                     </div>
                 </div>
-
-
-                <!-- Zone 4: User Notes -->
-                <div class="zone-notes">
-                    <label data-i18n="web.lbl_user_notes">Mes Notes / Résumé</label>
-                    <textarea id="user-notes-input" rows="3" data-i18n-placeholder="web.placeholder_user_notes"
-                        placeholder="Mes notes personnelles, accords, structure..."></textarea>
-                </div>
-
-                <!-- DOWNLOAD OPTIONS (Hidden) -->
-                <div id="dl-options-container"
-                    style="display:none; background:#1a1a1a; padding:15px; margin-top:15px; border-radius:6px; border:1px solid #333;">
-                    <h4 style="margin:0 0 15px 0; color:var(--accent); display:flex; align-items:center; gap:10px;">
-                        <i class="ph ph-download-simple"></i> <span data-i18n="web.lbl_local_download">Téléchargement
-                            Local</span>
-                    </h4>
-
-                    <div class="row-inputs">
-                        <div class="col">
-                            <label data-i18n="web.lbl_format_quality">Format & Qualité</label>
-                            <select id="dl-format">
-                                <!-- Populated dynamically -->
-                            </select>
-                        </div>
-                        <div class="col">
-                            <label data-i18n="web.lbl_dest_folder">Dossier de Destination</label>
-                            <select id="dl-folder"></select>
-                        </div>
-                    </div>
-
-                    <div class="row-inputs" style="align-items:center; margin-top:10px;">
-                        <div style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-                            <input type="checkbox" id="dl-subs" checked
-                                style="width:18px; height:18px; cursor:pointer;">
-                            <label for="dl-subs" style="margin:0; cursor:pointer;"
-                                data-i18n="web.lbl_download_subs">Télécharger les Sous-titres
-                                (SRT)</label>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-left:20px;">
-                            <input type="checkbox" id="dl-autoclose" style="width:18px; height:18px; cursor:pointer;">
-                            <label for="dl-autoclose" style="margin:0; cursor:pointer; color:var(--accent);"
-                                data-i18n="web.lbl_close_after_dl">Fermer
-                                après téléchargement</label>
-                        </div>
-                    </div>
-
-                    <div style="display:flex; gap:15px; margin-top:20px; align-items:center;">
-                        <button class="btn-primary" onclick="startDownload()"
-                            style="background:var(--accent); padding:10px 20px;" data-i18n="web.btn_start_dl">
-                            <i class="ph ph-download"></i> Lancer
-                        </button>
-                        <div id="dl-status" style="font-size:0.9em; color:#ccc; flex:1; text-align:right;"
-                            data-i18n="web.status_ready">Prêt</div>
-                    </div>
-
-                    <!-- Progress Bar Container -->
-                    <div
-                        style="width:100%; background:#333; height:6px; border-radius:3px; margin-top:15px; overflow:hidden;">
-                        <div id="dl-progress-bar"
-                            style="width:0%; height:100%; background:var(--accent); transition:width 0.2s ease;"></div>
-                    </div>
-                </div>
-
             </div>
+
+            <!-- NEW Zone: Back Button + Title (Under Poster) -->
+            <div class="zone-title" style="display:flex; gap:10px; align-items:flex-end; margin-top:10px;">
+                <button id="btn-back-search" class="btn-secondary" onclick="resetSearchMode()"
+                    style="display:none; height:22px; padding:0 10px;" data-i18n-title="web.btn_back_search"
+                    title="Retour Recherche">
+                    🔍
+                </button>
+                <div style="flex:1; min-width: 0;">
+                    <label data-i18n="web.lbl_title">Titre</label>
+                    <input type="text" id="edit-title" data-i18n-placeholder="web.placeholder_song_title"
+                        placeholder="Titre de la chanson">
+                </div>
+                <button class="btn-secondary" onclick="openNotesDescModal()"
+                    style="height:22px; padding:0 8px; font-size:10px; flex-shrink:0;"
+                    data-i18n="web.btn_notes_desc">Notes & Desc</button>
+            </div>
+
+            <!-- Hidden legacy fields to prevent JS crash -->
+            <textarea id="youtube-desc-input" style="display:none;"></textarea>
+            <textarea id="user-notes-input" style="display:none;"></textarea>
+
+            <!-- Zone 3: Metadata Grid -->
+            <div class="zone-metadata">
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_artist">Artiste</label>
+                        <input type="text" id="edit-artist" data-i18n-placeholder="web.placeholder_artist_ex"
+                            placeholder="Ex: Metallica">
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_channel">Chaîne</label>
+                        <input type="text" id="edit-channel" data-i18n-placeholder="web.placeholder_channel_name"
+                            placeholder="Nom de la chaîne">
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_url">URL</label>
+                        <input type="text" id="edit-url" data-i18n-placeholder="web.placeholder_url_https"
+                            placeholder="https://...">
+                    </div>
+                </div>
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_category">Catégorie</label>
+                        <div class="autocomplete-wrapper">
+                            <input type="text" id="edit-category" data-i18n-placeholder="web.placeholder_category_ex"
+                                placeholder="Ex: Cours" autocomplete="off">
+                            <div id="suggestions-category" class="suggestions-box"></div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_genre">Genre</label>
+                        <div class="autocomplete-wrapper">
+                            <input type="text" id="edit-genre" data-i18n-placeholder="web.placeholder_genre_ex"
+                                placeholder="Ex: Rock" autocomplete="off">
+                            <div id="suggestions-genre" class="suggestions-box"></div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_mode">Mode</label>
+                        <select id="edit-mode">
+                            <option value="auto" data-i18n="web.opt_auto">Auto</option>
+                            <option value="iframe" data-i18n="web.opt_mode_iframe">Intégré (YouTube)</option>
+                            <option value="external" data-i18n="web.opt_mode_external">Externe</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_profile_device">Profil Appareil</label>
+                        <select id="edit-target-profile">
+                            <option value="Auto" data-i18n="web.opt_auto_recommended">Auto (Recommandé)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_bpm">BPM</label>
+                        <input type="number" id="edit-bpm" placeholder="120">
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_key">Tonalité (Key)</label>
+                        <input type="text" id="edit-key" placeholder="Ex: Am, G..."
+                            data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
+                    </div>
+                </div>
+
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_original_pitch">Pitch Original (Hz)</label>
+                        <input type="text" id="edit-original-pitch" placeholder="432">
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_target_pitch">Pitch du média (Hz)</label>
+                        <input type="text" id="edit-target-pitch" placeholder="440">
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- DOWNLOAD OPTIONS (Hidden) -->
+            <div id="dl-options-container"
+                style="display:none; background:#1a1a1a; padding:15px; margin-top:15px; border-radius:6px; border:1px solid #333;">
+                <h4 style="margin:0 0 15px 0; color:var(--accent); display:flex; align-items:center; gap:10px;">
+                    <i class="ph ph-download-simple"></i> <span data-i18n="web.lbl_local_download">Téléchargement
+                        Local</span>
+                </h4>
+
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_format_quality">Format & Qualité</label>
+                        <select id="dl-format">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_dest_folder">Dossier de Destination</label>
+                        <select id="dl-folder"></select>
+                    </div>
+                </div>
+
+                <div class="row-inputs" style="align-items:center; margin-top:10px;">
+                    <div style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                        <input type="checkbox" id="dl-subs" checked style="width:18px; height:18px; cursor:pointer;">
+                        <label for="dl-subs" style="margin:0; cursor:pointer;"
+                            data-i18n="web.lbl_download_subs">Télécharger les Sous-titres
+                            (SRT)</label>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-left:20px;">
+                        <input type="checkbox" id="dl-autoclose" style="width:18px; height:18px; cursor:pointer;">
+                        <label for="dl-autoclose" style="margin:0; cursor:pointer; color:var(--accent);"
+                            data-i18n="web.lbl_close_after_dl">Fermer
+                            après téléchargement</label>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:15px; margin-top:20px; align-items:center;">
+                    <button class="btn-primary" onclick="startDownload()"
+                        style="background:var(--accent); padding:10px 20px;" data-i18n="web.btn_start_dl">
+                        <i class="ph ph-download"></i> Lancer
+                    </button>
+                    <div id="dl-status" style="font-size:0.9em; color:#ccc; flex:1; text-align:right;"
+                        data-i18n="web.status_ready">Prêt</div>
+                </div>
+
+                <!-- Progress Bar Container -->
+                <div
+                    style="width:100%; background:#333; height:6px; border-radius:3px; margin-top:15px; overflow:hidden;">
+                    <div id="dl-progress-bar"
+                        style="width:0%; height:100%; background:var(--accent); transition:width 0.2s ease;"></div>
+                </div>
+            </div>
+
         </div>
 
         <div class="modal-footer">
@@ -1417,6 +1407,26 @@
         </div>
         <button onclick="document.getElementById('modal-subtitle-tracks').close()" class="btn-text"
             style="margin-top:15px; width:100%;" data-i18n="web.btn_close">Fermer</button>
+    </dialog>
+
+    <!-- NOTES & DESCRIPTION MODAL -->
+    <dialog id="modal-notes-desc"
+        style="background:#1a1a1a; color:#eee; border:1px solid #444; border-radius:8px; padding:0;">
+        <div class="modal-header" style="background:#252525; border-bottom:1px solid #333;">
+            <h3 data-i18n="web.btn_notes_desc">Notes & Description</h3>
+            <button onclick="closeNotesDescModal()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body"
+            style="width:700px; max-width:95vw; padding:15px; box-sizing:border-box; background:#1a1a1a;">
+            <div class="zone-notes" style="width:100%;">
+                <textarea id="pop-combined-notes" rows="20" data-i18n-placeholder="web.placeholder_user_notes"
+                    placeholder="Mes notes personnelles, accords, structure..."
+                    style="width:100%; box-sizing:border-box; background:#111; color:#eee; border:1px solid #444; border-radius:4px; padding:12px; line-height:1.5; font-family:inherit; resize:vertical; outline:none;"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer" style="background:#222; border-top:1px solid #333;">
+            <button class="btn-primary" onclick="closeNotesDescModal()">Valider & Fermer</button>
+        </div>
     </dialog>
 
 </body>

@@ -1258,6 +1258,34 @@ function closeModal() {
     editingIndex = null;
 }
 
+function openNotesDescModal() {
+    const mainDesc = document.getElementById("youtube-desc-input");
+    const mainNotes = document.getElementById("user-notes-input");
+    const popCombined = document.getElementById("pop-combined-notes");
+
+    let combined = "";
+    const ytDesc = (mainDesc ? mainDesc.value : "").trim();
+    const userNotes = (mainNotes ? mainNotes.value : "").trim();
+
+    if (ytDesc) {
+        combined += ytDesc + "\n\n--- DESCRIPTION YOUTUBE ---\n\n";
+    }
+    combined += userNotes;
+
+    popCombined.value = combined;
+    document.getElementById("modal-notes-desc").showModal();
+}
+
+function closeNotesDescModal() {
+    const mainNotes = document.getElementById("user-notes-input");
+    const popCombined = document.getElementById("pop-combined-notes");
+
+    if (mainNotes && popCombined) {
+        mainNotes.value = popCombined.value;
+    }
+    document.getElementById("modal-notes-desc").close();
+}
+
 async function searchYouTube() {
     const q = document.getElementById("yt-search-input").value;
     if (!q) return;
