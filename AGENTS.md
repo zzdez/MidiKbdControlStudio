@@ -198,3 +198,19 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
 *   **Intégration Backend (`library_manager.py` & `server.py`) :**
     *   **Smart Detection :** Détection automatique des dossiers contenant de multiples fichiers audio (`is_multitrack = True`) lors du scan de la bibliothèque.
     *   **Zero-Latency Preload :** Pour garantir une synchronisation parfaite des pistes (zéro décalage), les stems sont pré-téléchargés en mémoire vive (Blob) via `fetch` asynchrone avant l'initialisation du lecteur HTML5. Les `peaks` JSON des waveforms sont générés côté serveur en Python pour soulager le CPU du navigateur.
+
+### 20. Évolution V14 : Système Sidecar JSON Universel & Multitrack V2
+*   **Persistance Sidecar (`metadata_service.py`) :**
+    *   **Architecture "Sidecar-First"** : Pour les fichiers locaux (Audio, Vidéo, Multipiste), le backend cherche désormais un fichier `.json` correspondant (ex: `song.mp3.json` ou `folder.multitrack.json`).
+    *   **Métadonnées Étendues** : Stockage persistant de `bpm`, `key`, `original_pitch` et `target_pitch` directement à côté du média, garantissant l'intégrité des données même après un scan de bibliothèque.
+*   **Modale Multipiste Avancée (`index.html` & `app.js`) :**
+    *   **UI Grid Harmonisée** : Refonte de la modale multipiste pour intégrer les nouveaux champs de métadonnées et un affichage du poster optimisé.
+    *   **Gestion des Sliders** : Utilisation de `writing-mode: vertical-lr` pour les sliders de volume et position de sous-titres, avec feedback en pourcentage (%) temps réel.
+
+### 21. Évolution V15 : Harmonisation UI YouTube & Notes Unifiées
+*   **Refonte Modale YouTube (`media-modal`) :**
+    *   **Compactage Global** : Application de la classe `.edit-form` pour forcer une hauteur de champ de 22px et une police de 11px, assurant une parité visuelle stricte avec les modales locales.
+    *   **Zone Titre Sous-Poster** : Déplacement du titre sous l'image pour un meilleur équilibre visuel et ajout du bouton "Notes & Desc" avec `flex-shrink: 0` pour éviter tout chevauchement.
+    *   **Optimisation Hauteur** : Réduction agressive des marges internes du `dl-options-container` (cible < 187px) pour garantir une expérience sans scroll vertical lors du déploiement des options de téléchargement.
+*   **Système de Notes Unifiées :**
+    *   **Modale `#modal-notes-desc`** : Création d'une interface d'édition plein écran (fond sombre) fusionnant la description YouTube et les notes utilisateur en un seul bloc éditable et persistant.
