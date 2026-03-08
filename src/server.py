@@ -33,6 +33,7 @@ from config_manager import ConfigManager
 from library_manager import LibraryManager
 from metadata_service import MetadataService
 from download_service import DownloadService
+from music_api import MusicAPI
 
 app = FastAPI()
 library_manager = LibraryManager()
@@ -67,6 +68,7 @@ else:
 
 server_loop = None
 config_manager = ConfigManager()
+music_api_client = MusicAPI(config_manager)
 
 @app.on_event("startup")
 async def startup_event():
@@ -259,6 +261,14 @@ async def api_metadata_search(q: str):
     """Recherche des métadonnées via MusicBrainz."""
     return metadata_service.search(q)
 
+@app.get("/api/media/metadata")
+async def api_media_metadata(artist: str = "", title: str = ""):
+    """Fetch BPM and Key using MusicAPI (Spotify, GetSongBPM, GetSongKey)."""
+    if not artist and not title:
+        raise HTTPException(status_code=400, detail="Missing artist or title")
+    
+    result = music_api_client.fetch_metadata(artist, title)
+    return {"status": "ok", "data": result}
 
 @app.get("/api/stream")
 async def stream_file(request: Request, path: str):
@@ -571,6 +581,10 @@ async def get_settings():
     # Construct settings object
     return {
         "YOUTUBE_API_KEY": config_manager.get("YOUTUBE_API_KEY", ""),
+        "spotify_client_id": config_manager.get("spotify_client_id", ""),
+        "spotify_client_secret": config_manager.get("spotify_client_secret", ""),
+        "getsongbpm_api_key": config_manager.get("getsongbpm_api_key", ""),
+        "getsongkey_api_key": config_manager.get("getsongkey_api_key", ""),
         "media_folders": config_manager.get("media_folders", []),
         "midi_output_names": config_manager.get("midi_output_names", []),
         "midi_output_name": config_manager.get("midi_output_name", ""), # Legacy fallback

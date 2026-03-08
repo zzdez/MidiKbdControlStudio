@@ -288,6 +288,12 @@
         "lbl_key": "Tonalité (Key)",
         "placeholder_key": "Ex: Am, G...",
         "lbl_original_pitch": "Pitch Original (Hz)",
-        "lbl_target_pitch": "Pitch du média (Hz)"
+        "lbl_target_pitch": "Pitch du média (Hz)",
+        "lbl_music_apis": "APIs Musique (BPM & Tonalité)",
+        "msg_music_api_info": "Ces clés optionnelles permettent la recherche automatique du BPM et de la tonalité. Spotify est prioritaire si configuré.<br><strong>Note :</strong> L'utilisation des APIs gratuites GetSongBPM et GetSongKey implique l'acceptation de leurs conditions d'utilisation. Merci à <a href=\"https://getsongbpm.com\" target=\"_blank\">GetSongBPM</a> et <a href=\"https://getsongkey.com\" target=\"_blank\">GetSongKey</a> pour leur base de données.",
+        "lbl_spotify_client_id": "Spotify Client ID",
+        "lbl_spotify_client_secret": "Spotify Client Secret",
+        "lbl_getsongbpm_api_key": "GetSongBPM API Key",
+        "lbl_getsongkey_api_key": "GetSongKey API Key"
     }
 }
