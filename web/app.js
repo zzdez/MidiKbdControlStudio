@@ -1220,6 +1220,23 @@ function openEditModal(index) {
 
     // Check if URL is valid for download
     checkDownloadAvailability(track.url);
+
+    // SUBTITLES LOGIC for YouTube
+    const subSettings = document.getElementById("edit-subtitle-settings");
+    if (track.profile_name === "YouTube") {
+        subSettings.style.display = "flex";
+        subSettings.style.flexDirection = "column";
+        window.tempModalSubEnabled = track.subtitle_enabled || false;
+        updateCCIconState(window.tempModalSubEnabled, 'edit');
+
+        let posVal = track.subtitle_pos_y;
+        if (posVal === undefined) posVal = 80;
+        const sVal = 100 - posVal;
+        document.getElementById("edit-sub-pos").value = sVal;
+        const esp = document.getElementById("edit-sub-pos-percent"); if (esp) esp.innerText = sVal + "%";
+    } else {
+        subSettings.style.display = "none";
+    }
 }
 
 function closeModal() {
@@ -1597,6 +1614,8 @@ async function saveItem() {
         user_notes: user_notes,
         thumbnail: thumbnail,
         volume: volume,
+        subtitle_enabled: window.tempModalSubEnabled || false,
+        subtitle_pos_y: 100 - parseInt(document.getElementById("edit-sub-pos").value || 20, 10),
         autoplay: document.getElementById("edit-autoplay").checked,
         autoreplay: document.getElementById("edit-autoreplay").checked
     };
@@ -3646,6 +3665,9 @@ function updateLiveSubtitlePos(sliderVal) {
         overlay.style.top = percent + "%";
         localStorage.setItem('lastSubtitlePosY', percent); // Save as global default
     }
+    // Update labels in modals
+    const lp = document.getElementById("local-sub-pos-percent"); if (lp) lp.innerText = sliderVal + "%";
+    const ep = document.getElementById("edit-sub-pos-percent"); if (ep) ep.innerText = sliderVal + "%";
 }
 
 function toggleLiveSubtitles(checked) {
@@ -4023,7 +4045,9 @@ function openEditLocalModal(index) {
 
         let posVal = item.subtitle_pos_y;
         if (posVal === undefined) posVal = 80;
-        document.getElementById("local-sub-pos").value = 100 - posVal;
+        const sVal = 100 - posVal;
+        document.getElementById("local-sub-pos").value = sVal;
+        const lsp = document.getElementById("local-sub-pos-percent"); if (lsp) lsp.innerText = sVal + "%";
         // Update live preview if the edited video is currently playing
         if (currentActivePlayer === 'local' && window.currentPlayingIndex === index) {
             updateLiveSubtitlePos(100 - posVal);

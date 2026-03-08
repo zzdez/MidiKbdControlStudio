@@ -506,6 +506,8 @@ async def update_setlist_item(index: int, item: Dict):
                 "target_profile": target_profile,
                 "user_notes": item.get("user_notes", ""),
                 "volume": item.get("volume", items[index].get("volume", 100)),
+                "subtitle_enabled": item.get("subtitle_enabled", items[index].get("subtitle_enabled", False)),
+                "subtitle_pos_y": item.get("subtitle_pos_y", items[index].get("subtitle_pos_y", 80)),
                 "loops": item.get("loops", items[index].get("loops", []))
             }
 

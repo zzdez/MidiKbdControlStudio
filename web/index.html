@@ -671,56 +671,63 @@
             <button onclick="closeLocalModal()" class="btn-close">×</button>
         </div>
         <div class="modal-body">
-            <!-- ART PREVIEW -->
-            <div
-                style="display:flex; justify-content:center; align-items:center; margin-bottom:15px; position:relative;">
+            <!-- ART PREVIEW WITH VERTICAL SLIDERS -->
+            <div class="modal-media-stack">
+                <!-- Volume Vertical Slider -->
+                <div class="vertical-slider-container">
+                    <span class="slider-label">VOL</span>
+                    <input type="range" id="local-volume" min="0" max="100" value="100" orient="vertical"
+                        oninput="liveUpdateModalVolume('local', this.value); document.getElementById('local-volume-percent').innerText = this.value + '%';">
+                    <span id="local-volume-percent" class="slider-percent">100%</span>
+                </div>
+
                 <div id="local-art-container" class="art-container" data-i18n-title="web.lbl_click_to_change_cover"
                     onclick="document.getElementById('cover-upload').click()"
-                    style="position:relative; width:220px; height:220px; margin: 0 auto; overflow: hidden; border-radius: 8px;">
+                    style="position:relative; width:220px; height:220px; overflow: hidden; border-radius: 8px;">
                     <img id="local-art-img" src="" style="display:none; width:100%; height:100%; object-fit:cover;">
                     <div id="local-art-placeholder"
                         style="width: 100%; height: 100%; border: 2px dashed #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888; background: #222;">
-                        <span>+ Photo</span>
+                        <span data-i18n="web.lbl_add_photo">+ Photo</span>
                     </div>
-                    <!-- Delete Overlay Button -->
                     <div id="btn-delete-cover"
                         style="position:absolute; top:5px; right:5px; background:rgba(0,0,0,0.7); border-radius:50%; width:24px; height:24px; display:none; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:14px; z-index:10;"
-                        onclick="event.stopPropagation(); removeLocalCover();" title="Supprimer la pochette">
+                        onclick="event.stopPropagation(); removeLocalCover();" title="Supprimer la pochette"
+                        data-i18n-title="web.hint_delete_cover">
                         ×
+                    </div>
+                </div>
+
+                <!-- Subtitle Vertical Slider & Playback Options -->
+                <div style="display:flex; align-items:center; gap:20px;">
+                    <!-- Vertical Sub Slider (only shown if needed via JS or initial style) -->
+                    <div id="local-subtitle-settings" class="vertical-slider-container" style="display:none;">
+                        <span class="slider-label" onclick="openSubtitleTrackSelection('local')" style="cursor:pointer;"
+                            title="Hauteur Sous-titres">SUBS</span>
+                        <input type="range" id="local-sub-pos" min="0" max="100" value="20" orient="vertical"
+                            oninput="updateLiveSubtitlePos(this.value)">
+                        <span id="local-sub-pos-percent" class="slider-percent">20%</span>
+                    </div>
+
+                    <!-- Switches -->
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        <label class="modern-switch">
+                            <input type="checkbox" id="local-autoplay"
+                                onchange="liveUpdatePlaybackOption('autoplay', this.checked)">
+                            <span class="switch-slider"></span>
+                            <span class="switch-label" data-i18n="web.lbl_autoplay">Lecture auto</span>
+                        </label>
+                        <label class="modern-switch">
+                            <input type="checkbox" id="local-autoreplay"
+                                onchange="liveUpdatePlaybackOption('autoreplay', this.checked)">
+                            <span class="switch-slider"></span>
+                            <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
+                        </label>
                     </div>
                 </div>
 
                 <!-- Hidden File Input -->
                 <input type="file" id="cover-upload" accept="image/*" style="display:none"
                     onchange="handleLocalCover(this)">
-            </div>
-
-            <!-- HORIZONTAL SETTINGS SLIDERS -->
-            <div style="display:flex; gap:15px; margin-bottom:15px; align-items:center; width:100%;">
-                <!-- HORIZONTAL VOLUME SLIDER -->
-                <div id="local-volume-settings"
-                    style="flex:1; display:flex; align-items:center; justify-content: space-between; gap:10px; background:#222; border:1px solid #333; border-radius:8px; padding:10px;">
-                    <i class="ph ph-speaker-high" style="font-size:1.4em; color:#888;" title="Volume du média"></i>
-                    <input type="range" id="local-volume" min="0" max="100" value="100" title="Volume"
-                        style="flex:1; cursor:pointer;"
-                        oninput="liveUpdateModalVolume('local', this.value); document.getElementById('local-volume-percent').innerText = this.value + '%';">
-                    <span id="local-volume-percent"
-                        style="font-size:0.9em; color:#aaa; min-width:35px; text-align:right;">100%</span>
-                </div>
-
-                <!-- HORIZONTAL SUBTITLE SLIDER -->
-                <div id="local-subtitle-settings"
-                    style="display:none; flex:1; align-items:center; justify-content: space-between; gap:10px; background:#222; border:1px solid #333; border-radius:8px; padding:10px;">
-                    <div title="Pistes de sous-titres (cliquez pour choisir)"
-                        style="cursor:pointer; display:flex; align-items:center;"
-                        onclick="openSubtitleTrackSelection('local')">
-                        <i id="modal-cc-icon" class="ph ph-closed-captioning"
-                            style="font-size:1.4em; color:var(--accent);"></i>
-                    </div>
-                    <input type="range" id="local-sub-pos" min="0" max="100" value="20" title="Hauteur des sous-titres"
-                        data-i18n-title="web.hint_sub_pos" style="flex:1; cursor:pointer;"
-                        oninput="updateLiveSubtitlePos(this.value)">
-                </div>
             </div>
 
             <div class="edit-form">
@@ -775,24 +782,6 @@
                     </div>
                 </div>
 
-                <div class="row-inputs" style="margin-top:10px;">
-                    <div class="col">
-                        <label data-i18n="web.lbl_playback_options">Options de Lecture</label>
-                        <div
-                            style="background:#222; padding:10px; border-radius:8px; border:1px solid #333; display: flex; gap: 20px;">
-                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                                <input type="checkbox" id="local-autoplay" style="width:16px; height:16px;"
-                                    onchange="liveUpdatePlaybackOption('autoplay', this.checked)">
-                                <span data-i18n="web.lbl_autoplay">Lecture auto</span>
-                            </label>
-                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                                <input type="checkbox" id="local-autoreplay" style="width:16px; height:16px;"
-                                    onchange="liveUpdatePlaybackOption('autoreplay', this.checked)">
-                                <span data-i18n="web.lbl_autoreplay">Boucle</span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
 
                 <label data-i18n="web.lbl_notes">Notes</label>
                 <textarea id="local-notes" rows="3"></textarea>
@@ -811,12 +800,19 @@
             <button onclick="closeMultitrackModal()" class="btn-close">×</button>
         </div>
         <div class="modal-body">
-            <!-- ART PREVIEW -->
-            <div
-                style="display:flex; justify-content:center; align-items:center; margin-bottom:15px; position:relative;">
+            <!-- ART PREVIEW WITH VERTICAL SLIDERS -->
+            <div class="modal-media-stack">
+                <!-- Volume Vertical Slider -->
+                <div class="vertical-slider-container">
+                    <span class="slider-label">VOL</span>
+                    <input type="range" id="mt-modal-volume" min="0" max="100" value="100" orient="vertical"
+                        oninput="liveUpdateModalVolume('mt', this.value); document.getElementById('mt-modal-volume-percent').innerText = this.value + '%';">
+                    <span id="mt-modal-volume-percent" class="slider-percent">100%</span>
+                </div>
+
                 <div id="mt-art-container" class="art-container" data-i18n-title="web.lbl_click_to_change_cover"
                     onclick="document.getElementById('mt-cover-upload').click()"
-                    style="position:relative; width:220px; height:220px; margin: 0 auto; overflow: hidden; border-radius: 8px;">
+                    style="position:relative; width:220px; height:220px; overflow: hidden; border-radius: 8px;">
                     <img id="mt-art-img" src="" style="display:none; width:100%; height:100%; object-fit:cover;">
                     <div id="mt-art-placeholder"
                         style="width: 100%; height: 100%; border: 2px dashed #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888; background: #222;">
@@ -829,22 +825,23 @@
                         ×
                     </div>
                 </div>
+
+                <!-- Playback Options as Modern Switches -->
+                <div style="display:flex; flex-direction:column; gap:15px; justify-content:center;">
+                    <label class="modern-switch">
+                        <input type="checkbox" id="mt-autoplay">
+                        <span class="switch-slider"></span>
+                        <span class="switch-label" data-i18n="web.lbl_autoplay">Lecture auto</span>
+                    </label>
+                    <label class="modern-switch">
+                        <input type="checkbox" id="mt-autoreplay">
+                        <span class="switch-slider"></span>
+                        <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
+                    </label>
+                </div>
+
                 <input type="file" id="mt-cover-upload" accept="image/*" style="display:none"
                     onchange="handleMultitrackCover(this)">
-            </div>
-
-            <!-- SETTINGS SLIDERS -->
-            <div style="display:flex; gap:15px; margin-bottom:15px; align-items:center; width:100%;">
-                <div id="mt-volume-settings"
-                    style="flex:1; display:flex; align-items:center; justify-content: space-between; gap:10px; background:#222; border:1px solid #333; border-radius:8px; padding:10px;">
-                    <i class="ph ph-speaker-high" style="font-size:1.4em; color:#888;" title="Volume Master"
-                        data-i18n-title="gui.lbl_master_vol"></i>
-                    <input type="range" id="mt-modal-volume" min="0" max="100" value="100" title="Volume"
-                        data-i18n-title="gui.lbl_master_vol" style="flex:1; cursor:pointer;"
-                        oninput="liveUpdateModalVolume('mt', this.value); document.getElementById('mt-modal-volume-percent').innerText = this.value + '%';">
-                    <span id="mt-modal-volume-percent"
-                        style="font-size:0.9em; color:#aaa; min-width:35px; text-align:right;">100%</span>
-                </div>
             </div>
 
             <div class="edit-form">
@@ -938,22 +935,6 @@
                     </div>
                 </div>
 
-                <div class="row-inputs" style="margin-top:10px;">
-                    <div class="col">
-                        <label data-i18n="web.lbl_playback_options">Options de Lecture</label>
-                        <div
-                            style="background:#222; padding:10px; border-radius:8px; border:1px solid #333; display: flex; gap: 20px;">
-                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                                <input type="checkbox" id="mt-autoplay" style="width:16px; height:16px;">
-                                <span data-i18n="web.lbl_autoplay">Lecture auto</span>
-                            </label>
-                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                                <input type="checkbox" id="mt-autoreplay" style="width:16px; height:16px;">
-                                <span data-i18n="web.lbl_autoreplay">Boucle</span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
 
                 <label data-i18n="web.lbl_notes">Notes</label>
                 <textarea id="mt-notes" rows="3"></textarea>
@@ -1012,32 +993,54 @@
                     </div>
                 </div>
 
-                <!-- Zone 2: Split View (Image | Description) -->
-                <div class="zone-split">
-                    <div class="split-left" style="display:flex; flex-direction:column; gap:15px; align-items:stretch;">
+                <!-- Zone 2: Media Stack (Sliders | Image | Switches) -->
+                <div class="modal-media-stack" style="margin-top:15px;">
+                    <!-- Volume Vertical Slider -->
+                    <div class="vertical-slider-container">
+                        <span class="slider-label">VOL</span>
+                        <input type="range" id="edit-volume" min="0" max="100" value="100" orient="vertical"
+                            oninput="liveUpdateModalVolume('edit', this.value); document.getElementById('edit-volume-percent').innerText = this.value + '%';">
+                        <span id="edit-volume-percent" class="slider-percent">100%</span>
+                    </div>
 
-                        <div id="preview-thumbnail" class="thumbnail-preview" style="flex:1;">
-                            <span style="font-size:40px;">🎵</span>
+                    <div id="preview-thumbnail" class="thumbnail-preview"
+                        style="width:220px; height:220px; flex:none; margin:0;">
+                        <span style="font-size:40px;">🎵</span>
+                    </div>
+
+                    <!-- Subtitle Vertical Slider & Playback Options -->
+                    <div style="display:flex; align-items:center; gap:20px;">
+                        <!-- Vertical Sub Slider -->
+                        <div id="edit-subtitle-settings" class="vertical-slider-container" style="display:none;">
+                            <span class="slider-label" title="Hauteur Sous-titres">SUBS</span>
+                            <input type="range" id="edit-sub-pos" min="0" max="100" value="20" orient="vertical"
+                                oninput="updateLiveSubtitlePos(this.value)">
+                            <span id="edit-sub-pos-percent" class="slider-percent">20%</span>
                         </div>
 
-                        <!-- NEW HORIZONTAL VOLUME SLIDER -->
-                        <div id="edit-volume-settings"
-                            style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:#222; border:1px solid #333; border-radius:8px; padding:10px;">
-                            <i class="ph ph-speaker-high" style="font-size:1.4em; color:#888;"
-                                title="Volume du média"></i>
-                            <input type="range" id="edit-volume" min="0" max="100" value="100" title="Volume"
-                                style="flex:1; cursor:pointer;"
-                                oninput="liveUpdateModalVolume('edit', this.value); document.getElementById('edit-volume-percent').innerText = this.value + '%';">
-                            <span id="edit-volume-percent"
-                                style="font-size:0.9em; color:#aaa; min-width:35px; text-align:right;">100%</span>
+                        <!-- Switches -->
+                        <div style="display:flex; flex-direction:column; gap:12px;">
+                            <label class="modern-switch">
+                                <input type="checkbox" id="edit-autoplay"
+                                    onchange="liveUpdatePlaybackOption('autoplay', this.checked)">
+                                <span class="switch-slider"></span>
+                                <span class="switch-label" data-i18n="web.lbl_autoplay">Lecture auto</span>
+                            </label>
+                            <label class="modern-switch">
+                                <input type="checkbox" id="edit-autoreplay"
+                                    onchange="liveUpdatePlaybackOption('autoreplay', this.checked)">
+                                <span class="switch-slider"></span>
+                                <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
+                            </label>
                         </div>
+                    </div>
+                </div>
 
-                    </div>
-                    <div class="split-right">
-                        <label data-i18n="web.lbl_yt_description">Description YouTube</label>
-                        <textarea id="youtube-desc-input" data-i18n-placeholder="web.placeholder_yt_description"
-                            placeholder="Description officielle..." readonly></textarea>
-                    </div>
+                <!-- Description Area -->
+                <div class="zone-notes" style="margin-top:10px;">
+                    <label data-i18n="web.lbl_yt_description">Description YouTube</label>
+                    <textarea id="youtube-desc-input" data-i18n-placeholder="web.placeholder_yt_description"
+                        placeholder="Description officielle..." readonly rows="2"></textarea>
                 </div>
 
                 <!-- Zone 3: Metadata Grid -->
@@ -1094,24 +1097,6 @@
                     </div>
                 </div>
 
-                <div class="row-inputs" style="margin-top:10px;">
-                    <div class="col">
-                        <label data-i18n="web.lbl_playback_options">Options de Lecture</label>
-                        <div
-                            style="background:#222; padding:10px; border-radius:8px; border:1px solid #333; display: flex; gap: 20px;">
-                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                                <input type="checkbox" id="edit-autoplay" style="width:16px; height:16px;"
-                                    onchange="liveUpdatePlaybackOption('autoplay', this.checked)">
-                                <span data-i18n="web.lbl_autoplay">Lecture auto</span>
-                            </label>
-                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                                <input type="checkbox" id="edit-autoreplay" style="width:16px; height:16px;"
-                                    onchange="liveUpdatePlaybackOption('autoreplay', this.checked)">
-                                <span data-i18n="web.lbl_autoreplay">Boucle</span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- Zone 4: User Notes -->
                 <div class="zone-notes">
