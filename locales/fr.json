@@ -277,6 +277,8 @@
         "msg_url_required": "L'URL est obligatoire.",
         "tab_local": "Fichiers Locaux",
         "tab_apps": "Applications",
+        "lbl_subs_height": "Hauteur Sous-titres",
+        "btn_notes_desc": "Notes & Description",
         "hint_sub_pos": "Hauteur des sous-titres",
         "hint_musicbrainz": "Rechercher sur MusicBrainz",
         "hint_autotag": "Rechercher sur MusicBrainz/YouTube",

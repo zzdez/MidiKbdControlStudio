@@ -673,7 +673,7 @@
         <div class="modal-body">
             <!-- ART PREVIEW WITH VERTICAL SLIDERS -->
             <div class="modal-media-stack">
-                <!-- Volume Vertical Slider -->
+                <!-- Volume Vertical Slider (Left) -->
                 <div class="vertical-slider-container">
                     <span class="slider-label">VOL</span>
                     <input type="range" id="local-volume" min="0" max="100" value="100" orient="vertical"
@@ -681,44 +681,37 @@
                     <span id="local-volume-percent" class="slider-percent">100%</span>
                 </div>
 
-                <div id="local-art-container" class="art-container" data-i18n-title="web.lbl_click_to_change_cover"
-                    onclick="document.getElementById('cover-upload').click()"
-                    style="position:relative; width:220px; height:220px; overflow: hidden; border-radius: 8px;">
-                    <img id="local-art-img" src="" style="display:none; width:100%; height:100%; object-fit:cover;">
+                <!-- Poster (Center) -->
+                <div id="local-art-container" class="art-container square-art"
+                    onclick="document.getElementById('cover-upload').click()">
+                    <img id="local-art-img" src="" style="display:none;">
                     <div id="local-art-placeholder"
-                        style="width: 100%; height: 100%; border: 2px dashed #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888; background: #222;">
-                        <span data-i18n="web.lbl_add_photo">+ Photo</span>
+                        style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#888; background:#222; border: 1px dashed #444; border-radius:8px;">
+                        <span>+</span>
                     </div>
-                    <div id="btn-delete-cover"
-                        style="position:absolute; top:5px; right:5px; background:rgba(0,0,0,0.7); border-radius:50%; width:24px; height:24px; display:none; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:14px; z-index:10;"
-                        onclick="event.stopPropagation(); removeLocalCover();" title="Supprimer la pochette"
-                        data-i18n-title="web.hint_delete_cover">
-                        ×
-                    </div>
+                    <div id="btn-delete-cover" class="btn-delete-cover" style="display:none;"
+                        onclick="event.stopPropagation(); removeLocalCover();">×</div>
                 </div>
 
-                <!-- Subtitle Vertical Slider & Playback Options -->
-                <div style="display:flex; align-items:center; gap:20px;">
-                    <!-- Vertical Sub Slider (only shown if needed via JS or initial style) -->
+                <!-- Controls Group (Right) -->
+                <div style="display:flex; align-items:center; gap:12px; min-width:140px; justify-content: flex-start;">
+                    <!-- Vertical Sub Slider -->
                     <div id="local-subtitle-settings" class="vertical-slider-container" style="display:none;">
-                        <span class="slider-label" onclick="openSubtitleTrackSelection('local')" style="cursor:pointer;"
-                            title="Hauteur Sous-titres">SUBS</span>
+                        <span class="slider-label">SUBS</span>
                         <input type="range" id="local-sub-pos" min="0" max="100" value="20" orient="vertical"
                             oninput="updateLiveSubtitlePos(this.value)">
                         <span id="local-sub-pos-percent" class="slider-percent">20%</span>
                     </div>
 
                     <!-- Switches -->
-                    <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div style="display:flex; flex-direction:column; gap:8px;">
                         <label class="modern-switch">
-                            <input type="checkbox" id="local-autoplay"
-                                onchange="liveUpdatePlaybackOption('autoplay', this.checked)">
+                            <input type="checkbox" id="local-autoplay">
                             <span class="switch-slider"></span>
-                            <span class="switch-label" data-i18n="web.lbl_autoplay">Lecture auto</span>
+                            <span class="switch-label" data-i18n="web.lbl_autoplay">Auto</span>
                         </label>
                         <label class="modern-switch">
-                            <input type="checkbox" id="local-autoreplay"
-                                onchange="liveUpdatePlaybackOption('autoreplay', this.checked)">
+                            <input type="checkbox" id="local-autoreplay">
                             <span class="switch-slider"></span>
                             <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
                         </label>
@@ -755,6 +748,29 @@
                     <div class="col">
                         <label data-i18n="web.lbl_category">Catégorie</label>
                         <input type="text" id="local-category" placeholder="ex: Tuto..." list="categories">
+                    </div>
+                </div>
+
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_bpm">BPM</label>
+                        <input type="number" id="local-bpm" placeholder="120">
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_key">Tonalité (Key)</label>
+                        <input type="text" id="local-key" placeholder="Ex: Am, G..."
+                            data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
+                    </div>
+                </div>
+
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_original_pitch">Pitch Original (Hz)</label>
+                        <input type="text" id="local-original-pitch" placeholder="432">
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_target_pitch">Pitch du média (Hz)</label>
+                        <input type="text" id="local-target-pitch" placeholder="440">
                     </div>
                 </div>
 
@@ -802,7 +818,7 @@
         <div class="modal-body">
             <!-- ART PREVIEW WITH VERTICAL SLIDERS -->
             <div class="modal-media-stack">
-                <!-- Volume Vertical Slider -->
+                <!-- Volume (Left) -->
                 <div class="vertical-slider-container">
                     <span class="slider-label">VOL</span>
                     <input type="range" id="mt-modal-volume" min="0" max="100" value="100" orient="vertical"
@@ -810,34 +826,33 @@
                     <span id="mt-modal-volume-percent" class="slider-percent">100%</span>
                 </div>
 
-                <div id="mt-art-container" class="art-container" data-i18n-title="web.lbl_click_to_change_cover"
-                    onclick="document.getElementById('mt-cover-upload').click()"
-                    style="position:relative; width:220px; height:220px; overflow: hidden; border-radius: 8px;">
-                    <img id="mt-art-img" src="" style="display:none; width:100%; height:100%; object-fit:cover;">
+                <!-- Poster (Center) -->
+                <div id="mt-art-container" class="art-container square-art"
+                    onclick="document.getElementById('mt-cover-upload').click()">
+                    <img id="mt-art-img" src="" style="display:none;">
                     <div id="mt-art-placeholder"
-                        style="width: 100%; height: 100%; border: 2px dashed #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888; background: #222;">
-                        <span data-i18n="web.lbl_add_photo">+ Photo</span>
+                        style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#888; background:#222; border: 1px dashed #444; border-radius:8px;">
+                        <span>+</span>
                     </div>
-                    <div id="btn-mt-delete-cover"
-                        style="position:absolute; top:5px; right:5px; background:rgba(0,0,0,0.7); border-radius:50%; width:24px; height:24px; display:none; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:14px; z-index:10;"
-                        onclick="event.stopPropagation(); removeMultitrackCover();" title="Supprimer la pochette"
-                        data-i18n-title="web.hint_delete_cover">
-                        ×
-                    </div>
+                    <div id="btn-mt-delete-cover" class="btn-delete-cover" style="display:none;"
+                        onclick="event.stopPropagation(); removeMultitrackCover();">×</div>
                 </div>
 
-                <!-- Playback Options as Modern Switches -->
-                <div style="display:flex; flex-direction:column; gap:15px; justify-content:center;">
-                    <label class="modern-switch">
-                        <input type="checkbox" id="mt-autoplay">
-                        <span class="switch-slider"></span>
-                        <span class="switch-label" data-i18n="web.lbl_autoplay">Lecture auto</span>
-                    </label>
-                    <label class="modern-switch">
-                        <input type="checkbox" id="mt-autoreplay">
-                        <span class="switch-slider"></span>
-                        <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
-                    </label>
+                <!-- Controls Group (Right) -->
+                <div style="display:flex; align-items:center; gap:12px; min-width:140px; justify-content: flex-start;">
+                    <!-- Switches -->
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                        <label class="modern-switch">
+                            <input type="checkbox" id="mt-autoplay">
+                            <span class="switch-slider"></span>
+                            <span class="switch-label" data-i18n="web.lbl_autoplay">Auto</span>
+                        </label>
+                        <label class="modern-switch">
+                            <input type="checkbox" id="mt-autoreplay">
+                            <span class="switch-slider"></span>
+                            <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
+                        </label>
+                    </div>
                 </div>
 
                 <input type="file" id="mt-cover-upload" accept="image/*" style="display:none"
@@ -994,8 +1009,8 @@
                 </div>
 
                 <!-- Zone 2: Media Stack (Sliders | Image | Switches) -->
-                <div class="modal-media-stack" style="margin-top:15px;">
-                    <!-- Volume Vertical Slider -->
+                <div class="modal-media-stack" style="margin-top:10px;">
+                    <!-- Volume (Left) -->
                     <div class="vertical-slider-container">
                         <span class="slider-label">VOL</span>
                         <input type="range" id="edit-volume" min="0" max="100" value="100" orient="vertical"
@@ -1003,32 +1018,33 @@
                         <span id="edit-volume-percent" class="slider-percent">100%</span>
                     </div>
 
-                    <div id="preview-thumbnail" class="thumbnail-preview"
-                        style="width:220px; height:220px; flex:none; margin:0;">
+                    <!-- Poster (Center) -->
+                    <div id="preview-thumbnail" class="art-container square-art" title="Aperçu Thumbnail">
                         <span style="font-size:40px;">🎵</span>
+                        <div id="btn-edit-delete-cover" class="btn-delete-cover" style="display:none;"
+                            onclick="event.stopPropagation(); removeEditCover();">×</div>
                     </div>
 
-                    <!-- Subtitle Vertical Slider & Playback Options -->
-                    <div style="display:flex; align-items:center; gap:20px;">
+                    <!-- Controls Group (Right) -->
+                    <div
+                        style="display:flex; align-items:center; gap:12px; min-width:140px; justify-content: flex-start;">
                         <!-- Vertical Sub Slider -->
                         <div id="edit-subtitle-settings" class="vertical-slider-container" style="display:none;">
-                            <span class="slider-label" title="Hauteur Sous-titres">SUBS</span>
+                            <span class="slider-label">SUBS</span>
                             <input type="range" id="edit-sub-pos" min="0" max="100" value="20" orient="vertical"
                                 oninput="updateLiveSubtitlePos(this.value)">
                             <span id="edit-sub-pos-percent" class="slider-percent">20%</span>
                         </div>
 
                         <!-- Switches -->
-                        <div style="display:flex; flex-direction:column; gap:12px;">
+                        <div style="display:flex; flex-direction:column; gap:8px;">
                             <label class="modern-switch">
-                                <input type="checkbox" id="edit-autoplay"
-                                    onchange="liveUpdatePlaybackOption('autoplay', this.checked)">
+                                <input type="checkbox" id="edit-autoplay">
                                 <span class="switch-slider"></span>
-                                <span class="switch-label" data-i18n="web.lbl_autoplay">Lecture auto</span>
+                                <span class="switch-label" data-i18n="web.lbl_autoplay">Auto</span>
                             </label>
                             <label class="modern-switch">
-                                <input type="checkbox" id="edit-autoreplay"
-                                    onchange="liveUpdatePlaybackOption('autoreplay', this.checked)">
+                                <input type="checkbox" id="edit-autoreplay">
                                 <span class="switch-slider"></span>
                                 <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
                             </label>
@@ -1093,6 +1109,29 @@
                             <select id="edit-target-profile">
                                 <option value="Auto" data-i18n="web.opt_auto_recommended">Auto (Recommandé)</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <div class="row-inputs">
+                        <div class="col">
+                            <label data-i18n="web.lbl_bpm">BPM</label>
+                            <input type="number" id="edit-bpm" placeholder="120">
+                        </div>
+                        <div class="col">
+                            <label data-i18n="web.lbl_key">Tonalité (Key)</label>
+                            <input type="text" id="edit-key" placeholder="Ex: Am, G..."
+                                data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
+                        </div>
+                    </div>
+
+                    <div class="row-inputs">
+                        <div class="col">
+                            <label data-i18n="web.lbl_original_pitch">Pitch Original (Hz)</label>
+                            <input type="text" id="edit-original-pitch" placeholder="432">
+                        </div>
+                        <div class="col">
+                            <label data-i18n="web.lbl_target_pitch">Pitch du média (Hz)</label>
+                            <input type="text" id="edit-target-pitch" placeholder="440">
                         </div>
                     </div>
                 </div>

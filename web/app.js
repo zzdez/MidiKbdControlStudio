@@ -1191,9 +1191,10 @@ function openEditModal(index) {
     document.getElementById("edit-genre").value = track.genre || "Divers";
     document.getElementById("edit-mode").value = track.open_mode || "auto";
     document.getElementById("edit-target-profile").value = track.target_profile || "Auto";
-    let volValEdit = (track.volume !== undefined) ? track.volume : 100;
-    document.getElementById("edit-volume").value = volValEdit;
-    const evp2 = document.getElementById("edit-volume-percent"); if (evp2) evp2.innerText = volValEdit + "%";
+    document.getElementById("edit-bpm").value = track.bpm || "";
+    document.getElementById("edit-key").value = track.key || "";
+    document.getElementById("edit-original-pitch").value = track.original_pitch || "";
+    document.getElementById("edit-target-pitch").value = track.target_pitch || "";
 
     syncPlaybackSettingsToModals(track);
 
@@ -1202,11 +1203,24 @@ function openEditModal(index) {
     document.getElementById("youtube-desc-input").value = track.youtube_description || "";
     document.getElementById("user-notes-input").value = track.user_notes || track.description || "";
 
-    // Thumbnail
+    // Thumbnail & Aspect Ratio
+    const thumbContainer = document.getElementById("preview-thumbnail");
+    thumbContainer.classList.remove("wide-art", "square-art");
+
+    const btnDel = document.getElementById("btn-edit-delete-cover");
+    if (btnDel) btnDel.style.display = "none";
+
     if (track.thumbnail) {
-        document.getElementById("preview-thumbnail").innerHTML = `<img src="${track.thumbnail}" style="width:100%; height:100%; object-fit:cover;">`;
+        thumbContainer.classList.add("wide-art");
+        // Update only the image/content part, preserving the button if possible, or just re-inject
+        thumbContainer.innerHTML = `<img src="${track.thumbnail}" style="width:100%; height:100%; object-fit:contain;">
+                                    <div id="btn-edit-delete-cover" class="btn-delete-cover" style="display:flex;"
+                                         onclick="event.stopPropagation(); removeEditCover();">×</div>`;
     } else {
-        document.getElementById("preview-thumbnail").innerHTML = '<span style="font-size:30px;">🎵</span>';
+        thumbContainer.classList.add("square-art");
+        thumbContainer.innerHTML = `<span style="font-size:30px;">🎵</span>
+                                    <div id="btn-edit-delete-cover" class="btn-delete-cover" style="display:none;"
+                                         onclick="event.stopPropagation(); removeEditCover();">×</div>`;
     }
 
     // Reset Download UI
@@ -1614,6 +1628,10 @@ async function saveItem() {
         user_notes: user_notes,
         thumbnail: thumbnail,
         volume: volume,
+        bpm: document.getElementById("edit-bpm").value,
+        key: document.getElementById("edit-key").value,
+        original_pitch: document.getElementById("edit-original-pitch").value,
+        target_pitch: document.getElementById("edit-target-pitch").value,
         subtitle_enabled: window.tempModalSubEnabled || false,
         subtitle_pos_y: 100 - parseInt(document.getElementById("edit-sub-pos").value || 20, 10),
         autoplay: document.getElementById("edit-autoplay").checked,
@@ -4035,9 +4053,12 @@ function openEditLocalModal(index) {
     const artContainer = document.getElementById("local-art-container");
     const subSettings = document.getElementById("local-subtitle-settings");
 
+    // Reset classes
+    artContainer.classList.remove("wide-art", "square-art");
+
     // Simple check for video extensions
     if (item.path.match(/\.(mp4|mkv|mov|avi|webm|m4v)$/i)) {
-        artContainer.classList.add("video-mode");
+        artContainer.classList.add("wide-art");
         subSettings.style.display = "flex";
         subSettings.style.flexDirection = "column";
         window.tempModalSubEnabled = item.subtitle_enabled || false;
@@ -4048,6 +4069,7 @@ function openEditLocalModal(index) {
         const sVal = 100 - posVal;
         document.getElementById("local-sub-pos").value = sVal;
         const lsp = document.getElementById("local-sub-pos-percent"); if (lsp) lsp.innerText = sVal + "%";
+
         // Update live preview if the edited video is currently playing
         if (currentActivePlayer === 'local' && window.currentPlayingIndex === index) {
             updateLiveSubtitlePos(100 - posVal);
@@ -4069,7 +4091,7 @@ function openEditLocalModal(index) {
             .catch(e => { console.error("Error fetching sub list", e); window.currentAvailableSubs = []; });
 
     } else {
-        artContainer.classList.remove("video-mode");
+        artContainer.classList.add("square-art");
         subSettings.style.display = "none";
         window.currentAvailableSubs = [];
         window.tempModalSelectedTrack = "";
@@ -4082,6 +4104,10 @@ function openEditLocalModal(index) {
     document.getElementById("local-genre").value = item.genre || "";
     document.getElementById("local-category").value = item.category || "Général";
     document.getElementById("local-year").value = item.year || "";
+    document.getElementById("local-bpm").value = item.bpm || "";
+    document.getElementById("local-key").value = item.key || "";
+    document.getElementById("local-original-pitch").value = item.original_pitch || "";
+    document.getElementById("local-target-pitch").value = item.target_pitch || "";
     document.getElementById("local-target-profile").value = item.target_profile || "Auto";
     let volValLoc = (item.volume !== undefined) ? item.volume : 100;
     document.getElementById("local-volume").value = volValLoc;
@@ -4097,17 +4123,18 @@ function openEditLocalModal(index) {
     const img = document.getElementById("local-art-img");
     const placeholder = document.getElementById("local-art-placeholder");
 
-    // Reset visibility logic
-    img.style.display = "none";
-    placeholder.style.display = "flex";
+    const btnDel = document.getElementById("btn-delete-cover");
+    if (btnDel) btnDel.style.display = "none";
 
     img.onload = () => {
         img.style.display = "block";
         placeholder.style.display = "none";
+        if (btnDel) btnDel.style.display = "flex";
     };
     img.onerror = () => {
         img.style.display = "none";
         placeholder.style.display = "flex";
+        if (btnDel) btnDel.style.display = "none";
     };
 
     img.src = `/api/local/art/${index}?t=${Date.now()}`;
@@ -4123,6 +4150,11 @@ function openMultitrackModal(index) {
     editingLocalIndex = index;
     const item = localFiles[index];
     document.getElementById("modal-multitrack").showModal();
+
+    // ASPECT RATIO
+    const artContainer = document.getElementById("mt-art-container");
+    artContainer.classList.remove("wide-art", "square-art");
+    artContainer.classList.add("square-art"); // Multitrack is audio-based (1:1)
 
     document.getElementById("mt-path-display").innerText = item.path;
     document.getElementById("mt-title").value = item.title;
@@ -4154,14 +4186,14 @@ function openMultitrackModal(index) {
     const placeholder = document.getElementById("mt-art-placeholder");
     const btnDel = document.getElementById("btn-mt-delete-cover");
 
-    img.style.display = "none";
-    placeholder.style.display = "flex";
-    btnDel.style.display = "none";
+    if (img) img.style.display = "none";
+    if (placeholder) placeholder.style.display = "flex";
+    if (btnDel) btnDel.style.display = "none";
 
     img.onload = () => {
         img.style.display = "block";
         placeholder.style.display = "none";
-        btnDel.style.display = "flex";
+        if (btnDel) btnDel.style.display = "flex";
     };
     img.src = `/api/local/art/${index}?t=${Date.now()}`;
 }
@@ -4298,6 +4330,10 @@ async function saveLocalItem() {
         genre: document.getElementById("local-genre").value,
         category: document.getElementById("local-category").value || "Général",
         year: document.getElementById("local-year").value,
+        bpm: document.getElementById("local-bpm").value,
+        key: document.getElementById("local-key").value,
+        original_pitch: document.getElementById("local-original-pitch").value,
+        target_pitch: document.getElementById("local-target-pitch").value,
         target_profile: document.getElementById("local-target-profile").value,
         user_notes: document.getElementById("local-notes").value,
         subtitle_enabled: window.tempModalSubEnabled,
