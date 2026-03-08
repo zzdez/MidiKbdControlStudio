@@ -753,7 +753,12 @@
 
                 <div class="row-inputs">
                     <div class="col" style="position: relative;">
-                        <label data-i18n="web.lbl_bpm">BPM</label>
+                        <label data-i18n="web.lbl_bpm"
+                            style="display: flex; justify-content: space-between; align-items: center;">BPM
+                            <button class="btn-icon" onclick="fetchMetadataForModal('local')"
+                                title="Chercher BPM/Tonalité"
+                                style="font-size: 1.1em; padding: 0 4px; color: var(--accent);">🪄</button>
+                        </label>
                         <div style="display:flex; gap:5px;">
                             <input type="number" id="local-bpm" placeholder="120" style="flex:1;">
                         </div>
@@ -771,11 +776,18 @@
                         </div>
                     </div>
                 </div>
+                <div style="font-size: 0.75em; color: #666; text-align: right; margin-top: 2px;">
+                    Powered by <a href="https://getsongbpm.com" target="_blank" style="color: #888;">GetSongBPM</a>
+                </div>
 
                 <div class="row-inputs">
                     <div class="col">
                         <label data-i18n="web.lbl_original_pitch">Pitch Original (Hz)</label>
                         <input type="text" id="local-original-pitch" placeholder="432">
+                        <div style="font-size: 0.75em; color: #666; margin-top: 2px;">
+                            Powered by <a href="https://getsongkey.com" target="_blank"
+                                style="color: #888;">GetSongKey</a>
+                        </div>
                     </div>
                     <div class="col">
                         <label data-i18n="web.lbl_target_pitch">Pitch du média (Hz)</label>
@@ -897,14 +909,26 @@
 
                 <!-- NEW FIELDS: BPM, Key, Pitch -->
                 <div class="row-inputs">
-                    <div class="col">
-                        <label data-i18n="web.lbl_bpm">BPM</label>
-                        <input type="number" id="mt-bpm" placeholder="120">
+                    <div class="col" style="position: relative;">
+                        <label data-i18n="web.lbl_bpm"
+                            style="display: flex; justify-content: space-between; align-items: center;">BPM
+                            <button class="btn-icon" onclick="fetchMetadataForModal('mt')" title="Chercher BPM/Tonalité"
+                                style="font-size: 1.1em; padding: 0 4px; color: var(--accent);">🪄</button>
+                        </label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="number" id="mt-bpm" placeholder="120" style="flex:1;">
+                        </div>
                     </div>
-                    <div class="col">
-                        <label data-i18n="web.lbl_key">Tonalité (Key)</label>
-                        <input type="text" id="mt-key" placeholder="Ex: Am, G..."
-                            data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
+                    <div class="col" style="position: relative;">
+                        <label data-i18n="web.lbl_key"
+                            style="display: flex; justify-content: space-between; align-items: center;">Tonalité (Key)
+                            <button class="btn-icon" onclick="fetchMetadataForModal('mt')" title="Chercher BPM/Tonalité"
+                                style="font-size: 1.1em; padding: 0 4px; color: var(--accent);">🪄</button>
+                        </label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" id="mt-key" placeholder="Ex: Am, G..."
+                                data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions" style="flex:1;">
+                        </div>
                         <datalist id="mt-key-suggestions">
                             <option value="C">C (Do)</option>
                             <option value="Cm">Cm (Do mineur)</option>
@@ -923,11 +947,18 @@
                         </datalist>
                     </div>
                 </div>
+                <div style="font-size: 0.75em; color: #666; text-align: right; margin-top: 2px;">
+                    Powered by <a href="https://getsongbpm.com" target="_blank" style="color: #888;">GetSongBPM</a>
+                </div>
 
                 <div class="row-inputs">
                     <div class="col">
                         <label data-i18n="web.lbl_original_pitch">Pitch Original (Hz)</label>
                         <input type="text" id="mt-original-pitch" placeholder="432">
+                        <div style="font-size: 0.75em; color: #666; margin-top: 2px;">
+                            Powered by <a href="https://getsongkey.com" target="_blank"
+                                style="color: #888;">GetSongKey</a>
+                        </div>
                     </div>
                     <div class="col">
                         <label data-i18n="web.lbl_target_pitch">Pitch Pratique (Hz)</label>
@@ -1120,7 +1151,12 @@
 
                 <div class="row-inputs">
                     <div class="col" style="position: relative;">
-                        <label data-i18n="web.lbl_bpm">BPM</label>
+                        <label data-i18n="web.lbl_bpm"
+                            style="display: flex; justify-content: space-between; align-items: center;">BPM
+                            <button class="btn-icon" onclick="fetchMetadataForModal('edit')"
+                                title="Chercher BPM/Tonalité"
+                                style="font-size: 1.1em; padding: 0 4px; color: var(--accent);">🪄</button>
+                        </label>
                         <div style="display:flex; gap:5px;">
                             <input type="number" id="edit-bpm" placeholder="120" style="flex:1;">
                         </div>
@@ -1138,11 +1174,18 @@
                         </div>
                     </div>
                 </div>
+                <div style="font-size: 0.75em; color: #666; text-align: right; margin-top: 2px;">
+                    Powered by <a href="https://getsongbpm.com" target="_blank" style="color: #888;">GetSongBPM</a>
+                </div>
 
                 <div class="row-inputs">
                     <div class="col">
                         <label data-i18n="web.lbl_original_pitch">Pitch Original (Hz)</label>
                         <input type="text" id="edit-original-pitch" placeholder="432">
+                        <div style="font-size: 0.75em; color: #666; margin-top: 2px;">
+                            Powered by <a href="https://getsongkey.com" target="_blank"
+                                style="color: #888;">GetSongKey</a>
+                        </div>
                     </div>
                     <div class="col">
                         <label data-i18n="web.lbl_target_pitch">Pitch du média (Hz)</label>

@@ -132,3 +132,7 @@ Pour contrôler votre DAW depuis AirstepStudio, vous **DEVEZ** utiliser un câbl
 ## 📦 Compilation
 
 Lancez `build.bat` pour générer l'exécutable portable unique qui contient tout le système.
+
+---
+### API Credits
+Powered by <a href="https://getsongbpm.com">GetSongBPM</a> and <a href="https://getsongkey.com">GetSongKey</a> database.
