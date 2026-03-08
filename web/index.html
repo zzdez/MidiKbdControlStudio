@@ -752,14 +752,23 @@
                 </div>
 
                 <div class="row-inputs">
-                    <div class="col">
+                    <div class="col" style="position: relative;">
                         <label data-i18n="web.lbl_bpm">BPM</label>
-                        <input type="number" id="local-bpm" placeholder="120">
+                        <div style="display:flex; gap:5px;">
+                            <input type="number" id="local-bpm" placeholder="120" style="flex:1;">
+                        </div>
                     </div>
-                    <div class="col">
-                        <label data-i18n="web.lbl_key">Tonalité (Key)</label>
-                        <input type="text" id="local-key" placeholder="Ex: Am, G..."
-                            data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
+                    <div class="col" style="position: relative;">
+                        <label data-i18n="web.lbl_key"
+                            style="display: flex; justify-content: space-between; align-items: center;">Tonalité (Key)
+                            <button class="btn-icon" onclick="fetchMetadataForModal('local')"
+                                title="Chercher BPM/Tonalité"
+                                style="font-size: 1.1em; padding: 0 4px; color: var(--accent);">🪄</button>
+                        </label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" id="local-key" placeholder="Ex: Am, G..."
+                                data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions" style="flex:1;">
+                        </div>
                     </div>
                 </div>
 
@@ -1110,14 +1119,23 @@
                 </div>
 
                 <div class="row-inputs">
-                    <div class="col">
+                    <div class="col" style="position: relative;">
                         <label data-i18n="web.lbl_bpm">BPM</label>
-                        <input type="number" id="edit-bpm" placeholder="120">
+                        <div style="display:flex; gap:5px;">
+                            <input type="number" id="edit-bpm" placeholder="120" style="flex:1;">
+                        </div>
                     </div>
-                    <div class="col">
-                        <label data-i18n="web.lbl_key">Tonalité (Key)</label>
-                        <input type="text" id="edit-key" placeholder="Ex: Am, G..."
-                            data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
+                    <div class="col" style="position: relative;">
+                        <label data-i18n="web.lbl_key"
+                            style="display: flex; justify-content: space-between; align-items: center;">Tonalité (Key)
+                            <button class="btn-icon" onclick="fetchMetadataForModal('edit')"
+                                title="Chercher BPM/Tonalité"
+                                style="font-size: 1.1em; padding: 0 4px; color: var(--accent);">🪄</button>
+                        </label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" id="edit-key" placeholder="Ex: Am, G..."
+                                data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions" style="flex:1;">
+                        </div>
                     </div>
                 </div>
 
@@ -1292,15 +1310,45 @@
                         placeholder="Laisser vide si aucune clé...">
                     <p class="hint" style="margin-top:5px;" data-i18n="web.msg_api_info" data-i18n-html="true">
                         <strong>Optionnel :</strong> Cette clé gratuite permet de récupérer automatiquement les titres,
-                        descriptions et miniatures lors de l'ajout d'un lien YouTube. Si aucune clé n'est fournie,
-                        <strong>la lecture vidéo et le pédalier MIDI fonctionneront parfaitement</strong>, mais vous
-                        devrez taper les titres manuellement.
+                        descriptions et miniatures.
                     </p>
                     <p class="hint"><a href="https://console.cloud.google.com/" target="_blank"
                             style="color:var(--accent); text-decoration:none;" data-i18n="web.link_get_api_key">Obtenir
-                            une clé API gratuite ↗</a>
-                        <span data-i18n="web.hint_api_target">(Cible: "YouTube Data API v3")</span>.
+                            une clé API gratuite ↗</a>.</p>
+
+                    <h4 data-i18n="web.lbl_music_apis" style="margin-top: 20px;">APIs Musique (BPM & Tonalité)</h4>
+                    <p class="hint" data-i18n="web.msg_music_api_info">
+                        Ces clés optionnelles permettent la recherche automatique du BPM et de la tonalité. Spotify est
+                        prioritaire si configuré.
+                        <br><strong>Note :</strong> L'utilisation des APIs gratuites GetSongBPM et GetSongKey implique
+                        l'acceptation de leurs conditions d'utilisation.
+                        Merci à <a href="https://getsongbpm.com" target="_blank"
+                            style="color:var(--accent);">GetSongBPM</a> et <a href="https://getsongkey.com"
+                            target="_blank" style="color:var(--accent);">GetSongKey</a> pour leur base de données.
                     </p>
+
+                    <div
+                        style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
+                        <div>
+                            <label data-i18n="web.lbl_spotify_client_id">Spotify Client ID</label>
+                            <input type="password" id="setting-spotify-client-id"
+                                placeholder="Laisser vide pour désactiver..." style="margin-bottom: 5px;">
+                            <label data-i18n="web.lbl_spotify_client_secret">Spotify Client Secret</label>
+                            <input type="password" id="setting-spotify-client-secret"
+                                placeholder="Laisser vide pour désactiver...">
+                        </div>
+                        <hr style="border: 0; border-top: 1px solid #444; width: 100%; margin: 5px 0;">
+                        <div>
+                            <label data-i18n="web.lbl_getsongbpm_api_key">GetSongBPM API Key</label>
+                            <input type="password" id="setting-getsongbpm-api-key"
+                                placeholder="API gratuite pour le BPM...">
+                        </div>
+                        <div>
+                            <label data-i18n="web.lbl_getsongkey_api_key">GetSongKey API Key</label>
+                            <input type="password" id="setting-getsongkey-api-key"
+                                placeholder="API gratuite pour la tonalité...">
+                        </div>
+                    </div>
                 </div>
 
                 <!-- TAB: LIBRARY -->

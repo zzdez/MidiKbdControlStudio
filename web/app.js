@@ -943,6 +943,19 @@ async function openSettingsModal() {
 
         document.getElementById("setting-youtube-key").value = currentSettings.YOUTUBE_API_KEY || "";
 
+        // Music APIs
+        const sClient = document.getElementById("setting-spotify-client-id");
+        if (sClient) sClient.value = currentSettings.spotify_client_id || "";
+
+        const sSecret = document.getElementById("setting-spotify-client-secret");
+        if (sSecret) sSecret.value = currentSettings.spotify_client_secret || "";
+
+        const gBpm = document.getElementById("setting-getsongbpm-api-key");
+        if (gBpm) gBpm.value = currentSettings.getsongbpm_api_key || "";
+
+        const gKey = document.getElementById("setting-getsongkey-api-key");
+        if (gKey) gKey.value = currentSettings.getsongkey_api_key || "";
+
         const apCb = document.getElementById("setting-autoplay");
         if (apCb) apCb.checked = currentSettings.autoplay !== false; // Default to true
 
@@ -1077,6 +1090,19 @@ function moveStem(fromIndex, toIndex) {
 async function saveSettings() {
     // Harvest Data
     currentSettings.YOUTUBE_API_KEY = document.getElementById("setting-youtube-key").value;
+
+    // Music APIs
+    const sClient = document.getElementById("setting-spotify-client-id");
+    if (sClient) currentSettings.spotify_client_id = sClient.value;
+
+    const sSecret = document.getElementById("setting-spotify-client-secret");
+    if (sSecret) currentSettings.spotify_client_secret = sSecret.value;
+
+    const gBpm = document.getElementById("setting-getsongbpm-api-key");
+    if (gBpm) currentSettings.getsongbpm_api_key = gBpm.value;
+
+    const gKey = document.getElementById("setting-getsongkey-api-key");
+    if (gKey) currentSettings.getsongkey_api_key = gKey.value;
 
     const apCb = document.getElementById("setting-autoplay");
     if (apCb) currentSettings.autoplay = apCb.checked;
@@ -5794,5 +5820,66 @@ function updateUniversalTimer() {
             const percent = (cur / dur) * 100;
             progressFill.style.width = percent + "%";
         }
+    }
+}
+
+// --- MUSIC API METADATA FETCH ---
+async function fetchMetadataForModal(prefix) {
+    const artistInput = document.getElementById(`${prefix}-artist`);
+    const titleInput = document.getElementById(`${prefix}-title`);
+    const bpmInput = document.getElementById(`${prefix}-bpm`);
+    const keyInput = document.getElementById(`${prefix}-key`);
+
+    if (!artistInput || !titleInput) return;
+
+    const artist = artistInput.value.trim();
+    const title = titleInput.value.trim();
+
+    if (!artist || !title) {
+        showFloatNote("Erreur: Artiste et Titre requis pour la recherche.", "⚠️", "error");
+        return;
+    }
+
+    const originalBtnHTML = event.currentTarget.innerHTML;
+    event.currentTarget.innerHTML = "⏳";
+    event.currentTarget.disabled = true;
+
+    try {
+        const url = `/api/media/metadata?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`;
+        const res = await fetch(url);
+
+        if (res.ok) {
+            const result = await res.json();
+            if (result.status === "ok" && result.data) {
+                let foundBpm = false;
+                let foundKey = false;
+
+                if (result.data.bpm) {
+                    bpmInput.value = result.data.bpm;
+                    foundBpm = true;
+                }
+                if (result.data.key) {
+                    keyInput.value = result.data.key;
+                    foundKey = true;
+                }
+
+                if (foundBpm || foundKey) {
+                    showFloatNote(`Métadonnées trouvées (${[result.data.bpm_source, result.data.key_source].filter(Boolean).join(', ')})!`, "✅", "success");
+                } else {
+                    showFloatNote("Aucune donnée BPM ou Tonalité trouvée via l'API.", "ℹ️", "info");
+                }
+            } else {
+                showFloatNote("Échec de la recherche API.", "❌", "error");
+            }
+        } else {
+            console.error("API Fetch Error");
+            showFloatNote("Erreur lors de la requête API.", "❌", "error");
+        }
+    } catch (e) {
+        console.error("Fetch Exception:", e);
+        showFloatNote("Erreur réseau.", "❌", "error");
+    } finally {
+        event.currentTarget.innerHTML = originalBtnHTML;
+        event.currentTarget.disabled = false;
     }
 }
