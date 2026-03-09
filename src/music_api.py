@@ -64,34 +64,43 @@ class MusicAPI:
             if not items:
                 return None
             
-            track_id = items[0]["id"]
+            results = []
+            for item in items[:5]:
+                track_id = item["id"]
+                track_title = item.get("name", title)
+                track_artist = item.get("artists", [{}])[0].get("name", artist)
+                
+                # 2. Get Audio Features for the track
+                features_url = f"https://api.spotify.com/v1/audio-features/{track_id}"
+                feat_res = requests.get(features_url, headers=headers)
+                if feat_res.status_code != 200:
+                    continue
 
-            # 2. Get Audio Features for the track
-            features_url = f"https://api.spotify.com/v1/audio-features/{track_id}"
-            feat_res = requests.get(features_url, headers=headers)
-            if feat_res.status_code != 200:
-                return None
+                feat_data = feat_res.json()
+                
+                # Map Spotify Key to musical notation
+                pitch_class = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+                key_idx = feat_data.get("key", -1)
+                mode = feat_data.get("mode", 1) # 1 = Major, 0 = Minor
+                
+                key_str = ""
+                if 0 <= key_idx <= 11:
+                    base_note = pitch_class[key_idx]
+                    key_str = f"{base_note}m" if mode == 0 else base_note
 
-            feat_data = feat_res.json()
-            
-            # Map Spotify Key to musical notation
-            pitch_class = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-            key_idx = feat_data.get("key", -1)
-            mode = feat_data.get("mode", 1) # 1 = Major, 0 = Minor
-            
-            key_str = ""
-            if 0 <= key_idx <= 11:
-                base_note = pitch_class[key_idx]
-                key_str = f"{base_note}m" if mode == 0 else base_note
+                results.append({
+                    "title": track_title,
+                    "artist": track_artist,
+                    "bpm": round(feat_data.get("tempo", 0)),
+                    "key": key_str,
+                    "source": "Spotify",
+                    "cover": item.get("album", {}).get("images", [{}])[0].get("url", "")
+                })
 
-            return {
-                "bpm": round(feat_data.get("tempo", 0)),
-                "key": key_str,
-                "source": "Spotify"
-            }
+            return results
         except Exception as e:
             print(f"[Spotify API] Error during search: {e}")
-            return None
+            return []
 
     def search_getsongbpm(self, artist, title):
         api_key = self.config.get("getsongbpm_api_key")
@@ -111,16 +120,24 @@ class MusicAPI:
             if res.status_code == 200:
                 data = res.json()
                 print(f"[DEBUG GetSongBPM] Raw JSON Response: {data}")
+                results = []
                 if "search" in data and isinstance(data["search"], list) and len(data["search"]) > 0:
-                    song = data["search"][0]
-                    # GetSongBPM usually returns tempo directly in search results sometimes, but let's check
-                    tempo = song.get("tempo", "")
-                    if tempo:
-                        return {"bpm": round(float(tempo)), "source": "GetSongBPM"}
+                    for song in data["search"][:5]:
+                        tempo = song.get("tempo", "")
+                        if tempo:
+                            results.append({
+                                "title": song.get("title", title),
+                                "artist": song.get("artist", {}).get("name", artist),
+                                "bpm": round(float(tempo)),
+                                "key": "",
+                                "source": "GetSongBPM",
+                                "cover": ""
+                            })
+                return results
         except Exception as e:
             print(f"[GetSongBPM API] Error: {e}")
             
-        return None
+        return []
 
     def search_getsongkey(self, artist, title):
         api_key = self.config.get("getsongkey_api_key")
@@ -138,49 +155,73 @@ class MusicAPI:
             if res.status_code == 200:
                 data = res.json()
                 print(f"[DEBUG GetSongKey] Raw JSON Response: {data}")
+                results = []
                 if "search" in data and isinstance(data["search"], list) and len(data["search"]) > 0:
-                    song = data["search"][0]
-                    # API returns key_of array usually [key, scale] e.g. ["C", "Minor"]
-                    key_of = song.get("key_of", [])
-                    key_data = song.get("key", "")
-                    
-                    if isinstance(key_of, list) and len(key_of) >= 2:
-                        k_note = key_of[0]
-                        k_scale = key_of[1]
-                        k_str = f"{k_note}m" if k_scale.lower() == "minor" else k_note
-                        return {"key": k_str, "source": "GetSongKey"}
-                    elif key_data:
-                        # Fallback if structure is different
-                        return {"key": key_data, "source": "GetSongKey"}
+                    for song in data["search"][:5]:
+                        key_of = song.get("key_of", [])
+                        key_data = song.get("key", "")
+                        
+                        k_str = ""
+                        if isinstance(key_of, list) and len(key_of) >= 2:
+                            k_note = key_of[0]
+                            k_scale = key_of[1]
+                            k_str = f"{k_note}m" if k_scale.lower() == "minor" else k_note
+                        elif key_data:
+                            k_str = key_data
+                            
+                        if k_str:
+                            results.append({
+                                "title": song.get("title", title),
+                                "artist": song.get("artist", {}).get("name", artist),
+                                "bpm": "",
+                                "key": k_str,
+                                "source": "GetSongKey",
+                                "cover": ""
+                            })
+                return results
         except Exception as e:
             print(f"[GetSongKey API] Error: {e}")
             
-        return None
+        return []
 
     def fetch_metadata(self, artist, title):
         """
-        Attempts to fetch BPM and Key from configured APIs in order of preference.
+        Attempts to fetch BPM and Key from configured APIs, returning a list of possibilities.
         """
-        result = {"bpm": "", "key": "", "bpm_source": "", "key_source": ""}
-
         # 1. Try Spotify first
         spotify_res = self.search_spotify_bpm_key(artist, title)
-        if spotify_res:
-            result["bpm"] = spotify_res.get("bpm", "")
-            result["key"] = spotify_res.get("key", "")
-            result["bpm_source"] = "Spotify"
-            result["key_source"] = "Spotify"
-            return result
+        if spotify_res and len(spotify_res) > 0:
+            return spotify_res
 
         # 2. Fallbacks: GetSongBPM and GetSongKey
         gsb_res = self.search_getsongbpm(artist, title)
-        if gsb_res:
-            result["bpm"] = gsb_res.get("bpm", "")
-            result["bpm_source"] = "GetSongBPM"
-            
         gsk_res = self.search_getsongkey(artist, title)
-        if gsk_res:
-            result["key"] = gsk_res.get("key", "")
-            result["key_source"] = "GetSongKey"
+        
+        # Merge results into a unified list, matching by title if possible.
+        # Since we just want simple options, we will return the GSB items, and augment them with GSK items if they match,
+        # otherwise we just append them. We'll simplify and just do a zipped/paired approach up to 5 items.
+        
+        combined_results = []
+        max_len = max(len(gsb_res) if gsb_res else 0, len(gsk_res) if gsk_res else 0)
+        
+        for i in range(max_len):
+            bpm_item = gsb_res[i] if gsb_res and i < len(gsb_res) else None
+            key_item = gsk_res[i] if gsk_res and i < len(gsk_res) else None
+            
+            # Use bpm item as base if exists, else key item
+            base_item = bpm_item or key_item
+            if not base_item:
+                continue
+                
+            entry = {
+                "title": base_item.get("title", title),
+                "artist": base_item.get("artist", artist),
+                "bpm": bpm_item.get("bpm", "") if bpm_item else "",
+                "key": key_item.get("key", "") if key_item else "",
+                "bpm_source": "GetSongBPM" if bpm_item else "",
+                "key_source": "GetSongKey" if key_item else "",
+                "cover": ""
+            }
+            combined_results.append(entry)
 
-        return result
+        return combined_results[:5]

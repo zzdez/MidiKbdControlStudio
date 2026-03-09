@@ -5824,19 +5824,21 @@ function updateUniversalTimer() {
 }
 
 // --- MUSIC API METADATA FETCH ---
+let activeApiPrefix = null; // Store prefix to know where to apply results
+
 async function fetchMetadataForModal(prefix, event) {
     const artistInput = document.getElementById(`${prefix}-artist`);
     const titleInput = document.getElementById(`${prefix}-title`);
-    const bpmInput = document.getElementById(`${prefix}-bpm`);
-    const keyInput = document.getElementById(`${prefix}-key`);
 
     if (!artistInput || !titleInput) return;
+
+    activeApiPrefix = prefix;
 
     const artist = artistInput.value.trim();
     const title = titleInput.value.trim();
 
     if (!artist || !title) {
-        alert("Erreur: Artiste et Titre requis pour la recherche.");
+        alert(t("web.api_error_missing_info") || "Erreur: Artiste et Titre requis pour la recherche.");
         return;
     }
 
@@ -5854,38 +5856,71 @@ async function fetchMetadataForModal(prefix, event) {
 
         if (res.ok) {
             const result = await res.json();
-            if (result.status === "ok" && result.data) {
-                let foundBpm = false;
-                let foundKey = false;
-
-                if (result.data.bpm) {
-                    bpmInput.value = result.data.bpm;
-                    foundBpm = true;
-                }
-                if (result.data.key) {
-                    keyInput.value = result.data.key;
-                    foundKey = true;
-                }
-
-                if (foundBpm || foundKey) {
-                    alert(`✅ Métadonnées trouvées (${[result.data.bpm_source, result.data.key_source].filter(Boolean).join(', ')})!`);
-                } else {
-                    alert("ℹ️ Aucune donnée BPM ou Tonalité trouvée via l'API.");
-                }
+            if (result.status === "ok" && result.data && result.data.length > 0) {
+                renderApiResults(result.data);
             } else {
-                alert("❌ Échec de la recherche API.");
+                alert(t("web.api_no_result") || "ℹ️ Aucune donnée BPM ou Tonalité trouvée via l'API.");
             }
         } else {
             console.error("API Fetch Error");
-            alert("❌ Erreur lors de la requête API.");
+            alert(t("web.api_error_request") || "❌ Erreur lors de la requête API.");
         }
     } catch (e) {
         console.error("Fetch Exception:", e);
-        alert("❌ Erreur réseau.");
+        alert(t("web.api_error_network") || "❌ Erreur réseau.");
     } finally {
         if (btn) {
             btn.innerHTML = originalBtnHTML;
             btn.disabled = false;
         }
     }
+}
+
+function renderApiResults(results) {
+    const listContainer = document.getElementById("api-results-list");
+    listContainer.innerHTML = "";
+
+    results.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "api-result-item";
+        div.onclick = () => applyApiResult(item.bpm, item.key);
+
+        let html = `<div class="api-result-info">
+            <div class="api-result-title">${item.title}</div>
+            <div class="api-result-artist">${item.artist}</div>
+            <div class="api-result-meta">`;
+
+        if (item.bpm) html += `<span>🎵 ${item.bpm} BPM</span>`;
+        if (item.key) html += `<span>🎹 Key: ${item.key}</span>`;
+
+        html += `   </div>
+                </div>`;
+
+        // Optional cover art from Spotify/Web
+        if (item.cover) {
+            html += `<img src="${item.cover}" style="height: 50px; border-radius: 4px;">`;
+        }
+
+        div.innerHTML = html;
+        listContainer.appendChild(div);
+    });
+
+    document.getElementById("api-results-modal").style.display = "flex";
+}
+
+function applyApiResult(bpm, key) {
+    if (!activeApiPrefix) return;
+
+    const bpmInput = document.getElementById(`${activeApiPrefix}-bpm`);
+    const keyInput = document.getElementById(`${activeApiPrefix}-key`);
+
+    if (bpmInput && bpm) bpmInput.value = bpm;
+    if (keyInput && key) keyInput.value = key;
+
+    closeApiResultsModal();
+}
+
+function closeApiResultsModal() {
+    document.getElementById("api-results-modal").style.display = "none";
+    activeApiPrefix = null;
 }

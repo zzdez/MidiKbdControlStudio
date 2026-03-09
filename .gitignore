@@ -33,7 +33,7 @@ Desktop.ini
 
 # --- Fichiers de données locales (Optionnel) ---
 # Si tu ne veux pas partager ta config perso sur GitHub, décommente la ligne suivante :
-# config.json
+config.json
 #AGENTS.md
 AirstepStudio.exe
 library.json
@@ -42,3 +42,4 @@ profiles/Web Audio Local.json
 profiles/Web YouTube.json
 library.json
 library.json
+

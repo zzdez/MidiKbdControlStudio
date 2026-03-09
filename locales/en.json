@@ -294,6 +294,11 @@
         "lbl_spotify_client_id": "Spotify Client ID",
         "lbl_spotify_client_secret": "Spotify Client Secret",
         "lbl_getsongbpm_api_key": "GetSongBPM API Key",
-        "lbl_getsongkey_api_key": "GetSongKey API Key"
+        "lbl_getsongkey_api_key": "GetSongKey API Key",
+        "api_results_title": "API Search Results",
+        "api_no_result": "ℹ️ No Data found via the API.",
+        "api_error_missing_info": "Error: Artist and Title required for search.",
+        "api_error_request": "❌ API request error.",
+        "api_error_network": "❌ Network error."
     }
 }

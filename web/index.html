@@ -1461,6 +1461,25 @@
         </div>
     </dialog>
 
+    <!-- ========================================== -->
+    <!-- API RESULTS MODAL (Multiple Choices)         -->
+    <!-- ========================================== -->
+    <dialog id="api-results-modal" class="modal api-modal">
+        <div class="modal-header">
+            <h2 data-i18n="web.api_results_title">Résultats de la recherche API</h2>
+            <button class="modal-close" onclick="closeApiResultsModal()">&times;</button>
+        </div>
+
+        <div class="api-results-container" id="api-results-list">
+            <!-- Rempli dynamiquement en JS via fetchMetadataForModal -->
+        </div>
+
+        <div class="modal-footer">
+            <button class="settings-btn cancel-btn" onclick="closeApiResultsModal()"
+                data-i18n="web.cancel">Annuler</button>
+        </div>
+    </dialog>
+
     <!-- PREVIEW MODAL -->
     <dialog id="preview-modal" class="preview-modal" style="display:none; flex-direction:column;">
         <div class="modal-header">

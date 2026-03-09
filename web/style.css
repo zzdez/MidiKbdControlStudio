@@ -76,6 +76,60 @@ header {
     overflow-y: auto;
 }
 
+/* ==========================================
+   API RESULTS MODAL MODIFICATIONS
+   ========================================== */
+.api-results-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.api-result-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.api-result-item:hover {
+    border-color: var(--accent);
+    background: var(--surface-hover);
+}
+
+.api-result-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.api-result-title {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.api-result-artist {
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+
+.api-result-meta {
+    display: flex;
+    gap: 15px;
+    font-size: 0.85em;
+    color: var(--accent);
+}
+
+/* ==========================================
+   FORMS & INPUTS
+   ========================================== */
+
 /* YOUTUBE PLAYER */
 #video-container {
     /* Responsive Flex Sizing */
