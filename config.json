@@ -3,7 +3,23 @@
         "midi_device_name": "AIRSTEP",
         "connection_mode": "BLE",
         "media_folders": [
-            "D:/ZZDeZ/Music/Arobas Music - Guitar Pro 8.0.1 Build 28 x64 + Soundbanks"
-        ]
+            "D:/Videos/Guitare",
+            "D:/Music"
+        ],
+        "YOUTUBE_API_KEY": "AIzaSyAy3-29CxW-ayhpAg7YK5stEroJIjnjguk",
+        "subtitle_lang": "fr",
+        "YOUTUBE_COOKIES_FILE": "d:\\Downloads\\www.youtube.com_cookies.txt",
+        "midi_output_name": "MIDI function 1",
+        "midi_output_names": [
+            "MIDI function 2",
+            "Port Logiciels PC 1"
+        ],
+        "midi_device_name_ble": "AIRSTEP",
+        "midi_device_name_usb": "",
+        "language": "en",
+        "spotify_client_id": "",
+        "spotify_client_secret": "",
+        "autoplay": true,
+        "autoreplay": false
     }
 }

@@ -5824,7 +5824,7 @@ function updateUniversalTimer() {
 }
 
 // --- MUSIC API METADATA FETCH ---
-async function fetchMetadataForModal(prefix) {
+async function fetchMetadataForModal(prefix, event) {
     const artistInput = document.getElementById(`${prefix}-artist`);
     const titleInput = document.getElementById(`${prefix}-title`);
     const bpmInput = document.getElementById(`${prefix}-bpm`);
@@ -5836,13 +5836,17 @@ async function fetchMetadataForModal(prefix) {
     const title = titleInput.value.trim();
 
     if (!artist || !title) {
-        showFloatNote("Erreur: Artiste et Titre requis pour la recherche.", "⚠️", "error");
+        alert("Erreur: Artiste et Titre requis pour la recherche.");
         return;
     }
 
-    const originalBtnHTML = event.currentTarget.innerHTML;
-    event.currentTarget.innerHTML = "⏳";
-    event.currentTarget.disabled = true;
+    const btn = event ? event.currentTarget : null;
+    let originalBtnHTML = "";
+    if (btn) {
+        originalBtnHTML = btn.innerHTML;
+        btn.innerHTML = "⏳";
+        btn.disabled = true;
+    }
 
     try {
         const url = `/api/media/metadata?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`;
@@ -5864,22 +5868,24 @@ async function fetchMetadataForModal(prefix) {
                 }
 
                 if (foundBpm || foundKey) {
-                    showFloatNote(`Métadonnées trouvées (${[result.data.bpm_source, result.data.key_source].filter(Boolean).join(', ')})!`, "✅", "success");
+                    alert(`✅ Métadonnées trouvées (${[result.data.bpm_source, result.data.key_source].filter(Boolean).join(', ')})!`);
                 } else {
-                    showFloatNote("Aucune donnée BPM ou Tonalité trouvée via l'API.", "ℹ️", "info");
+                    alert("ℹ️ Aucune donnée BPM ou Tonalité trouvée via l'API.");
                 }
             } else {
-                showFloatNote("Échec de la recherche API.", "❌", "error");
+                alert("❌ Échec de la recherche API.");
             }
         } else {
             console.error("API Fetch Error");
-            showFloatNote("Erreur lors de la requête API.", "❌", "error");
+            alert("❌ Erreur lors de la requête API.");
         }
     } catch (e) {
         console.error("Fetch Exception:", e);
-        showFloatNote("Erreur réseau.", "❌", "error");
+        alert("❌ Erreur réseau.");
     } finally {
-        event.currentTarget.innerHTML = originalBtnHTML;
-        event.currentTarget.disabled = false;
+        if (btn) {
+            btn.innerHTML = originalBtnHTML;
+            btn.disabled = false;
+        }
     }
 }

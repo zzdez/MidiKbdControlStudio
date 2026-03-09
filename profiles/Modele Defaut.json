@@ -15,18 +15,18 @@
             "action_modifier_scan_codes": []
         },
         {
-            "name": "Retour au D\u00e9but",
+            "name": "Retour au Début",
             "midi_cc": 55,
             "midi_channel": 16,
             "trigger_value": "any",
             "action_type": "hotkey",
-            "action_value": "\u00e0",
+            "action_value": "à",
             "action_scan_code": null,
             "action_modifiers": [],
             "action_modifier_scan_codes": []
         },
         {
-            "name": "Acc\u00e9l\u00e9rer",
+            "name": "Accélérer",
             "midi_cc": 58,
             "midi_channel": 16,
             "trigger_value": "any",

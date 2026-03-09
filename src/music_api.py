@@ -100,14 +100,18 @@ class MusicAPI:
 
         # GetSongBPM requires searching by title first, then matching artist, or searching both if endpoint supports it.
         # Actually, their search endpoint is /search/?api_key=...&type=song&lookup=query
-        query = f"{title} {artist}"
-        url = f"https://getsongbpm.com/api/search/?api_key={api_key}&type=song&lookup={requests.utils.quote(query)}"
+        query = f"song:{title} artist:{artist}"
+        url = f"https://api.getsong.co/search/?api_key={api_key}&type=both&lookup={requests.utils.quote(query)}"
+        print(f"[DEBUG GetSongBPM] Requesting URL: {url}")
         
+        headers = {"User-Agent": "MidiKbdControlStudio/1.0 (https://github.com/zzdez/MidiKbdControlStudio)"}
         try:
-            res = requests.get(url)
+            res = requests.get(url, headers=headers)
+            print(f"[DEBUG GetSongBPM] HTTP Status: {res.status_code}")
             if res.status_code == 200:
                 data = res.json()
-                if data.get("search"):
+                print(f"[DEBUG GetSongBPM] Raw JSON Response: {data}")
+                if "search" in data and isinstance(data["search"], list) and len(data["search"]) > 0:
                     song = data["search"][0]
                     # GetSongBPM usually returns tempo directly in search results sometimes, but let's check
                     tempo = song.get("tempo", "")
@@ -123,14 +127,18 @@ class MusicAPI:
         if not api_key:
             return None
 
-        query = f"{title} {artist}"
-        url = f"https://getsongkey.com/api/search/?api_key={api_key}&type=song&lookup={requests.utils.quote(query)}"
+        query = f"song:{title} artist:{artist}"
+        url = f"https://api.getsong.co/search/?api_key={api_key}&type=both&lookup={requests.utils.quote(query)}"
+        print(f"[DEBUG GetSongKey] Requesting URL: {url}")
         
+        headers = {"User-Agent": "MidiKbdControlStudio/1.0 (https://github.com/zzdez/MidiKbdControlStudio)"}
         try:
-            res = requests.get(url)
+            res = requests.get(url, headers=headers)
+            print(f"[DEBUG GetSongKey] HTTP Status: {res.status_code}")
             if res.status_code == 200:
                 data = res.json()
-                if data.get("search"):
+                print(f"[DEBUG GetSongKey] Raw JSON Response: {data}")
+                if "search" in data and isinstance(data["search"], list) and len(data["search"]) > 0:
                     song = data["search"][0]
                     # API returns key_of array usually [key, scale] e.g. ["C", "Minor"]
                     key_of = song.get("key_of", [])
