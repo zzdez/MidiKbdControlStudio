@@ -5837,8 +5837,8 @@ async function fetchMetadataForModal(prefix, event) {
     const artist = artistInput.value.trim();
     const title = titleInput.value.trim();
 
-    if (!artist || !title) {
-        alert(t("web.api_error_missing_info") || "Erreur: Artiste et Titre requis pour la recherche.");
+    if (!title) {
+        alert(t("web.api_error_missing_title") || "Erreur: Le titre est requis pour la recherche.");
         return;
     }
 
@@ -5905,7 +5905,7 @@ function renderApiResults(results) {
         listContainer.appendChild(div);
     });
 
-    document.getElementById("api-results-modal").style.display = "flex";
+    document.getElementById("api-results-modal").showModal();
 }
 
 function applyApiResult(bpm, key) {
@@ -5921,6 +5921,6 @@ function applyApiResult(bpm, key) {
 }
 
 function closeApiResultsModal() {
-    document.getElementById("api-results-modal").style.display = "none";
+    document.getElementById("api-results-modal").close();
     activeApiPrefix = null;
 }

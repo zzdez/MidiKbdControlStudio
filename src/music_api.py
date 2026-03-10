@@ -50,8 +50,8 @@ class MusicAPI:
             return None
 
         # 1. Search for the track
-        query = f"track:{title} artist:{artist}"
-        search_url = f"https://api.spotify.com/v1/search?q={requests.utils.quote(query)}&type=track&limit=1"
+        query = f"track:{title} artist:{artist}" if artist else f"track:{title}"
+        search_url = f"https://api.spotify.com/v1/search?q={requests.utils.quote(query)}&type=track&limit=5"
         headers = {"Authorization": f"Bearer {token}"}
 
         try:
@@ -107,35 +107,48 @@ class MusicAPI:
         if not api_key:
             return None
 
-        # GetSongBPM requires searching by title first, then matching artist, or searching both if endpoint supports it.
-        # Actually, their search endpoint is /search/?api_key=...&type=song&lookup=query
-        query = f"song:{title} artist:{artist}"
-        url = f"https://api.getsong.co/search/?api_key={api_key}&type=both&lookup={requests.utils.quote(query)}"
-        print(f"[DEBUG GetSongBPM] Requesting URL: {url}")
+        # 1. Try strict search (Title + Artist)
+        query_strict = f"song:{title} artist:{artist}"
+        url_strict = f"https://api.getsong.co/search/?api_key={api_key}&type=both&lookup={requests.utils.quote(query_strict)}&limit=10"
+        print(f"[DEBUG GetSongBPM] Requesting Strict URL: {url_strict}")
         
         headers = {"User-Agent": "MidiKbdControlStudio/1.0 (https://github.com/zzdez/MidiKbdControlStudio)"}
-        try:
-            res = requests.get(url, headers=headers)
-            print(f"[DEBUG GetSongBPM] HTTP Status: {res.status_code}")
-            if res.status_code == 200:
-                data = res.json()
-                print(f"[DEBUG GetSongBPM] Raw JSON Response: {data}")
-                results = []
-                if "search" in data and isinstance(data["search"], list) and len(data["search"]) > 0:
-                    for song in data["search"][:5]:
-                        tempo = song.get("tempo", "")
-                        if tempo:
-                            results.append({
-                                "title": song.get("title", title),
-                                "artist": song.get("artist", {}).get("name", artist),
-                                "bpm": round(float(tempo)),
-                                "key": "",
-                                "source": "GetSongBPM",
-                                "cover": ""
-                            })
-                return results
-        except Exception as e:
-            print(f"[GetSongBPM API] Error: {e}")
+        
+        def _execute_search(url):
+            try:
+                res = requests.get(url, headers=headers)
+                print(f"[DEBUG GetSongBPM] HTTP Status: {res.status_code}")
+                if res.status_code == 200:
+                    data = res.json()
+                    print(f"[DEBUG GetSongBPM] Raw JSON Response: {data}")
+                    results = []
+                    if "search" in data and isinstance(data["search"], list) and len(data["search"]) > 0:
+                        for song in data["search"][:5]:
+                            tempo = song.get("tempo", "")
+                            if tempo:
+                                results.append({
+                                    "title": song.get("title", title),
+                                    "artist": song.get("artist", {}).get("name", artist),
+                                    "bpm": round(float(tempo)),
+                                    "key": "",
+                                    "source": "GetSongBPM",
+                                    "cover": ""
+                                })
+                    return results
+            except Exception as e:
+                print(f"[GetSongBPM API] Error: {e}")
+            return []
+
+        # Try strict first if artist is provided
+        if artist:
+            strict_results = _execute_search(url_strict)
+            if strict_results:
+                return strict_results
+            print("[DEBUG GetSongBPM] Strict search yielded no results, falling back to title only...")
+            
+        # 2. Fallback or direct broad search (Title only)
+        url_broad = f"https://api.getsong.co/search/?api_key={api_key}&type=song&lookup={requests.utils.quote(title)}&limit=10"
+        return _execute_search(url_broad)
             
         return []
 
@@ -144,43 +157,57 @@ class MusicAPI:
         if not api_key:
             return None
 
-        query = f"song:{title} artist:{artist}"
-        url = f"https://api.getsong.co/search/?api_key={api_key}&type=both&lookup={requests.utils.quote(query)}"
-        print(f"[DEBUG GetSongKey] Requesting URL: {url}")
+        query_strict = f"song:{title} artist:{artist}"
+        url_strict = f"https://api.getsong.co/search/?api_key={api_key}&type=both&lookup={requests.utils.quote(query_strict)}&limit=10"
+        print(f"[DEBUG GetSongKey] Requesting Strict URL: {url_strict}")
         
         headers = {"User-Agent": "MidiKbdControlStudio/1.0 (https://github.com/zzdez/MidiKbdControlStudio)"}
-        try:
-            res = requests.get(url, headers=headers)
-            print(f"[DEBUG GetSongKey] HTTP Status: {res.status_code}")
-            if res.status_code == 200:
-                data = res.json()
-                print(f"[DEBUG GetSongKey] Raw JSON Response: {data}")
-                results = []
-                if "search" in data and isinstance(data["search"], list) and len(data["search"]) > 0:
-                    for song in data["search"][:5]:
-                        key_of = song.get("key_of", [])
-                        key_data = song.get("key", "")
-                        
-                        k_str = ""
-                        if isinstance(key_of, list) and len(key_of) >= 2:
-                            k_note = key_of[0]
-                            k_scale = key_of[1]
-                            k_str = f"{k_note}m" if k_scale.lower() == "minor" else k_note
-                        elif key_data:
-                            k_str = key_data
+        
+        def _execute_search(url):
+            try:
+                res = requests.get(url, headers=headers)
+                print(f"[DEBUG GetSongKey] HTTP Status: {res.status_code}")
+                if res.status_code == 200:
+                    data = res.json()
+                    print(f"[DEBUG GetSongKey] Raw JSON Response: {data}")
+                    results = []
+                    if "search" in data and isinstance(data["search"], list) and len(data["search"]) > 0:
+                        for song in data["search"][:5]:
+                            key_of = song.get("key_of", [])
+                            key_data = song.get("key", "")
                             
-                        if k_str:
-                            results.append({
-                                "title": song.get("title", title),
-                                "artist": song.get("artist", {}).get("name", artist),
-                                "bpm": "",
-                                "key": k_str,
-                                "source": "GetSongKey",
-                                "cover": ""
-                            })
-                return results
-        except Exception as e:
-            print(f"[GetSongKey API] Error: {e}")
+                            k_str = ""
+                            if isinstance(key_of, list) and len(key_of) >= 2:
+                                k_note = key_of[0]
+                                k_scale = key_of[1]
+                                k_str = f"{k_note}m" if k_scale.lower() == "minor" else k_note
+                            elif key_data:
+                                k_str = key_data
+                                
+                            if k_str:
+                                results.append({
+                                    "title": song.get("title", title),
+                                    "artist": song.get("artist", {}).get("name", artist),
+                                    "bpm": "",
+                                    "key": k_str,
+                                    "source": "GetSongKey",
+                                    "cover": ""
+                                })
+                    return results
+            except Exception as e:
+                print(f"[GetSongKey API] Error: {e}")
+            return []
+
+        # Try strict first if artist is provided
+        if artist:
+            strict_results = _execute_search(url_strict)
+            if strict_results:
+                return strict_results
+            print("[DEBUG GetSongKey] Strict search yielded no results, falling back to title only...")
+            
+        # 2. Fallback or direct broad search (Title only)
+        url_broad = f"https://api.getsong.co/search/?api_key={api_key}&type=song&lookup={requests.utils.quote(title)}&limit=10"
+        return _execute_search(url_broad)
             
         return []
 

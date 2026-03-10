@@ -297,6 +297,7 @@
         "lbl_getsongkey_api_key": "GetSongKey API Key",
         "api_results_title": "API Search Results",
         "api_no_result": "ℹ️ No Data found via the API.",
+        "api_error_missing_title": "Error: Title required for search.",
         "api_error_missing_info": "Error: Artist and Title required for search.",
         "api_error_request": "❌ API request error.",
         "api_error_network": "❌ Network error."

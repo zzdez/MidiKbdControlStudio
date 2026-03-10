@@ -79,6 +79,10 @@ header {
 /* ==========================================
    API RESULTS MODAL MODIFICATIONS
    ========================================== */
+.api-modal {
+    z-index: 2000;
+}
+
 .api-results-container {
     display: flex;
     flex-direction: column;
