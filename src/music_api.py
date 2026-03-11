@@ -86,6 +86,28 @@ class MusicAPI:
                 
         return k_str.strip()
 
+    def _fetch_itunes_cover(self, artist, title):
+        """
+        Fallback to iTunes Search API for album art. 
+        It's free, no key needed, and very reliable for covers.
+        """
+        try:
+            query = f"{artist} {title}".strip()
+            url = "https://itunes.apple.com/search"
+            params = {"term": query, "entity": "song", "limit": 1}
+            res = requests.get(url, params=params, timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                results = data.get("results", [])
+                if results:
+                    # artworkUrl100 is 100x100, we can often change it to 600x600 via URL replace
+                    cover_url = results[0].get("artworkUrl100", "")
+                    if cover_url:
+                        return cover_url.replace("100x100bb", "600x600bb")
+        except Exception as e:
+            print(f"[MusicAPI] iTunes fallback failed: {e}")
+        return ""
+
     def search_spotify_bpm_key(self, artist, title):
         token = self.get_spotify_token()
         if not token:
@@ -188,7 +210,6 @@ class MusicAPI:
                             for song in songs[:5]:
                                 tempo = song.get("tempo") or song.get("bpm")
                                 key_val = self._extract_key(song)
-                                print(f"[DEBUG MusicAPI] Song: {song.get('title')} - Tempo: {tempo}, Key: {key_val}")
                                 if tempo:
                                     results.append({
                                         "id": song.get("id", ""),
@@ -322,6 +343,11 @@ class MusicAPI:
         for entry in merged_by_id.values():
             entry.setdefault("bpm_source", "GetSongBPM" if entry.get("bpm") else "")
             entry.setdefault("key_source", "GetSongKey" if entry.get("key") else "")
+            
+            # Final attempt for missing cover
+            if not entry.get("cover"):
+                entry["cover"] = self._fetch_itunes_cover(entry.get("artist", artist), entry.get("title", title))
+            
             # Ensure title and artist are what the user searched if missing (fallback)
             if not entry.get("title"): entry["title"] = title
             if not entry.get("artist"): entry["artist"] = artist

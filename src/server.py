@@ -18,6 +18,7 @@ import mutagen
 import time
 import logging # Ensure logging is imported if not already, though it seems used elsewhere
 import base64
+from concurrent.futures import ThreadPoolExecutor
 from utils import get_app_dir, get_data_dir
 from i18n import _
 # Mutagen imports removed as they are now in metadata_service
@@ -258,8 +259,33 @@ async def set_active_profile(data: Dict):
 
 @app.get("/api/metadata/search")
 async def api_metadata_search(q: str):
-    """Recherche des métadonnées via MusicBrainz."""
-    return metadata_service.search(q)
+    """Recherche des métadonnées via MusicBrainz (iTunes) et enrichissement BPM/Key en parallèle."""
+    results = metadata_service.search(q)
+    
+    # Enrichment: Fetch BPM/Key for top results in parallel
+    top_results = results[:5]
+    
+    def fetch_and_merge(item):
+        try:
+            music_data = music_api_client.fetch_metadata(item['artist'], item['title'])
+            if music_data:
+                if isinstance(music_data, list) and len(music_data) > 0:
+                    best = music_data[0]
+                    item['bpm'] = best.get('bpm')
+                    item['key'] = best.get('key')
+                elif isinstance(music_data, dict):
+                    item['bpm'] = music_data.get('bpm')
+                    item['key'] = music_data.get('key')
+        except Exception as e:
+            logging.error(f"Enrichment error for {item['title']}: {e}")
+        return item
+
+    # Use ThreadPoolExecutor for I/O bound parallel tasks
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        enriched_results = list(executor.map(fetch_and_merge, top_results))
+        
+    # Combine with the rest of non-enriched results
+    return enriched_results + results[5:]
 
 @app.get("/api/media/metadata")
 async def api_media_metadata(artist: str = "", title: str = ""):

@@ -4315,7 +4315,10 @@ async function autoTagMultitrack() {
     if (!title && !artist) return;
 
     const resultsArea = document.getElementById("mt-auto-tag-results");
-    resultsArea.innerHTML = `<div style='padding:10px; color:gray;'>${t("gui.status_scanning")}</div>`;
+    resultsArea.innerHTML = `<div style='padding:10px; color:var(--accent); display:flex; align-items:center; gap:10px;'>
+                                <i class='ph ph-circle-notch ph-spin'></i> 
+                                <span>Recherche des métadonnées, BPM et Tonalités...</span>
+                            </div>`;
     resultsArea.style.display = "flex";
 
     try {
@@ -4335,21 +4338,38 @@ async function autoTagMultitrack() {
             div.style.padding = "8px";
             div.style.cursor = "pointer";
             div.style.borderBottom = "1px solid #333";
+            let metaHtml = `${res.artist} - ${res.album} (${res.year})`;
+            if (res.bpm || res.key) {
+                metaHtml += `<br><span style="color:var(--accent); font-size:0.9em;">`;
+                if (res.bpm) metaHtml += `🎵 ${res.bpm} BPM `;
+                if (res.key) metaHtml += `🎹 Key: ${res.key}`;
+                metaHtml += `</span>`;
+            }
+
             div.innerHTML = `
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <img src="${res.cover_url}" style="width:40px; height:40px; border-radius:4px;">
-                    <div>
-                        <div style="font-weight:bold;">${res.title}</div>
-                        <div style="font-size:0.85em; color:#aaa;">${res.artist} - ${res.album} (${res.year})</div>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <img src="${res.cover_url}" style="width:40px; height:40px; border-radius:4px;">
+                        <div>
+                            <div style="font-weight:bold;">${res.title}</div>
+                            <div style="font-size:0.85em; color:#aaa;">${metaHtml}</div>
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
             div.onclick = () => {
                 document.getElementById("mt-title").value = res.title;
                 document.getElementById("mt-artist").value = res.artist;
                 document.getElementById("mt-album").value = res.album;
                 document.getElementById("mt-year").value = res.year;
                 document.getElementById("mt-genre").value = res.genre;
+
+                if (res.bpm) {
+                    const bpmIn = document.getElementById("mt-bpm");
+                    if (bpmIn) bpmIn.value = res.bpm;
+                }
+                if (res.key) {
+                    const keyIn = document.getElementById("mt-key");
+                    if (keyIn) keyIn.value = res.key;
+                }
 
                 // Set cover URL to be downloaded by backend
                 currentCoverData = res.cover_url;
@@ -4519,7 +4539,10 @@ async function autoTagLocal() {
 
     const container = document.getElementById("auto-tag-results");
     container.style.display = "flex";
-    container.innerHTML = "<div style='color:#888;'>Recherche en cours...</div>";
+    container.innerHTML = `<div style='color:var(--accent); display:flex; align-items:center; gap:10px; padding:10px;'>
+                                <i class='ph ph-circle-notch ph-spin' style='font-size:1.2em;'></i> 
+                                <span>Recherche des métadonnées, BPM et Tonalités...</span>
+                           </div>`;
 
     try {
         const res = await fetch(`/api/metadata/search?q=${encodeURIComponent(q)}`);
@@ -4549,11 +4572,19 @@ async function autoTagLocal() {
                 thumb = `<img src="${item.cover_url}" style="width:30px; height:30px; object-fit:cover;">`;
             }
 
+            let metaHtml = `${item.artist} - ${item.album} (${item.year})`;
+            if (item.bpm || item.key) {
+                metaHtml += `<br><span style="color:var(--accent); font-size:0.9em;">`;
+                if (item.bpm) metaHtml += `🎵 ${item.bpm} BPM `;
+                if (item.key) metaHtml += `🎹 Key: ${item.key}`;
+                metaHtml += `</span>`;
+            }
+
             div.innerHTML = `
                 ${thumb}
                 <div>
                     <div style="font-weight:bold; font-size:0.9em;">${item.title}</div>
-                    <div style="font-size:0.8em; color:#bbb;">${item.artist} - ${item.album} (${item.year})</div>
+                    <div style="font-size:0.8em; color:#bbb;">${metaHtml}</div>
                 </div>
             `;
 
@@ -4574,6 +4605,21 @@ function applyAutoTag(item) {
     document.getElementById("local-artist").value = item.artist || "";
     document.getElementById("local-album").value = item.album || "";
     document.getElementById("local-year").value = item.year || "";
+
+    // Unify BPM/Key (also used for MT and Edit if active)
+    const prefixes = ['local', 'mt', 'edit'];
+    prefixes.forEach(prefix => {
+        const bpmInput = document.getElementById(`${prefix}-bpm`);
+        const keyInput = document.getElementById(`${prefix}-key`);
+        if (bpmInput && item.bpm) {
+            bpmInput.value = item.bpm;
+            bpmInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (keyInput && item.key) {
+            keyInput.value = item.key;
+            keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    });
 
     // Hide results
     document.getElementById("auto-tag-results").style.display = "none";
@@ -5877,7 +5923,7 @@ function renderApiResults(results) {
     results.forEach(item => {
         const div = document.createElement("div");
         div.className = "api-result-item";
-        div.onclick = () => applyApiResult(item.bpm, item.key);
+        div.onclick = () => applyApiResult(item.bpm, item.key, item.cover);
 
         let html = `<div class="api-result-info">
             <div class="api-result-title">${item.title}</div>
@@ -5911,7 +5957,7 @@ function renderApiResults(results) {
     document.getElementById("api-results-modal").showModal();
 }
 
-function applyApiResult(bpm, key) {
+function applyApiResult(bpm, key, cover) {
     if (!activeApiPrefix) return;
 
     const bpmInput = document.getElementById(`${activeApiPrefix}-bpm`);
@@ -5924,6 +5970,29 @@ function applyApiResult(bpm, key) {
     if (keyInput && key) {
         keyInput.value = key;
         keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    if (cover) {
+        if (activeApiPrefix === 'edit') {
+            document.getElementById("preview-thumbnail").innerHTML = `<img src="${cover}">`;
+            document.getElementById("btn-edit-delete-cover").style.display = 'flex';
+        } else if (activeApiPrefix === 'local') {
+            const img = document.getElementById("local-art-img");
+            if (img) {
+                img.src = cover;
+                img.style.display = "block";
+                document.getElementById("local-art-placeholder").style.display = "none";
+                document.getElementById("btn-delete-cover").style.display = "flex";
+            }
+        } else if (activeApiPrefix === 'mt') {
+            const img = document.getElementById("mt-art-img");
+            if (img) {
+                img.src = cover;
+                img.style.display = "block";
+                document.getElementById("mt-art-placeholder").style.display = "none";
+                document.getElementById("btn-mt-delete-cover").style.display = "flex";
+            }
+        }
     }
 
     closeApiResultsModal();
