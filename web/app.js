@@ -1213,6 +1213,7 @@ function openEditModal(index) {
     document.getElementById("edit-target-profile").value = track.target_profile || "Auto";
     document.getElementById("edit-bpm").value = track.bpm || "";
     document.getElementById("edit-key").value = track.key || "";
+    document.getElementById("edit-media-key").value = track.media_key || "";
     document.getElementById("edit-original-pitch").value = track.original_pitch || "";
     document.getElementById("edit-target-pitch").value = track.target_pitch || "";
 
@@ -1678,6 +1679,7 @@ async function saveItem() {
         volume: volume,
         bpm: document.getElementById("edit-bpm").value,
         key: document.getElementById("edit-key").value,
+        media_key: document.getElementById("edit-media-key").value,
         original_pitch: document.getElementById("edit-original-pitch").value,
         target_pitch: document.getElementById("edit-target-pitch").value,
         subtitle_enabled: window.tempModalSubEnabled || false,
@@ -4154,6 +4156,7 @@ function openEditLocalModal(index) {
     document.getElementById("local-year").value = item.year || "";
     document.getElementById("local-bpm").value = item.bpm || "";
     document.getElementById("local-key").value = item.key || "";
+    document.getElementById("local-media-key").value = item.media_key || "";
     document.getElementById("local-original-pitch").value = item.original_pitch || "";
     document.getElementById("local-target-pitch").value = item.target_pitch || "";
     document.getElementById("local-target-profile").value = item.target_profile || "Auto";
@@ -4213,6 +4216,7 @@ function openMultitrackModal(index) {
     document.getElementById("mt-year").value = item.year || "";
     document.getElementById("mt-bpm").value = item.bpm || "";
     document.getElementById("mt-key").value = item.key || "";
+    document.getElementById("mt-media-key").value = item.media_key || "";
     document.getElementById("mt-original-pitch").value = item.original_pitch || "";
     document.getElementById("mt-target-pitch").value = item.target_pitch || "";
     document.getElementById("mt-target-profile").value = item.target_profile || "Auto";
@@ -4263,6 +4267,7 @@ async function saveMultitrackItem() {
         year: document.getElementById("mt-year").value,
         bpm: document.getElementById("mt-bpm").value,
         key: document.getElementById("mt-key").value,
+        media_key: document.getElementById("mt-media-key").value,
         original_pitch: document.getElementById("mt-original-pitch").value,
         target_pitch: document.getElementById("mt-target-pitch").value,
         target_profile: document.getElementById("mt-target-profile").value,
@@ -4310,82 +4315,7 @@ function removeMultitrackCover() {
 }
 
 async function autoTagMultitrack() {
-    const title = document.getElementById("mt-title").value;
-    const artist = document.getElementById("mt-artist").value;
-    if (!title && !artist) return;
-
-    const resultsArea = document.getElementById("mt-auto-tag-results");
-    resultsArea.innerHTML = `<div style='padding:10px; color:var(--accent); display:flex; align-items:center; gap:10px;'>
-                                <i class='ph ph-circle-notch ph-spin'></i> 
-                                <span>Recherche des métadonnées, BPM et Tonalités...</span>
-                            </div>`;
-    resultsArea.style.display = "flex";
-
-    try {
-        const query = (artist ? artist + " " : "") + title;
-        const res = await fetch(`/api/metadata/search?q=${encodeURIComponent(query)}`);
-        const results = await res.json();
-
-        resultsArea.innerHTML = "";
-        if (results.length === 0) {
-            resultsArea.innerHTML = `<div style='padding:10px; color:gray;'>${t("web.msg_no_result")}</div>`;
-            return;
-        }
-
-        results.forEach(res => {
-            const div = document.createElement("div");
-            div.className = "search-result-item";
-            div.style.padding = "8px";
-            div.style.cursor = "pointer";
-            div.style.borderBottom = "1px solid #333";
-            let metaHtml = `${res.artist} - ${res.album} (${res.year})`;
-            if (res.bpm || res.key) {
-                metaHtml += `<br><span style="color:var(--accent); font-size:0.9em;">`;
-                if (res.bpm) metaHtml += `🎵 ${res.bpm} BPM `;
-                if (res.key) metaHtml += `🎹 Key: ${res.key}`;
-                metaHtml += `</span>`;
-            }
-
-            div.innerHTML = `
-                    <div style="display:flex; gap:10px; align-items:center;">
-                        <img src="${res.cover_url}" style="width:40px; height:40px; border-radius:4px;">
-                        <div>
-                            <div style="font-weight:bold;">${res.title}</div>
-                            <div style="font-size:0.85em; color:#aaa;">${metaHtml}</div>
-                        </div>
-                    </div>
-                `;
-            div.onclick = () => {
-                document.getElementById("mt-title").value = res.title;
-                document.getElementById("mt-artist").value = res.artist;
-                document.getElementById("mt-album").value = res.album;
-                document.getElementById("mt-year").value = res.year;
-                document.getElementById("mt-genre").value = res.genre;
-
-                if (res.bpm) {
-                    const bpmIn = document.getElementById("mt-bpm");
-                    if (bpmIn) bpmIn.value = res.bpm;
-                }
-                if (res.key) {
-                    const keyIn = document.getElementById("mt-key");
-                    if (keyIn) keyIn.value = res.key;
-                }
-
-                // Set cover URL to be downloaded by backend
-                currentCoverData = res.cover_url;
-                const img = document.getElementById("mt-art-img");
-                img.src = res.cover_url;
-                img.style.display = "block";
-                document.getElementById("mt-art-placeholder").style.display = "none";
-                document.getElementById("btn-mt-delete-cover").style.display = "flex";
-
-                resultsArea.style.display = "none";
-            };
-            resultsArea.appendChild(div);
-        });
-    } catch (e) {
-        resultsArea.innerHTML = `<div style='color:red; padding:10px;'>${t("gui.lbl_error")}</div>`;
-    }
+    openUniversalTagModal('mt');
 }
 
 async function saveLocalItem() {
@@ -4400,6 +4330,7 @@ async function saveLocalItem() {
         year: document.getElementById("local-year").value,
         bpm: document.getElementById("local-bpm").value,
         key: document.getElementById("local-key").value,
+        media_key: document.getElementById("local-media-key").value,
         original_pitch: document.getElementById("local-original-pitch").value,
         target_pitch: document.getElementById("local-target-pitch").value,
         target_profile: document.getElementById("local-target-profile").value,
@@ -4501,6 +4432,162 @@ function handleLocalCover(input) {
 }
 
 
+// --- UNIVERSAL AUTO-TAG ENGINE ---
+let activeUniversalContext = null; // 'local', 'mt', or 'edit'
+
+function openUniversalTagModal(context) {
+    activeUniversalContext = context;
+    let title = "";
+    let artist = "";
+
+    if (context === 'local') {
+        title = document.getElementById("local-title").value;
+        artist = document.getElementById("local-artist").value;
+        if (!title) {
+            const pathDisplay = document.getElementById("local-path-display").innerText;
+            if (pathDisplay) {
+                const parts = pathDisplay.split(/[\\/]/);
+                title = parts[parts.length - 1].replace(/\.[^/.]+$/, ""); // strip extension
+            }
+        }
+    } else if (context === 'mt') {
+        title = document.getElementById("mt-title").value;
+        artist = document.getElementById("mt-artist").value;
+    } else if (context === 'edit') {
+        title = document.getElementById("edit-title").value;
+        artist = document.getElementById("edit-artist").value;
+    }
+
+    document.getElementById("utag-search-title").value = title;
+    document.getElementById("utag-search-artist").value = artist;
+    document.getElementById("utag-results-container").innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Prêt à chercher pour "${title}"...</div>`;
+
+    document.getElementById("modal-universal-tag").showModal();
+}
+
+async function performUniversalSearch() {
+    const title = document.getElementById("utag-search-title").value;
+    const artist = document.getElementById("utag-search-artist").value;
+    const query = (artist ? artist + " " : "") + title;
+
+    const container = document.getElementById("utag-results-container");
+    container.innerHTML = `<div style='color:var(--accent); display:flex; align-items:center; justify-content:center; gap:10px; padding:20px;'>
+                                <i class='ph ph-circle-notch ph-spin' style='font-size:1.5em;'></i> 
+                                <span>Recherche enrichie...</span>
+                           </div>`;
+
+    try {
+        const res = await fetch(`/api/metadata/search?q=${encodeURIComponent(query)}`);
+        const results = await res.json();
+        container.innerHTML = "";
+
+        if (results.length === 0) {
+            container.innerHTML = "<div style='padding:20px; text-align:center; color:#888;'>Aucun résultat trouvé. Essayez de simplifier le titre.</div>";
+            return;
+        }
+
+        results.forEach(item => {
+            const div = document.createElement("div");
+            div.className = "api-result-item";
+            div.style.margin = "5px";
+            
+            let thumb = "<span style='font-size:24px;'>🎵</span>";
+            if (item.cover_url) {
+                thumb = `<img src="${item.cover_url}" style="width:40px; height:40px; border-radius:4px; object-fit:cover;">`;
+            }
+
+            let metaInfo = `${item.artist} - ${item.album} (${item.year})`;
+            if (item.bpm || item.key) {
+                metaInfo += `<br><span style="color:var(--accent); font-size:0.85em;">`;
+                if (item.bpm) metaInfo += `🎵 ${item.bpm} BPM `;
+                if (item.key) metaInfo += `🎹 Key: ${item.key}`;
+                metaInfo += `</span>`;
+            }
+
+            div.innerHTML = `
+                ${thumb}
+                <div style="flex:1;">
+                    <div style="font-weight:bold; font-size:0.95em;">${item.title}</div>
+                    <div style="font-size:0.8em; color:#bbb;">${metaInfo}</div>
+                </div>
+                <button class="btn-primary" style="padding:4px 8px; font-size:0.8em;">Appliquer</button>
+            `;
+
+            div.onclick = () => applyUniversalMetadata(item);
+            container.appendChild(div);
+        });
+    } catch (e) {
+        container.innerHTML = "<div style='color:red; padding:20px;'>Erreur lors de la recherche.</div>";
+    }
+}
+
+function applyUniversalMetadata(item) {
+    const applyTitle = document.getElementById("utag-apply-title").checked;
+    const applyArtist = document.getElementById("utag-apply-artist").checked;
+    const applyBpmKey = document.getElementById("utag-apply-bpm-key").checked;
+    const applyPochette = document.getElementById("utag-apply-pochette").checked;
+    const applyTags = document.getElementById("utag-apply-tags").checked;
+
+    const ctx = activeUniversalContext;
+
+    if (applyTitle) document.getElementById(`${ctx}-title`).value = item.title || "";
+    if (applyArtist) {
+        const artInput = document.getElementById(`${ctx}-artist`);
+        if (artInput) artInput.value = item.artist || "";
+    }
+
+    if (applyBpmKey) {
+        const bpmInput = document.getElementById(`${ctx}-bpm`);
+        const keyInput = document.getElementById(`${ctx}-key`);
+        if (bpmInput && item.bpm) {
+            bpmInput.value = item.bpm;
+            bpmInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (keyInput && item.key) {
+            keyInput.value = item.key;
+            keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+
+    if (applyTags) {
+        const albInput = document.getElementById(`${ctx}-album`);
+        const genreInput = document.getElementById(`${ctx}-genre`);
+        const yearInput = document.getElementById(`${ctx}-year`);
+        if (albInput) albInput.value = item.album || "";
+        if (genreInput) genreInput.value = item.genre || "";
+        if (yearInput) yearInput.value = item.year || "";
+    }
+
+    if (applyPochette && item.cover_url) {
+        currentCoverData = item.cover_url;
+        let imgId = "";
+        let placeholderId = "";
+        let deleteBtnId = "";
+
+        if (ctx === 'local') { imgId = "local-art-img"; placeholderId = "local-art-placeholder"; deleteBtnId = "btn-delete-cover"; }
+        else if (ctx === 'mt') { imgId = "mt-art-img"; placeholderId = "mt-art-placeholder"; deleteBtnId = "btn-mt-delete-cover"; }
+        else if (ctx === 'edit') { imgId = "preview-thumbnail"; deleteBtnId = "btn-edit-delete-cover"; } // Edit has different structure
+
+        const img = document.getElementById(imgId);
+        if (img) {
+            img.src = item.cover_url;
+            img.style.display = "block";
+            // If it's the center preview in edit modal, it might be a div with background
+            if (ctx === 'edit') {
+                img.style.backgroundImage = `url(${item.cover_url})`;
+                img.style.backgroundSize = "cover";
+                img.innerHTML = ""; // Clear the emoji
+            }
+        }
+        const placeholder = document.getElementById(placeholderId);
+        if (placeholder) placeholder.style.display = "none";
+        const delBtn = document.getElementById(deleteBtnId);
+        if (delBtn) delBtn.style.display = "flex";
+    }
+
+    document.getElementById("modal-universal-tag").close();
+}
+
 function removeLocalCover() {
     // Logic to mark cover for deletion
     currentCoverData = "DELETE";
@@ -4521,122 +4608,12 @@ function removeLocalCover() {
 }
 // --- AUTO-TAG LOGIC ---
 async function autoTagLocal() {
-    let q = document.getElementById("local-title").value;
-    if (!q) {
-        // Fallback to filename if title is empty
-        const pathDisplay = document.getElementById("local-path-display").innerText;
-        // Basic extraction: filename without path
-        if (pathDisplay) {
-            const parts = pathDisplay.split(/[\\/]/);
-            q = parts[parts.length - 1];
-        }
-    }
-
-    if (!q) {
-        alert("Veuillez entrer un titre ou sélectionner un fichier.");
-        return;
-    }
-
-    const container = document.getElementById("auto-tag-results");
-    container.style.display = "flex";
-    container.innerHTML = `<div style='color:var(--accent); display:flex; align-items:center; gap:10px; padding:10px;'>
-                                <i class='ph ph-circle-notch ph-spin' style='font-size:1.2em;'></i> 
-                                <span>Recherche des métadonnées, BPM et Tonalités...</span>
-                           </div>`;
-
-    try {
-        const res = await fetch(`/api/metadata/search?q=${encodeURIComponent(q)}`);
-        const results = await res.json();
-
-        container.innerHTML = "";
-
-        if (results.length === 0) {
-            container.innerHTML = "<div style='color:#aaa;'>Aucun résultat trouvé.</div>";
-            return;
-        }
-
-        results.forEach(item => {
-            const div = document.createElement("div");
-            div.style.padding = "5px";
-            div.style.background = "#2a2a2a";
-            div.style.border = "1px solid #444";
-            div.style.borderRadius = "4px";
-            div.style.cursor = "pointer";
-            div.style.display = "flex";
-            div.style.gap = "10px";
-            div.style.alignItems = "center";
-
-            // Thumbnail handling (if available)
-            let thumb = "<span style='font-size:20px;'>🎵</span>";
-            if (item.cover_url) {
-                thumb = `<img src="${item.cover_url}" style="width:30px; height:30px; object-fit:cover;">`;
-            }
-
-            let metaHtml = `${item.artist} - ${item.album} (${item.year})`;
-            if (item.bpm || item.key) {
-                metaHtml += `<br><span style="color:var(--accent); font-size:0.9em;">`;
-                if (item.bpm) metaHtml += `🎵 ${item.bpm} BPM `;
-                if (item.key) metaHtml += `🎹 Key: ${item.key}`;
-                metaHtml += `</span>`;
-            }
-
-            div.innerHTML = `
-                ${thumb}
-                <div>
-                    <div style="font-weight:bold; font-size:0.9em;">${item.title}</div>
-                    <div style="font-size:0.8em; color:#bbb;">${metaHtml}</div>
-                </div>
-            `;
-
-            // Pass full item to handler
-            div.onclick = () => applyAutoTag(item);
-            container.appendChild(div);
-        });
-
-    } catch (e) {
-        container.innerHTML = "<div style='color:red;'>Erreur API.</div>";
-        console.error(e);
-    }
+    openUniversalTagModal('local');
 }
 
 function applyAutoTag(item) {
-    // Fill fields
-    document.getElementById("local-title").value = item.title || "";
-    document.getElementById("local-artist").value = item.artist || "";
-    document.getElementById("local-album").value = item.album || "";
-    document.getElementById("local-year").value = item.year || "";
-
-    // Unify BPM/Key (also used for MT and Edit if active)
-    const prefixes = ['local', 'mt', 'edit'];
-    prefixes.forEach(prefix => {
-        const bpmInput = document.getElementById(`${prefix}-bpm`);
-        const keyInput = document.getElementById(`${prefix}-key`);
-        if (bpmInput && item.bpm) {
-            bpmInput.value = item.bpm;
-            bpmInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        if (keyInput && item.key) {
-            keyInput.value = item.key;
-            keyInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    });
-
-    // Hide results
-    document.getElementById("auto-tag-results").style.display = "none";
-
-    // Cover Logic
-    if (item.cover_url) {
-        currentCoverData = item.cover_url; // Store URL directly
-        // Update Preview
-        const img = document.getElementById("local-art-img");
-        const ph = document.getElementById("local-art-placeholder");
-        const btnDel = document.getElementById("btn-delete-cover");
-
-        img.src = item.cover_url;
-        img.style.display = "block";
-        ph.style.display = "none";
-        btnDel.style.display = "flex";
-    }
+    // Deprecated for Universal Tag, but kept for legacy stability if called
+    applyUniversalMetadata(item);
 }
 
 // Ensure pendingCoverData is global or accessible

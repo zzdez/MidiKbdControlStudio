@@ -119,7 +119,7 @@ class MusicAPI:
         headers = {"Authorization": f"Bearer {token}"}
 
         try:
-            res = requests.get(search_url, headers=headers)
+            res = requests.get(search_url, headers=headers, timeout=10)
             if res.status_code != 200:
                 return None
             
@@ -136,7 +136,7 @@ class MusicAPI:
                 
                 # 2. Get Audio Features for the track
                 features_url = f"https://api.spotify.com/v1/audio-features/{track_id}"
-                feat_res = requests.get(features_url, headers=headers)
+                feat_res = requests.get(features_url, headers=headers, timeout=10)
                 if feat_res.status_code != 200:
                     continue
 

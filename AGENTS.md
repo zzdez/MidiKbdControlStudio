@@ -214,3 +214,14 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **Optimisation Hauteur** : Réduction agressive des marges internes du `dl-options-container` (cible < 187px) pour garantir une expérience sans scroll vertical lors du déploiement des options de téléchargement.
 *   **Système de Notes Unifiées :**
     *   **Modale `#modal-notes-desc`** : Création d'une interface d'édition plein écran (fond sombre) fusionnant la description YouTube et les notes utilisateur en un seul bloc éditable et persistant.
+### 22. Évolution V16 : Métadonnées Étendues & Robustesse API
+*   **Optimisation UI (Single-Line Metadata) :**
+    *   **Consolidation** : Regroupement horizontal des 5 champs techniques (BPM, Tonalité Orig., Tonalité Média, Pitch Orig., Pitch Média) sur une seule ligne dans toutes les modales.
+    *   **Abréviations Intelligentes** : Utilisation de labels compacts ("T. Orig.", "Orig. Key") et de liens externes abrégés ("GetSongBPM.com") pour garantir une lisibilité sans scroll.
+*   **Support "Tonalité Média" (Media Key) :**
+    *   **Persistance Sidecar** : Extension du schéma sidecar JSON pour inclure `media_key`, permettant de différencier la tonalité originale de l'œuvre et la tonalité réelle du fichier média (après Pitch Shifting éventuel).
+    *   **Flux de Données** : Intégration complète dans `app.js` (Frontend), `server.py` (API REST) et `metadata_service.py` (Backend).
+*   **Robustesse MusicAPI :**
+    *   **Error Hardening** : Isolation stricte des appels API GetSongBPM/Key et Spotify via des blocs `try/except` globaux.
+    *   **Timeouts de Sécurité** : Ajout de délais d'expiration (10s) pour éviter les blocages de threads lors de l'enrichissement automatique des métadonnées.
+    *   **Fallback Silencieux** : Le système garantit le retour des résultats de recherche primaires (iTunes/YouTube) même en cas d'échec total des sources de données techniques.

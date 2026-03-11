@@ -147,6 +147,7 @@ class MetadataService:
                 "year": sidecar_data.get("year", ""),
                 "bpm": sidecar_data.get("bpm", ""),
                 "key": sidecar_data.get("key", ""),
+                "media_key": sidecar_data.get("media_key", ""),
                 "original_pitch": sidecar_data.get("original_pitch", ""),
                 "target_pitch": sidecar_data.get("target_pitch", ""),
                 "category": sidecar_data.get("category", ""),

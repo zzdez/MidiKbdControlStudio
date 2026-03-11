@@ -735,10 +735,6 @@
                         data-i18n-title="web.hint_musicbrainz">🔍
                         Auto-Tag</button>
                 </div>
-                <!-- Auto-Tag Results Area -->
-                <div id="auto-tag-results"
-                    style="margin-top:5px; margin-bottom:10px; display:none; flex-direction:column; gap:5px; background:#1a1a1a; padding:5px; border-radius:4px; max-height:200px; overflow-y:auto;">
-                </div>
 
                 <div class="row-inputs">
                     <div class="col">
@@ -751,37 +747,35 @@
                     </div>
                 </div>
 
+                <!-- Technical Data Row -->
                 <div class="row-inputs">
                     <div class="col" style="position: relative;">
                         <label data-i18n="web.lbl_bpm"
                             style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>BPM <a href="https://getsongbpm.com" target="_blank"
-                                    style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM)</a></span>
+                            BPM <a href="https://getsongbpm.com" target="_blank"
+                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM.com)</a>
                         </label>
-                        <div style="display:flex; gap:5px;">
-                            <input type="number" id="local-bpm" placeholder="120" style="flex:1;">
-                        </div>
+                        <input type="number" id="local-bpm" placeholder="120">
                     </div>
                     <div class="col" style="position: relative;">
                         <label data-i18n="web.lbl_key"
                             style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>Tonalité <a href="https://getsongkey.com" target="_blank"
-                                    style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey)</a></span>
+                            Tonalité Orig. <a href="https://getsongkey.com" target="_blank"
+                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey.com)</a>
                         </label>
-                        <div style="display:flex; gap:5px;">
-                            <input type="text" id="local-key" placeholder="Ex: Am, G..."
-                                data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions" style="flex:1;">
-                        </div>
+                        <input type="text" id="local-key" placeholder="Ex: Am, G..."
+                            data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
                     </div>
-                </div>
-
-                <div class="row-inputs">
                     <div class="col">
-                        <label data-i18n="web.lbl_original_pitch">Pitch Original (Hz)</label>
+                        <label data-i18n="web.lbl_media_key">Tonalité Média</label>
+                        <input type="text" id="local-media-key" placeholder="Ex: Am" list="mt-key-suggestions">
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_original_pitch">Pitch Orig. (Hz)</label>
                         <input type="text" id="local-original-pitch" placeholder="432">
                     </div>
                     <div class="col">
-                        <label data-i18n="web.lbl_target_pitch">Pitch du média (Hz)</label>
+                        <label data-i18n="web.lbl_target_pitch">Pitch Média (Hz)</label>
                         <input type="text" id="local-target-pitch" placeholder="440">
                     </div>
                 </div>
@@ -883,9 +877,6 @@
                         title="Rechercher sur MusicBrainz/YouTube" data-i18n-title="web.hint_autotag">🔍
                         Auto-Tag</button>
                 </div>
-                <div id="mt-auto-tag-results"
-                    style="margin-top:5px; margin-bottom:10px; display:none; flex-direction:column; gap:5px; background:#1a1a1a; padding:5px; border-radius:4px; max-height:200px; overflow-y:auto;">
-                </div>
 
                 <div class="row-inputs">
                     <div class="col">
@@ -899,54 +890,35 @@
                 </div>
 
                 <!-- NEW FIELDS: BPM, Key, Pitch -->
+                <!-- Technical Data Row -->
                 <div class="row-inputs">
                     <div class="col" style="position: relative;">
                         <label data-i18n="web.lbl_bpm"
                             style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>BPM <a href="https://getsongbpm.com" target="_blank"
-                                    style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM)</a></span>
+                            BPM <a href="https://getsongbpm.com" target="_blank"
+                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM.com)</a>
                         </label>
-                        <div style="display:flex; gap:5px;">
-                            <input type="number" id="mt-bpm" placeholder="120" style="flex:1;">
-                        </div>
+                        <input type="number" id="mt-bpm" placeholder="120">
                     </div>
                     <div class="col" style="position: relative;">
                         <label data-i18n="web.lbl_key"
                             style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>Tonalité <a href="https://getsongkey.com" target="_blank"
-                                    style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey)</a></span>
+                            Tonalité Orig. <a href="https://getsongkey.com" target="_blank"
+                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey.com)</a>
                         </label>
-                        <div style="display:flex; gap:5px;">
-                            <input type="text" id="mt-key" placeholder="Ex: Am, G..."
-                                data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions" style="flex:1;">
-                        </div>
-                        <datalist id="mt-key-suggestions">
-                            <option value="C">C (Do)</option>
-                            <option value="Cm">Cm (Do mineur)</option>
-                            <option value="D">D (Ré)</option>
-                            <option value="Dm">Dm (Ré mineur)</option>
-                            <option value="E">E (Mi)</option>
-                            <option value="Em">Em (Mi mineur)</option>
-                            <option value="F">F (Fa)</option>
-                            <option value="Fm">Fm (Fa mineur)</option>
-                            <option value="G">G (Sol)</option>
-                            <option value="Gm">Gm (Sol mineur)</option>
-                            <option value="A">A (La)</option>
-                            <option value="Am">Am (La mineur)</option>
-                            <option value="B">B (Si)</option>
-                            <option value="Bm">Bm (Si mineur)</option>
-                        </datalist>
+                        <input type="text" id="mt-key" placeholder="Ex: Am, G..."
+                            data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
                     </div>
-                </div>
-
-
-                <div class="row-inputs">
                     <div class="col">
-                        <label data-i18n="web.lbl_original_pitch">Pitch Original (Hz)</label>
+                        <label data-i18n="web.lbl_media_key">Tonalité Média</label>
+                        <input type="text" id="mt-media-key" placeholder="Ex: Am" list="mt-key-suggestions">
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_original_pitch">Pitch Orig. (Hz)</label>
                         <input type="text" id="mt-original-pitch" placeholder="432">
                     </div>
                     <div class="col">
-                        <label data-i18n="web.lbl_target_pitch">Pitch Pratique (Hz)</label>
+                        <label data-i18n="web.lbl_target_pitch">Pitch Média (Hz)</label>
                         <input type="text" id="mt-target-pitch" placeholder="440">
                     </div>
                 </div>
@@ -1071,8 +1043,13 @@
                 </button>
                 <div style="flex:1; min-width: 0;">
                     <label data-i18n="web.lbl_title">Titre</label>
-                    <input type="text" id="edit-title" data-i18n-placeholder="web.placeholder_song_title"
-                        placeholder="Titre de la chanson">
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="edit-title" data-i18n-placeholder="web.placeholder_song_title"
+                            placeholder="Titre de la chanson" style="flex:1;">
+                        <button class="btn-secondary" onclick="openUniversalTagModal('edit')"
+                            title="Rechercher des métadonnées" data-i18n-title="web.hint_autotag">🔍
+                            Auto-Tag</button>
+                    </div>
                 </div>
                 <button class="btn-secondary" onclick="openNotesDescModal()" style="flex-shrink:0;"
                     data-i18n="web.btn_notes_desc">Notes & Desc</button>
@@ -1134,37 +1111,35 @@
                     </div>
                 </div>
 
+                <!-- Technical Data Row -->
                 <div class="row-inputs">
                     <div class="col" style="position: relative;">
                         <label data-i18n="web.lbl_bpm"
                             style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>BPM <a href="https://getsongbpm.com" target="_blank"
-                                    style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM)</a></span>
+                            BPM <a href="https://getsongbpm.com" target="_blank"
+                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM.com)</a>
                         </label>
-                        <div style="display:flex; gap:5px;">
-                            <input type="number" id="edit-bpm" placeholder="120" style="flex:1;">
-                        </div>
+                        <input type="number" id="edit-bpm" placeholder="120">
                     </div>
                     <div class="col" style="position: relative;">
                         <label data-i18n="web.lbl_key"
                             style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>Tonalité <a href="https://getsongkey.com" target="_blank"
-                                    style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey)</a></span>
+                            Tonalité Orig. <a href="https://getsongkey.com" target="_blank"
+                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey.com)</a>
                         </label>
-                        <div style="display:flex; gap:5px;">
-                            <input type="text" id="edit-key" placeholder="Ex: Am, G..."
-                                data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions" style="flex:1;">
-                        </div>
+                        <input type="text" id="edit-key" placeholder="Ex: Am, G..."
+                            data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
                     </div>
-                </div>
-
-                <div class="row-inputs">
                     <div class="col">
-                        <label data-i18n="web.lbl_original_pitch">Pitch Original (Hz)</label>
+                        <label data-i18n="web.lbl_media_key">Tonalité Média</label>
+                        <input type="text" id="edit-media-key" placeholder="Ex: Am" list="mt-key-suggestions">
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_original_pitch">Pitch Orig. (Hz)</label>
                         <input type="text" id="edit-original-pitch" placeholder="432">
                     </div>
                     <div class="col">
-                        <label data-i18n="web.lbl_target_pitch">Pitch du média (Hz)</label>
+                        <label data-i18n="web.lbl_target_pitch">Pitch Média (Hz)</label>
                         <input type="text" id="edit-target-pitch" placeholder="440">
                     </div>
                 </div>
@@ -1508,6 +1483,70 @@
         </div>
     </dialog>
 
+    <!-- UNIVERSAL TAG MODAL -->
+    <dialog id="modal-universal-tag">
+        <div class="modal-header">
+            <h3 data-i18n="web.modal_universal_tag_title">Recherche Universelle de Métadonnées</h3>
+            <button onclick="document.getElementById('modal-universal-tag').close()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body edit-form">
+            <div class="row-inputs">
+                <div class="col">
+                    <label data-i18n="web.lbl_title">Titre</label>
+                    <input type="text" id="utag-search-title">
+                </div>
+                <div class="col">
+                    <label data-i18n="web.lbl_artist">Artiste</label>
+                    <input type="text" id="utag-search-artist">
+                </div>
+                <div class="col" style="flex:0.5; align-self:flex-end;">
+                    <button class="btn-primary" onclick="performUniversalSearch()" style="width:100%; height:26px; padding:0;">
+                        <i class="ph ph-magnifying-glass"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div style="margin-top:15px; border-top:1px solid #333; padding-top:10px;">
+                <label style="font-size:0.85em; color:#aaa; margin-bottom:8px; display:block;">Options d'application :</label>
+                <div style="display:flex; flex-wrap:wrap; gap:15px; background:#1a1a1a; padding:10px; border-radius:4px;">
+                    <label class="modern-switch" style="font-size:0.8em;">
+                        <input type="checkbox" id="utag-apply-title" checked>
+                        <span class="switch-slider"></span>
+                        <span class="switch-label">Titre</span>
+                    </label>
+                    <label class="modern-switch" style="font-size:0.8em;">
+                        <input type="checkbox" id="utag-apply-artist" checked>
+                        <span class="switch-slider"></span>
+                        <span class="switch-label">Artiste</span>
+                    </label>
+                    <label class="modern-switch" style="font-size:0.8em;">
+                        <input type="checkbox" id="utag-apply-bpm-key" checked>
+                        <span class="switch-slider"></span>
+                        <span class="switch-label">BPM/Key</span>
+                    </label>
+                    <label class="modern-switch" style="font-size:0.8em;">
+                        <input type="checkbox" id="utag-apply-pochette" checked>
+                        <span class="switch-slider"></span>
+                        <span class="switch-label">Pochette</span>
+                    </label>
+                    <label class="modern-switch" style="font-size:0.8em;">
+                        <input type="checkbox" id="utag-apply-tags" checked>
+                        <span class="switch-slider"></span>
+                        <span class="switch-label">Album/Genre/Année</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="utag-results-container" style="margin-top:15px; min-height:100px; max-height:250px; overflow-y:auto; border:1px solid #333; border-radius:4px; background:#111;">
+                <div style="padding:20px; text-align:center; color:#666;">
+                    Lancez une recherche ci-dessus...
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-text" onclick="document.getElementById('modal-universal-tag').close()">Annuler</button>
+        </div>
+    </dialog>
 </body>
 
 </html>
