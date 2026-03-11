@@ -950,11 +950,8 @@ async function openSettingsModal() {
         const sSecret = document.getElementById("setting-spotify-client-secret");
         if (sSecret) sSecret.value = currentSettings.spotify_client_secret || "";
 
-        const gBpm = document.getElementById("setting-getsongbpm-api-key");
-        if (gBpm) gBpm.value = currentSettings.getsongbpm_api_key || "";
-
-        const gKey = document.getElementById("setting-getsongkey-api-key");
-        if (gKey) gKey.value = currentSettings.getsongkey_api_key || "";
+        const getsongKey = document.getElementById("setting-getsong-api-key");
+        if (getsongKey) getsongKey.value = currentSettings.getsong_api_key || "";
 
         const apCb = document.getElementById("setting-autoplay");
         if (apCb) apCb.checked = currentSettings.autoplay !== false; // Default to true
@@ -1098,11 +1095,8 @@ async function saveSettings() {
     const sSecret = document.getElementById("setting-spotify-client-secret");
     if (sSecret) currentSettings.spotify_client_secret = sSecret.value;
 
-    const gBpm = document.getElementById("setting-getsongbpm-api-key");
-    if (gBpm) currentSettings.getsongbpm_api_key = gBpm.value;
-
-    const gKey = document.getElementById("setting-getsongkey-api-key");
-    if (gKey) currentSettings.getsongkey_api_key = gKey.value;
+    const getsongKey = document.getElementById("setting-getsong-api-key");
+    if (getsongKey) currentSettings.getsong_api_key = getsongKey.value;
 
     const apCb = document.getElementById("setting-autoplay");
     if (apCb) currentSettings.autoplay = apCb.checked;
@@ -5892,13 +5886,22 @@ function renderApiResults(results) {
 
         if (item.bpm) html += `<span>🎵 ${item.bpm} BPM</span>`;
         if (item.key) html += `<span>🎹 Key: ${item.key}</span>`;
+        if (item.year) html += `<span>📅 ${item.year}</span>`;
+        if (item.genres && Array.isArray(item.genres) && item.genres.length > 0) {
+            html += `<span class="api-genre">🏷️ ${item.genres.slice(0, 2).join(", ")}</span>`;
+        }
 
         html += `   </div>
                 </div>`;
 
-        // Optional cover art from Spotify/Web
+        // Optional cover art from Spotify/Web or placeholder
         if (item.cover) {
-            html += `<img src="${item.cover}" style="height: 50px; border-radius: 4px;">`;
+            html += `<img src="${item.cover}" style="height: 50px; width: 50px; object-fit: cover; border-radius: 4px; margin-left: 10px;">`;
+        } else {
+            // Use a placeholder if no cover available - Added border for visibility
+            html += `<div style="height: 50px; width: 50px; background: #222; border: 1px solid #444; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #888; margin-left: 10px;">
+                        <i class="ph ph-music-notes" style="font-size: 1.5rem;"></i>
+                    </div>`;
         }
 
         div.innerHTML = html;
@@ -5914,8 +5917,14 @@ function applyApiResult(bpm, key) {
     const bpmInput = document.getElementById(`${activeApiPrefix}-bpm`);
     const keyInput = document.getElementById(`${activeApiPrefix}-key`);
 
-    if (bpmInput && bpm) bpmInput.value = bpm;
-    if (keyInput && key) keyInput.value = key;
+    if (bpmInput && bpm) {
+        bpmInput.value = bpm;
+        bpmInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    if (keyInput && key) {
+        keyInput.value = key;
+        keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
 
     closeApiResultsModal();
 }

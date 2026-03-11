@@ -1128,6 +1128,23 @@ dialog::backdrop {
     /* Hidden by default */
 }
 
+.api-result-meta {
+    font-size: 0.8em;
+    color: #888;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.api-genre {
+    color: #4CAF50;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 #chapter-list-title {
     font-size: 0.8em;
     color: #888;
