@@ -2533,6 +2533,7 @@ function saveMultitrackSettings(file) {
         file.stems.forEach((stem, i) => {
             const muteBtn = document.getElementById(`mt-mute-${i}`);
             const soloBtn = document.getElementById(`mt-solo-${i}`);
+            const hideBtn = document.getElementById(`mt-hide-${i}`);
             const volSlider = document.getElementById(`mt-vol-${i}`);
             const panSlider = document.getElementById(`mt-pan-${i}`);
 
@@ -2541,6 +2542,7 @@ function saveMultitrackSettings(file) {
                 name: stem.name,
                 mute: muteBtn ? muteBtn.classList.contains('active') : false,
                 solo: soloBtn ? soloBtn.classList.contains('active') : false,
+                hidden: hideBtn ? hideBtn.classList.contains('active') : false,
                 volume: volSlider ? parseFloat(volSlider.value) : 1.0,
                 pan: panSlider ? parseFloat(panSlider.value) : 0.0
             });
@@ -2575,11 +2577,22 @@ function loadMultitrackSettings(file) {
             settings.tracks.forEach((trackData, i) => {
                 const muteBtn = document.getElementById(`mt-mute-${i}`);
                 const soloBtn = document.getElementById(`mt-solo-${i}`);
+                const hideBtn = document.getElementById(`mt-hide-${i}`);
                 const volSlider = document.getElementById(`mt-vol-${i}`);
                 const panSlider = document.getElementById(`mt-pan-${i}`);
 
                 if (muteBtn && trackData.mute) muteBtn.classList.add('active');
                 if (soloBtn && trackData.solo) soloBtn.classList.add('active');
+                if (hideBtn && trackData.hidden) {
+                    hideBtn.classList.add('active');
+                    hideBtn.innerHTML = '<i class="ph ph-eye-slash"></i>';
+                    const hdiv = document.getElementById(`mt-header-${i}`);
+                    if (hdiv) hdiv.classList.add('track-hidden');
+                    const ws = window.multitrack.wavesurfers[i];
+                    if (ws) ws.getWrapper().parentElement.style.display = 'none';
+                    const hHeader = document.getElementById(`mt-header-${i}`);
+                    if (hHeader) hHeader.style.display = 'none';
+                }
                 if (volSlider && trackData.volume !== undefined) {
                     volSlider.value = trackData.volume;
                     const valSpan = document.getElementById(`mt-vol-val-${i}`);
@@ -2747,6 +2760,16 @@ async function playLocal(index) {
 
         if (loadingIndicator) loadingIndicator.style.display = "block";
         if (trackWaveforms) trackWaveforms.innerHTML = "";
+
+        // Add hidden tracks container if not exists
+        let hiddenContainer = document.getElementById("mt-hidden-tracks-container");
+        if (!hiddenContainer) {
+            hiddenContainer = document.createElement("div");
+            hiddenContainer.id = "mt-hidden-tracks-container";
+            hiddenContainer.style.cssText = "margin-top: 10px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;";
+            document.getElementById("multitrack-header").appendChild(hiddenContainer);
+        }
+        hiddenContainer.innerHTML = "";
         // Inject track headers
         trackHeaders.innerHTML = '';
         file.stems.forEach((stem, i) => {
@@ -2759,8 +2782,10 @@ async function playLocal(index) {
                     <span class="track-title" id="mt-title-${i}" title="Double-clic pour renommer">${stemName}</span>
                 </div>
                 <div class="track-controls" style="display:flex; gap:3px; align-items:center; margin-bottom:2px;">
-                    <button class="btn-mute" id="mt-mute-${i}" style="flex: 0 0 24px;">M</button>
+                    <button class="btn-mute" id="mt-mute-${i}" style="flex: 0 0 24px;" title="${t('web.hint_mute')}">M</button>
                     <button class="btn-solo" id="mt-solo-${i}" style="flex: 0 0 24px;">S</button>
+                    <button class="btn-stem-hide" id="mt-hide-${i}" style="flex: 0 0 24px;" title="${t('web.btn_hide')}"><i class="ph ph-eye"></i></button>
+                    <button class="btn-stem-delete" id="mt-delete-${i}" style="flex: 0 0 24px;" title="${t('web.btn_delete_stem')}"><i class="ph ph-trash"></i></button>
                     <div style="flex:1"></div>
                     <i class="ph ph-hand-grabbing drag-handle" title="Déplacer" style="cursor: grab; font-size: 1.1em; color: #888;"></i>
                 </div>
@@ -3027,10 +3052,51 @@ async function playLocal(index) {
                         saveMultitrackSettings(file);
                     };
                 }
+
+                const hideBtn = document.getElementById(`mt-hide-${i}`);
+                if (hideBtn) {
+                    hideBtn.onclick = () => {
+                        hideBtn.classList.toggle('active');
+                        const isHidden = hideBtn.classList.contains('active');
+                        
+                        // To fix alignment, we hide BOTH header and waveform completely
+                        headerDiv.style.display = isHidden ? 'none' : 'flex';
+                        
+                        const ws = window.multitrack.wavesurfers[i];
+                        if (ws) {
+                            const wsContainer = ws.getWrapper().parentElement;
+                            wsContainer.style.display = isHidden ? 'none' : 'block';
+                        }
+                        
+                        saveMultitrackSettings(file);
+                        updateHiddenTracksList(file);
+                    };
+                }
+
+                const deleteBtn = document.getElementById(`mt-delete-${i}`);
+                if (deleteBtn) {
+                    deleteBtn.onclick = async () => {
+                        if (confirm(t('web.msg_confirm_delete_stem'))) {
+                            try {
+                                const resp = await fetch(`/api/local/stem/${index}/${i}`, { method: 'DELETE' });
+                                if (resp.ok) {
+                                    // Reload library to update everything
+                                    await loadLibrary(); 
+                                    playLocal(index);
+                                } else {
+                                    alert("Erreur lors de la suppression");
+                                }
+                            } catch (e) {
+                                console.error("Delete stem failed:", e);
+                            }
+                        }
+                    };
+                }
             });
 
             // Restore saved settings on load
             loadMultitrackSettings(file);
+            updateHiddenTracksList(file);
 
             const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
             if (isAutoplay) {
@@ -5978,4 +6044,59 @@ function applyApiResult(bpm, key, cover) {
 function closeApiResultsModal() {
     document.getElementById("api-results-modal").close();
     activeApiPrefix = null;
+}
+function updateHiddenTracksList(file) {
+    const container = document.getElementById("mt-hidden-tracks-container");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const settings = JSON.parse(localStorage.getItem(getMultitrackStorageKey(file)) || "{}");
+    const tracks = settings.tracks || [];
+    const hiddenTracks = tracks.filter(t => t.hidden);
+
+    if (hiddenTracks.length > 0) {
+        const btn = document.createElement("button");
+        btn.className = "btn-secondary";
+        btn.style.fontSize = "0.75em";
+        btn.style.padding = "2px 8px";
+        btn.innerHTML = `<i class="ph ph-eye"></i> ${t('web.btn_show_hidden').replace('{count}', hiddenTracks.length)}`;
+        
+        const list = document.createElement("div");
+        list.id = "mt-hidden-list-popup";
+        list.style.cssText = "display:none; position:absolute; background:#252525; border:1px solid #444; border-radius:4px; padding:8px; z-index:200; box-shadow:0 4px 10px rgba(0,0,0,0.5); margin-top:5px; max-width:250px;";
+        
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            list.style.display = list.style.display === "none" ? "block" : "none";
+            // Position list below button
+            const rect = btn.getBoundingClientRect();
+            list.style.top = (rect.bottom + window.scrollY) + "px";
+            list.style.left = rect.left + "px";
+            if (!list.parentElement) document.body.appendChild(list);
+        };
+
+        document.addEventListener('click', () => { if(list) list.style.display = 'none'; });
+        list.onclick = (e) => e.stopPropagation();
+
+        hiddenTracks.forEach(ht => {
+            const item = document.createElement("div");
+            item.style.cssText = "display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:5px; font-size:0.85em; border-bottom:1px solid #333; padding-bottom:3px;";
+            item.innerHTML = `
+                <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ht.name}</span>
+                <button class="btn-icon" style="padding:0 4px;" title="${t('web.btn_show')}"><i class="ph ph-eye"></i></button>
+            `;
+            item.querySelector('button').onclick = () => {
+                // Find original index
+                const idx = file.stems.findIndex(s => s.path === ht.path);
+                if (idx !== -1) {
+                    const hBtn = document.getElementById(`mt-hide-${idx}`);
+                    if (hBtn) hBtn.click(); // Trigger the original toggle logic
+                }
+                updateHiddenTracksList(file);
+            };
+            list.appendChild(item);
+        });
+
+        container.appendChild(btn);
+    }
 }

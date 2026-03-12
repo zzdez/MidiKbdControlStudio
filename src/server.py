@@ -1141,6 +1141,48 @@ async def delete_local_file(index: int):
     except Exception as e:
          raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/api/local/stem/{index}/{stem_index}")
+async def delete_local_stem(index: int, stem_index: int):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+            with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+
+        if 0 <= index < len(items):
+            item = items[index]
+            if item.get("is_multitrack") and "stems" in item:
+                stems = item["stems"]
+                if 0 <= stem_index < len(stems):
+                    stem_path = stems[stem_index]
+                    
+                    # 1. Delete physical file
+                    if os.path.exists(stem_path):
+                        try:
+                            os.remove(stem_path)
+                            logging.info(f"[BACKEND] Stem deleted: {stem_path}")
+                        except Exception as e:
+                            logging.error(f"[BACKEND] Failed to delete file {stem_path}: {e}")
+                            # We continue to update JSON even if file delete failed (maybe already gone)
+                    
+                    # 2. Update metadata
+                    stems.pop(stem_index)
+                    
+                    # If it was the last stem, maybe we should alert? 
+                    # But user might want to delete all stems.
+                    
+                    with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                        json.dump(items, f, indent=4)
+                        
+                    return {"status": "ok", "message": "Stem deleted", "items": items}
+            
+            raise HTTPException(status_code=404, detail="Stem or multitrack not found")
+        else:
+            raise HTTPException(status_code=404, detail="Index not found")
+    except Exception as e:
+         logging.error(f"Delete Stem Error: {e}")
+         raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/local/art/{index}")
 async def get_local_art(index: int):
     try:

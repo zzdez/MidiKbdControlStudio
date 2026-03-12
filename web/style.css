@@ -1750,7 +1750,9 @@ dialog::backdrop {
 }
 
 .btn-mute,
-.btn-solo {
+.btn-solo,
+.btn-stem-hide,
+.btn-stem-delete {
     background: #333;
     color: #888;
     border: 1px solid #444;
@@ -1765,9 +1767,16 @@ dialog::backdrop {
 }
 
 .btn-mute:hover:not(.active),
-.btn-solo:hover:not(.active) {
+.btn-solo:hover:not(.active),
+.btn-stem-hide:hover:not(.active),
+.btn-stem-delete:hover {
     background: #444;
     color: #ccc;
+}
+
+.btn-stem-delete:hover {
+    color: #e74c3c;
+    border-color: #e74c3c;
 }
 
 .btn-mute.active {
@@ -1782,6 +1791,17 @@ dialog::backdrop {
     color: #111;
     border-color: #f39c12;
     box-shadow: 0 0 5px rgba(241, 196, 15, 0.4);
+}
+
+.btn-stem-hide.active {
+    background: #3498db;
+    color: #fff;
+    border-color: #2980b9;
+}
+
+.track-header.track-hidden {
+    opacity: 0.4;
+    filter: grayscale(0.8);
 }
 
 .track-slider-row {
