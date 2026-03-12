@@ -1183,6 +1183,51 @@ async def delete_local_stem(index: int, stem_index: int):
          logging.error(f"Delete Stem Error: {e}")
          raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/local/multitrack_settings/{index}")
+async def get_multitrack_settings(index: int):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+                 
+        if 0 <= index < len(items):
+            path = items[index]["path"]
+            if os.path.isdir(path):
+                settings_file = os.path.join(path, "airstep_meta.json")
+                if os.path.exists(settings_file):
+                    with open(settings_file, "r", encoding="utf-8") as f:
+                        return json.load(f)
+            return {}
+        else:
+             raise HTTPException(status_code=404, detail="Index not found")
+    except Exception as e:
+        print(f"Get Settings Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/local/multitrack_settings/{index}")
+async def save_multitrack_settings(index: int, request: Request):
+    try:
+        settings = await request.json()
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+                 
+        if 0 <= index < len(items):
+            path = items[index]["path"]
+            if os.path.isdir(path):
+                settings_file = os.path.join(path, "airstep_meta.json")
+                with open(settings_file, "w", encoding="utf-8") as f:
+                    json.dump(settings, f, indent=4)
+                return {"status": "ok"}
+            return {"status": "error", "message": "Not a directory"}
+        else:
+             raise HTTPException(status_code=404, detail="Index not found")
+    except Exception as e:
+        print(f"Save Settings Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/local/art/{index}")
 async def get_local_art(index: int):
     try:

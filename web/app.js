@@ -2520,6 +2520,9 @@ function getMultitrackStorageKey(file) {
 function saveMultitrackSettings(file) {
     if (!window.multitrack || !file) return;
 
+    const index = currentPlayingIndex;
+    if (index === null) return;
+
     // Debounce to avoid flooding localStorage when sliding quickly or playing
     clearTimeout(mtSaveTimeout);
     mtSaveTimeout = setTimeout(() => {
@@ -2534,6 +2537,7 @@ function saveMultitrackSettings(file) {
             const muteBtn = document.getElementById(`mt-mute-${i}`);
             const soloBtn = document.getElementById(`mt-solo-${i}`);
             const hideBtn = document.getElementById(`mt-hide-${i}`);
+            const hideMuteBtn = document.getElementById(`mt-hide-mute-${i}`);
             const volSlider = document.getElementById(`mt-vol-${i}`);
             const panSlider = document.getElementById(`mt-pan-${i}`);
 
@@ -2543,64 +2547,92 @@ function saveMultitrackSettings(file) {
                 mute: muteBtn ? muteBtn.classList.contains('active') : false,
                 solo: soloBtn ? soloBtn.classList.contains('active') : false,
                 hidden: hideBtn ? hideBtn.classList.contains('active') : false,
+                hidden_mute: hideMuteBtn ? hideMuteBtn.classList.contains('active') : false,
                 volume: volSlider ? parseFloat(volSlider.value) : 1.0,
                 pan: panSlider ? parseFloat(panSlider.value) : 0.0
             });
         });
 
+        // Send to backend for persistent storage (Sidecar)
+        fetch(`/api/local/multitrack_settings/${index}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(settings)
+        }).catch(e => console.error("Save Settings API Error:", e));
+
+        // Fallback/Legacy: Still save to localStorage for instant local responsiveness
         localStorage.setItem(getMultitrackStorageKey(file), JSON.stringify(settings));
     }, 500); // 500ms debounce
 }
 
-function loadMultitrackSettings(file) {
-    if (!window.multitrack || !file) return;
-
-    const saved = localStorage.getItem(getMultitrackStorageKey(file));
-    if (!saved) return;
+async function loadMultitrackSettings(file) {
+    const index = currentPlayingIndex;
+    if (index === null) return;
 
     try {
-        const settings = JSON.parse(saved);
-
-        if (settings.masterVolume !== undefined) {
-            const mst = document.getElementById("multitrack-master-volume");
-            if (mst) {
-                mst.value = settings.masterVolume;
-                const mstPerc = document.getElementById("multitrack-master-volume-percent");
-                if (mstPerc) mstPerc.innerText = Math.round(settings.masterVolume * 100) + '%';
-            }
+        // 1. Try Backend first
+        const resp = await fetch(`/api/local/multitrack_settings/${index}`);
+        let settings = null;
+        if (resp.ok) {
+            settings = await resp.json();
         }
 
-        if (settings.autoplay !== undefined) file.autoplay = settings.autoplay;
-        if (settings.autoreplay !== undefined) file.autoreplay = settings.autoreplay;
+        // 2. Fallback to LocalStorage if backend empty or API failed
+        if (!settings || !settings.tracks) {
+            settings = JSON.parse(localStorage.getItem(getMultitrackStorageKey(file)) || "{}");
+        }
 
-        if (settings.tracks && Array.isArray(settings.tracks)) {
+        if (settings && settings.tracks) {
+            // Apply master volume, autoplay, autoreplay
+            if (settings.masterVolume !== undefined) {
+                const mst = document.getElementById("multitrack-master-volume");
+                if (mst) {
+                    mst.value = settings.masterVolume;
+                    const mstPerc = document.getElementById("multitrack-master-volume-percent");
+                    if (mstPerc) mstPerc.innerText = Math.round(settings.masterVolume * 100) + '%';
+                }
+            }
+
+            if (settings.autoplay !== undefined) file.autoplay = settings.autoplay;
+            if (settings.autoreplay !== undefined) file.autoreplay = settings.autoreplay;
+
             settings.tracks.forEach((trackData, i) => {
                 const muteBtn = document.getElementById(`mt-mute-${i}`);
                 const soloBtn = document.getElementById(`mt-solo-${i}`);
                 const hideBtn = document.getElementById(`mt-hide-${i}`);
+                const hideMuteBtn = document.getElementById(`mt-hide-mute-${i}`);
                 const volSlider = document.getElementById(`mt-vol-${i}`);
                 const panSlider = document.getElementById(`mt-pan-${i}`);
+                const ws = window.multitrack.wavesurfers[i];
 
                 if (muteBtn && trackData.mute) muteBtn.classList.add('active');
                 if (soloBtn && trackData.solo) soloBtn.classList.add('active');
-                if (hideBtn && trackData.hidden) {
-                    hideBtn.classList.add('active');
-                    hideBtn.innerHTML = '<i class="ph ph-eye-slash"></i>';
+                if (hideBtn && trackData.hidden) hideBtn.classList.add('active');
+                if (hideMuteBtn && trackData.hidden_mute) hideMuteBtn.classList.add('active');
+
+                // Audio Logic handled by calculation loop below
+                
+                const isHidden = (trackData.hidden || trackData.hidden_mute);
+                if (isHidden) {
                     const hdiv = document.getElementById(`mt-header-${i}`);
-                    if (hdiv) hdiv.classList.add('track-hidden');
-                    const ws = window.multitrack.wavesurfers[i];
-                    if (ws) ws.getWrapper().parentElement.style.display = 'none';
-                    const hHeader = document.getElementById(`mt-header-${i}`);
-                    if (hHeader) hHeader.style.display = 'none';
+                    if (hdiv) hdiv.style.display = 'none';
+                    if (ws) {
+                        const wsContainer = ws.getWrapper().parentElement;
+                        wsContainer.style.height = '0px';
+                        wsContainer.style.overflow = 'hidden';
+                        wsContainer.style.border = 'none';
+                        wsContainer.style.margin = '0px';
+                        wsContainer.style.padding = '0px';
+                    }
                 }
+
                 if (volSlider && trackData.volume !== undefined) {
                     volSlider.value = trackData.volume;
                     const valSpan = document.getElementById(`mt-vol-val-${i}`);
-                    if (valSpan) valSpan.innerText = Math.round(trackData.volume * 100) + '%';
+                    if (valSpan) valSpan.innerText = Math.round(trackData.volume * 100) + "%";
                 }
                 if (panSlider && trackData.pan !== undefined) {
                     panSlider.value = trackData.pan;
-                    const ws = window.multitrack.wavesurfers[i];
                     if (ws && ws.media && ws.media._panner) {
                         ws.media._panner.pan.value = trackData.pan;
                     }
@@ -2616,16 +2648,19 @@ function loadMultitrackSettings(file) {
             file.stems.forEach((_, j) => {
                 const mBtn = document.getElementById(`mt-mute-${j}`);
                 const sBtn = document.getElementById(`mt-solo-${j}`);
+                const hBtn = document.getElementById(`mt-hide-${j}`);
+                const hmBtn = document.getElementById(`mt-hide-mute-${j}`);
                 const vSlider = document.getElementById(`mt-vol-${j}`);
                 const wss = window.multitrack.wavesurfers[j];
 
                 const isMuted = mBtn ? mBtn.classList.contains('active') : false;
                 const isSolo = sBtn ? sBtn.classList.contains('active') : false;
+                const isHiddenMute = hmBtn ? hmBtn.classList.contains('active') : false;
                 const baseVol = vSlider ? parseFloat(vSlider.value) : 1.0;
 
                 let finalVol = baseVol * mstVol;
 
-                if (isMuted) {
+                if (isMuted || isHiddenMute) {
                     finalVol = 0;
                 } else if (anySolo && !isSolo) {
                     finalVol = 0;
@@ -2636,6 +2671,12 @@ function loadMultitrackSettings(file) {
                     wss.getWrapper().style.opacity = finalVol === 0 ? "0.3" : "1";
                 }
             });
+
+            // Update UI for hidden tracks list
+            updateHiddenTracksList(file);
+            
+            // Force redraw of loaded state
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
         }
 
     } catch (e) {
@@ -2785,6 +2826,7 @@ async function playLocal(index) {
                     <button class="btn-mute" id="mt-mute-${i}" style="flex: 0 0 24px;" title="${t('web.hint_mute')}">M</button>
                     <button class="btn-solo" id="mt-solo-${i}" style="flex: 0 0 24px;">S</button>
                     <button class="btn-stem-hide" id="mt-hide-${i}" style="flex: 0 0 24px;" title="${t('web.btn_hide')}"><i class="ph ph-eye"></i></button>
+                    <button class="btn-stem-hide-mute" id="mt-hide-mute-${i}" style="flex: 0 0 24px;" title="${t('web.btn_hide_mute')}"><i class="ph ph-eye-slash"></i></button>
                     <button class="btn-stem-delete" id="mt-delete-${i}" style="flex: 0 0 24px;" title="${t('web.btn_delete_stem')}"><i class="ph ph-trash"></i></button>
                     <div style="flex:1"></div>
                     <i class="ph ph-hand-grabbing drag-handle" title="Déplacer" style="cursor: grab; font-size: 1.1em; color: #888;"></i>
@@ -2981,15 +3023,17 @@ async function playLocal(index) {
 
                 const updateTrackVol = (index) => {
                     const mBtn = document.getElementById(`mt-mute-${index}`);
+                    const hmBtn = document.getElementById(`mt-hide-mute-${index}`);
                     const vSlider = document.getElementById(`mt-vol-${index}`);
                     const isMuted = mBtn.classList.contains('active');
-                    const vol = isMuted ? 0 : (parseFloat(vSlider.value) * getMasterVol());
+                    const isHiddenMute = hmBtn && hmBtn.classList.contains('active');
+                    const vol = (isMuted || isHiddenMute) ? 0 : (parseFloat(vSlider.value) * getMasterVol());
                     window.multitrack.setTrackVolume(index, vol);
 
                     // Visual feedback Opacity on waveform
                     const ws = window.multitrack.wavesurfers[index];
                     if (ws) {
-                        ws.getWrapper().style.opacity = isMuted ? "0.3" : "1";
+                        ws.getWrapper().style.opacity = (isMuted || isHiddenMute) ? "0.3" : "1";
                     }
                 };
 
@@ -3054,20 +3098,56 @@ async function playLocal(index) {
                 }
 
                 const hideBtn = document.getElementById(`mt-hide-${i}`);
+                const hideMuteBtn = document.getElementById(`mt-hide-mute-${i}`);
+
+                const applyHideState = (index) => {
+                    const hBtn = document.getElementById(`mt-hide-${index}`);
+                    const hmBtn = document.getElementById(`mt-hide-mute-${index}`);
+                    const header = document.getElementById(`mt-header-${index}`);
+                    const ws = window.multitrack.wavesurfers[index];
+                    
+                    const isVisual = hBtn.classList.contains('active');
+                    const isFull = hmBtn.classList.contains('active');
+                    const isHidden = isVisual || isFull;
+
+                    if (header) {
+                        header.style.display = isHidden ? 'none' : 'flex';
+                    }
+                    if (ws) {
+                        const wsContainer = ws.getWrapper().parentElement;
+                        if (isHidden) {
+                            wsContainer.style.height = '0px';
+                            wsContainer.style.overflow = 'hidden';
+                            wsContainer.style.border = 'none';
+                            wsContainer.style.margin = '0px';
+                            wsContainer.style.padding = '0px';
+                        } else {
+                            wsContainer.style.height = '';
+                            wsContainer.style.overflow = '';
+                            wsContainer.style.border = '';
+                            wsContainer.style.margin = '';
+                            wsContainer.style.padding = '';
+                        }
+                    }
+                    updateTrackVol(index);
+                };
+
                 if (hideBtn) {
                     hideBtn.onclick = () => {
                         hideBtn.classList.toggle('active');
-                        const isHidden = hideBtn.classList.contains('active');
-                        
-                        // To fix alignment, we hide BOTH header and waveform completely
-                        headerDiv.style.display = isHidden ? 'none' : 'flex';
-                        
-                        const ws = window.multitrack.wavesurfers[i];
-                        if (ws) {
-                            const wsContainer = ws.getWrapper().parentElement;
-                            wsContainer.style.display = isHidden ? 'none' : 'block';
-                        }
-                        
+                        // Exclusivity: if we hide visually, we turn off hide&mute if it was on
+                        if (hideBtn.classList.contains('active')) hideMuteBtn.classList.remove('active');
+                        applyHideState(i);
+                        saveMultitrackSettings(file);
+                        updateHiddenTracksList(file);
+                    };
+                }
+
+                if (hideMuteBtn) {
+                    hideMuteBtn.onclick = () => {
+                        hideMuteBtn.classList.toggle('active');
+                        if (hideMuteBtn.classList.contains('active')) hideBtn.classList.remove('active');
+                        applyHideState(i);
                         saveMultitrackSettings(file);
                         updateHiddenTracksList(file);
                     };
@@ -6050,27 +6130,36 @@ function updateHiddenTracksList(file) {
     if (!container) return;
     container.innerHTML = "";
 
-    const settings = JSON.parse(localStorage.getItem(getMultitrackStorageKey(file)) || "{}");
-    const tracks = settings.tracks || [];
-    const hiddenTracks = tracks.filter(t => t.hidden);
+    // Reactive: Check DOM instead of localStorage
+    const hiddenEntries = [];
+    file.stems.forEach((stem, i) => {
+        const hBtn = document.getElementById(`mt-hide-${i}`);
+        const hmBtn = document.getElementById(`mt-hide-mute-${i}`);
+        if ((hBtn && hBtn.classList.contains('active')) || (hmBtn && hmBtn.classList.contains('active'))) {
+            hiddenEntries.push({
+                index: i,
+                name: stem.name || stem.path.split(/[\\/]/).pop().replace(/\.[^/.]+$/, ""),
+                isMuted: hmBtn && hmBtn.classList.contains('active')
+            });
+        }
+    });
 
-    if (hiddenTracks.length > 0) {
+    if (hiddenEntries.length > 0) {
         const btn = document.createElement("button");
         btn.className = "btn-secondary";
         btn.style.fontSize = "0.75em";
         btn.style.padding = "2px 8px";
-        btn.innerHTML = `<i class="ph ph-eye"></i> ${t('web.btn_show_hidden').replace('{count}', hiddenTracks.length)}`;
+        btn.innerHTML = `<i class="ph ph-eye"></i> ${t('web.btn_show_hidden').replace('{count}', hiddenEntries.length)}`;
         
         const list = document.createElement("div");
         list.id = "mt-hidden-list-popup";
-        list.style.cssText = "display:none; position:absolute; background:#252525; border:1px solid #444; border-radius:4px; padding:8px; z-index:200; box-shadow:0 4px 10px rgba(0,0,0,0.5); margin-top:5px; max-width:250px;";
+        list.style.cssText = "display:none; position:absolute; background:#252525; border:1px solid #444; border-radius:4px; padding:8px; z-index:200; box-shadow:0 4px 10px rgba(0,0,0,0.5); margin-top:-10px; max-width:250px;";
         
         btn.onclick = (e) => {
             e.stopPropagation();
-            list.style.display = list.style.display === "none" ? "block" : "none";
-            // Position list below button
             const rect = btn.getBoundingClientRect();
-            list.style.top = (rect.bottom + window.scrollY) + "px";
+            list.style.display = list.style.display === "none" ? "block" : "none";
+            list.style.top = (rect.bottom + window.scrollY + 5) + "px";
             list.style.left = rect.left + "px";
             if (!list.parentElement) document.body.appendChild(list);
         };
@@ -6078,21 +6167,22 @@ function updateHiddenTracksList(file) {
         document.addEventListener('click', () => { if(list) list.style.display = 'none'; });
         list.onclick = (e) => e.stopPropagation();
 
-        hiddenTracks.forEach(ht => {
+        hiddenEntries.forEach(he => {
             const item = document.createElement("div");
             item.style.cssText = "display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:5px; font-size:0.85em; border-bottom:1px solid #333; padding-bottom:3px;";
+            const icon = he.isMuted ? 'ph-eye-slash' : 'ph-eye';
             item.innerHTML = `
-                <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ht.name}</span>
-                <button class="btn-icon" style="padding:0 4px;" title="${t('web.btn_show')}"><i class="ph ph-eye"></i></button>
+                <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color: ${he.isMuted ? '#aaa' : '#fff'}">${he.name}</span>
+                <button class="btn-icon" style="padding:0 4px;" title="${t('web.btn_show')}"><i class="ph ${icon}"></i></button>
             `;
             item.querySelector('button').onclick = () => {
-                // Find original index
-                const idx = file.stems.findIndex(s => s.path === ht.path);
-                if (idx !== -1) {
-                    const hBtn = document.getElementById(`mt-hide-${idx}`);
-                    if (hBtn) hBtn.click(); // Trigger the original toggle logic
-                }
-                updateHiddenTracksList(file);
+                const hBtn = document.getElementById(`mt-hide-${he.index}`);
+                const hmBtn = document.getElementById(`mt-hide-mute-${he.index}`);
+                if (he.isMuted && hmBtn) hmBtn.click();
+                else if (hBtn) hBtn.click();
+                
+                // Close if no more
+                if (hiddenEntries.length <= 1) list.style.display = 'none';
             };
             list.appendChild(item);
         });
