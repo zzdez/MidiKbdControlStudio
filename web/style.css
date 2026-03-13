@@ -1706,11 +1706,12 @@ dialog::backdrop {
 .track-header {
     width: 200px;
     /* Increased to accommodate reorder buttons */
-    height: 72px;
+    height: 73px;
+    margin-bottom: 1px;
     /* 70px stem + 2px offset */
     background: #2a2a2a;
     border-right: 1px solid #333 !important;
-    border-bottom: 1px solid #333 !important;
+    border-bottom: 1px solid #333;
     padding: 2px 6px;
     display: flex;
     flex-direction: column;
@@ -1898,7 +1899,7 @@ dialog::backdrop {
     height: 70px;
     overflow: hidden;
     box-sizing: border-box;
-    border-bottom: 1px solid #333;
+    border-bottom: none;
 }
 
 /* Hide multitrack bottom scrollbar */

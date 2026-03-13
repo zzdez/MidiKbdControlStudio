@@ -2992,8 +2992,8 @@ async function playLocal(index) {
             header.id = `mt-header-${i}`;
             header.dataset.currentColor = waveCol;
             header.style.borderLeft = `4px solid ${waveCol}`;
-            header.style.borderTop = `1px solid ${waveCol}`;
-            header.style.borderBottom = `1px solid ${waveCol}`;
+            header.style.setProperty('border-top', `1px solid ${waveCol}`, 'important');
+            header.style.setProperty('border-bottom', `1px solid ${waveCol}`, 'important');
             header.style.borderRight = '1px solid #333';
             header.style.setProperty('border-right', '1px solid #333', 'important');
             header.style.boxSizing = 'border-box';
@@ -3306,7 +3306,14 @@ async function playLocal(index) {
                 if (ws && headerDiv) {
                     const wsContainer = ws.getWrapper().parentElement;
                     const h = wsContainer.offsetHeight;
-                    if (h > 0) headerDiv.style.height = (h + 2) + "px";
+                    if (h > 0) headerDiv.style.height = (h + 3) + "px";
+                    
+                    // Unified Horizontal Borders (Match Header)
+                    const stemCol = appliedColors[i];
+                    wsContainer.style.setProperty('border-top', `1px solid ${stemCol}`, 'important');
+                    wsContainer.style.setProperty('border-bottom', `1px solid ${stemCol}`, 'important');
+                    wsContainer.style.boxSizing = 'border-box';
+
                     wsContainer.oncontextmenu = (e) => { e.preventDefault(); showStemContextMenu(e, i); };
                 }
             });
