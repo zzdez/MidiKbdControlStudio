@@ -835,6 +835,7 @@ dialog::backdrop {
 .timeline-spacer.mt-spacer {
     width: 200px;
     padding-right: 10px;
+    border-right: 1px solid #333 !important;
 }
 
 .timeline-content {
@@ -1708,8 +1709,8 @@ dialog::backdrop {
     height: 72px;
     /* 70px stem + 2px offset */
     background: #2a2a2a;
-    border-right: 1px solid #333;
-    border-bottom: 1px solid #333;
+    border-right: 1px solid #333 !important;
+    border-bottom: 1px solid #333 !important;
     padding: 2px 6px;
     display: flex;
     flex-direction: column;
@@ -1718,6 +1719,10 @@ dialog::backdrop {
     flex-shrink: 0;
     box-sizing: border-box;
     overflow: hidden;
+}
+
+#multitrack-headers {
+    border-right: 1px solid #333 !important;
 }
 
 .track-title {

@@ -2588,7 +2588,13 @@ function initStemContextMenu() {
                 const fg = generateDarkerColor(bg);
                 ws.setOptions({ waveColor: bg, progressColor: fg });
                 const header = document.getElementById(`mt-header-${index}`);
-                if (header) header.style.borderLeft = `4px solid ${bg}`;
+                if (header) {
+                    header.dataset.currentColor = bg;
+                    header.style.borderLeft = `4px solid ${bg}`;
+                    header.style.borderTop = `1px solid ${bg}`;
+                    header.style.borderBottom = `1px solid ${bg}`;
+                    header.style.borderRight = '1px solid #333';
+                }
                 const file = localFiles[currentPlayingIndex];
                 if (file) saveMultitrackSettings(file);
             }
@@ -2726,8 +2732,6 @@ async function loadMultitrackSettings(file) {
                 if (hideBtn && trackData.hidden) hideBtn.classList.add('active');
                 if (hideMuteBtn && trackData.hidden_mute) hideMuteBtn.classList.add('active');
 
-                // Audio Logic handled by calculation loop below
-                
                 const isHidden = (trackData.hidden || trackData.hidden_mute);
                 if (isHidden) {
                     const hdiv = document.getElementById(`mt-header-${i}`);
@@ -2753,7 +2757,7 @@ async function loadMultitrackSettings(file) {
                         ws.media._panner.pan.value = trackData.pan;
                     }
                     const panSpan = document.getElementById(`mt-pan-val-${i}`);
-                    if (panSpan) panSpan.innerText = trackData.pan > 0 ? `R${Math.round(trackData.pan * 100)}` : (trackData.pan < 0 ? `L${Math.round(Math.abs(trackData.pan) * 100)}` : 'C');
+                    if (panSpan) panSpan.innerText = trackData.pan > 0 || trackData.pan < 0 ? (trackData.pan > 0 ? `R${Math.round(trackData.pan * 100)}` : `L${Math.round(Math.abs(trackData.pan) * 100)}`) : 'C';
                 }
 
                 if (trackData.color && ws) {
@@ -2761,52 +2765,30 @@ async function loadMultitrackSettings(file) {
                     const fg = generateDarkerColor(bg);
                     if (bg.startsWith('#')) {
                         ws.setOptions({ waveColor: bg, progressColor: fg });
+                        const header = document.getElementById(`mt-header-${i}`);
+                        if (header) {
+                            header.dataset.currentColor = bg;
+                            header.style.borderLeft = `4px solid ${bg}`;
+                            header.style.borderTop = `1px solid ${bg}`;
+                            header.style.borderBottom = `1px solid ${bg}`;
+                            header.style.borderRight = '1px solid #333';
+                        }
                     }
                 }
             });
 
-            // Re-trigger the solo/mute logic map for volumes
-            const anySolo = Array.from(document.querySelectorAll('.btn-solo')).some(b => b.classList.contains('active'));
-            const mstVol = settings.masterVolume !== undefined ? settings.masterVolume : 1.0;
-
-            file.stems.forEach((_, j) => {
-                const mBtn = document.getElementById(`mt-mute-${j}`);
-                const sBtn = document.getElementById(`mt-solo-${j}`);
-                const hBtn = document.getElementById(`mt-hide-${j}`);
-                const hmBtn = document.getElementById(`mt-hide-mute-${j}`);
-                const vSlider = document.getElementById(`mt-vol-${j}`);
-                const wss = window.multitrack.wavesurfers[j];
-
-                const isMuted = mBtn ? mBtn.classList.contains('active') : false;
-                const isSolo = sBtn ? sBtn.classList.contains('active') : false;
-                const isHiddenMute = hmBtn ? hmBtn.classList.contains('active') : false;
-                const baseVol = vSlider ? parseFloat(vSlider.value) : 1.0;
-
-                let finalVol = baseVol * mstVol;
-
-                if (isMuted || isHiddenMute) {
-                    finalVol = 0;
-                } else if (anySolo && !isSolo) {
-                    finalVol = 0;
-                }
-
-                window.multitrack.setTrackVolume(j, finalVol);
-                if (wss) {
-                    wss.getWrapper().style.opacity = finalVol === 0 ? "0.3" : "1";
-                }
-            });
-
-            // Update UI for hidden tracks list
+            if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
             updateHiddenTracksList(file);
-            
-            // Force redraw of loaded state
             setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+        } else {
+            if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
+            updateHiddenTracksList(file);
         }
-
     } catch (e) {
         console.error("Failed to parse saved multitrack settings:", e);
     }
 }
+
 async function playLocal(index) {
     const file = localFiles[index];
     if (!file) return;
@@ -2924,7 +2906,55 @@ async function playLocal(index) {
         const loadingIndicator = document.getElementById("multitrack-loading");
 
         if (loadingIndicator) loadingIndicator.style.display = "block";
+        if (trackHeaders) trackHeaders.innerHTML = "";
         if (trackWaveforms) trackWaveforms.innerHTML = "";
+
+        // ROBUST SYNC DEFINITION (At Top, scoped to this 'file' call)
+        window.syncAllMultitrackStates = () => {
+            if (!window.multitrack || !file) {
+                console.warn("[MT] Sync skipped: multitrack or file missing");
+                return;
+            }
+            const allHeaders = Array.from(document.querySelectorAll('#multitrack-headers .track-header'));
+            const anySolo = allHeaders.some(h => {
+                const s = h.querySelector('.btn-solo');
+                return s && s.classList.contains('active');
+            });
+            const mst = document.getElementById("multitrack-master-volume");
+            const mstVol = mst ? parseFloat(mst.value) : 1;
+
+            allHeaders.forEach(h => {
+                const idx = parseInt(h.id.replace('mt-header-', ''));
+                const mBtn = h.querySelector('.btn-mute');
+                const sBtn = h.querySelector('.btn-solo');
+                const hmBtn = h.querySelector('.btn-stem-hide-mute');
+                const vSlider = h.querySelector('.slider-vol');
+                const wss = window.multitrack.wavesurfers[idx];
+
+                if (!mBtn || !sBtn || !vSlider) return;
+
+                const isMuted = mBtn.classList.contains('active');
+                const isSoloed = sBtn.classList.contains('active');
+                const isHiddenMute = hmBtn ? hmBtn.classList.contains('active') : false;
+                const baseVol = parseFloat(vSlider.value);
+                
+                let finalVol = baseVol * mstVol;
+                let visualMuted = isMuted || isHiddenMute;
+
+                if (isMuted || isHiddenMute) {
+                    finalVol = 0;
+                } else if (anySolo && !isSoloed) {
+                    finalVol = 0;
+                    visualMuted = true;
+                }
+
+                window.multitrack.setTrackVolume(idx, finalVol);
+                if (wss) {
+                    wss.getWrapper().style.opacity = visualMuted ? "0.3" : "1";
+                }
+            });
+            console.log("[MT] Global sync complete (anySolo=" + anySolo + ")");
+        };
 
         initStemContextMenu();
 
@@ -2960,7 +2990,13 @@ async function playLocal(index) {
             const header = document.createElement('div');
             header.className = 'track-header';
             header.id = `mt-header-${i}`;
+            header.dataset.currentColor = waveCol;
             header.style.borderLeft = `4px solid ${waveCol}`;
+            header.style.borderTop = `1px solid ${waveCol}`;
+            header.style.borderBottom = `1px solid ${waveCol}`;
+            header.style.borderRight = '1px solid #333';
+            header.style.setProperty('border-right', '1px solid #333', 'important');
+            header.style.boxSizing = 'border-box';
             header.innerHTML = `
                 <div class="track-title-row" style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 2px;">
                     <span class="track-title" id="mt-title-${i}" title="Double-clic pour renommer">${stemName}</span>
@@ -2993,6 +3029,117 @@ async function playLocal(index) {
                 showStemContextMenu(e, i);
             };
 
+            // ATTACH LISTENERS IMMEDIATELY (Fix for broken buttons)
+            const muteBtn = header.querySelector('.btn-mute');
+            const soloBtn = header.querySelector('.btn-solo');
+            const volSlider = header.querySelector('.slider-vol');
+            const panSlider = header.querySelector('.slider-pan');
+            const hideBtn = header.querySelector('.btn-stem-hide');
+            const hideMuteBtn = header.querySelector('.btn-stem-hide-mute');
+            const deleteBtn = header.querySelector('.btn-stem-delete');
+
+            if (muteBtn) {
+                muteBtn.onclick = () => {
+                    muteBtn.classList.toggle('active');
+                    if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
+                    saveMultitrackSettings(file);
+                };
+            }
+
+            if (soloBtn) {
+                soloBtn.onclick = () => {
+                    soloBtn.classList.toggle('active');
+                    if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
+                    saveMultitrackSettings(file);
+                };
+            }
+
+            if (volSlider) {
+                volSlider.oninput = (e) => {
+                    const valSpan = document.getElementById(`mt-vol-val-${i}`);
+                    if (valSpan) valSpan.innerText = Math.round(parseFloat(e.target.value) * 100) + '%';
+                    if (muteBtn && muteBtn.classList.contains('active')) muteBtn.classList.remove('active');
+                    if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
+                    saveMultitrackSettings(file);
+                };
+            }
+
+            if (panSlider) {
+                panSlider.oninput = (e) => {
+                    const pan = parseFloat(e.target.value);
+                    const ws = window.multitrack ? window.multitrack.wavesurfers[i] : null;
+                    if (ws && ws.media && ws.media._panner) {
+                        ws.media._panner.pan.value = pan;
+                    }
+                    const panSpan = document.getElementById(`mt-pan-val-${i}`);
+                    if (panSpan) {
+                        if (pan === 0) panSpan.innerText = 'C';
+                        else if (pan < 0) panSpan.innerText = 'L' + Math.round(Math.abs(pan) * 100);
+                        else panSpan.innerText = 'R' + Math.round(pan * 100);
+                    }
+                    saveMultitrackSettings(file);
+                };
+            }
+
+            const applyHideState = (index) => {
+                const hb = document.getElementById(`mt-hide-${index}`);
+                const hmb = document.getElementById(`mt-hide-mute-${index}`);
+                const h = document.getElementById(`mt-header-${index}`);
+                const w = window.multitrack ? window.multitrack.wavesurfers[index] : null;
+                
+                const isHidden = (hb && hb.classList.contains('active')) || (hmb && hmb.classList.contains('active'));
+
+                if (h) h.style.display = isHidden ? 'none' : 'flex';
+                if (w) {
+                    const wsContainer = w.getWrapper().parentElement;
+                    if (isHidden) {
+                        wsContainer.style.height = '0px';
+                        wsContainer.style.overflow = 'hidden';
+                        wsContainer.style.border = 'none';
+                        wsContainer.style.margin = '0px';
+                        wsContainer.style.padding = '0px';
+                    } else {
+                        wsContainer.style.height = '';
+                        wsContainer.style.overflow = '';
+                        wsContainer.style.border = '';
+                        wsContainer.style.margin = '';
+                        wsContainer.style.padding = '';
+                    }
+                }
+                if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
+            };
+
+            if (hideBtn) {
+                hideBtn.onclick = () => {
+                    hideBtn.classList.toggle('active');
+                    if (hideBtn.classList.contains('active') && hideMuteBtn) hideMuteBtn.classList.remove('active');
+                    applyHideState(i);
+                    saveMultitrackSettings(file);
+                    updateHiddenTracksList(file);
+                };
+            }
+
+            if (hideMuteBtn) {
+                hideMuteBtn.onclick = () => {
+                    hideMuteBtn.classList.toggle('active');
+                    if (hideMuteBtn.classList.contains('active') && hideBtn) hideBtn.classList.remove('active');
+                    applyHideState(i);
+                    saveMultitrackSettings(file);
+                    updateHiddenTracksList(file);
+                };
+            }
+
+            if (deleteBtn) {
+                deleteBtn.onclick = async () => {
+                    if (confirm(t('web.msg_confirm_delete_stem'))) {
+                        try {
+                            const resp = await fetch(`/api/local/stem/${window.currentPlayingIndex}/${i}`, { method: 'DELETE' });
+                            if (resp.ok) { await loadLibrary(); playLocal(window.currentPlayingIndex); }
+                        } catch (e) { console.error("Delete stem failed:", e); }
+                    }
+                };
+            }
+
             // Setup Drag and Drop
             const dragHandle = header.querySelector('.drag-handle');
             dragHandle.onmouseenter = () => header.draggable = true;
@@ -3005,7 +3152,10 @@ async function playLocal(index) {
             };
             header.ondragend = () => {
                 header.style.opacity = "1";
-                document.querySelectorAll('.track-header').forEach(h => h.style.borderBottom = '1px solid #333');
+                document.querySelectorAll('.track-header').forEach(h => {
+                    const col = h.dataset.currentColor || '#333';
+                    h.style.borderBottom = `1px solid ${col}`;
+                });
             };
             header.ondragover = (e) => {
                 e.preventDefault(); // Necessary to allow dropping
@@ -3013,11 +3163,13 @@ async function playLocal(index) {
                 header.style.borderBottom = "2px solid var(--accent)";
             };
             header.ondragleave = () => {
-                header.style.borderBottom = '1px solid #333';
+                const col = header.dataset.currentColor || '#333';
+                header.style.borderBottom = `1px solid ${col}`;
             };
             header.ondrop = (e) => {
                 e.preventDefault();
-                header.style.borderBottom = '1px solid #333';
+                const col = header.dataset.currentColor || '#333';
+                header.style.borderBottom = `1px solid ${col}`;
                 const fromIdx = parseInt(e.dataTransfer.getData("text/plain"));
                 if (!isNaN(fromIdx) && fromIdx !== i) {
                     moveStem(fromIdx, i);
@@ -3132,9 +3284,9 @@ async function playLocal(index) {
             container: trackWaveforms,
             rightButtonDrag: false,
             cursorWidth: 2,
-            cursorColor: 'var(--accent)',
+            cursorColor: '#fff', // Changed from var(--accent) to eliminate vertical purple line at start
             trackBackground: '#2d2d2d',
-            trackBorderColor: '#7C7C7C',
+            trackBorderColor: '#333', // Match header border
             timelineOptions: {
                 height: 20,
                 style: {
@@ -3144,196 +3296,26 @@ async function playLocal(index) {
             }
         });
 
+        // Global Sync was moved to Top
+
         window.multitrack.once('canplay', () => {
             if (loadingIndicator) loadingIndicator.style.display = "none";
             file.stems.forEach((_, i) => {
-                const muteBtn = document.getElementById(`mt-mute-${i}`);
-                const soloBtn = document.getElementById(`mt-solo-${i}`);
-                const volSlider = document.getElementById(`mt-vol-${i}`);
-                const panSlider = document.getElementById(`mt-pan-${i}`);
                 const headerDiv = document.getElementById(`mt-header-${i}`);
-
-                // Dynamic strict height alignment block
                 const ws = window.multitrack.wavesurfers[i];
                 if (ws && headerDiv) {
                     const wsContainer = ws.getWrapper().parentElement;
                     const h = wsContainer.offsetHeight;
-                    if (h > 0) {
-                        headerDiv.style.height = (h + 2) + "px";
-                    } else {
-                        headerDiv.style.height = "72px";
-                    }
-
-                    // Attach context menu to waveform
-                    wsContainer.oncontextmenu = (e) => {
-                        e.preventDefault();
-                        showStemContextMenu(e, i);
-                    };
-                }
-
-                if (!muteBtn || !soloBtn || !volSlider) return;
-
-                const getMasterVol = () => {
-                    const mst = document.getElementById("multitrack-master-volume");
-                    return mst ? parseFloat(mst.value) : 1;
-                };
-
-                const updateTrackVol = (index) => {
-                    const mBtn = document.getElementById(`mt-mute-${index}`);
-                    const hmBtn = document.getElementById(`mt-hide-mute-${index}`);
-                    const vSlider = document.getElementById(`mt-vol-${index}`);
-                    const isMuted = mBtn.classList.contains('active');
-                    const isHiddenMute = hmBtn && hmBtn.classList.contains('active');
-                    const vol = (isMuted || isHiddenMute) ? 0 : (parseFloat(vSlider.value) * getMasterVol());
-                    window.multitrack.setTrackVolume(index, vol);
-
-                    // Visual feedback Opacity on waveform
-                    const ws = window.multitrack.wavesurfers[index];
-                    if (ws) {
-                        ws.getWrapper().style.opacity = (isMuted || isHiddenMute) ? "0.3" : "1";
-                    }
-                };
-
-                muteBtn.onclick = () => {
-                    muteBtn.classList.toggle('active');
-                    updateTrackVol(i);
-                    saveMultitrackSettings(file);
-                };
-
-                soloBtn.onclick = () => {
-                    soloBtn.classList.toggle('active');
-
-                    const anySolo = Array.from(document.querySelectorAll('.btn-solo')).some(b => b.classList.contains('active'));
-
-                    file.stems.forEach((_, j) => {
-                        const sBtn = document.getElementById(`mt-solo-${j}`);
-                        const wss = window.multitrack.wavesurfers[j];
-
-                        if (anySolo) {
-                            if (sBtn.classList.contains('active')) {
-                                updateTrackVol(j);
-                            } else {
-                                window.multitrack.setTrackVolume(j, 0); // Force mute if not soloed
-                                if (wss) wss.getWrapper().style.opacity = "0.3";
-                            }
-                        } else {
-                            updateTrackVol(j); // Restore normal state
-                        }
-                    });
-                    saveMultitrackSettings(file);
-                };
-
-                volSlider.oninput = (e) => {
-                    const valSpan = document.getElementById(`mt-vol-val-${i}`);
-                    if (valSpan) valSpan.innerText = Math.round(parseFloat(e.target.value) * 100) + '%';
-
-                    // Unmute if changing volume
-                    if (muteBtn.classList.contains('active')) {
-                        muteBtn.classList.remove('active');
-                    }
-                    updateTrackVol(i);
-                    saveMultitrackSettings(file);
-                };
-
-                if (panSlider) {
-                    panSlider.oninput = (e) => {
-                        const pan = parseFloat(e.target.value);
-                        const ws = window.multitrack.wavesurfers[i];
-                        if (ws && ws.media && ws.media._panner) {
-                            ws.media._panner.pan.value = pan;
-                        }
-
-                        const panSpan = document.getElementById(`mt-pan-val-${i}`);
-                        if (panSpan) {
-                            if (pan === 0) panSpan.innerText = 'C';
-                            else if (pan < 0) panSpan.innerText = 'L' + Math.round(Math.abs(pan) * 100);
-                            else panSpan.innerText = 'R' + Math.round(pan * 100);
-                        }
-
-                        saveMultitrackSettings(file);
-                    };
-                }
-
-                const hideBtn = document.getElementById(`mt-hide-${i}`);
-                const hideMuteBtn = document.getElementById(`mt-hide-mute-${i}`);
-
-                const applyHideState = (index) => {
-                    const hBtn = document.getElementById(`mt-hide-${index}`);
-                    const hmBtn = document.getElementById(`mt-hide-mute-${index}`);
-                    const header = document.getElementById(`mt-header-${index}`);
-                    const ws = window.multitrack.wavesurfers[index];
-                    
-                    const isVisual = hBtn.classList.contains('active');
-                    const isFull = hmBtn.classList.contains('active');
-                    const isHidden = isVisual || isFull;
-
-                    if (header) {
-                        header.style.display = isHidden ? 'none' : 'flex';
-                    }
-                    if (ws) {
-                        const wsContainer = ws.getWrapper().parentElement;
-                        if (isHidden) {
-                            wsContainer.style.height = '0px';
-                            wsContainer.style.overflow = 'hidden';
-                            wsContainer.style.border = 'none';
-                            wsContainer.style.margin = '0px';
-                            wsContainer.style.padding = '0px';
-                        } else {
-                            wsContainer.style.height = '';
-                            wsContainer.style.overflow = '';
-                            wsContainer.style.border = '';
-                            wsContainer.style.margin = '';
-                            wsContainer.style.padding = '';
-                        }
-                    }
-                    updateTrackVol(index);
-                };
-
-                if (hideBtn) {
-                    hideBtn.onclick = () => {
-                        hideBtn.classList.toggle('active');
-                        // Exclusivity: if we hide visually, we turn off hide&mute if it was on
-                        if (hideBtn.classList.contains('active')) hideMuteBtn.classList.remove('active');
-                        applyHideState(i);
-                        saveMultitrackSettings(file);
-                        updateHiddenTracksList(file);
-                    };
-                }
-
-                if (hideMuteBtn) {
-                    hideMuteBtn.onclick = () => {
-                        hideMuteBtn.classList.toggle('active');
-                        if (hideMuteBtn.classList.contains('active')) hideBtn.classList.remove('active');
-                        applyHideState(i);
-                        saveMultitrackSettings(file);
-                        updateHiddenTracksList(file);
-                    };
-                }
-
-                const deleteBtn = document.getElementById(`mt-delete-${i}`);
-                if (deleteBtn) {
-                    deleteBtn.onclick = async () => {
-                        if (confirm(t('web.msg_confirm_delete_stem'))) {
-                            try {
-                                const resp = await fetch(`/api/local/stem/${index}/${i}`, { method: 'DELETE' });
-                                if (resp.ok) {
-                                    // Reload library to update everything
-                                    await loadLibrary(); 
-                                    playLocal(index);
-                                } else {
-                                    alert("Erreur lors de la suppression");
-                                }
-                            } catch (e) {
-                                console.error("Delete stem failed:", e);
-                            }
-                        }
-                    };
+                    if (h > 0) headerDiv.style.height = (h + 2) + "px";
+                    wsContainer.oncontextmenu = (e) => { e.preventDefault(); showStemContextMenu(e, i); };
                 }
             });
 
             // Restore saved settings on load
             loadMultitrackSettings(file);
             updateHiddenTracksList(file);
+
+            if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
 
             const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
             if (isAutoplay) {
