@@ -76,6 +76,64 @@ header {
     overflow-y: auto;
 }
 
+/* ==========================================
+   API RESULTS MODAL MODIFICATIONS
+   ========================================== */
+.api-modal {
+    z-index: 2000;
+}
+
+.api-results-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.api-result-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.api-result-item:hover {
+    border-color: var(--accent);
+    background: var(--surface-hover);
+}
+
+.api-result-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.api-result-title {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.api-result-artist {
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+
+.api-result-meta {
+    display: flex;
+    gap: 15px;
+    font-size: 0.85em;
+    color: var(--accent);
+}
+
+/* ==========================================
+   FORMS & INPUTS
+   ========================================== */
+
 /* YOUTUBE PLAYER */
 #video-container {
     /* Responsive Flex Sizing */
@@ -1070,6 +1128,23 @@ dialog::backdrop {
     /* Hidden by default */
 }
 
+.api-result-meta {
+    font-size: 0.8em;
+    color: #888;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.api-genre {
+    color: #4CAF50;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 #chapter-list-title {
     font-size: 0.8em;
     color: #888;
@@ -1675,24 +1750,40 @@ dialog::backdrop {
 }
 
 .btn-mute,
-.btn-solo {
+.btn-solo,
+.btn-stem-hide,
+.btn-stem-hide-mute,
+.btn-stem-delete {
     background: #333;
     color: #888;
     border: 1px solid #444;
     border-radius: 3px;
-    padding: 1px 0;
+    padding: 0;
+    width: 24px;
+    height: 15px;
+    max-height: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.65em;
     cursor: pointer;
     font-weight: bold;
     transition: all 0.2s ease;
-    flex: 1;
-    text-align: center;
+    flex: 0 0 24px;
 }
 
 .btn-mute:hover:not(.active),
-.btn-solo:hover:not(.active) {
+.btn-solo:hover:not(.active),
+.btn-stem-hide:hover:not(.active),
+.btn-stem-hide-mute:hover:not(.active),
+.btn-stem-delete:hover {
     background: #444;
     color: #ccc;
+}
+
+.btn-stem-delete:hover {
+    color: #e74c3c;
+    border-color: #e74c3c;
 }
 
 .btn-mute.active {
@@ -1707,6 +1798,18 @@ dialog::backdrop {
     color: #111;
     border-color: #f39c12;
     box-shadow: 0 0 5px rgba(241, 196, 15, 0.4);
+}
+
+.btn-stem-hide.active,
+.btn-stem-hide-mute.active {
+    background: #3498db;
+    color: #fff;
+    border-color: #2980b9;
+}
+
+.track-header.track-hidden {
+    opacity: 0.4;
+    filter: grayscale(0.8);
 }
 
 .track-slider-row {

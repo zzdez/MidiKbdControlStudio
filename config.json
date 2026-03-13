@@ -1,9 +1,0 @@
-{
-    "settings": {
-        "midi_device_name": "AIRSTEP",
-        "connection_mode": "BLE",
-        "media_folders": [
-            "D:/ZZDeZ/Music/Arobas Music - Guitar Pro 8.0.1 Build 28 x64 + Soundbanks"
-        ]
-    }
-}

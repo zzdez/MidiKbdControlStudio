@@ -54,8 +54,12 @@
             "label": "Bouton 3 (Boss)"
         },
         {
-            "cc": 0,
-            "label": "N/A"
+            "cc": -1,
+            "label": "test"
+        },
+        {
+            "cc": -2,
+            "label": "test2"
         }
     ]
 }

@@ -15,7 +15,7 @@
             "action_modifier_scan_codes": []
         },
         {
-            "name": "Retour au D\u00e9but",
+            "name": "Retour au Début",
             "midi_cc": 55,
             "midi_channel": 16,
             "trigger_value": "any",
@@ -27,7 +27,7 @@
             "custom_icon": null
         },
         {
-            "name": "Acc\u00e9l\u00e9rer",
+            "name": "Accélérer",
             "midi_cc": 58,
             "midi_channel": 16,
             "trigger_value": "any",
@@ -40,7 +40,7 @@
             "action_modifier_scan_codes": [
                 56
             ],
-            "custom_icon": null
+            "custom_icon": "⏱"
         },
         {
             "name": "Ralentir",
@@ -56,7 +56,7 @@
             "action_modifier_scan_codes": [
                 56
             ],
-            "custom_icon": null
+            "custom_icon": "⏱"
         },
         {
             "name": "Avance 10s",

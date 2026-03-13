@@ -62,10 +62,11 @@ Elle combine le meilleur de deux mondes :
     *   **Smart Close :** Fermez la remote sans être dérangé par la fenêtre principale (qui reste dans le Tray).
     *   **Feedback Visuel Unifié :** Les boutons clignotent que l'action vienne du MIDI, du Clavier (HID) ou du clic souris.
 *   **Persistance Sidecar JSON (Nouveau !) :**
-    *   Toutes vos modifications (BPM, Tonalité, Pitch, Notes) sont désormais sauvegardées dans un petit fichier `.json` à côté de vos médias locaux.
+    *   Toutes vos modifications (BPM, Tonalité Originale, Tonalité Média, Pitch, Notes) sont désormais sauvegardées dans un petit fichier `.json` à côté de vos médias locaux.
     *   Vos métadonnées vous suivent partout, même si vous déplacez vos dossiers.
 *   **Éditeur de Médias Harmonisé :**
     *   Interface ultra-compacte et professionnelle, identique pour tous les types de médias (YouTube, Local, Multipiste).
+    *   **NOUVEAU ! Ligne Technique Unifiée** : BPM, Tonalité Originale, Tonalité Média, Pitch Original et Pitch Média sont désormais regroupés sur une seule ligne pour une visibilité instantanée sans défilement.
     *   **Nouveau !** Modale de notes dédiée fusionnant la description YouTube et vos propres mémos techniques.
     *   **Optimisation Vision :** Plus de barre de défilement parasite dans les modales, tout est accessible en un coup d'œil.
 

@@ -18,6 +18,7 @@ import mutagen
 import time
 import logging # Ensure logging is imported if not already, though it seems used elsewhere
 import base64
+from concurrent.futures import ThreadPoolExecutor
 from utils import get_app_dir, get_data_dir
 from i18n import _
 # Mutagen imports removed as they are now in metadata_service
@@ -258,8 +259,33 @@ async def set_active_profile(data: Dict):
 
 @app.get("/api/metadata/search")
 async def api_metadata_search(q: str):
-    """Recherche des métadonnées via MusicBrainz."""
-    return metadata_service.search(q)
+    """Recherche des métadonnées via MusicBrainz (iTunes) et enrichissement BPM/Key en parallèle."""
+    results = metadata_service.search(q)
+    
+    # Enrichment: Fetch BPM/Key for top results in parallel
+    top_results = results[:5]
+    
+    def fetch_and_merge(item):
+        try:
+            music_data = music_api_client.fetch_metadata(item['artist'], item['title'])
+            if music_data:
+                if isinstance(music_data, list) and len(music_data) > 0:
+                    best = music_data[0]
+                    item['bpm'] = best.get('bpm')
+                    item['key'] = best.get('key')
+                elif isinstance(music_data, dict):
+                    item['bpm'] = music_data.get('bpm')
+                    item['key'] = music_data.get('key')
+        except Exception as e:
+            logging.error(f"Enrichment error for {item['title']}: {e}")
+        return item
+
+    # Use ThreadPoolExecutor for I/O bound parallel tasks
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        enriched_results = list(executor.map(fetch_and_merge, top_results))
+        
+    # Combine with the rest of non-enriched results
+    return enriched_results + results[5:]
 
 @app.get("/api/media/metadata")
 async def api_media_metadata(artist: str = "", title: str = ""):
@@ -512,6 +538,11 @@ async def update_setlist_item(index: int, item: Dict):
                 "artist": item.get("artist", ""),
                 "channel": item.get("channel", ""),
                 "thumbnail": item.get("thumbnail", ""),
+                "bpm": item.get("bpm", ""),
+                "key": item.get("key", ""),
+                "media_key": item.get("media_key", ""),
+                "original_pitch": item.get("original_pitch", ""),
+                "target_pitch": item.get("target_pitch", ""),
                 "youtube_description": item.get("youtube_description", ""),
                 "target_profile": target_profile,
                 "user_notes": item.get("user_notes", ""),
@@ -583,8 +614,7 @@ async def get_settings():
         "YOUTUBE_API_KEY": config_manager.get("YOUTUBE_API_KEY", ""),
         "spotify_client_id": config_manager.get("spotify_client_id", ""),
         "spotify_client_secret": config_manager.get("spotify_client_secret", ""),
-        "getsongbpm_api_key": config_manager.get("getsongbpm_api_key", ""),
-        "getsongkey_api_key": config_manager.get("getsongkey_api_key", ""),
+        "getsong_api_key": config_manager.get("getsong_api_key") or config_manager.get("getsongbpm_api_key") or "",
         "media_folders": config_manager.get("media_folders", []),
         "midi_output_names": config_manager.get("midi_output_names", []),
         "midi_output_name": config_manager.get("midi_output_name", ""), # Legacy fallback
@@ -945,6 +975,7 @@ async def update_local_file(index: int, item: Dict):
             current["loops"] = item.get("loops", current.get("loops", []))
             current["bpm"] = item.get("bpm", current.get("bpm", ""))
             current["key"] = item.get("key", current.get("key", ""))
+            current["media_key"] = item.get("media_key", current.get("media_key", ""))
             current["original_pitch"] = item.get("original_pitch", current.get("original_pitch", ""))
             current["target_pitch"] = item.get("target_pitch", current.get("target_pitch", ""))
             current["autoplay"] = item.get("autoplay", current.get("autoplay", False))
@@ -1109,6 +1140,93 @@ async def delete_local_file(index: int):
         return items
     except Exception as e:
          raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/local/stem/{index}/{stem_index}")
+async def delete_local_stem(index: int, stem_index: int):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+            with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+
+        if 0 <= index < len(items):
+            item = items[index]
+            if item.get("is_multitrack") and "stems" in item:
+                stems = item["stems"]
+                if 0 <= stem_index < len(stems):
+                    stem_path = stems[stem_index]
+                    
+                    # 1. Delete physical file
+                    if os.path.exists(stem_path):
+                        try:
+                            os.remove(stem_path)
+                            logging.info(f"[BACKEND] Stem deleted: {stem_path}")
+                        except Exception as e:
+                            logging.error(f"[BACKEND] Failed to delete file {stem_path}: {e}")
+                            # We continue to update JSON even if file delete failed (maybe already gone)
+                    
+                    # 2. Update metadata
+                    stems.pop(stem_index)
+                    
+                    # If it was the last stem, maybe we should alert? 
+                    # But user might want to delete all stems.
+                    
+                    with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                        json.dump(items, f, indent=4)
+                        
+                    return {"status": "ok", "message": "Stem deleted", "items": items}
+            
+            raise HTTPException(status_code=404, detail="Stem or multitrack not found")
+        else:
+            raise HTTPException(status_code=404, detail="Index not found")
+    except Exception as e:
+         logging.error(f"Delete Stem Error: {e}")
+         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/local/multitrack_settings/{index}")
+async def get_multitrack_settings(index: int):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+                 
+        if 0 <= index < len(items):
+            path = items[index]["path"]
+            if os.path.isdir(path):
+                settings_file = os.path.join(path, "airstep_meta.json")
+                if os.path.exists(settings_file):
+                    with open(settings_file, "r", encoding="utf-8") as f:
+                        return json.load(f)
+            return {}
+        else:
+             raise HTTPException(status_code=404, detail="Index not found")
+    except Exception as e:
+        print(f"Get Settings Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/local/multitrack_settings/{index}")
+async def save_multitrack_settings(index: int, request: Request):
+    try:
+        settings = await request.json()
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+                 
+        if 0 <= index < len(items):
+            path = items[index]["path"]
+            if os.path.isdir(path):
+                settings_file = os.path.join(path, "airstep_meta.json")
+                with open(settings_file, "w", encoding="utf-8") as f:
+                    json.dump(settings, f, indent=4)
+                return {"status": "ok"}
+            return {"status": "error", "message": "Not a directory"}
+        else:
+             raise HTTPException(status_code=404, detail="Index not found")
+    except Exception as e:
+        print(f"Save Settings Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/local/art/{index}")
 async def get_local_art(index: int):

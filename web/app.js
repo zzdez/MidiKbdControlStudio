@@ -950,11 +950,8 @@ async function openSettingsModal() {
         const sSecret = document.getElementById("setting-spotify-client-secret");
         if (sSecret) sSecret.value = currentSettings.spotify_client_secret || "";
 
-        const gBpm = document.getElementById("setting-getsongbpm-api-key");
-        if (gBpm) gBpm.value = currentSettings.getsongbpm_api_key || "";
-
-        const gKey = document.getElementById("setting-getsongkey-api-key");
-        if (gKey) gKey.value = currentSettings.getsongkey_api_key || "";
+        const getsongKey = document.getElementById("setting-getsong-api-key");
+        if (getsongKey) getsongKey.value = currentSettings.getsong_api_key || "";
 
         const apCb = document.getElementById("setting-autoplay");
         if (apCb) apCb.checked = currentSettings.autoplay !== false; // Default to true
@@ -1098,11 +1095,8 @@ async function saveSettings() {
     const sSecret = document.getElementById("setting-spotify-client-secret");
     if (sSecret) currentSettings.spotify_client_secret = sSecret.value;
 
-    const gBpm = document.getElementById("setting-getsongbpm-api-key");
-    if (gBpm) currentSettings.getsongbpm_api_key = gBpm.value;
-
-    const gKey = document.getElementById("setting-getsongkey-api-key");
-    if (gKey) currentSettings.getsongkey_api_key = gKey.value;
+    const getsongKey = document.getElementById("setting-getsong-api-key");
+    if (getsongKey) currentSettings.getsong_api_key = getsongKey.value;
 
     const apCb = document.getElementById("setting-autoplay");
     if (apCb) currentSettings.autoplay = apCb.checked;
@@ -1219,6 +1213,7 @@ function openEditModal(index) {
     document.getElementById("edit-target-profile").value = track.target_profile || "Auto";
     document.getElementById("edit-bpm").value = track.bpm || "";
     document.getElementById("edit-key").value = track.key || "";
+    document.getElementById("edit-media-key").value = track.media_key || "";
     document.getElementById("edit-original-pitch").value = track.original_pitch || "";
     document.getElementById("edit-target-pitch").value = track.target_pitch || "";
 
@@ -1684,6 +1679,7 @@ async function saveItem() {
         volume: volume,
         bpm: document.getElementById("edit-bpm").value,
         key: document.getElementById("edit-key").value,
+        media_key: document.getElementById("edit-media-key").value,
         original_pitch: document.getElementById("edit-original-pitch").value,
         target_pitch: document.getElementById("edit-target-pitch").value,
         subtitle_enabled: window.tempModalSubEnabled || false,
@@ -2524,6 +2520,9 @@ function getMultitrackStorageKey(file) {
 function saveMultitrackSettings(file) {
     if (!window.multitrack || !file) return;
 
+    const index = currentPlayingIndex;
+    if (index === null) return;
+
     // Debounce to avoid flooding localStorage when sliding quickly or playing
     clearTimeout(mtSaveTimeout);
     mtSaveTimeout = setTimeout(() => {
@@ -2537,6 +2536,8 @@ function saveMultitrackSettings(file) {
         file.stems.forEach((stem, i) => {
             const muteBtn = document.getElementById(`mt-mute-${i}`);
             const soloBtn = document.getElementById(`mt-solo-${i}`);
+            const hideBtn = document.getElementById(`mt-hide-${i}`);
+            const hideMuteBtn = document.getElementById(`mt-hide-mute-${i}`);
             const volSlider = document.getElementById(`mt-vol-${i}`);
             const panSlider = document.getElementById(`mt-pan-${i}`);
 
@@ -2545,53 +2546,93 @@ function saveMultitrackSettings(file) {
                 name: stem.name,
                 mute: muteBtn ? muteBtn.classList.contains('active') : false,
                 solo: soloBtn ? soloBtn.classList.contains('active') : false,
+                hidden: hideBtn ? hideBtn.classList.contains('active') : false,
+                hidden_mute: hideMuteBtn ? hideMuteBtn.classList.contains('active') : false,
                 volume: volSlider ? parseFloat(volSlider.value) : 1.0,
                 pan: panSlider ? parseFloat(panSlider.value) : 0.0
             });
         });
 
+        // Send to backend for persistent storage (Sidecar)
+        fetch(`/api/local/multitrack_settings/${index}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(settings)
+        }).catch(e => console.error("Save Settings API Error:", e));
+
+        // Fallback/Legacy: Still save to localStorage for instant local responsiveness
         localStorage.setItem(getMultitrackStorageKey(file), JSON.stringify(settings));
     }, 500); // 500ms debounce
 }
 
-function loadMultitrackSettings(file) {
-    if (!window.multitrack || !file) return;
-
-    const saved = localStorage.getItem(getMultitrackStorageKey(file));
-    if (!saved) return;
+async function loadMultitrackSettings(file) {
+    const index = currentPlayingIndex;
+    if (index === null) return;
 
     try {
-        const settings = JSON.parse(saved);
-
-        if (settings.masterVolume !== undefined) {
-            const mst = document.getElementById("multitrack-master-volume");
-            if (mst) {
-                mst.value = settings.masterVolume;
-                const mstPerc = document.getElementById("multitrack-master-volume-percent");
-                if (mstPerc) mstPerc.innerText = Math.round(settings.masterVolume * 100) + '%';
-            }
+        // 1. Try Backend first
+        const resp = await fetch(`/api/local/multitrack_settings/${index}`);
+        let settings = null;
+        if (resp.ok) {
+            settings = await resp.json();
         }
 
-        if (settings.autoplay !== undefined) file.autoplay = settings.autoplay;
-        if (settings.autoreplay !== undefined) file.autoreplay = settings.autoreplay;
+        // 2. Fallback to LocalStorage if backend empty or API failed
+        if (!settings || !settings.tracks) {
+            settings = JSON.parse(localStorage.getItem(getMultitrackStorageKey(file)) || "{}");
+        }
 
-        if (settings.tracks && Array.isArray(settings.tracks)) {
+        if (settings && settings.tracks) {
+            // Apply master volume, autoplay, autoreplay
+            if (settings.masterVolume !== undefined) {
+                const mst = document.getElementById("multitrack-master-volume");
+                if (mst) {
+                    mst.value = settings.masterVolume;
+                    const mstPerc = document.getElementById("multitrack-master-volume-percent");
+                    if (mstPerc) mstPerc.innerText = Math.round(settings.masterVolume * 100) + '%';
+                }
+            }
+
+            if (settings.autoplay !== undefined) file.autoplay = settings.autoplay;
+            if (settings.autoreplay !== undefined) file.autoreplay = settings.autoreplay;
+
             settings.tracks.forEach((trackData, i) => {
                 const muteBtn = document.getElementById(`mt-mute-${i}`);
                 const soloBtn = document.getElementById(`mt-solo-${i}`);
+                const hideBtn = document.getElementById(`mt-hide-${i}`);
+                const hideMuteBtn = document.getElementById(`mt-hide-mute-${i}`);
                 const volSlider = document.getElementById(`mt-vol-${i}`);
                 const panSlider = document.getElementById(`mt-pan-${i}`);
+                const ws = window.multitrack.wavesurfers[i];
 
                 if (muteBtn && trackData.mute) muteBtn.classList.add('active');
                 if (soloBtn && trackData.solo) soloBtn.classList.add('active');
+                if (hideBtn && trackData.hidden) hideBtn.classList.add('active');
+                if (hideMuteBtn && trackData.hidden_mute) hideMuteBtn.classList.add('active');
+
+                // Audio Logic handled by calculation loop below
+                
+                const isHidden = (trackData.hidden || trackData.hidden_mute);
+                if (isHidden) {
+                    const hdiv = document.getElementById(`mt-header-${i}`);
+                    if (hdiv) hdiv.style.display = 'none';
+                    if (ws) {
+                        const wsContainer = ws.getWrapper().parentElement;
+                        wsContainer.style.height = '0px';
+                        wsContainer.style.overflow = 'hidden';
+                        wsContainer.style.border = 'none';
+                        wsContainer.style.margin = '0px';
+                        wsContainer.style.padding = '0px';
+                    }
+                }
+
                 if (volSlider && trackData.volume !== undefined) {
                     volSlider.value = trackData.volume;
                     const valSpan = document.getElementById(`mt-vol-val-${i}`);
-                    if (valSpan) valSpan.innerText = Math.round(trackData.volume * 100) + '%';
+                    if (valSpan) valSpan.innerText = Math.round(trackData.volume * 100) + "%";
                 }
                 if (panSlider && trackData.pan !== undefined) {
                     panSlider.value = trackData.pan;
-                    const ws = window.multitrack.wavesurfers[i];
                     if (ws && ws.media && ws.media._panner) {
                         ws.media._panner.pan.value = trackData.pan;
                     }
@@ -2607,16 +2648,19 @@ function loadMultitrackSettings(file) {
             file.stems.forEach((_, j) => {
                 const mBtn = document.getElementById(`mt-mute-${j}`);
                 const sBtn = document.getElementById(`mt-solo-${j}`);
+                const hBtn = document.getElementById(`mt-hide-${j}`);
+                const hmBtn = document.getElementById(`mt-hide-mute-${j}`);
                 const vSlider = document.getElementById(`mt-vol-${j}`);
                 const wss = window.multitrack.wavesurfers[j];
 
                 const isMuted = mBtn ? mBtn.classList.contains('active') : false;
                 const isSolo = sBtn ? sBtn.classList.contains('active') : false;
+                const isHiddenMute = hmBtn ? hmBtn.classList.contains('active') : false;
                 const baseVol = vSlider ? parseFloat(vSlider.value) : 1.0;
 
                 let finalVol = baseVol * mstVol;
 
-                if (isMuted) {
+                if (isMuted || isHiddenMute) {
                     finalVol = 0;
                 } else if (anySolo && !isSolo) {
                     finalVol = 0;
@@ -2627,6 +2671,12 @@ function loadMultitrackSettings(file) {
                     wss.getWrapper().style.opacity = finalVol === 0 ? "0.3" : "1";
                 }
             });
+
+            // Update UI for hidden tracks list
+            updateHiddenTracksList(file);
+            
+            // Force redraw of loaded state
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
         }
 
     } catch (e) {
@@ -2751,6 +2801,16 @@ async function playLocal(index) {
 
         if (loadingIndicator) loadingIndicator.style.display = "block";
         if (trackWaveforms) trackWaveforms.innerHTML = "";
+
+        // Add hidden tracks container if not exists
+        let hiddenContainer = document.getElementById("mt-hidden-tracks-container");
+        if (!hiddenContainer) {
+            hiddenContainer = document.createElement("div");
+            hiddenContainer.id = "mt-hidden-tracks-container";
+            hiddenContainer.style.cssText = "margin-top: 10px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;";
+            document.getElementById("multitrack-header").appendChild(hiddenContainer);
+        }
+        hiddenContainer.innerHTML = "";
         // Inject track headers
         trackHeaders.innerHTML = '';
         file.stems.forEach((stem, i) => {
@@ -2763,8 +2823,11 @@ async function playLocal(index) {
                     <span class="track-title" id="mt-title-${i}" title="Double-clic pour renommer">${stemName}</span>
                 </div>
                 <div class="track-controls" style="display:flex; gap:3px; align-items:center; margin-bottom:2px;">
-                    <button class="btn-mute" id="mt-mute-${i}" style="flex: 0 0 24px;">M</button>
+                    <button class="btn-mute" id="mt-mute-${i}" style="flex: 0 0 24px;" title="${t('web.hint_mute')}">M</button>
                     <button class="btn-solo" id="mt-solo-${i}" style="flex: 0 0 24px;">S</button>
+                    <button class="btn-stem-hide" id="mt-hide-${i}" style="flex: 0 0 24px;" title="${t('web.btn_hide')}"><i class="ph ph-eye"></i></button>
+                    <button class="btn-stem-hide-mute" id="mt-hide-mute-${i}" style="flex: 0 0 24px;" title="${t('web.btn_hide_mute')}"><i class="ph ph-eye-slash"></i></button>
+                    <button class="btn-stem-delete" id="mt-delete-${i}" style="flex: 0 0 24px;" title="${t('web.btn_delete_stem')}"><i class="ph ph-trash"></i></button>
                     <div style="flex:1"></div>
                     <i class="ph ph-hand-grabbing drag-handle" title="Déplacer" style="cursor: grab; font-size: 1.1em; color: #888;"></i>
                 </div>
@@ -2960,15 +3023,17 @@ async function playLocal(index) {
 
                 const updateTrackVol = (index) => {
                     const mBtn = document.getElementById(`mt-mute-${index}`);
+                    const hmBtn = document.getElementById(`mt-hide-mute-${index}`);
                     const vSlider = document.getElementById(`mt-vol-${index}`);
                     const isMuted = mBtn.classList.contains('active');
-                    const vol = isMuted ? 0 : (parseFloat(vSlider.value) * getMasterVol());
+                    const isHiddenMute = hmBtn && hmBtn.classList.contains('active');
+                    const vol = (isMuted || isHiddenMute) ? 0 : (parseFloat(vSlider.value) * getMasterVol());
                     window.multitrack.setTrackVolume(index, vol);
 
                     // Visual feedback Opacity on waveform
                     const ws = window.multitrack.wavesurfers[index];
                     if (ws) {
-                        ws.getWrapper().style.opacity = isMuted ? "0.3" : "1";
+                        ws.getWrapper().style.opacity = (isMuted || isHiddenMute) ? "0.3" : "1";
                     }
                 };
 
@@ -3031,10 +3096,87 @@ async function playLocal(index) {
                         saveMultitrackSettings(file);
                     };
                 }
+
+                const hideBtn = document.getElementById(`mt-hide-${i}`);
+                const hideMuteBtn = document.getElementById(`mt-hide-mute-${i}`);
+
+                const applyHideState = (index) => {
+                    const hBtn = document.getElementById(`mt-hide-${index}`);
+                    const hmBtn = document.getElementById(`mt-hide-mute-${index}`);
+                    const header = document.getElementById(`mt-header-${index}`);
+                    const ws = window.multitrack.wavesurfers[index];
+                    
+                    const isVisual = hBtn.classList.contains('active');
+                    const isFull = hmBtn.classList.contains('active');
+                    const isHidden = isVisual || isFull;
+
+                    if (header) {
+                        header.style.display = isHidden ? 'none' : 'flex';
+                    }
+                    if (ws) {
+                        const wsContainer = ws.getWrapper().parentElement;
+                        if (isHidden) {
+                            wsContainer.style.height = '0px';
+                            wsContainer.style.overflow = 'hidden';
+                            wsContainer.style.border = 'none';
+                            wsContainer.style.margin = '0px';
+                            wsContainer.style.padding = '0px';
+                        } else {
+                            wsContainer.style.height = '';
+                            wsContainer.style.overflow = '';
+                            wsContainer.style.border = '';
+                            wsContainer.style.margin = '';
+                            wsContainer.style.padding = '';
+                        }
+                    }
+                    updateTrackVol(index);
+                };
+
+                if (hideBtn) {
+                    hideBtn.onclick = () => {
+                        hideBtn.classList.toggle('active');
+                        // Exclusivity: if we hide visually, we turn off hide&mute if it was on
+                        if (hideBtn.classList.contains('active')) hideMuteBtn.classList.remove('active');
+                        applyHideState(i);
+                        saveMultitrackSettings(file);
+                        updateHiddenTracksList(file);
+                    };
+                }
+
+                if (hideMuteBtn) {
+                    hideMuteBtn.onclick = () => {
+                        hideMuteBtn.classList.toggle('active');
+                        if (hideMuteBtn.classList.contains('active')) hideBtn.classList.remove('active');
+                        applyHideState(i);
+                        saveMultitrackSettings(file);
+                        updateHiddenTracksList(file);
+                    };
+                }
+
+                const deleteBtn = document.getElementById(`mt-delete-${i}`);
+                if (deleteBtn) {
+                    deleteBtn.onclick = async () => {
+                        if (confirm(t('web.msg_confirm_delete_stem'))) {
+                            try {
+                                const resp = await fetch(`/api/local/stem/${index}/${i}`, { method: 'DELETE' });
+                                if (resp.ok) {
+                                    // Reload library to update everything
+                                    await loadLibrary(); 
+                                    playLocal(index);
+                                } else {
+                                    alert("Erreur lors de la suppression");
+                                }
+                            } catch (e) {
+                                console.error("Delete stem failed:", e);
+                            }
+                        }
+                    };
+                }
             });
 
             // Restore saved settings on load
             loadMultitrackSettings(file);
+            updateHiddenTracksList(file);
 
             const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
             if (isAutoplay) {
@@ -4160,6 +4302,7 @@ function openEditLocalModal(index) {
     document.getElementById("local-year").value = item.year || "";
     document.getElementById("local-bpm").value = item.bpm || "";
     document.getElementById("local-key").value = item.key || "";
+    document.getElementById("local-media-key").value = item.media_key || "";
     document.getElementById("local-original-pitch").value = item.original_pitch || "";
     document.getElementById("local-target-pitch").value = item.target_pitch || "";
     document.getElementById("local-target-profile").value = item.target_profile || "Auto";
@@ -4219,6 +4362,7 @@ function openMultitrackModal(index) {
     document.getElementById("mt-year").value = item.year || "";
     document.getElementById("mt-bpm").value = item.bpm || "";
     document.getElementById("mt-key").value = item.key || "";
+    document.getElementById("mt-media-key").value = item.media_key || "";
     document.getElementById("mt-original-pitch").value = item.original_pitch || "";
     document.getElementById("mt-target-pitch").value = item.target_pitch || "";
     document.getElementById("mt-target-profile").value = item.target_profile || "Auto";
@@ -4269,6 +4413,7 @@ async function saveMultitrackItem() {
         year: document.getElementById("mt-year").value,
         bpm: document.getElementById("mt-bpm").value,
         key: document.getElementById("mt-key").value,
+        media_key: document.getElementById("mt-media-key").value,
         original_pitch: document.getElementById("mt-original-pitch").value,
         target_pitch: document.getElementById("mt-target-pitch").value,
         target_profile: document.getElementById("mt-target-profile").value,
@@ -4316,62 +4461,7 @@ function removeMultitrackCover() {
 }
 
 async function autoTagMultitrack() {
-    const title = document.getElementById("mt-title").value;
-    const artist = document.getElementById("mt-artist").value;
-    if (!title && !artist) return;
-
-    const resultsArea = document.getElementById("mt-auto-tag-results");
-    resultsArea.innerHTML = `<div style='padding:10px; color:gray;'>${t("gui.status_scanning")}</div>`;
-    resultsArea.style.display = "flex";
-
-    try {
-        const query = (artist ? artist + " " : "") + title;
-        const res = await fetch(`/api/metadata/search?q=${encodeURIComponent(query)}`);
-        const results = await res.json();
-
-        resultsArea.innerHTML = "";
-        if (results.length === 0) {
-            resultsArea.innerHTML = `<div style='padding:10px; color:gray;'>${t("web.msg_no_result")}</div>`;
-            return;
-        }
-
-        results.forEach(res => {
-            const div = document.createElement("div");
-            div.className = "search-result-item";
-            div.style.padding = "8px";
-            div.style.cursor = "pointer";
-            div.style.borderBottom = "1px solid #333";
-            div.innerHTML = `
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <img src="${res.cover_url}" style="width:40px; height:40px; border-radius:4px;">
-                    <div>
-                        <div style="font-weight:bold;">${res.title}</div>
-                        <div style="font-size:0.85em; color:#aaa;">${res.artist} - ${res.album} (${res.year})</div>
-                    </div>
-                </div>
-            `;
-            div.onclick = () => {
-                document.getElementById("mt-title").value = res.title;
-                document.getElementById("mt-artist").value = res.artist;
-                document.getElementById("mt-album").value = res.album;
-                document.getElementById("mt-year").value = res.year;
-                document.getElementById("mt-genre").value = res.genre;
-
-                // Set cover URL to be downloaded by backend
-                currentCoverData = res.cover_url;
-                const img = document.getElementById("mt-art-img");
-                img.src = res.cover_url;
-                img.style.display = "block";
-                document.getElementById("mt-art-placeholder").style.display = "none";
-                document.getElementById("btn-mt-delete-cover").style.display = "flex";
-
-                resultsArea.style.display = "none";
-            };
-            resultsArea.appendChild(div);
-        });
-    } catch (e) {
-        resultsArea.innerHTML = `<div style='color:red; padding:10px;'>${t("gui.lbl_error")}</div>`;
-    }
+    openUniversalTagModal('mt');
 }
 
 async function saveLocalItem() {
@@ -4386,6 +4476,7 @@ async function saveLocalItem() {
         year: document.getElementById("local-year").value,
         bpm: document.getElementById("local-bpm").value,
         key: document.getElementById("local-key").value,
+        media_key: document.getElementById("local-media-key").value,
         original_pitch: document.getElementById("local-original-pitch").value,
         target_pitch: document.getElementById("local-target-pitch").value,
         target_profile: document.getElementById("local-target-profile").value,
@@ -4487,6 +4578,162 @@ function handleLocalCover(input) {
 }
 
 
+// --- UNIVERSAL AUTO-TAG ENGINE ---
+let activeUniversalContext = null; // 'local', 'mt', or 'edit'
+
+function openUniversalTagModal(context) {
+    activeUniversalContext = context;
+    let title = "";
+    let artist = "";
+
+    if (context === 'local') {
+        title = document.getElementById("local-title").value;
+        artist = document.getElementById("local-artist").value;
+        if (!title) {
+            const pathDisplay = document.getElementById("local-path-display").innerText;
+            if (pathDisplay) {
+                const parts = pathDisplay.split(/[\\/]/);
+                title = parts[parts.length - 1].replace(/\.[^/.]+$/, ""); // strip extension
+            }
+        }
+    } else if (context === 'mt') {
+        title = document.getElementById("mt-title").value;
+        artist = document.getElementById("mt-artist").value;
+    } else if (context === 'edit') {
+        title = document.getElementById("edit-title").value;
+        artist = document.getElementById("edit-artist").value;
+    }
+
+    document.getElementById("utag-search-title").value = title;
+    document.getElementById("utag-search-artist").value = artist;
+    document.getElementById("utag-results-container").innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Prêt à chercher pour "${title}"...</div>`;
+
+    document.getElementById("modal-universal-tag").showModal();
+}
+
+async function performUniversalSearch() {
+    const title = document.getElementById("utag-search-title").value;
+    const artist = document.getElementById("utag-search-artist").value;
+    const query = (artist ? artist + " " : "") + title;
+
+    const container = document.getElementById("utag-results-container");
+    container.innerHTML = `<div style='color:var(--accent); display:flex; align-items:center; justify-content:center; gap:10px; padding:20px;'>
+                                <i class='ph ph-circle-notch ph-spin' style='font-size:1.5em;'></i> 
+                                <span>Recherche enrichie...</span>
+                           </div>`;
+
+    try {
+        const res = await fetch(`/api/metadata/search?q=${encodeURIComponent(query)}`);
+        const results = await res.json();
+        container.innerHTML = "";
+
+        if (results.length === 0) {
+            container.innerHTML = "<div style='padding:20px; text-align:center; color:#888;'>Aucun résultat trouvé. Essayez de simplifier le titre.</div>";
+            return;
+        }
+
+        results.forEach(item => {
+            const div = document.createElement("div");
+            div.className = "api-result-item";
+            div.style.margin = "5px";
+            
+            let thumb = "<span style='font-size:24px;'>🎵</span>";
+            if (item.cover_url) {
+                thumb = `<img src="${item.cover_url}" style="width:40px; height:40px; border-radius:4px; object-fit:cover;">`;
+            }
+
+            let metaInfo = `${item.artist} - ${item.album} (${item.year})`;
+            if (item.bpm || item.key) {
+                metaInfo += `<br><span style="color:var(--accent); font-size:0.85em;">`;
+                if (item.bpm) metaInfo += `🎵 ${item.bpm} BPM `;
+                if (item.key) metaInfo += `🎹 Key: ${item.key}`;
+                metaInfo += `</span>`;
+            }
+
+            div.innerHTML = `
+                ${thumb}
+                <div style="flex:1;">
+                    <div style="font-weight:bold; font-size:0.95em;">${item.title}</div>
+                    <div style="font-size:0.8em; color:#bbb;">${metaInfo}</div>
+                </div>
+                <button class="btn-primary" style="padding:4px 8px; font-size:0.8em;">Appliquer</button>
+            `;
+
+            div.onclick = () => applyUniversalMetadata(item);
+            container.appendChild(div);
+        });
+    } catch (e) {
+        container.innerHTML = "<div style='color:red; padding:20px;'>Erreur lors de la recherche.</div>";
+    }
+}
+
+function applyUniversalMetadata(item) {
+    const applyTitle = document.getElementById("utag-apply-title").checked;
+    const applyArtist = document.getElementById("utag-apply-artist").checked;
+    const applyBpmKey = document.getElementById("utag-apply-bpm-key").checked;
+    const applyPochette = document.getElementById("utag-apply-pochette").checked;
+    const applyTags = document.getElementById("utag-apply-tags").checked;
+
+    const ctx = activeUniversalContext;
+
+    if (applyTitle) document.getElementById(`${ctx}-title`).value = item.title || "";
+    if (applyArtist) {
+        const artInput = document.getElementById(`${ctx}-artist`);
+        if (artInput) artInput.value = item.artist || "";
+    }
+
+    if (applyBpmKey) {
+        const bpmInput = document.getElementById(`${ctx}-bpm`);
+        const keyInput = document.getElementById(`${ctx}-key`);
+        if (bpmInput && item.bpm) {
+            bpmInput.value = item.bpm;
+            bpmInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (keyInput && item.key) {
+            keyInput.value = item.key;
+            keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+
+    if (applyTags) {
+        const albInput = document.getElementById(`${ctx}-album`);
+        const genreInput = document.getElementById(`${ctx}-genre`);
+        const yearInput = document.getElementById(`${ctx}-year`);
+        if (albInput) albInput.value = item.album || "";
+        if (genreInput) genreInput.value = item.genre || "";
+        if (yearInput) yearInput.value = item.year || "";
+    }
+
+    if (applyPochette && item.cover_url) {
+        currentCoverData = item.cover_url;
+        let imgId = "";
+        let placeholderId = "";
+        let deleteBtnId = "";
+
+        if (ctx === 'local') { imgId = "local-art-img"; placeholderId = "local-art-placeholder"; deleteBtnId = "btn-delete-cover"; }
+        else if (ctx === 'mt') { imgId = "mt-art-img"; placeholderId = "mt-art-placeholder"; deleteBtnId = "btn-mt-delete-cover"; }
+        else if (ctx === 'edit') { imgId = "preview-thumbnail"; deleteBtnId = "btn-edit-delete-cover"; } // Edit has different structure
+
+        const img = document.getElementById(imgId);
+        if (img) {
+            img.src = item.cover_url;
+            img.style.display = "block";
+            // If it's the center preview in edit modal, it might be a div with background
+            if (ctx === 'edit') {
+                img.style.backgroundImage = `url(${item.cover_url})`;
+                img.style.backgroundSize = "cover";
+                img.innerHTML = ""; // Clear the emoji
+            }
+        }
+        const placeholder = document.getElementById(placeholderId);
+        if (placeholder) placeholder.style.display = "none";
+        const delBtn = document.getElementById(deleteBtnId);
+        if (delBtn) delBtn.style.display = "flex";
+    }
+
+    document.getElementById("modal-universal-tag").close();
+}
+
 function removeLocalCover() {
     // Logic to mark cover for deletion
     currentCoverData = "DELETE";
@@ -4507,96 +4754,12 @@ function removeLocalCover() {
 }
 // --- AUTO-TAG LOGIC ---
 async function autoTagLocal() {
-    let q = document.getElementById("local-title").value;
-    if (!q) {
-        // Fallback to filename if title is empty
-        const pathDisplay = document.getElementById("local-path-display").innerText;
-        // Basic extraction: filename without path
-        if (pathDisplay) {
-            const parts = pathDisplay.split(/[\\/]/);
-            q = parts[parts.length - 1];
-        }
-    }
-
-    if (!q) {
-        alert("Veuillez entrer un titre ou sélectionner un fichier.");
-        return;
-    }
-
-    const container = document.getElementById("auto-tag-results");
-    container.style.display = "flex";
-    container.innerHTML = "<div style='color:#888;'>Recherche en cours...</div>";
-
-    try {
-        const res = await fetch(`/api/metadata/search?q=${encodeURIComponent(q)}`);
-        const results = await res.json();
-
-        container.innerHTML = "";
-
-        if (results.length === 0) {
-            container.innerHTML = "<div style='color:#aaa;'>Aucun résultat trouvé.</div>";
-            return;
-        }
-
-        results.forEach(item => {
-            const div = document.createElement("div");
-            div.style.padding = "5px";
-            div.style.background = "#2a2a2a";
-            div.style.border = "1px solid #444";
-            div.style.borderRadius = "4px";
-            div.style.cursor = "pointer";
-            div.style.display = "flex";
-            div.style.gap = "10px";
-            div.style.alignItems = "center";
-
-            // Thumbnail handling (if available)
-            let thumb = "<span style='font-size:20px;'>🎵</span>";
-            if (item.cover_url) {
-                thumb = `<img src="${item.cover_url}" style="width:30px; height:30px; object-fit:cover;">`;
-            }
-
-            div.innerHTML = `
-                ${thumb}
-                <div>
-                    <div style="font-weight:bold; font-size:0.9em;">${item.title}</div>
-                    <div style="font-size:0.8em; color:#bbb;">${item.artist} - ${item.album} (${item.year})</div>
-                </div>
-            `;
-
-            // Pass full item to handler
-            div.onclick = () => applyAutoTag(item);
-            container.appendChild(div);
-        });
-
-    } catch (e) {
-        container.innerHTML = "<div style='color:red;'>Erreur API.</div>";
-        console.error(e);
-    }
+    openUniversalTagModal('local');
 }
 
 function applyAutoTag(item) {
-    // Fill fields
-    document.getElementById("local-title").value = item.title || "";
-    document.getElementById("local-artist").value = item.artist || "";
-    document.getElementById("local-album").value = item.album || "";
-    document.getElementById("local-year").value = item.year || "";
-
-    // Hide results
-    document.getElementById("auto-tag-results").style.display = "none";
-
-    // Cover Logic
-    if (item.cover_url) {
-        currentCoverData = item.cover_url; // Store URL directly
-        // Update Preview
-        const img = document.getElementById("local-art-img");
-        const ph = document.getElementById("local-art-placeholder");
-        const btnDel = document.getElementById("btn-delete-cover");
-
-        img.src = item.cover_url;
-        img.style.display = "block";
-        ph.style.display = "none";
-        btnDel.style.display = "flex";
-    }
+    // Deprecated for Universal Tag, but kept for legacy stability if called
+    applyUniversalMetadata(item);
 }
 
 // Ensure pendingCoverData is global or accessible
@@ -5824,25 +5987,31 @@ function updateUniversalTimer() {
 }
 
 // --- MUSIC API METADATA FETCH ---
-async function fetchMetadataForModal(prefix) {
+let activeApiPrefix = null; // Store prefix to know where to apply results
+
+async function fetchMetadataForModal(prefix, event) {
     const artistInput = document.getElementById(`${prefix}-artist`);
     const titleInput = document.getElementById(`${prefix}-title`);
-    const bpmInput = document.getElementById(`${prefix}-bpm`);
-    const keyInput = document.getElementById(`${prefix}-key`);
 
     if (!artistInput || !titleInput) return;
+
+    activeApiPrefix = prefix;
 
     const artist = artistInput.value.trim();
     const title = titleInput.value.trim();
 
-    if (!artist || !title) {
-        showFloatNote("Erreur: Artiste et Titre requis pour la recherche.", "⚠️", "error");
+    if (!title) {
+        alert(t("web.api_error_missing_title") || "Erreur: Le titre est requis pour la recherche.");
         return;
     }
 
-    const originalBtnHTML = event.currentTarget.innerHTML;
-    event.currentTarget.innerHTML = "⏳";
-    event.currentTarget.disabled = true;
+    const btn = event ? event.currentTarget : null;
+    let originalBtnHTML = "";
+    if (btn) {
+        originalBtnHTML = btn.innerHTML;
+        btn.innerHTML = "⏳";
+        btn.disabled = true;
+    }
 
     try {
         const url = `/api/media/metadata?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`;
@@ -5850,36 +6019,174 @@ async function fetchMetadataForModal(prefix) {
 
         if (res.ok) {
             const result = await res.json();
-            if (result.status === "ok" && result.data) {
-                let foundBpm = false;
-                let foundKey = false;
-
-                if (result.data.bpm) {
-                    bpmInput.value = result.data.bpm;
-                    foundBpm = true;
-                }
-                if (result.data.key) {
-                    keyInput.value = result.data.key;
-                    foundKey = true;
-                }
-
-                if (foundBpm || foundKey) {
-                    showFloatNote(`Métadonnées trouvées (${[result.data.bpm_source, result.data.key_source].filter(Boolean).join(', ')})!`, "✅", "success");
-                } else {
-                    showFloatNote("Aucune donnée BPM ou Tonalité trouvée via l'API.", "ℹ️", "info");
-                }
+            if (result.status === "ok" && result.data && result.data.length > 0) {
+                renderApiResults(result.data);
             } else {
-                showFloatNote("Échec de la recherche API.", "❌", "error");
+                alert(t("web.api_no_result") || "ℹ️ Aucune donnée BPM ou Tonalité trouvée via l'API.");
             }
         } else {
             console.error("API Fetch Error");
-            showFloatNote("Erreur lors de la requête API.", "❌", "error");
+            alert(t("web.api_error_request") || "❌ Erreur lors de la requête API.");
         }
     } catch (e) {
         console.error("Fetch Exception:", e);
-        showFloatNote("Erreur réseau.", "❌", "error");
+        alert(t("web.api_error_network") || "❌ Erreur réseau.");
     } finally {
-        event.currentTarget.innerHTML = originalBtnHTML;
-        event.currentTarget.disabled = false;
+        if (btn) {
+            btn.innerHTML = originalBtnHTML;
+            btn.disabled = false;
+        }
+    }
+}
+
+function renderApiResults(results) {
+    const listContainer = document.getElementById("api-results-list");
+    listContainer.innerHTML = "";
+
+    results.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "api-result-item";
+        div.onclick = () => applyApiResult(item.bpm, item.key, item.cover);
+
+        let html = `<div class="api-result-info">
+            <div class="api-result-title">${item.title}</div>
+            <div class="api-result-artist">${item.artist}</div>
+            <div class="api-result-meta">`;
+
+        if (item.bpm) html += `<span>🎵 ${item.bpm} BPM</span>`;
+        if (item.key) html += `<span>🎹 Key: ${item.key}</span>`;
+        if (item.year) html += `<span>📅 ${item.year}</span>`;
+        if (item.genres && Array.isArray(item.genres) && item.genres.length > 0) {
+            html += `<span class="api-genre">🏷️ ${item.genres.slice(0, 2).join(", ")}</span>`;
+        }
+
+        html += `   </div>
+                </div>`;
+
+        // Optional cover art from Spotify/Web or placeholder
+        if (item.cover) {
+            html += `<img src="${item.cover}" style="height: 50px; width: 50px; object-fit: cover; border-radius: 4px; margin-left: 10px;">`;
+        } else {
+            // Use a placeholder if no cover available - Added border for visibility
+            html += `<div style="height: 50px; width: 50px; background: #222; border: 1px solid #444; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #888; margin-left: 10px;">
+                        <i class="ph ph-music-notes" style="font-size: 1.5rem;"></i>
+                    </div>`;
+        }
+
+        div.innerHTML = html;
+        listContainer.appendChild(div);
+    });
+
+    document.getElementById("api-results-modal").showModal();
+}
+
+function applyApiResult(bpm, key, cover) {
+    if (!activeApiPrefix) return;
+
+    const bpmInput = document.getElementById(`${activeApiPrefix}-bpm`);
+    const keyInput = document.getElementById(`${activeApiPrefix}-key`);
+
+    if (bpmInput && bpm) {
+        bpmInput.value = bpm;
+        bpmInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    if (keyInput && key) {
+        keyInput.value = key;
+        keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    if (cover) {
+        if (activeApiPrefix === 'edit') {
+            document.getElementById("preview-thumbnail").innerHTML = `<img src="${cover}">`;
+            document.getElementById("btn-edit-delete-cover").style.display = 'flex';
+        } else if (activeApiPrefix === 'local') {
+            const img = document.getElementById("local-art-img");
+            if (img) {
+                img.src = cover;
+                img.style.display = "block";
+                document.getElementById("local-art-placeholder").style.display = "none";
+                document.getElementById("btn-delete-cover").style.display = "flex";
+            }
+        } else if (activeApiPrefix === 'mt') {
+            const img = document.getElementById("mt-art-img");
+            if (img) {
+                img.src = cover;
+                img.style.display = "block";
+                document.getElementById("mt-art-placeholder").style.display = "none";
+                document.getElementById("btn-mt-delete-cover").style.display = "flex";
+            }
+        }
+    }
+
+    closeApiResultsModal();
+}
+
+function closeApiResultsModal() {
+    document.getElementById("api-results-modal").close();
+    activeApiPrefix = null;
+}
+function updateHiddenTracksList(file) {
+    const container = document.getElementById("mt-hidden-tracks-container");
+    if (!container) return;
+    container.innerHTML = "";
+
+    // Reactive: Check DOM instead of localStorage
+    const hiddenEntries = [];
+    file.stems.forEach((stem, i) => {
+        const hBtn = document.getElementById(`mt-hide-${i}`);
+        const hmBtn = document.getElementById(`mt-hide-mute-${i}`);
+        if ((hBtn && hBtn.classList.contains('active')) || (hmBtn && hmBtn.classList.contains('active'))) {
+            hiddenEntries.push({
+                index: i,
+                name: stem.name || stem.path.split(/[\\/]/).pop().replace(/\.[^/.]+$/, ""),
+                isMuted: hmBtn && hmBtn.classList.contains('active')
+            });
+        }
+    });
+
+    if (hiddenEntries.length > 0) {
+        const btn = document.createElement("button");
+        btn.className = "btn-secondary";
+        btn.style.fontSize = "0.75em";
+        btn.style.padding = "2px 8px";
+        btn.innerHTML = `<i class="ph ph-eye"></i> ${t('web.btn_show_hidden').replace('{count}', hiddenEntries.length)}`;
+        
+        const list = document.createElement("div");
+        list.id = "mt-hidden-list-popup";
+        list.style.cssText = "display:none; position:absolute; background:#252525; border:1px solid #444; border-radius:4px; padding:8px; z-index:200; box-shadow:0 4px 10px rgba(0,0,0,0.5); margin-top:-10px; max-width:250px;";
+        
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const rect = btn.getBoundingClientRect();
+            list.style.display = list.style.display === "none" ? "block" : "none";
+            list.style.top = (rect.bottom + window.scrollY + 5) + "px";
+            list.style.left = rect.left + "px";
+            if (!list.parentElement) document.body.appendChild(list);
+        };
+
+        document.addEventListener('click', () => { if(list) list.style.display = 'none'; });
+        list.onclick = (e) => e.stopPropagation();
+
+        hiddenEntries.forEach(he => {
+            const item = document.createElement("div");
+            item.style.cssText = "display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:5px; font-size:0.85em; border-bottom:1px solid #333; padding-bottom:3px;";
+            const icon = he.isMuted ? 'ph-eye-slash' : 'ph-eye';
+            item.innerHTML = `
+                <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color: ${he.isMuted ? '#aaa' : '#fff'}">${he.name}</span>
+                <button class="btn-icon" style="padding:0 4px;" title="${t('web.btn_show')}"><i class="ph ${icon}"></i></button>
+            `;
+            item.querySelector('button').onclick = () => {
+                const hBtn = document.getElementById(`mt-hide-${he.index}`);
+                const hmBtn = document.getElementById(`mt-hide-mute-${he.index}`);
+                if (he.isMuted && hmBtn) hmBtn.click();
+                else if (hBtn) hBtn.click();
+                
+                // Close if no more
+                if (hiddenEntries.length <= 1) list.style.display = 'none';
+            };
+            list.appendChild(item);
+        });
+
+        container.appendChild(btn);
     }
 }

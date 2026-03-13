@@ -15,19 +15,19 @@
             "action_modifier_scan_codes": []
         },
         {
-            "name": "Retour au D\u00e9but",
+            "name": "Retour au Début",
             "midi_cc": 55,
             "midi_channel": 16,
             "trigger_value": "any",
             "action_type": "hotkey",
-            "action_value": "\u00e0",
+            "action_value": "à",
             "action_scan_code": null,
             "action_modifiers": [],
             "action_modifier_scan_codes": [],
-            "custom_icon": "\u21b6"
+            "custom_icon": "↶"
         },
         {
-            "name": "Acc\u00e9l\u00e9rer",
+            "name": "Accélérer",
             "midi_cc": 58,
             "midi_channel": 16,
             "trigger_value": "any",
@@ -47,14 +47,15 @@
             "midi_channel": 16,
             "trigger_value": "any",
             "action_type": "hotkey",
-            "action_value": "shift+?",
-            "action_scan_code": 50,
+            "action_value": "alt+a",
+            "action_scan_code": 16,
             "action_modifiers": [
-                "shift"
+                "alt"
             ],
             "action_modifier_scan_codes": [
-                54
-            ]
+                56
+            ],
+            "custom_icon": "⏱"
         },
         {
             "name": "Avance 10s",
@@ -66,7 +67,7 @@
             "action_scan_code": 77,
             "action_modifiers": [],
             "action_modifier_scan_codes": [],
-            "custom_icon": "\u23e9"
+            "custom_icon": "⏩"
         },
         {
             "name": "Retour 10s",
@@ -78,7 +79,7 @@
             "action_scan_code": 75,
             "action_modifiers": [],
             "action_modifier_scan_codes": [],
-            "custom_icon": "\u23ea"
+            "custom_icon": "⏪"
         }
     ]
 }
