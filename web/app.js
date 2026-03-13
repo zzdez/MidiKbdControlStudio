@@ -2511,6 +2511,118 @@ function resetFilters(mode) {
 }
 
 // --- MULTITRACK STATE PERSISTENCE ---
+let currentCtxMenuTrackIndex = null;
+
+function generateDarkerColor(hex) {
+    if (!hex) return "#bb86fc";
+    let c = hex.startsWith("#") ? hex.substring(1) : hex;
+    if (c.length !== 6) return "#bb86fc";
+    let rgb = parseInt(c, 16);
+    let r = Math.max(0, Math.floor(((rgb >> 16) & 0xff) * 0.5));
+    let g = Math.max(0, Math.floor(((rgb >> 8) & 0xff) * 0.5));
+    let b = Math.max(0, Math.floor((rgb & 0xff) * 0.5));
+    return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, '0')}`;
+}
+
+function initStemContextMenu() {
+    let menu = document.getElementById("stem-context-menu");
+    if (!menu) {
+        menu = document.createElement("div");
+        menu.id = "stem-context-menu";
+        menu.innerHTML = `
+            <div class="ctx-menu-item" id="ctx-mute"><i class="ph ph-speaker-slash"></i> <span>Mute</span></div>
+            <div class="ctx-menu-item" id="ctx-solo"><i class="ph ph-headphones"></i> <span>Solo</span></div>
+            <div class="ctx-menu-divider"></div>
+            <div class="ctx-menu-item" id="ctx-hide"><i class="ph ph-eye"></i> <span>Masquer</span></div>
+            <div class="ctx-menu-item" id="ctx-hide-mute"><i class="ph ph-eye-slash"></i> <span>Masquer & Mute</span></div>
+            <div class="ctx-menu-divider"></div>
+            <div class="ctx-color-picker-container">
+                <span><i class="ph ph-palette"></i> <span id="ctx-lbl-color">Couleur</span></span>
+                <input type="color" id="ctx-color" class="stem-color-input" value="#bb86fc">
+            </div>
+        `;
+        document.body.appendChild(menu);
+
+        // Update generic text labels safely
+        setTimeout(() => {
+            const lblMute = document.querySelector("#ctx-mute span");
+            const lblHide = document.querySelector("#ctx-hide span");
+            const lblHideMute = document.querySelector("#ctx-hide-mute span");
+            const lblColor = document.getElementById("ctx-lbl-color");
+            if(lblMute && t('web.hint_mute')) lblMute.innerText = t('web.hint_mute');
+            if(lblHide && t('web.btn_hide')) lblHide.innerText = t('web.btn_hide');
+            if(lblHideMute && t('web.btn_hide_mute')) lblHideMute.innerText = t('web.btn_hide_mute');
+            if(lblColor && t('web.color')) lblColor.innerText = t('web.color');
+        }, 100);
+
+        document.addEventListener("click", (e) => {
+            if (e.button !== 2 && !menu.contains(e.target)) {
+                menu.classList.remove("active");
+            }
+        });
+
+        menu.addEventListener("contextmenu", e => e.preventDefault());
+
+        document.getElementById("ctx-mute").onclick = () => {
+            document.getElementById(`mt-mute-${currentCtxMenuTrackIndex}`)?.click();
+            menu.classList.remove("active");
+        };
+        document.getElementById("ctx-solo").onclick = () => {
+            document.getElementById(`mt-solo-${currentCtxMenuTrackIndex}`)?.click();
+            menu.classList.remove("active");
+        };
+        document.getElementById("ctx-hide").onclick = () => {
+            document.getElementById(`mt-hide-${currentCtxMenuTrackIndex}`)?.click();
+            menu.classList.remove("active");
+        };
+        document.getElementById("ctx-hide-mute").onclick = () => {
+            document.getElementById(`mt-hide-mute-${currentCtxMenuTrackIndex}`)?.click();
+            menu.classList.remove("active");
+        };
+        document.getElementById("ctx-color").onchange = (e) => {
+            const index = currentCtxMenuTrackIndex;
+            if (index === null || !window.multitrack) return;
+            const ws = window.multitrack.wavesurfers[index];
+            if (ws) {
+                const bg = e.target.value;
+                const fg = generateDarkerColor(bg);
+                ws.setOptions({ waveColor: bg, progressColor: fg });
+                const header = document.getElementById(`mt-header-${index}`);
+                if (header) header.style.borderLeft = `4px solid ${bg}`;
+                const file = localFiles[currentPlayingIndex];
+                if (file) saveMultitrackSettings(file);
+            }
+        };
+    }
+}
+
+function showStemContextMenu(e, i) {
+    currentCtxMenuTrackIndex = i;
+    const menu = document.getElementById("stem-context-menu");
+    if (menu) {
+        menu.style.left = e.pageX + "px";
+        menu.style.top = e.pageY + "px";
+        menu.classList.add("active");
+        
+        const mBtn = document.getElementById(`mt-mute-${i}`);
+        const sBtn = document.getElementById(`mt-solo-${i}`);
+        const hBtn = document.getElementById(`mt-hide-${i}`);
+        const hmBtn = document.getElementById(`mt-hide-mute-${i}`);
+        
+        document.getElementById("ctx-mute").classList.toggle("active-state", mBtn ? mBtn.classList.contains("active") : false);
+        document.getElementById("ctx-solo").classList.toggle("active-state", sBtn ? sBtn.classList.contains("active") : false);
+        document.getElementById("ctx-hide").classList.toggle("active-state", hBtn ? hBtn.classList.contains("active") : false);
+        document.getElementById("ctx-hide-mute").classList.toggle("active-state", hmBtn ? hmBtn.classList.contains("active") : false);
+        
+        const ws = window.multitrack && window.multitrack.wavesurfers ? window.multitrack.wavesurfers[i] : null;
+        if (ws && ws.options.waveColor && ws.options.waveColor.startsWith("#")) {
+            document.getElementById("ctx-color").value = ws.options.waveColor;
+        } else {
+            document.getElementById("ctx-color").value = "#bb86fc";
+        }
+    }
+}
+
 let mtSaveTimeout = null;
 function getMultitrackStorageKey(file) {
     if (!file) return 'mt_settings_unknown';
@@ -2541,6 +2653,9 @@ function saveMultitrackSettings(file) {
             const volSlider = document.getElementById(`mt-vol-${i}`);
             const panSlider = document.getElementById(`mt-pan-${i}`);
 
+            const ws = window.multitrack ? window.multitrack.wavesurfers[i] : null;
+            const currentColor = ws ? ws.options.waveColor : null;
+
             settings.tracks.push({
                 path: stem.path,
                 name: stem.name,
@@ -2549,7 +2664,8 @@ function saveMultitrackSettings(file) {
                 hidden: hideBtn ? hideBtn.classList.contains('active') : false,
                 hidden_mute: hideMuteBtn ? hideMuteBtn.classList.contains('active') : false,
                 volume: volSlider ? parseFloat(volSlider.value) : 1.0,
-                pan: panSlider ? parseFloat(panSlider.value) : 0.0
+                pan: panSlider ? parseFloat(panSlider.value) : 0.0,
+                color: currentColor
             });
         });
 
@@ -2638,6 +2754,14 @@ async function loadMultitrackSettings(file) {
                     }
                     const panSpan = document.getElementById(`mt-pan-val-${i}`);
                     if (panSpan) panSpan.innerText = trackData.pan > 0 ? `R${Math.round(trackData.pan * 100)}` : (trackData.pan < 0 ? `L${Math.round(Math.abs(trackData.pan) * 100)}` : 'C');
+                }
+
+                if (trackData.color && ws) {
+                    const bg = trackData.color;
+                    const fg = generateDarkerColor(bg);
+                    if (bg.startsWith('#')) {
+                        ws.setOptions({ waveColor: bg, progressColor: fg });
+                    }
                 }
             });
 
@@ -2802,6 +2926,8 @@ async function playLocal(index) {
         if (loadingIndicator) loadingIndicator.style.display = "block";
         if (trackWaveforms) trackWaveforms.innerHTML = "";
 
+        initStemContextMenu();
+
         // Add hidden tracks container if not exists
         let hiddenContainer = document.getElementById("mt-hidden-tracks-container");
         if (!hiddenContainer) {
@@ -2812,12 +2938,29 @@ async function playLocal(index) {
         }
         hiddenContainer.innerHTML = "";
         // Inject track headers
-        trackHeaders.innerHTML = '';
+        // Pre-determine colors outside logic block to use for border
+        const defaultColors = ["#bb86fc", "#03dac6", "#cf6679", "#ffb86c", "#8be9fd", "#50fa7b", "#ff79c6", "#f1fa8c", "#bd93f9", "#ff5555"];
+        const appliedColors = [];
+
         file.stems.forEach((stem, i) => {
+            const savedSettingsStr = localStorage.getItem(getMultitrackStorageKey(file));
+            let savedColor = null;
+            if (savedSettingsStr) {
+                 try {
+                     const st = JSON.parse(savedSettingsStr);
+                     if (st && st.tracks && st.tracks[i] && st.tracks[i].color) {
+                         savedColor = st.tracks[i].color;
+                     }
+                 } catch(e) {}
+            }
+            const waveCol = savedColor || defaultColors[i % defaultColors.length];
+            appliedColors.push(waveCol);
+
             const stemName = stem.name || stem.path.split(/[\\/]/).pop().replace(/\.[^/.]+$/, "");
             const header = document.createElement('div');
             header.className = 'track-header';
             header.id = `mt-header-${i}`;
+            header.style.borderLeft = `4px solid ${waveCol}`;
             header.innerHTML = `
                 <div class="track-title-row" style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 2px;">
                     <span class="track-title" id="mt-title-${i}" title="Double-clic pour renommer">${stemName}</span>
@@ -2844,6 +2987,11 @@ async function playLocal(index) {
                 </div>
             `;
             trackHeaders.appendChild(header);
+
+            header.oncontextmenu = (e) => {
+                e.preventDefault();
+                showStemContextMenu(e, i);
+            };
 
             // Setup Drag and Drop
             const dragHandle = header.querySelector('.drag-handle');
@@ -2960,6 +3108,9 @@ async function playLocal(index) {
                 console.error("Multitrack fetch error:", e);
             }
 
+            const waveCol = appliedColors[i];
+            const progCol = generateDarkerColor(waveCol);
+
             return {
                 id: i,
                 url: audioUrl, // Fallback if media is strictly needed by plugins
@@ -2967,8 +3118,8 @@ async function playLocal(index) {
                 peaks: peaksArray,
                 options: {
                     media: mediaElement, // Forces HTML5 but guarantees 0ms latency thanks to RAM blob
-                    waveColor: `hsl(${(i * 45) % 360}, 70%, 50%)`,
-                    progressColor: `hsl(${(i * 45) % 360}, 70%, 30%)`,
+                    waveColor: waveCol,
+                    progressColor: progCol,
                     height: 70,
                     barWidth: 2,
                     barGap: 1,
@@ -3012,6 +3163,12 @@ async function playLocal(index) {
                     } else {
                         headerDiv.style.height = "72px";
                     }
+
+                    // Attach context menu to waveform
+                    wsContainer.oncontextmenu = (e) => {
+                        e.preventDefault();
+                        showStemContextMenu(e, i);
+                    };
                 }
 
                 if (!muteBtn || !soloBtn || !volSlider) return;

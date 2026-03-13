@@ -2136,3 +2136,103 @@ dialog::backdrop {
     width: 650px;
     max-width: 90vw;
 }
+
+/* ==========================================
+   STEM CONTEXT MENU & COLOR PICKER
+   ========================================== */
+#stem-context-menu {
+    position: absolute;
+    display: none; /* Active via JS class 'active' */
+    background: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    min-width: 160px;
+    padding: 8px 0;
+    flex-direction: column;
+    font-size: 0.9em;
+}
+
+#stem-context-menu.active {
+    display: flex;
+}
+
+.ctx-menu-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    cursor: pointer;
+    color: #ddd;
+    transition: background 0.1s;
+    user-select: none;
+}
+
+.ctx-menu-item:hover {
+    background: #333;
+    color: #fff;
+}
+
+.ctx-menu-item i {
+    font-size: 1.1em;
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+}
+
+.ctx-menu-item.active-state {
+    color: var(--accent);
+    font-weight: bold;
+}
+
+.ctx-menu-divider {
+    height: 1px;
+    background: #333;
+    margin: 4px 0;
+}
+
+.ctx-color-picker-container {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    justify-content: space-between;
+}
+
+.ctx-color-picker-container span {
+    color: #ddd;
+    display: flex;
+    align-items: center;
+}
+
+.ctx-color-picker-container span i {
+    font-size: 1.1em;
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+}
+
+input[type="color"].stem-color-input {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+input[type="color"].stem-color-input::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+input[type="color"].stem-color-input::-webkit-color-swatch {
+    border: 1px solid #555;
+    border-radius: 4px;
+}
+
+input[type="color"].stem-color-input::-moz-color-swatch {
+    border: 1px solid #555;
+    border-radius: 4px;
+}
