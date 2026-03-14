@@ -212,19 +212,7 @@ iframe {
     margin-bottom: 0;
 }
 
-.media-controls-bar {
-    height: 55px !important;
-    min-height: 55px !important;
-    max-height: 55px !important;
-    padding: 0 20px !important;
-    box-sizing: border-box !important;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    gap: 15px;
-    /* Unified gap */
-}
+/* .media-controls-bar styles merged below */
 
 /* Integrated Time Display */
 .time-display-integrated {
@@ -895,12 +883,13 @@ dialog::backdrop {
     position: relative;
     gap: 15px;
     background: #1e1e1e;
-    padding: 0 20px;
+    padding: 10px 20px;
     border-radius: 0;
-    /* Reset pill shape as it's now pinned to bottom */
     margin-top: 0;
     box-shadow: none;
     border-top: 1px solid #333;
+    min-height: 55px;
+    flex-wrap: wrap; /* Allow wrapping on small screens */
 }
 
 .control-btn {
