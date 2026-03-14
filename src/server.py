@@ -1195,12 +1195,22 @@ async def get_multitrack_settings(index: int):
                  
         if 0 <= index < len(items):
             path = items[index]["path"]
+            item_data = items[index]
+            result = {}
+
             if os.path.isdir(path):
                 settings_file = os.path.join(path, "airstep_meta.json")
                 if os.path.exists(settings_file):
                     with open(settings_file, "r", encoding="utf-8") as f:
-                        return json.load(f)
-            return {}
+                        result = json.load(f)
+
+            # Override/supplement with database properties for consistency
+            if "autoplay" in item_data:
+                result["autoplay"] = item_data["autoplay"]
+            if "autoreplay" in item_data:
+                result["autoreplay"] = item_data["autoreplay"]
+
+            return result
         else:
              raise HTTPException(status_code=404, detail="Index not found")
     except Exception as e:
@@ -1218,6 +1228,16 @@ async def save_multitrack_settings(index: int, request: Request):
                  
         if 0 <= index < len(items):
             path = items[index]["path"]
+
+            # Sync autoplay/autoreplay properties back to the main items DB too
+            if "autoplay" in settings:
+                items[index]["autoplay"] = settings["autoplay"]
+            if "autoreplay" in settings:
+                items[index]["autoreplay"] = settings["autoreplay"]
+
+            with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+
             if os.path.isdir(path):
                 settings_file = os.path.join(path, "airstep_meta.json")
                 with open(settings_file, "w", encoding="utf-8") as f:
