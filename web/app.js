@@ -2715,6 +2715,7 @@ async function loadMultitrackSettings(file) {
                 const mst = document.getElementById("multitrack-master-volume");
                 if (mst) {
                     mst.value = settings.masterVolume;
+                    mst.setAttribute('data-initial-value', settings.masterVolume); // Capture initial
                     const mstPerc = document.getElementById("multitrack-master-volume-percent");
                     if (mstPerc) mstPerc.innerText = Math.round(settings.masterVolume * 100) + '%';
                 }
@@ -2753,11 +2754,13 @@ async function loadMultitrackSettings(file) {
 
                 if (volSlider && trackData.volume !== undefined) {
                     volSlider.value = trackData.volume;
+                    volSlider.setAttribute('data-initial-value', trackData.volume); // Capture initial
                     const valSpan = document.getElementById(`mt-vol-val-${i}`);
                     if (valSpan) valSpan.innerText = Math.round(trackData.volume * 100) + "%";
                 }
                 if (panSlider && trackData.pan !== undefined) {
                     panSlider.value = trackData.pan;
+                    panSlider.setAttribute('data-initial-value', trackData.pan); // Capture initial
                     if (ws && ws.media && ws.media._panner) {
                         ws.media._panner.pan.value = trackData.pan;
                     }
@@ -2827,9 +2830,19 @@ async function playLocal(index) {
 
     // Reset Volume Slider
     const audioVolSlider = document.getElementById("audio-volume");
-    if (audioVolSlider) { audioVolSlider.value = normalizedVolume; const ap = document.getElementById("audio-volume-percent"); if (ap) ap.innerText = trackVolume + "%"; }
+    if (audioVolSlider) { 
+        audioVolSlider.value = normalizedVolume; 
+        audioVolSlider.setAttribute('data-initial-value', normalizedVolume); // Capture initial
+        const ap = document.getElementById("audio-volume-percent"); 
+        if (ap) ap.innerText = trackVolume + "%"; 
+    }
     const videoVolSlider = document.getElementById("video-volume");
-    if (videoVolSlider) { videoVolSlider.value = normalizedVolume; const vp = document.getElementById("video-volume-percent"); if (vp) vp.innerText = trackVolume + "%"; }
+    if (videoVolSlider) { 
+        videoVolSlider.value = normalizedVolume; 
+        videoVolSlider.setAttribute('data-initial-value', normalizedVolume); // Capture initial
+        const vp = document.getElementById("video-volume-percent"); 
+        if (vp) vp.innerText = trackVolume + "%"; 
+    }
 
     // Explicitly sync all other modals at startup
     if (typeof syncVolumeToModals === 'function') syncVolumeToModals(trackVolume);
@@ -2927,6 +2940,7 @@ async function playLocal(index) {
                 return s && s.classList.contains('active');
             });
             const mst = document.getElementById("multitrack-master-volume");
+            if (mst && !mst.hasAttribute('data-initial-value')) mst.setAttribute('data-initial-value', '1'); // Default if not yet set
             const mstVol = mst ? parseFloat(mst.value) : 1;
 
             allHeaders.forEach(h => {
@@ -3018,12 +3032,12 @@ async function playLocal(index) {
                 </div>
                 <div class="track-slider-row" style="margin-top:4px; margin-bottom:4px; display:flex; align-items:center;">
                     <i class="ph ph-speaker-simple-high" style="color:var(--accent);"></i>
-                    <input type="range" class="slider-vol" id="mt-vol-${i}" min="0" max="1" step="0.01" value="1" style="flex:1;">
+                    <input type="range" class="slider-vol" id="mt-vol-${i}" min="0" max="1" step="0.01" value="1" style="flex:1;" data-initial-value="1">
                     <span id="mt-vol-val-${i}" style="font-size:0.7em; color:#bbb; min-width:30px; text-align:right;">100%</span>
                 </div>
                 <div class="track-slider-row" style="margin-top:4px; display:flex; align-items:center;">
                     <span class="pan-lbl" style="color:#03dac6;">L</span>
-                    <input type="range" class="slider-pan" id="mt-pan-${i}" min="-1" max="1" step="0.1" value="0" style="flex:1;">
+                    <input type="range" class="slider-pan" id="mt-pan-${i}" min="-1" max="1" step="0.1" value="0" style="flex:1;" data-initial-value="0">
                     <span class="pan-lbl" style="color:#03dac6;">R</span>
                     <span id="mt-pan-val-${i}" style="font-size:0.7em; color:#03dac6; min-width:30px; text-align:right;">C</span>
                 </div>
@@ -3068,6 +3082,7 @@ async function playLocal(index) {
                     if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
                     saveMultitrackSettings(file);
                 };
+                setupSliderReset(volSlider, "volume");
             }
 
             if (panSlider) {
@@ -3085,6 +3100,7 @@ async function playLocal(index) {
                     }
                     saveMultitrackSettings(file);
                 };
+                setupSliderReset(panSlider, "pan");
             }
 
             const applyHideState = (index) => {
@@ -3808,6 +3824,31 @@ function updateMultitrackMasterVolume(val) {
     }
 }
 
+// --- SLIDER UTILITIES ---
+function setupSliderReset(slider, type) {
+    if (!slider) return;
+    slider.ondblclick = () => {
+        const initial = parseFloat(slider.getAttribute('data-initial-value'));
+        if (isNaN(initial)) return;
+
+        if (type === 'pan') {
+            const current = parseFloat(slider.value);
+            // Cycle: if not 0 -> 0. If 0 -> initial.
+            if (current !== 0) {
+                slider.value = 0;
+            } else {
+                slider.value = initial;
+            }
+        } else {
+            // Volume
+            slider.value = initial;
+        }
+
+        // Trigger input event to update labels and audio engine
+        slider.dispatchEvent(new Event('input'));
+    };
+}
+
 // --- VOLUME LOGIC (Live Persistence) ---
 function updateAudioVolume(val) {
     const numVal = parseFloat(val);
@@ -3917,10 +3958,28 @@ function liveUpdateModalVolume(type, val) {
 
 function syncVolumeToModals(percentVol) {
     const s1 = document.getElementById("local-volume");
-    if (s1) { s1.value = percentVol; const p1 = document.getElementById("local-volume-percent"); if (p1) p1.innerText = percentVol + "%"; }
+    if (s1) { 
+        s1.value = percentVol; 
+        s1.setAttribute('data-initial-value', percentVol);
+        const p1 = document.getElementById("local-volume-percent"); 
+        if (p1) p1.innerText = percentVol + "%"; 
+    }
 
     const s2 = document.getElementById("edit-volume");
-    if (s2) { s2.value = percentVol; const p2 = document.getElementById("edit-volume-percent"); if (p2) p2.innerText = percentVol + "%"; }
+    if (s2) { 
+        s2.value = percentVol; 
+        s2.setAttribute('data-initial-value', percentVol);
+        const p2 = document.getElementById("edit-volume-percent"); 
+        if (p2) p2.innerText = percentVol + "%"; 
+    }
+
+    const s3 = document.getElementById("mt-modal-volume");
+    if (s3) { 
+        s3.value = percentVol; 
+        s3.setAttribute('data-initial-value', percentVol);
+        const p3 = document.getElementById("mt-modal-volume-percent"); 
+        if (p3) p3.innerText = percentVol + "%"; 
+    }
 }
 
 let isMuted = false;
@@ -4735,6 +4794,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Initialize Universal Loop Selection (One time)
     setupUniversalLoopSelection();
+
+    setupSliderReset(document.getElementById("audio-volume"), "volume");
+    setupSliderReset(document.getElementById("video-volume"), "volume");
+    setupSliderReset(document.getElementById("multitrack-master-volume"), "volume");
+    setupSliderReset(document.getElementById("local-volume"), "volume");
+    setupSliderReset(document.getElementById("edit-volume"), "volume");
+    setupSliderReset(document.getElementById("mt-modal-volume"), "volume");
 
     // Initial Loads
     setTimeout(() => {
