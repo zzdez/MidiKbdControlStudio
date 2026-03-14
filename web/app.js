@@ -1857,6 +1857,7 @@ function closePreviewModal() {
 // --- PLAYER CONTROL ---
 function stopAllMedia() {
     console.log("Stopping all media players...");
+    currentActivePlayer = null; // Important to prevent clearLoop from restarting old media during transition
 
     // 1. YouTube
     if (player && typeof player.stopVideo === "function") {
@@ -1910,10 +1911,9 @@ function playTrack(track) {
     window.currentPlayingIndex = track.originalIndex;
     const ytDiv = document.getElementById("player");
     const genFrame = document.getElementById("generic-player");
+    const html5 = document.getElementById("html5-player");
     // STOP ALL MEDIA first
     stopAllMedia();
-
-    loadLoopsForTrack(track);
 
     // Determine Autoplay/Autoreplay
     const isAutoplay = (track.autoplay !== undefined) ? track.autoplay : (currentSettings.autoplay || false);
@@ -2031,6 +2031,9 @@ function playTrack(track) {
         genFrame.style.display = "block";
         genFrame.src = smartUrl;
     }
+
+    // Load loops AFTER player state is established
+    loadLoopsForTrack(track);
 }
 
 // --- HELPERS ---
