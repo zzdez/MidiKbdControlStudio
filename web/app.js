@@ -2260,7 +2260,8 @@ function executeWebAction(command) {
                 case 'media_pause': player.pauseVideo(); break;
                 case 'media_rewind':
                     const cur = player.getCurrentTime();
-                    player.seekTo(Math.max(0, cur - 5));
+                    const minSeek = (isLoopActive && loopA !== null) ? loopA : 0;
+                    player.seekTo(Math.max(minSeek, cur - 5));
                     break;
                 case 'media_forward':
                     const curF = player.getCurrentTime();
@@ -3503,7 +3504,13 @@ function audioControl(action) {
     if (!wavesurfer) return;
     switch (action) {
         case 'playpause': wavesurfer.playPause(); break;
-        case 'prev': wavesurfer.skip(-5); break;
+        case 'prev': 
+            if (isLoopActive && loopA !== null) {
+                wavesurfer.setTime(Math.max(loopA, wavesurfer.getCurrentTime() - 5));
+            } else {
+                wavesurfer.skip(-5);
+            }
+            break;
         case 'next': wavesurfer.skip(5); break;
         case 'restart': wavesurfer.seekTo(0); break;
         case 'speed_up':
@@ -3544,11 +3551,15 @@ function videoControl(action) {
     switch (action) {
         case 'prev':
             if (isYT) {
-                player.seekTo(ytTime - 5, true);
-                updateTimelineUI(ytTime - 5);
+                let target = ytTime - 5;
+                if (isLoopActive && loopA !== null) target = Math.max(loopA, target);
+                player.seekTo(target, true);
+                updateTimelineUI(target);
             } else {
-                vid.currentTime -= 5;
-                updateTimelineUI(vid.currentTime);
+                let target = vid.currentTime - 5;
+                if (isLoopActive && loopA !== null) target = Math.max(loopA, target);
+                vid.currentTime = target;
+                updateTimelineUI(target);
             }
             break;
 
@@ -3667,7 +3678,8 @@ function multitrackControl(action) {
 
     switch (action) {
         case 'prev':
-            window.multitrack.setTime(Math.max(0, window.multitrack.getCurrentTime() - 5));
+            const minT = (isLoopActive && loopA !== null) ? loopA : 0;
+            window.multitrack.setTime(Math.max(minT, window.multitrack.getCurrentTime() - 5));
             break;
         case 'next':
             window.multitrack.setTime(window.multitrack.getCurrentTime() + 5);
