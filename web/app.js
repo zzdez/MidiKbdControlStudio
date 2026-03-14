@@ -1889,6 +1889,10 @@ function stopAllMedia() {
             window.multitrack = null;
         } catch (e) { console.error(e); }
     }
+
+    // Hide Loop Overlay
+    const visualOverlay = document.getElementById("mt-visual-loop-overlay");
+    if (visualOverlay) visualOverlay.style.display = "none";
 }
 
 async function deleteTrack(index) {
@@ -1906,11 +1910,10 @@ function playTrack(track) {
     window.currentPlayingIndex = track.originalIndex;
     const ytDiv = document.getElementById("player");
     const genFrame = document.getElementById("generic-player");
-    loadLoopsForTrack(track);
-    const html5 = document.getElementById("html5-player");
-
     // STOP ALL MEDIA first
     stopAllMedia();
+
+    loadLoopsForTrack(track);
 
     // Determine Autoplay/Autoreplay
     const isAutoplay = (track.autoplay !== undefined) ? track.autoplay : (currentSettings.autoplay || false);
@@ -2265,7 +2268,8 @@ function executeWebAction(command) {
                     break;
                 case 'media_forward':
                     const curF = player.getCurrentTime();
-                    player.seekTo(curF + 5);
+                    const maxSeekF = (isLoopActive && loopB !== null) ? loopB : Infinity;
+                    player.seekTo(Math.min(maxSeekF, curF + 5));
                     break;
                 case 'media_restart': player.seekTo(0); break;
                 // YouTube lacks fine speed/pitch control via simple API, but we could add speed
@@ -2834,9 +2838,6 @@ async function playLocal(index) {
     const videoContainer = document.getElementById("video-container");
     const audioContainer = document.getElementById("audio-player-container");
 
-    // Load saved loops for this file
-    loadLoopsForTrack(file);
-
     // Determine Autoplay/Autoreplay
     const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
     const isAutoreplay = (file.autoreplay !== undefined) ? file.autoreplay : (currentSettings.autoreplay || false);
@@ -3334,7 +3335,9 @@ async function playLocal(index) {
                 window.multitrack.play();
             }
             updatePlayPauseUI();
-            setupMultitrackLoopSelection();
+            setupUniversalLoopSelection();
+            updateLoopUI();
+            renderLoopsUI();
         });
 
         window.multitrack.on('play', () => {
@@ -3356,6 +3359,7 @@ async function playLocal(index) {
 
         // Removed mtInterval: loop monitoring handled by the global interval in app.js
         currentActivePlayer = 'multitrack';
+        loadLoopsForTrack(file);
 
     } else if (isAudio) {
         // --- AUDIO MODE (Hide Video Container) ---
@@ -3409,6 +3413,8 @@ async function playLocal(index) {
                 }
                 if (isPitchEnabled) connectPitchEngine();
                 updatePlayPauseUI();
+                updateLoopUI();
+                renderLoopsUI();
             });
 
             wavesurfer.on('finish', () => {
@@ -3420,6 +3426,7 @@ async function playLocal(index) {
         }
 
         currentActivePlayer = 'waveform';
+        loadLoopsForTrack(file);
 
     } else if (isVideo) {
         // --- VIDEO MODE (Show Video Container) ---
@@ -3480,6 +3487,8 @@ async function playLocal(index) {
             }
             v.removeEventListener('canplay', startPlay);
             if (isPitchEnabled) connectPitchEngine();
+            updateLoopUI();
+            renderLoopsUI();
         };
         v.addEventListener('canplay', startPlay);
 
@@ -3492,6 +3501,7 @@ async function playLocal(index) {
         };
 
         currentActivePlayer = 'local';
+        loadLoopsForTrack(file);
     }
 }
 
@@ -3511,7 +3521,13 @@ function audioControl(action) {
                 wavesurfer.skip(-5);
             }
             break;
-        case 'next': wavesurfer.skip(5); break;
+        case 'next': 
+            if (isLoopActive && loopB !== null) {
+                wavesurfer.setTime(Math.min(loopB, wavesurfer.getCurrentTime() + 5));
+            } else {
+                wavesurfer.skip(5);
+            }
+            break;
         case 'restart': wavesurfer.seekTo(0); break;
         case 'speed_up':
             {
@@ -3565,11 +3581,15 @@ function videoControl(action) {
 
         case 'next':
             if (isYT) {
-                player.seekTo(ytTime + 5, true);
-                updateTimelineUI(ytTime + 5);
+                let target = ytTime + 5;
+                if (isLoopActive && loopB !== null) target = Math.min(loopB, target);
+                player.seekTo(target, true);
+                updateTimelineUI(target);
             } else {
-                vid.currentTime += 5;
-                updateTimelineUI(vid.currentTime);
+                let target = vid.currentTime + 5;
+                if (isLoopActive && loopB !== null) target = Math.min(loopB, target);
+                vid.currentTime = target;
+                updateTimelineUI(target);
             }
             break;
 
@@ -3682,7 +3702,8 @@ function multitrackControl(action) {
             window.multitrack.setTime(Math.max(minT, window.multitrack.getCurrentTime() - 5));
             break;
         case 'next':
-            window.multitrack.setTime(window.multitrack.getCurrentTime() + 5);
+            const maxT = (isLoopActive && loopB !== null) ? loopB : Infinity;
+            window.multitrack.setTime(Math.min(maxT, window.multitrack.getCurrentTime() + 5));
             break;
         case 'playpause':
             if (window.multitrack.isPlaying()) {
@@ -5282,6 +5303,19 @@ function clearLoop() {
     loopB = null;
     isLoopActive = false;
     isSequentialLoop = false;
+
+    // Force clear all visual markers regardless of currentActivePlayer
+    const markersA = ["mt-loop-marker-a", "audio-loop-marker-a-bar", "video-loop-marker-a", "audio-loop-marker-a"];
+    const markersB = ["mt-loop-marker-b", "audio-loop-marker-b-bar", "video-loop-marker-b", "audio-loop-marker-b"];
+    const areas = ["mt-loop-area", "audio-loop-area-bar", "video-loop-area", "audio-loop-area", "mt-visual-loop-overlay"];
+
+    markersA.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = "none"; });
+    markersB.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = "none"; });
+    areas.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = "none"; });
+
+    // Clear saved loop regions from ALL possible containers
+    document.querySelectorAll('.saved-loop-region').forEach(el => el.remove());
+
     updateLoopUI();
 
     // Resume play if it was paused (bug fix)
