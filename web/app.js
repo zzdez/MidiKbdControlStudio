@@ -1924,8 +1924,10 @@ function playTrack(track) {
     // Reset Containers
     const videoContainer = document.getElementById("video-container");
     const audioContainer = document.getElementById("audio-player-container");
+    const multitrackContainer = document.getElementById("multitrack-container");
     videoContainer.style.display = "flex";
     audioContainer.style.display = "none";
+    if (multitrackContainer) multitrackContainer.style.display = "none";
 
     // Volume Default logic
     const trackVolume = (track.volume !== undefined) ? parseInt(track.volume, 10) : 100;
