@@ -6046,6 +6046,12 @@ function syncPlaybackSettingsToModals(item) {
     const localAutoplay = document.getElementById("local-autoplay");
     if (localAutoreplay) localAutoreplay.checked = isAutoreplay;
     if (localAutoplay) localAutoplay.checked = isAutoplay;
+
+    // Multitrack Modal
+    const mtAutoreplay = document.getElementById("mt-autoreplay");
+    const mtAutoplay = document.getElementById("mt-autoplay");
+    if (mtAutoreplay) mtAutoreplay.checked = isAutoreplay;
+    if (mtAutoplay) mtAutoplay.checked = isAutoplay;
 }
 
 function updateRepeatUI(active) {
