@@ -627,7 +627,9 @@ async def get_settings():
         "media_folders": config_manager.get("media_folders", []),
         "midi_output_names": config_manager.get("midi_output_names", []),
         "midi_output_name": config_manager.get("midi_output_name", ""), # Legacy fallback
-        "language": config_manager.get("language", "fr")
+        "language": config_manager.get("language", "fr"),
+        "autoplay": config_manager.get("autoplay", False),
+        "autoreplay": config_manager.get("autoreplay", False)
     }
 
 @app.get("/api/locales/{lang}")
