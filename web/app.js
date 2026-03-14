@@ -2012,7 +2012,7 @@ function playTrack(track) {
         if (vPitch) vPitch.style.display = "none";
 
         if (player && (typeof player.loadVideoById === "function" || typeof player.cueVideoById === "function")) {
-            if (!currentSettings || currentSettings.autoplay !== false) {
+            if (isAutoplay) {
                 player.loadVideoById(track.id);
             } else {
                 player.cueVideoById(track.id);
@@ -2396,10 +2396,26 @@ function initWaveSurfer() {
         });
 
         wavesurfer.on('interaction', () => { wavesurfer.play(); });
+
+        wavesurfer.on('ready', () => {
+            if (window.currentAudioIsAutoplay) {
+                wavesurfer.play();
+            }
+            if (isPitchEnabled) connectPitchEngine();
+            updatePlayPauseUI();
+            updateLoopUI();
+            renderLoopsUI();
+        });
+
         wavesurfer.on('finish', () => {
             wavesurfer.pause();
             wavesurfer.seekTo(0);
+            if (window.currentAutoreplay === true) {
+                wavesurfer.play();
+                updatePlayPauseUI();
+            }
         });
+
         wavesurfer.on('timeupdate', (currentTime) => {
             updateActiveChapter(currentTime);
         });
@@ -2732,10 +2748,12 @@ async function loadMultitrackSettings(file) {
                 }
             }
 
-            // Do NOT overwrite file.autoplay from local storage anymore to ensure server DB priority.
-            // If it's already set to a boolean from the files API, keep it!
-            if (file.autoplay === undefined && settings.autoplay !== undefined) file.autoplay = settings.autoplay;
-            if (file.autoreplay === undefined && settings.autoreplay !== undefined) file.autoreplay = settings.autoreplay;
+            // Sync JS state strictly from database values to avoid local cache bleeding
+            // IMPORTANT: If 'settings' came from backend API (which has the real saved state), we must apply it.
+            // Since 'file' (the localFiles object in RAM) might have been populated with default values
+            // globally at start of playLocal(), we OVERRIDE file with settings if settings has it defined.
+            if (settings.autoplay !== undefined) file.autoplay = settings.autoplay;
+            if (settings.autoreplay !== undefined) file.autoreplay = settings.autoreplay;
 
             settings.tracks.forEach((trackData, i) => {
                 const muteBtn = document.getElementById(`mt-mute-${i}`);
@@ -3435,27 +3453,15 @@ async function playLocal(index) {
             wavesurfer.setVolume(normalizedVolume); // SET WAVESURFER VOLUME
             wavesurfer.load("/api/stream?path=" + encodeURIComponent(file.path));
 
-            const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
-            const isAutoreplay = (file.autoreplay !== undefined) ? file.autoreplay : (currentSettings.autoreplay || false);
+            if (file.autoplay === undefined) file.autoplay = (currentSettings.autoplay || false);
+            if (file.autoreplay === undefined) file.autoreplay = (currentSettings.autoreplay || false);
+
+            const isAutoplay = file.autoplay;
+            const isAutoreplay = file.autoreplay;
+
+            window.currentAudioIsAutoplay = isAutoplay;
             window.currentAutoreplay = isAutoreplay;
             updateRepeatUI(isAutoreplay);
-
-            wavesurfer.on('ready', () => {
-                if (isAutoplay) {
-                    wavesurfer.play();
-                }
-                if (isPitchEnabled) connectPitchEngine();
-                updatePlayPauseUI();
-                updateLoopUI();
-                renderLoopsUI();
-            });
-
-            wavesurfer.on('finish', () => {
-                if (window.currentAutoreplay === true) {
-                    wavesurfer.play();
-                    updatePlayPauseUI();
-                }
-            });
         }
 
         currentActivePlayer = 'waveform';
@@ -3514,16 +3520,19 @@ async function playLocal(index) {
 
 
         const startPlay = () => {
-            const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+            if (file.autoplay === undefined) file.autoplay = (currentSettings.autoplay || false);
+            const isAutoplay = file.autoplay;
+
             if (isAutoplay) {
                 v.play().catch(e => console.warn("Auto-play aborted", e));
             }
-            v.removeEventListener('canplay', startPlay);
+            v.oncanplay = null; // Remove listener safely to avoid memory leaks/accumulations
+
             if (isPitchEnabled) connectPitchEngine();
             updateLoopUI();
             renderLoopsUI();
         };
-        v.addEventListener('canplay', startPlay);
+        v.oncanplay = startPlay;
 
         v.onended = () => {
             v.pause();
