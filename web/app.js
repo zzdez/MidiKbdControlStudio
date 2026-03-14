@@ -2896,6 +2896,10 @@ async function playLocal(index) {
         const multitrackContainer = document.getElementById("multitrack-container");
         if (multitrackContainer) multitrackContainer.style.display = "flex";
 
+        // Fix Loop Bar persistence: Hide Video Timeline when switching to Multitrack
+        const valT = document.getElementById("video-timeline-container");
+        if (valT) valT.style.display = "none";
+
         document.getElementById("multitrack-title").innerText = file.title;
 
         if (wavesurfer) wavesurfer.pause();
@@ -4971,8 +4975,11 @@ function renderChapters(chapters) {
 
     // 2. RENDER MARKERS ON VIDEO TIMELINE
     const markersContainer = document.getElementById("video-chapter-markers");
-    if (markersContainer && currentChapters.length > 0) {
+    if (markersContainer) {
         markersContainer.innerHTML = "";
+    }
+    
+    if (markersContainer && currentChapters.length > 0) {
 
         let dur = 0;
         if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {

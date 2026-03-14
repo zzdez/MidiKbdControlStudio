@@ -39,8 +39,9 @@ Elle combine le meilleur de deux mondes :
 - **Lecteur Audio Local (Simple & Multipistes)**
     - Support MP3, WAV, FLAC, M4A, OGG.
     - **NOUVEAU ! Support Multipistes (Stems) :** Jouez vos morceaux décomposés (basse, batterie, guitare, etc.) en parfaite synchronisation.
-    - Mini-DAW intégré : contrôles indépendants de Volume, Panoramique (L/R), Mute et Solo par piste. 
-    - Waveform interactive (WaveSurfer.js) avec zoom et navigation granulaire.
+    - **UI Harmonisée & Professionnelle :** Unification visuelle totale (codes couleurs, bordures, alignement pixel-perfect) entre les graphiques et les commandes.
+    - **Mini-DAW Intégré :** Contrôles ultra-réactifs de Volume, Panoramique, Mute et Solo par piste avec sauvegarde automatique.
+    - **Waveform Interactive :** WaveSurfer.js synchronisé avec menu contextuel de colorisation dynamique des pistes.
     - Option de Pitch Shifting et contrôle de vitesse (pour les pistes simples).
 *   **Audio Master Plan (Nouveau !) :**
     - **Volume Maître par Profil :** Chaque profil peut définir son propre volume système cible. Quand l'application détecte que vous ouvrez "Reaper", elle ajuste automatiquement le volume général de Windows pour vous !
