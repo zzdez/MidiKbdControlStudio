@@ -1916,8 +1916,13 @@ function playTrack(track) {
     stopAllMedia();
 
     // Determine Autoplay/Autoreplay
-    const isAutoplay = (track.autoplay !== undefined) ? track.autoplay : (currentSettings.autoplay || false);
-    const isAutoreplay = (track.autoreplay !== undefined) ? track.autoreplay : (currentSettings.autoreplay || false);
+    // Important: if not defined in track, we use global settings, but we assign it to memory
+    // so any subsequent save from modals or UI doesn't send "undefined"
+    if (track.autoplay === undefined) track.autoplay = (currentSettings.autoplay || false);
+    if (track.autoreplay === undefined) track.autoreplay = (currentSettings.autoreplay || false);
+
+    const isAutoplay = track.autoplay;
+    const isAutoreplay = track.autoreplay;
     window.currentAutoreplay = isAutoreplay; // Global state for end-of-track logic
     updatePlaybackOptionsUI(isAutoreplay, isAutoplay);
 
@@ -2709,13 +2714,14 @@ async function loadMultitrackSettings(file) {
             settings = await resp.json();
         }
 
-        // 2. Fallback to LocalStorage if backend empty or API failed
+        // 2. Fallback to LocalStorage ONLY for stems UI data (mute/solo/etc) if backend empty
+        // Autoplay and Autoreplay are strictly controlled by the file definition from API.
         if (!settings || !settings.tracks) {
             settings = JSON.parse(localStorage.getItem(getMultitrackStorageKey(file)) || "{}");
         }
 
         if (settings && settings.tracks) {
-            // Apply master volume, autoplay, autoreplay
+            // Apply master volume
             if (settings.masterVolume !== undefined) {
                 const mst = document.getElementById("multitrack-master-volume");
                 if (mst) {
@@ -2726,8 +2732,10 @@ async function loadMultitrackSettings(file) {
                 }
             }
 
-            if (settings.autoplay !== undefined) file.autoplay = settings.autoplay;
-            if (settings.autoreplay !== undefined) file.autoreplay = settings.autoreplay;
+            // Do NOT overwrite file.autoplay from local storage anymore to ensure server DB priority.
+            // If it's already set to a boolean from the files API, keep it!
+            if (file.autoplay === undefined && settings.autoplay !== undefined) file.autoplay = settings.autoplay;
+            if (file.autoreplay === undefined && settings.autoreplay !== undefined) file.autoreplay = settings.autoreplay;
 
             settings.tracks.forEach((trackData, i) => {
                 const muteBtn = document.getElementById(`mt-mute-${i}`);
@@ -2857,8 +2865,11 @@ async function playLocal(index) {
     const audioContainer = document.getElementById("audio-player-container");
 
     // Determine Autoplay/Autoreplay
-    const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
-    const isAutoreplay = (file.autoreplay !== undefined) ? file.autoreplay : (currentSettings.autoreplay || false);
+    if (file.autoplay === undefined) file.autoplay = (currentSettings.autoplay || false);
+    if (file.autoreplay === undefined) file.autoreplay = (currentSettings.autoreplay || false);
+
+    const isAutoplay = file.autoplay;
+    const isAutoreplay = file.autoreplay;
     window.currentAutoreplay = isAutoreplay;
     updatePlaybackOptionsUI(isAutoreplay, isAutoplay);
 
@@ -3345,17 +3356,18 @@ async function playLocal(index) {
                 }
             });
 
-            // Restore saved settings on load
-            loadMultitrackSettings(file);
+            // Restore saved settings on load (async)
+            loadMultitrackSettings(file).then(() => {
+                if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
+
+                const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+                if (isAutoplay) {
+                    window.multitrack.play();
+                }
+                updatePlayPauseUI();
+            });
             updateHiddenTracksList(file);
 
-            if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
-
-            const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
-            if (isAutoplay) {
-                window.multitrack.play();
-            }
-            updatePlayPauseUI();
             setupUniversalLoopSelection();
             updateLoopUI();
             renderLoopsUI();
@@ -6032,8 +6044,13 @@ function updatePlaybackOptionsUI(repeatActive, autoplayActive) {
 }
 
 function syncPlaybackSettingsToModals(item) {
-    const isAutoreplay = (item.autoreplay !== undefined) ? item.autoreplay : (currentSettings.autoreplay || false);
-    const isAutoplay = (item.autoplay !== undefined) ? item.autoplay : (currentSettings.autoplay || false);
+    // Determine the value to show in modals for this specific item.
+    // If undefined in the item, fallback to currentSettings and assign it to the item.
+    if (item.autoreplay === undefined) item.autoreplay = (currentSettings.autoreplay || false);
+    if (item.autoplay === undefined) item.autoplay = (currentSettings.autoplay || false);
+
+    const isAutoreplay = item.autoreplay;
+    const isAutoplay = item.autoplay;
 
     // YouTube / Setlist Modal
     const editAutoreplay = document.getElementById("edit-autoreplay");

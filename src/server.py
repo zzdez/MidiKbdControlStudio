@@ -365,6 +365,13 @@ async def get_setlist():
                 with open(SETLIST_FILE, "w", encoding="utf-8") as f:
                     json.dump(items, f, indent=4)
 
+            # Ensure autoplay/autoreplay are strictly boolean or not outputted if undefined to avoid JS type issues
+            for item in items:
+                if "autoplay" in item and item["autoplay"] is not None:
+                    item["autoplay"] = bool(item["autoplay"])
+                if "autoreplay" in item and item["autoreplay"] is not None:
+                    item["autoreplay"] = bool(item["autoreplay"])
+
             return items
         except:
             return []
@@ -724,7 +731,15 @@ async def get_local_files():
     if os.path.exists(LOCAL_LIB_FILE):
         try:
             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                items = json.load(f)
+
+            for item in items:
+                if "autoplay" in item and item["autoplay"] is not None:
+                    item["autoplay"] = bool(item["autoplay"])
+                if "autoreplay" in item and item["autoreplay"] is not None:
+                    item["autoreplay"] = bool(item["autoreplay"])
+
+            return items
         except:
             return []
     return []
