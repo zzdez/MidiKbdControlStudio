@@ -225,3 +225,13 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **Error Hardening** : Isolation stricte des appels API GetSongBPM/Key et Spotify via des blocs `try/except` globaux.
     *   **Timeouts de Sécurité** : Ajout de délais d'expiration (10s) pour éviter les blocages de threads lors de l'enrichissement automatique des métadonnées.
     *   **Fallback Silencieux** : Le système garantit le retour des résultats de recherche primaires (iTunes/YouTube) même en cas d'échec total des sources de données techniques.
+
+### 23. Évolution V17 : Stabilisation & Harmonisation Visuelle Multitrack
+*   **Architecture "Sync-First" (`app.js`) :**
+    - Définition prioritaire de la fonction `syncAllMultitrackStates` dès l'initialisation du lecteur pour assurer une réactivité immédiate des contrôles (Mute/Solo/Volume).
+    - Migration vers une sélection par classe CSS (`.btn-mute`, `.btn-solo`) au lieu des IDs, éliminant les conflits lors des rechargements asynchrones ou des réorganisations de pistes.
+*   **Harmonisation Visuelle & "Pixel-Perfect" Tuning :**
+    - **Bordures Dynamiques :** Unification des bordures horizontales (Haut/Bas) des en-têtes et des waveforms avec la couleur spécifique de chaque stem, injectée par le moteur JS.
+    - **Alignement Rigoureux :** Ajustement de la hauteur des en-têtes à **73px** et ajout d'une marge de **1px** pour un alignement vertical parfait avec les ondes graphiques.
+    - **Neutralisation du Curseur :** Changement de la couleur du curseur multitrack vers le blanc (`#fff`) pour éviter toute confusion visuelle au démarrage (ligne verticale violette "fantôme" à 0s).
+- **Hardening interaction :** Isolation des événements `oncontextmenu` sur les waveforms pour garantir l'accès au menu de colorisation des stems partout dans la rangée.
