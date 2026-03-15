@@ -1695,6 +1695,12 @@ async function saveItem() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
+
+        // Only update live UI if the currently playing track is the one we just edited
+        if (currentActivePlayer === 'youtube' && window.currentPlayingIndex === editingIndex) {
+            window.currentAutoreplay = payload.autoreplay;
+            updatePlaybackOptionsUI(payload.autoreplay, payload.autoplay);
+        }
     } else {
         // CREATE
         await fetch("/api/setlist", {
@@ -4781,6 +4787,12 @@ async function saveLocalItem() {
         const data = await res.json();
         if (data.warning) {
             alert(data.warning);
+        }
+
+        // Only update live UI if the currently playing local file is the one we just edited
+        if ((currentActivePlayer === 'local' || currentActivePlayer === 'waveform') && window.currentPlayingIndex === editingLocalIndex) {
+            window.currentAutoreplay = payload.autoreplay;
+            updatePlaybackOptionsUI(payload.autoreplay, payload.autoplay);
         }
     }
 
