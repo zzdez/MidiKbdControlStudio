@@ -2398,8 +2398,12 @@ function initWaveSurfer() {
         wavesurfer.on('interaction', () => { wavesurfer.play(); });
 
         wavesurfer.on('ready', () => {
-            if (window.currentAudioIsAutoplay) {
+            // Retrieve strictly from the wavesurfer object state so we don't accidentally play
+            // a previous song's state if loaded quickly from cache.
+            if (wavesurfer._currentIsAutoplay === true) {
                 wavesurfer.play();
+            } else {
+                wavesurfer.pause(); // Explicitly ensure it's not playing if false
             }
             if (isPitchEnabled) connectPitchEngine();
             updatePlayPauseUI();
@@ -3450,18 +3454,20 @@ async function playLocal(index) {
 
         // Load WaveSurfer
         if (wavesurfer) {
-            wavesurfer.setVolume(normalizedVolume); // SET WAVESURFER VOLUME
-            wavesurfer.load("/api/stream?path=" + encodeURIComponent(file.path));
-
             if (file.autoplay === undefined) file.autoplay = (currentSettings.autoplay || false);
             if (file.autoreplay === undefined) file.autoreplay = (currentSettings.autoreplay || false);
 
             const isAutoplay = file.autoplay;
             const isAutoreplay = file.autoreplay;
 
-            window.currentAudioIsAutoplay = isAutoplay;
+            // Set state directly on the wavesurfer instance *before* loading
+            // to guarantee the `ready` event reads the correct boolean for this song
+            wavesurfer._currentIsAutoplay = isAutoplay;
             window.currentAutoreplay = isAutoreplay;
             updateRepeatUI(isAutoreplay);
+
+            wavesurfer.setVolume(normalizedVolume); // SET WAVESURFER VOLUME
+            wavesurfer.load("/api/stream?path=" + encodeURIComponent(file.path));
         }
 
         currentActivePlayer = 'waveform';
@@ -3525,6 +3531,8 @@ async function playLocal(index) {
 
             if (isAutoplay) {
                 v.play().catch(e => console.warn("Auto-play aborted", e));
+            } else {
+                v.pause(); // Explicitly enforce paused state when canplay fires
             }
             v.oncanplay = null; // Remove listener safely to avoid memory leaks/accumulations
 
@@ -3533,6 +3541,11 @@ async function playLocal(index) {
             renderLoopsUI();
         };
         v.oncanplay = startPlay;
+
+        // Also manually verify immediately in case the video is already cached and ready
+        if (v.readyState >= 3) {
+            startPlay();
+        }
 
         v.onended = () => {
             v.pause();
