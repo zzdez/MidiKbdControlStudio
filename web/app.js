@@ -1695,6 +1695,12 @@ async function saveItem() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
+
+        // Only update live UI if the currently playing track is the one we just edited
+        if (currentActivePlayer === 'youtube' && window.currentPlayingIndex === editingIndex) {
+            window.currentAutoreplay = payload.autoreplay;
+            updatePlaybackOptionsUI(payload.autoreplay, payload.autoplay);
+        }
     } else {
         // CREATE
         await fetch("/api/setlist", {
@@ -1916,16 +1922,23 @@ function playTrack(track) {
     stopAllMedia();
 
     // Determine Autoplay/Autoreplay
-    const isAutoplay = (track.autoplay !== undefined) ? track.autoplay : (currentSettings.autoplay || false);
-    const isAutoreplay = (track.autoreplay !== undefined) ? track.autoreplay : (currentSettings.autoreplay || false);
+    // Important: if not defined in track, we use global settings, but we assign it to memory
+    // so any subsequent save from modals or UI doesn't send "undefined"
+    if (track.autoplay === undefined) track.autoplay = (currentSettings.autoplay || false);
+    if (track.autoreplay === undefined) track.autoreplay = (currentSettings.autoreplay || false);
+
+    const isAutoplay = track.autoplay;
+    const isAutoreplay = track.autoreplay;
     window.currentAutoreplay = isAutoreplay; // Global state for end-of-track logic
     updatePlaybackOptionsUI(isAutoreplay, isAutoplay);
 
     // Reset Containers
     const videoContainer = document.getElementById("video-container");
     const audioContainer = document.getElementById("audio-player-container");
+    const multitrackContainer = document.getElementById("multitrack-container");
     videoContainer.style.display = "flex";
     audioContainer.style.display = "none";
+    if (multitrackContainer) multitrackContainer.style.display = "none";
 
     // Volume Default logic
     const trackVolume = (track.volume !== undefined) ? parseInt(track.volume, 10) : 100;
@@ -2005,7 +2018,7 @@ function playTrack(track) {
         if (vPitch) vPitch.style.display = "none";
 
         if (player && (typeof player.loadVideoById === "function" || typeof player.cueVideoById === "function")) {
-            if (!currentSettings || currentSettings.autoplay !== false) {
+            if (isAutoplay) {
                 player.loadVideoById(track.id);
             } else {
                 player.cueVideoById(track.id);
@@ -2389,10 +2402,30 @@ function initWaveSurfer() {
         });
 
         wavesurfer.on('interaction', () => { wavesurfer.play(); });
+
+        wavesurfer.on('ready', () => {
+            // Retrieve strictly from the wavesurfer object state so we don't accidentally play
+            // a previous song's state if loaded quickly from cache.
+            if (wavesurfer._currentIsAutoplay === true) {
+                wavesurfer.play();
+            } else {
+                wavesurfer.pause(); // Explicitly ensure it's not playing if false
+            }
+            if (isPitchEnabled) connectPitchEngine();
+            updatePlayPauseUI();
+            updateLoopUI();
+            renderLoopsUI();
+        });
+
         wavesurfer.on('finish', () => {
             wavesurfer.pause();
             wavesurfer.seekTo(0);
+            if (window.currentAutoreplay === true) {
+                wavesurfer.play();
+                updatePlayPauseUI();
+            }
         });
+
         wavesurfer.on('timeupdate', (currentTime) => {
             updateActiveChapter(currentTime);
         });
@@ -2707,13 +2740,14 @@ async function loadMultitrackSettings(file) {
             settings = await resp.json();
         }
 
-        // 2. Fallback to LocalStorage if backend empty or API failed
+        // 2. Fallback to LocalStorage ONLY for stems UI data (mute/solo/etc) if backend empty
+        // Autoplay and Autoreplay are strictly controlled by the file definition from API.
         if (!settings || !settings.tracks) {
             settings = JSON.parse(localStorage.getItem(getMultitrackStorageKey(file)) || "{}");
         }
 
         if (settings && settings.tracks) {
-            // Apply master volume, autoplay, autoreplay
+            // Apply master volume
             if (settings.masterVolume !== undefined) {
                 const mst = document.getElementById("multitrack-master-volume");
                 if (mst) {
@@ -2724,6 +2758,10 @@ async function loadMultitrackSettings(file) {
                 }
             }
 
+            // Sync JS state strictly from database values to avoid local cache bleeding
+            // IMPORTANT: If 'settings' came from backend API (which has the real saved state), we must apply it.
+            // Since 'file' (the localFiles object in RAM) might have been populated with default values
+            // globally at start of playLocal(), we OVERRIDE file with settings if settings has it defined.
             if (settings.autoplay !== undefined) file.autoplay = settings.autoplay;
             if (settings.autoreplay !== undefined) file.autoreplay = settings.autoreplay;
 
@@ -2855,8 +2893,11 @@ async function playLocal(index) {
     const audioContainer = document.getElementById("audio-player-container");
 
     // Determine Autoplay/Autoreplay
-    const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
-    const isAutoreplay = (file.autoreplay !== undefined) ? file.autoreplay : (currentSettings.autoreplay || false);
+    if (file.autoplay === undefined) file.autoplay = (currentSettings.autoplay || false);
+    if (file.autoreplay === undefined) file.autoreplay = (currentSettings.autoreplay || false);
+
+    const isAutoplay = file.autoplay;
+    const isAutoreplay = file.autoreplay;
     window.currentAutoreplay = isAutoreplay;
     updatePlaybackOptionsUI(isAutoreplay, isAutoplay);
 
@@ -3343,17 +3384,18 @@ async function playLocal(index) {
                 }
             });
 
-            // Restore saved settings on load
-            loadMultitrackSettings(file);
+            // Restore saved settings on load (async)
+            loadMultitrackSettings(file).then(() => {
+                if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
+
+                const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+                if (isAutoplay) {
+                    window.multitrack.play();
+                }
+                updatePlayPauseUI();
+            });
             updateHiddenTracksList(file);
 
-            if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
-
-            const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
-            if (isAutoplay) {
-                window.multitrack.play();
-            }
-            updatePlayPauseUI();
             setupUniversalLoopSelection();
             updateLoopUI();
             renderLoopsUI();
@@ -3418,30 +3460,20 @@ async function playLocal(index) {
 
         // Load WaveSurfer
         if (wavesurfer) {
-            wavesurfer.setVolume(normalizedVolume); // SET WAVESURFER VOLUME
-            wavesurfer.load("/api/stream?path=" + encodeURIComponent(file.path));
+            if (file.autoplay === undefined) file.autoplay = (currentSettings.autoplay || false);
+            if (file.autoreplay === undefined) file.autoreplay = (currentSettings.autoreplay || false);
 
-            const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
-            const isAutoreplay = (file.autoreplay !== undefined) ? file.autoreplay : (currentSettings.autoreplay || false);
+            const isAutoplay = file.autoplay;
+            const isAutoreplay = file.autoreplay;
+
+            // Set state directly on the wavesurfer instance *before* loading
+            // to guarantee the `ready` event reads the correct boolean for this song
+            wavesurfer._currentIsAutoplay = isAutoplay;
             window.currentAutoreplay = isAutoreplay;
             updateRepeatUI(isAutoreplay);
 
-            wavesurfer.on('ready', () => {
-                if (isAutoplay) {
-                    wavesurfer.play();
-                }
-                if (isPitchEnabled) connectPitchEngine();
-                updatePlayPauseUI();
-                updateLoopUI();
-                renderLoopsUI();
-            });
-
-            wavesurfer.on('finish', () => {
-                if (window.currentAutoreplay === true) {
-                    wavesurfer.play();
-                    updatePlayPauseUI();
-                }
-            });
+            wavesurfer.setVolume(normalizedVolume); // SET WAVESURFER VOLUME
+            wavesurfer.load("/api/stream?path=" + encodeURIComponent(file.path));
         }
 
         currentActivePlayer = 'waveform';
@@ -3500,16 +3532,26 @@ async function playLocal(index) {
 
 
         const startPlay = () => {
-            const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+            if (file.autoplay === undefined) file.autoplay = (currentSettings.autoplay || false);
+            const isAutoplay = file.autoplay;
+
             if (isAutoplay) {
                 v.play().catch(e => console.warn("Auto-play aborted", e));
+            } else {
+                v.pause(); // Explicitly enforce paused state when canplay fires
             }
-            v.removeEventListener('canplay', startPlay);
+            v.oncanplay = null; // Remove listener safely to avoid memory leaks/accumulations
+
             if (isPitchEnabled) connectPitchEngine();
             updateLoopUI();
             renderLoopsUI();
         };
-        v.addEventListener('canplay', startPlay);
+        v.oncanplay = startPlay;
+
+        // Also manually verify immediately in case the video is already cached and ready
+        if (v.readyState >= 3) {
+            startPlay();
+        }
 
         v.onended = () => {
             v.pause();
@@ -4745,6 +4787,12 @@ async function saveLocalItem() {
         const data = await res.json();
         if (data.warning) {
             alert(data.warning);
+        }
+
+        // Only update live UI if the currently playing local file is the one we just edited
+        if ((currentActivePlayer === 'local' || currentActivePlayer === 'waveform') && window.currentPlayingIndex === editingLocalIndex) {
+            window.currentAutoreplay = payload.autoreplay;
+            updatePlaybackOptionsUI(payload.autoreplay, payload.autoplay);
         }
     }
 
@@ -6030,8 +6078,13 @@ function updatePlaybackOptionsUI(repeatActive, autoplayActive) {
 }
 
 function syncPlaybackSettingsToModals(item) {
-    const isAutoreplay = (item.autoreplay !== undefined) ? item.autoreplay : (currentSettings.autoreplay || false);
-    const isAutoplay = (item.autoplay !== undefined) ? item.autoplay : (currentSettings.autoplay || false);
+    // Determine the value to show in modals for this specific item.
+    // If undefined in the item, fallback to currentSettings and assign it to the item.
+    if (item.autoreplay === undefined) item.autoreplay = (currentSettings.autoreplay || false);
+    if (item.autoplay === undefined) item.autoplay = (currentSettings.autoplay || false);
+
+    const isAutoreplay = item.autoreplay;
+    const isAutoplay = item.autoplay;
 
     // YouTube / Setlist Modal
     const editAutoreplay = document.getElementById("edit-autoreplay");
@@ -6044,6 +6097,12 @@ function syncPlaybackSettingsToModals(item) {
     const localAutoplay = document.getElementById("local-autoplay");
     if (localAutoreplay) localAutoreplay.checked = isAutoreplay;
     if (localAutoplay) localAutoplay.checked = isAutoplay;
+
+    // Multitrack Modal
+    const mtAutoreplay = document.getElementById("mt-autoreplay");
+    const mtAutoplay = document.getElementById("mt-autoplay");
+    if (mtAutoreplay) mtAutoreplay.checked = isAutoreplay;
+    if (mtAutoplay) mtAutoplay.checked = isAutoplay;
 }
 
 function updateRepeatUI(active) {
