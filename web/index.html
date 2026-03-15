@@ -61,6 +61,60 @@
                 </div>
             </div>
 
+            <!-- Fretboard Modal (Draggable) -->
+            <div id="fretboard-overlay" style="display:none; position:absolute; top:20px; left:20px; z-index:9000; background:rgba(20,20,20,0.95); border:1px solid #444; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.8); width:700px; padding:10px; backdrop-filter:blur(5px);">
+
+                <!-- Header / Handle for dragging -->
+                <div id="fretboard-header" style="cursor:move; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px; margin-bottom:15px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <i class="ph ph-guitar" style="color:var(--accent); font-size:1.2em;"></i>
+                        <span style="font-weight:bold; color:white; font-size:1em;" data-i18n="web.lbl_scale">Gamme</span>
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <!-- Key Select -->
+                        <select id="fretboard-key" style="padding:4px 8px; font-size:0.85em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:auto; width:auto;" onchange="renderFretboard()">
+                            <option value="C">C</option><option value="C#">C# / Db</option><option value="D">D</option><option value="D#">D# / Eb</option>
+                            <option value="E">E</option><option value="F">F</option><option value="F#">F# / Gb</option><option value="G">G</option>
+                            <option value="G#">G# / Ab</option><option value="A">A</option><option value="A#">A# / Bb</option><option value="B">B</option>
+                        </select>
+
+                        <!-- Scale Select -->
+                        <select id="fretboard-scale" style="padding:4px 8px; font-size:0.85em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:auto; width:auto;" onchange="renderFretboard()">
+                            <option value="major_pentatonic" data-i18n="web.scale_major_pentatonic">Penta. Majeure</option>
+                            <option value="minor_pentatonic" data-i18n="web.scale_minor_pentatonic" selected>Penta. Mineure</option>
+                            <option value="major" data-i18n="web.scale_major">Majeure</option>
+                            <option value="minor" data-i18n="web.scale_minor">Mineure Naturelle</option>
+                            <option value="blues" data-i18n="web.scale_blues">Blues</option>
+                            <option value="dorian" data-i18n="web.scale_dorian">Dorien</option>
+                            <option value="mixolydian" data-i18n="web.scale_mixolydian">Mixolydien</option>
+                        </select>
+
+                        <!-- Hand toggle -->
+                        <button id="fretboard-hand-toggle" class="btn-icon" title="Inverser Droitier/Gaucher" onclick="toggleFretboardHand()" style="font-size:1.1em; background:#222; border-radius:4px; padding:2px 6px;">
+                            <i class="ph ph-hand-palm"></i>
+                        </button>
+
+                        <button class="btn-icon" onclick="toggleFretboard()" title="Fermer" style="font-size:1.2em; color:#bbb;"><i class="ph ph-x"></i></button>
+                    </div>
+                </div>
+
+                <!-- Neck Container -->
+                <div id="fretboard-neck-wrapper" style="position:relative; width:100%; height:160px; background:#1a1a1a; overflow:hidden; border-radius:4px; border:2px solid #0a0a0a;">
+                    <!-- Wood Texture / Fretboard CSS rendered via JS -->
+                    <div id="fretboard-neck" class="fretboard-right-handed" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex;">
+                        <!-- Nut (Sillet) -->
+                        <div id="fretboard-nut" style="width:8px; height:100%; background:#d4c4a8; border-right:1px solid #8c7b64; z-index:10; box-shadow:2px 0 5px rgba(0,0,0,0.5);"></div>
+                        <!-- Frets Area -->
+                        <div id="fretboard-frets" style="display:flex; flex:1; height:100%; position:relative;"></div>
+                        <!-- Strings Area (Overlay) -->
+                        <div id="fretboard-strings" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-around; pointer-events:none; z-index:15;">
+                            <!-- E A D G B e -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Custom Video Timeline (Overlay/Below) -->
             <div id="video-timeline-container" class="timeline-row"
                 style="display:none; padding: 0 10px; box-sizing: border-box; background:#121212; position:relative; min-height: 20px; align-items: stretch; margin-bottom: 5px;">
@@ -208,6 +262,11 @@
                                 title="Accélérer"><i class="ph ph-plus"></i></button>
                         </div>
 
+                        <!-- Fretboard Scale Button -->
+                        <button class="control-btn" id="btn-audio-scale" onclick="toggleFretboard()" title="Afficher le Manche" style="font-size: 1.2rem; color: #888; margin-left:10px;">
+                            <i class="ph ph-line-segments"></i> <span id="audio-scale-display" style="font-size: 0.7em; margin-left:2px; font-weight:bold; color:var(--accent);"></span>
+                        </button>
+
                         <!-- Pitch Control (Compact) -->
                         <div class="pitch-pill"
                             style="display:flex; align-items:center; gap:6px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
@@ -313,6 +372,11 @@
                             <button onclick="multitrackControl('speed_up')" data-i18n-title="web.btn_fast"
                                 title="Accélérer"><i class="ph ph-plus"></i></button>
                         </div>
+
+                        <!-- Fretboard Scale Button -->
+                        <button class="control-btn" id="btn-mt-scale" onclick="toggleFretboard()" title="Afficher le Manche" style="font-size: 1.2rem; color: #888; margin-left:10px;">
+                            <i class="ph ph-line-segments"></i> <span id="mt-scale-display" style="font-size: 0.7em; margin-left:2px; font-weight:bold; color:var(--accent);"></span>
+                        </button>
 
                         <!-- Master Volume Control -->
                         <div
@@ -447,6 +511,11 @@
                         <button onclick="videoControl('speed_up')" title="Accélérer" data-i18n-title="web.btn_fast"><i
                                 class="ph ph-plus"></i></button>
                     </div>
+
+                    <!-- Fretboard Scale Button -->
+                    <button class="control-btn" id="btn-video-scale" onclick="toggleFretboard()" title="Afficher le Manche" style="font-size: 1.2rem; color: #888; margin-left:10px;">
+                        <i class="ph ph-line-segments"></i> <span id="video-scale-display" style="font-size: 0.7em; margin-left:2px; font-weight:bold; color:var(--accent);"></span>
+                    </button>
 
                     <!-- Subtitle Toggle Area -->
                     <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
@@ -1298,6 +1367,13 @@
                         </label>
                     </div>
 
+                    <h4 data-i18n="web.lbl_fretboard_style">Style du Fretboard</h4>
+                    <select id="setting-fretboard-skin" onchange="changeFretboardSkin()"
+                        style="padding:10px; border-radius:10px; border:1px solid #333; background:#222; color:white; width:100%; margin-bottom: 20px;">
+                        <option value="flat" data-i18n="web.fretboard_flat">Plat & Sombre (Flat Dark)</option>
+                        <option value="wood" data-i18n="web.fretboard_wood">Réaliste (Bois)</option>
+                    </select>
+
                     <h4 data-i18n="web.lbl_youtube_api">Clé API YouTube (Optionnelle)</h4>
                     <label data-i18n="web.lbl_youtube_api_key">YouTube Data API Key</label>
                     <input type="password" id="setting-youtube-key" data-i18n-placeholder="web.placeholder_youtube_api"
@@ -1449,6 +1525,7 @@
     </dialog>
 
     <script src="lib/pitch_shifter.js?v=2"></script>
+    <script src="fretboard.js?v=1"></script>
     <script src="app.js?v=4"></script>
     <!-- SUBTITLE TRACKS MODAL -->
     <dialog id="modal-subtitle-tracks" class="preview-modal"

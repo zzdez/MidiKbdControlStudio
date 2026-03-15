@@ -922,6 +922,11 @@ async function loadSettings() {
             } else if (Object.keys(translations).length === 0) {
                 await loadTranslations(currentLang);
             }
+
+            // Sync Fretboard State if loaded
+            if (typeof fretboardState !== 'undefined') {
+                fretboardState.skin = currentSettings.fretboard_skin || "flat";
+            }
         }
     } catch (e) {
         console.error("Settings Load Error", e);
@@ -958,11 +963,26 @@ async function openSettingsModal() {
 
         const arCb = document.getElementById("setting-autoreplay");
         if (arCb) arCb.checked = currentSettings.autoreplay === true; // Default to false
+
+        const fbSkin = document.getElementById("setting-fretboard-skin");
+        if (fbSkin) fbSkin.value = currentSettings.fretboard_skin || "flat"; // Default
+
         renderSettingsFolders();
 
         // Show Modal
         document.getElementById("settings-modal").showModal();
         switchSettingsTab('general'); // Reset to first tab
+    }
+}
+
+function changeFretboardSkin() {
+    const selector = document.getElementById("setting-fretboard-skin");
+    if (!selector) return;
+
+    // Live update if the fretboard is open
+    if (typeof fretboardState !== 'undefined') {
+        fretboardState.skin = selector.value;
+        renderFretboard();
     }
 }
 
@@ -1103,6 +1123,15 @@ async function saveSettings() {
 
     const arCb = document.getElementById("setting-autoreplay");
     if (arCb) currentSettings.autoreplay = arCb.checked;
+
+    const fbSkin = document.getElementById("setting-fretboard-skin");
+    if (fbSkin) {
+        currentSettings.fretboard_skin = fbSkin.value;
+        if (typeof fretboardState !== 'undefined') {
+            fretboardState.skin = fbSkin.value;
+            renderFretboard();
+        }
+    }
 
     try {
         await fetch("/api/settings", {

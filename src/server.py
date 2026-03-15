@@ -548,6 +548,7 @@ async def update_setlist_item(index: int, item: Dict):
                 "bpm": item.get("bpm", ""),
                 "key": item.get("key", ""),
                 "media_key": item.get("media_key", ""),
+                "scale": item.get("scale", ""),
                 "original_pitch": item.get("original_pitch", ""),
                 "target_pitch": item.get("target_pitch", ""),
                 "youtube_description": item.get("youtube_description", ""),
@@ -995,6 +996,7 @@ async def update_local_file(index: int, item: Dict):
             current["bpm"] = item.get("bpm", current.get("bpm", ""))
             current["key"] = item.get("key", current.get("key", ""))
             current["media_key"] = item.get("media_key", current.get("media_key", ""))
+            current["scale"] = item.get("scale", current.get("scale", ""))
             current["original_pitch"] = item.get("original_pitch", current.get("original_pitch", ""))
             current["target_pitch"] = item.get("target_pitch", current.get("target_pitch", ""))
             current["autoplay"] = item.get("autoplay", current.get("autoplay", False))
