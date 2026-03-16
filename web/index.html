@@ -125,17 +125,27 @@
                 </div>
 
                 <!-- Neck Container -->
-                <div id="fretboard-neck-wrapper" style="position:relative; width:100%; height:160px; background:#1a1a1a; overflow:hidden; border-radius:4px; border:2px solid #0a0a0a;">
-                    <!-- Wood Texture / Fretboard CSS rendered via JS -->
-                    <div id="fretboard-neck" class="fretboard-right-handed" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex;">
-                        <!-- Nut (Sillet) -->
-                        <div id="fretboard-nut" style="width:8px; height:100%; background:#d4c4a8; border-right:1px solid #8c7b64; z-index:10; box-shadow:2px 0 5px rgba(0,0,0,0.5);"></div>
-                        <!-- Frets Area -->
-                        <div id="fretboard-frets" style="display:flex; flex:1; height:100%; position:relative;"></div>
-                        <!-- Strings Area (Overlay) -->
-                        <div id="fretboard-strings" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-around; pointer-events:none; z-index:15;">
-                            <!-- E A D G B e -->
+                <!-- Use padding-top and padding-bottom to create safe zones for notes without changing neck proportion -->
+                <!-- Remove overflow hidden from parent too -->
+                <div style="padding: 10px 10px 0 10px;">
+                    <div id="fretboard-neck-wrapper" style="position:relative; width:100%; height:160px; background:#1a1a1a; border-radius:4px; border:2px solid #0a0a0a;">
+                        <!-- Wood Texture / Fretboard CSS rendered via JS -->
+                        <div id="fretboard-neck" class="fretboard-right-handed" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex;">
+                            <!-- Nut (Sillet) -->
+                            <div id="fretboard-nut" style="width:8px; height:100%; background:#d4c4a8; border-right:1px solid #8c7b64; z-index:10; box-shadow:2px 0 5px rgba(0,0,0,0.5);"></div>
+                            <!-- Frets Area -->
+                            <div id="fretboard-frets" style="display:flex; flex:1; height:100%; position:relative;"></div>
+                            <!-- Strings Area (Overlay) -->
+                            <!-- Use visible overflow here to allow notes to protrude outside the 160px boundaries visually while contained safely by outer wrapper padding -->
+                            <div id="fretboard-strings" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-around; pointer-events:none; z-index:15; overflow:visible;">
+                                <!-- E A D G B e -->
+                            </div>
                         </div>
+                    </div>
+
+                    <!-- Fret Numbers -->
+                    <div id="fretboard-numbers" style="display:flex; width:100%; height:20px; margin-top:8px; padding-left: 8px;">
+                        <!-- Will be populated via JS -->
                     </div>
                 </div>
             </div>

@@ -222,6 +222,7 @@ function renderFretboard(silentSave = false) {
     const stringsContainer = document.getElementById("fretboard-strings");
     const nut = document.getElementById("fretboard-nut");
     const wrapper = document.getElementById("fretboard-neck-wrapper");
+    const numbersContainer = document.getElementById("fretboard-numbers");
 
     // Apply Skin (future proofing for wood theme)
     if (fretboardState.skin === "wood") {
@@ -239,19 +240,25 @@ function renderFretboard(silentSave = false) {
         fretsContainer.style.order = 1;
         nut.style.borderRight = "none";
         nut.style.borderLeft = "1px solid #8c7b64";
+        // Also reverse padding logic on the numbers container based on layout structure
+        numbersContainer.style.paddingLeft = "0";
+        numbersContainer.style.paddingRight = "8px";
     } else {
         nut.style.order = 1;
         fretsContainer.style.order = 2;
         nut.style.borderLeft = "none";
         nut.style.borderRight = "1px solid #8c7b64";
+        numbersContainer.style.paddingLeft = "8px";
+        numbersContainer.style.paddingRight = "0";
     }
 
     fretsContainer.innerHTML = "";
     stringsContainer.innerHTML = "";
+    numbersContainer.innerHTML = "";
 
     const activeScaleNotes = getScaleNotes(fretboardState.key, fretboardState.scale);
 
-    // 1. Draw Frets (Background vertical dividers & inlays)
+    // 1. Draw Frets (Background vertical dividers & inlays) & Numbers
     const inlays = [3, 5, 7, 9, 15];
     const doubleInlays = [12];
 
@@ -266,6 +273,21 @@ function renderFretboard(silentSave = false) {
         fretDiv.style.display = "flex";
         fretDiv.style.justifyContent = "center";
         fretDiv.style.alignItems = "center";
+
+        const numDiv = document.createElement("div");
+        numDiv.style.flex = "1";
+        numDiv.style.display = "flex";
+        numDiv.style.justifyContent = "center";
+        numDiv.style.alignItems = "center";
+        numDiv.style.color = "#999";
+        numDiv.style.fontSize = "12px";
+        numDiv.style.fontWeight = "bold";
+
+        // Show numbers mostly on inlay frets to reduce clutter
+        if (inlays.includes(visualFretNum) || doubleInlays.includes(visualFretNum)) {
+            numDiv.innerText = visualFretNum;
+        }
+        numbersContainer.appendChild(numDiv);
 
         // Inlays
         if (inlays.includes(visualFretNum)) {
@@ -346,15 +368,17 @@ function renderFretboard(silentSave = false) {
             let yPos = topPct;
             if(stringIndex===0) yPos = 3;
             if(stringIndex===5) yPos = 97;
-            noteDot.style.top = `calc(${yPos}% - 9px)`;
 
             if (isNut) {
                 if (isLefty) {
                     noteDot.style.right = "0";
-                    noteDot.style.transform = "translate(50%, 0)";
+                    noteDot.style.transform = "translate(50%, -50%)"; // Center vertically on the string Y pos relative to container
+                    // yPos logic previously didn't have translation on Y for centering the dot properly exactly on string line.
+                    noteDot.style.top = `calc(${yPos}%)`;
                 } else {
                     noteDot.style.left = "0";
-                    noteDot.style.transform = "translate(-50%, 0)";
+                    noteDot.style.transform = "translate(-50%, -50%)";
+                    noteDot.style.top = `calc(${yPos}%)`;
                 }
             } else {
                 // Calculate percentage based on fret container
@@ -372,10 +396,12 @@ function renderFretboard(silentSave = false) {
                 const nutOffsetPx = 8;
                 if (isLefty) {
                     noteDot.style.right = `calc(${100 - xPosPct}% + ${nutOffsetPx}px)`;
-                    noteDot.style.transform = "translate(50%, 0)";
+                    noteDot.style.transform = "translate(50%, -50%)";
+                    noteDot.style.top = `calc(${yPos}%)`;
                 } else {
                     noteDot.style.left = `calc(${xPosPct}% + ${nutOffsetPx}px)`;
-                    noteDot.style.transform = "translate(-50%, 0)";
+                    noteDot.style.transform = "translate(-50%, -50%)";
+                    noteDot.style.top = `calc(${yPos}%)`;
                 }
             }
 
