@@ -328,12 +328,16 @@ function renderFretboard(silentSave = false) {
         strLine.style.background = fretboardState.skin === "wood" ? "linear-gradient(to bottom, #eee, #999)" : "#444";
         strLine.style.boxShadow = "0 1px 2px rgba(0,0,0,0.5)";
         strLine.style.position = "absolute";
-        // Calculate vertical position to distribute evenly
-        const topPct = (stringIndex / 5) * 100;
-        // Adjust for string thickness to keep them centered
-        strLine.style.top = `calc(${topPct}% - ${(stringIndex*0.5)/2}px)`;
-        if(stringIndex === 0) strLine.style.top = "5px"; // margin top for e
-        if(stringIndex === 5) strLine.style.top = "calc(100% - 5px)"; // margin bottom for E
+        // Calculate vertical position to distribute evenly with margins using calc
+        // We use a safe margin on top and bottom (e.g. 5px) to space out the strings naturally
+        // Total usable area: 100% - 10px.
+        // We add 5px base offset.
+        // So string 0 is at 5px down (from top edge)
+        // String 5 is at 100% - 5px (from top edge)
+        const strMargin = 5;
+        const topPct = (stringIndex / 5);
+        strLine.style.top = `calc(${strMargin}px + ${topPct} * (100% - ${strMargin * 2}px))`;
+        strLine.style.transform = "translateY(-50%)"; // Center vertically on its own coordinate
 
         stringsContainer.appendChild(strLine);
 
@@ -365,20 +369,17 @@ function renderFretboard(silentSave = false) {
             noteDot.innerText = noteName;
 
             // Positioning
-            let yPos = topPct;
-            if(stringIndex===0) yPos = 3;
-            if(stringIndex===5) yPos = 97;
+            const yPosStr = `calc(${strMargin}px + ${topPct} * (100% - ${strMargin * 2}px))`;
 
             if (isNut) {
                 if (isLefty) {
                     noteDot.style.right = "0";
-                    noteDot.style.transform = "translate(50%, -50%)"; // Center vertically on the string Y pos relative to container
-                    // yPos logic previously didn't have translation on Y for centering the dot properly exactly on string line.
-                    noteDot.style.top = `calc(${yPos}%)`;
+                    noteDot.style.transform = "translate(50%, -50%)";
+                    noteDot.style.top = yPosStr;
                 } else {
                     noteDot.style.left = "0";
                     noteDot.style.transform = "translate(-50%, -50%)";
-                    noteDot.style.top = `calc(${yPos}%)`;
+                    noteDot.style.top = yPosStr;
                 }
             } else {
                 // Calculate percentage based on fret container
@@ -397,11 +398,11 @@ function renderFretboard(silentSave = false) {
                 if (isLefty) {
                     noteDot.style.right = `calc(${100 - xPosPct}% + ${nutOffsetPx}px)`;
                     noteDot.style.transform = "translate(50%, -50%)";
-                    noteDot.style.top = `calc(${yPos}%)`;
+                    noteDot.style.top = yPosStr;
                 } else {
                     noteDot.style.left = `calc(${xPosPct}% + ${nutOffsetPx}px)`;
                     noteDot.style.transform = "translate(-50%, -50%)";
-                    noteDot.style.top = `calc(${yPos}%)`;
+                    noteDot.style.top = yPosStr;
                 }
             }
 
