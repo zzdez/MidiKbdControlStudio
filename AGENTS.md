@@ -235,3 +235,22 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     - **Alignement Rigoureux :** Ajustement de la hauteur des en-têtes à **73px** et ajout d'une marge de **1px** pour un alignement vertical parfait avec les ondes graphiques.
     - **Neutralisation du Curseur :** Changement de la couleur du curseur multitrack vers le blanc (`#fff`) pour éviter toute confusion visuelle au démarrage (ligne verticale violette "fantôme" à 0s).
 - **Hardening interaction :** Isolation des événements `oncontextmenu` sur les waveforms pour garantir l'accès au menu de colorisation des stems partout dans la rangée.
+
+### 24. Évolution V18 : Fiabilisation de l'État de Lecture (Autoplay/Autoreplay)
+*   **Isolement UI de l'Éditeur d'Arrière-Plan :**
+    *   **Prévention des Collisions :** La sauvegarde d'un item via une modale (ex: changer l'autoplay du Track B) vérifie désormais strictement si `window.currentPlayingIndex` correspond à l'item édité *avant* d'appliquer le `updatePlaybackOptionsUI`. Cela empêche l'UI du lecteur principal d'être écrasée visuellement par les réglages d'une autre piste.
+    *   **Sécurisation des Variables Globales :** La fonction `syncPlaybackSettingsToModals` a été purgée de toute réaffectation des variables globales (`window.currentAutoreplay`), garantissant qu'elle ne sert plus qu'à pré-remplir les cases à cocher du DOM.
+*   **Direct-to-Save depuis les Switches :**
+    *   Les modifications effectuées depuis les interrupteurs (Autoplay/Autoreplay) des modales déclenchent désormais une mise à jour silencieuse immédiate (`saveItemQuiet` / `saveLocalItemQuiet`) vers le backend, éliminant le besoin de valider par le bouton "Sauvegarder".
+
+### 25. Évolution V19 : Fretboard Interactif & Gammes (MVP)
+*   **Architecture Frontend (`fretboard.js`) :**
+    *   **Séparation des responsabilités :** Toute la logique musicale (calcul des intervalles de gamme, rendu du DOM à la volée, mapping des notes sur le manche) a été isolée dans un script dédié pour ne pas alourdir `app.js`.
+    *   **Composant Flottant :** Le Fretboard utilise un système de Drag-and-Drop natif (via onmousedown/mousemove) appliqué à son header, évitant ainsi le blocage visuel de la balise `<dialog>`.
+    *   **Responsive CSS :** Les cordes et les notes (15 cases) sont positionnées en pourcentage CSS absolu pour garantir une adaptation au resize futur.
+*   **Intégration Backend (`metadata_service.py` & `server.py`) :**
+    *   **Support du paramètre `scale` :** Injection stricte du nouveau champ `scale` (ex: "minor_pentatonic") dans tous les flux de sauvegarde locaux et distants.
+    *   **Sidecar Fallback :** Le script de scan de la librairie locale (`scan_file_metadata`) a été patché pour ouvrir systématiquement le `[fichier].json` associé afin de récupérer la `scale` étendue que Mutagen ne supporte pas nativement.
+*   **Harmonisation Visuelle de Lecture :**
+    *   **Header Global Vidéo :** Création du conteneur `#global-video-info` dans la `header-right` pour afficher le Titre et le BPM des vidéos (YouTube/Local), évitant de surcharger le lecteur central avec du texte par-dessus l'image.
+    *   **Header Multipiste Dynamique :** Fusion de la pochette (`#multitrack-art`) et des stats musicales directement dans la barre de titre du Mini-DAW via Flexbox pour minimiser l'impact vertical (hauteur critique pour conserver un maximum de pistes visibles).

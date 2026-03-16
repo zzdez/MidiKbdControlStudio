@@ -308,6 +308,17 @@
         "api_error_missing_title": "Erreur: Titre requis pour la recherche.",
         "api_error_missing_info": "Erreur: Artiste et Titre requis pour la recherche.",
         "api_error_request": "❌ Erreur lors de la requête API.",
-        "api_error_network": "❌ Erreur réseau."
+        "api_error_network": "❌ Erreur réseau.",
+        "lbl_scale": "Gamme",
+        "scale_major": "Majeure",
+        "scale_minor": "Mineure Naturelle",
+        "scale_minor_pentatonic": "Penta. Mineure",
+        "scale_major_pentatonic": "Penta. Majeure",
+        "scale_blues": "Blues",
+        "scale_dorian": "Dorien",
+        "scale_mixolydian": "Mixolydien",
+        "lbl_fretboard_style": "Style du Manche (Fretboard)",
+        "fretboard_flat": "Plat & Sombre (Moderne)",
+        "fretboard_wood": "Réaliste (Texture Bois)"
     }
 }

@@ -1,15 +1,15 @@
-# MidiKbd Control Studio (Universal V4 Edition)
+# MidiKbd Control Studio (Web & Desktop)
 
-**MidiKbd Control Studio** (anciennement AirstepStudio) est la station de contrôle ultime pour musiciens, désormais compatible avec **TOUS les contrôleurs MIDI** (USB et Bluetooth).
+Une application hybride (Python/FastAPI + HTML/JS/CSS) conçue pour les musiciens.
+Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autres applications Windows (DAWs, Moises, Spotify) directement depuis un pédalier MIDI (comme l'AIRSTEP) ou le clavier de l'ordinateur, grâce à une interface Web unifiée et un exécutable portable.
 
-Elle combine le meilleur de deux mondes :
-1.  **Dashboard Web ("Le Cockpit") :** Une interface riche pour gérer vos médias (YouTube, Setlist) et vos configurations.
-2.  **Overlay Natif ("La Remote") :** Une télécommande flottante ultra-compacte pour garder le contrôle sur vos logiciels (DAW) sans quitter l'écran des yeux.
+![MidiKbd Control Studio Web UI](./assets/screenshot.png) *(Note: Image d'illustration)*
 
-## 🚀 Fonctionnalités Clés
+---
 
-*   **Support MIDI Universel (Nouveau) :**
-    *   Compatible avec **n'importe quel contrôleur MIDI** : Airstep, Boss FS-1-WL, Chocolate, Korg Nano, Claviers maîtres...
+## 🚀 Fonctionnalités Principales
+
+*   **Plug & Play Universel :** Compatible avec **n'importe quel contrôleur MIDI** : Airstep, Boss FS-1-WL, Chocolate, Korg Nano, Claviers maîtres...
     *   **Double Driver :** Support natif Bluetooth LE (Bleak) et USB (Mido/WinMM).
     *   **Détection Automatique :** Branchez, scannez, c'est détecté.
 *   **Mode Service & Portable :** 
@@ -19,34 +19,39 @@ Elle combine le meilleur de deux mondes :
     *   Un tiroir ("Drawer") intégré à la télécommande pour lancer vos morceaux et vos applications favorites.
     *   Détection automatique des applications liées à vos profils (ex: lancez "Reaper" et le profil change automatiquement).
 *   **Setlist Catégorisée & Intelligente :**
-    *   **Nouveau !** Modale de recherche YouTube intégrée : trouvez, prévisualisez et ajoutez vos backing tracks sans quitter l'appli.
-    *   **Nouveau !** Support des fichiers locaux (MP3/WAV) via streaming natif.
+    *   **Modale de recherche YouTube intégrée :** trouvez, prévisualisez et ajoutez vos backing tracks sans quitter l'appli.
+    *   **Support des fichiers locaux (MP3/WAV) via streaming natif.**
     *   **Auto-Tag Intelligent :** Recherche automatique des métadonnées et pochettes HD via iTunes API.
     *   **Éditeur de Métadonnées :** Modifiez physiquement vos fichiers (Titres, Artistes...) et gérez vos pochettes d'album directement depuis l'application.
     *   **UI Premium :** Interface modernisée avec **Phosphor Icons** pour une lisibilité parfaite.
     *   Organisez par Artiste, Genre, et ajoutez vos notes personnelles distinctes de la description YouTube.
-    *   **NOUVEAU ! Profils Web Universels :** Ajoutez n'importe quel site (Dailymotion, Vimeo...) et associez-lui un profil dédié. L'application détecte automatiquement le contexte grâce au titre de la fenêtre dynamique.
+    *   **Profils Web Universels :** Ajoutez n'importe quel site (Dailymotion, Vimeo...) et associez-lui un profil dédié. L'application détecte automatiquement le contexte grâce au titre de la fenêtre dynamique.
     *   **Smart Embed :** Copiez/collez vos liens standards (Dailymotion, Vimeo) et le lecteur les convertit automatiquement en liens "Embed" compatibles.
 *   **Contrôle Hybride & Robuste :**
     *   **Mode WEB :** Pilotez le lecteur YouTube (Play, Pause, Vitesse, Seek)- **Lecteur Vidéo Local**
     - Support MP4, MKV, AVI, MOV.
     - Contrôle de vitesse (0.5x à 2.0x).
-    - **Nouveau** : Pitch Shifting (Changement de tonalité sans changer la vitesse) de -6 à +6 demi-tons.
-    - **Nouveau** : Support Multi-Sous-titres (SRT/VTT) avec sélection de piste en direct via modale.
-    - **Nouveau** : Ajustement interactif (Drag & Drop) de la hauteur des sous-titres, avec sauvegarde globale persistante pour vos prochains visionnages !
+    - Pitch Shifting (Changement de tonalité sans changer la vitesse) de -6 à +6 demi-tons.
+    - Support Multi-Sous-titres (SRT/VTT) avec sélection de piste en direct via modale.
+    - Ajustement interactif (Drag & Drop) de la hauteur des sous-titres, avec sauvegarde globale persistante pour vos prochains visionnages !
     - Navigation par sauts (+/- 5s).
-    - **NOUVEAU ! Support des Chapitres :** Détection et affichage interactif des chapitres YouTube (Timeline Marker).
+    - **Support des Chapitres :** Détection et affichage interactif des chapitres YouTube (Timeline Marker).
 - **Lecteur Audio Local (Simple & Multipistes)**
     - Support MP3, WAV, FLAC, M4A, OGG.
-    - **NOUVEAU ! Support Multipistes (Stems) :** Jouez vos morceaux décomposés (basse, batterie, guitare, etc.) en parfaite synchronisation.
+    - **Support Multipistes (Stems) :** Jouez vos morceaux décomposés (basse, batterie, guitare, etc.) en parfaite synchronisation.
     - **UI Harmonisée & Professionnelle :** Unification visuelle totale (codes couleurs, bordures, alignement pixel-perfect) entre les graphiques et les commandes.
     - **Mini-DAW Intégré :** Contrôles ultra-réactifs de Volume, Panoramique, Mute et Solo par piste avec sauvegarde automatique.
     - **Waveform Interactive :** WaveSurfer.js synchronisé avec menu contextuel de colorisation dynamique des pistes.
     - Option de Pitch Shifting et contrôle de vitesse (pour les pistes simples).
-*   **Audio Master Plan (Nouveau !) :**
+*   **Fretboard Interactif & Gammes (Nouveau !) :**
+    - **Manche de Guitare Virtuel :** Affichez un manche (15 cases) superposé et déplaçable au-dessus de vos vidéos YouTube, MP3 ou Multipistes pour improviser instantanément.
+    - **Scales & Tonalité :** Affiche visuellement les notes d'une gamme spécifique (Pentatonique, Blues, Majeure, etc.) en fonction de la tonalité renseignée dans la base de données.
+    - **Mode Gaucher & Skins :** Option native pour inverser le manche, et sélection du thème visuel (Texture Bois réaliste ou Flat Design) depuis les réglages.
+*   **Audio Master Plan :**
     - **Volume Maître par Profil :** Chaque profil peut définir son propre volume système cible. Quand l'application détecte que vous ouvrez "Reaper", elle ajuste automatiquement le volume général de Windows pour vous !
     - **Volume Persistant par Média :** Les lecteurs (Web et Local) mémorisent le volume exact de chaque piste individuellement. Ajustez la jauge en direct, c'est sauvegardé instantanément !
     - Contrôle UX unifié avec pourcentage en temps réel et fonction *Mute* rapide.
+    - **Persistance des Options de Lecture :** Vos préférences de lecture (Autoplay, Autoreplay) sont strictement enregistrées par média et garanties sans désynchronisation d'interface lors de vos éditions en arrière-plan.
 *   **Système d'Entraînement Avancé (A-B Looping 3 États) :**
     - **Boucles Multiples :** Définissez, nommez et sauvegardez plusieurs boucles (Points A & B) pour chaque morceau, incluant **désormais un support total et visuel pour les vidéos YouTube en streaming**.
     - **Mode Séquentiel Intelligent :** Activez "Boucle Unique" pour répéter la section, ou "Boucle Séquentielle" pour passer automatiquement à la suite d'accords suivante une fois le solo maîtrisé.
@@ -55,20 +60,20 @@ Elle combine le meilleur de deux mondes :
     *   **Contrôle Granulaire Vitesse :** Ajustez par pas de 0.05x (sans altération du Pitch/Tonalité).
         *   **Seek de Précision :** +/- 5 secondes.
         *   **Commandes Clavier Natives :** Support direct des flèches directionnelles et de la barre d'espace pour le mapping.
-    *   **Nouveau !** Injection native des commandes (Win32) pour piloter même les applications récalcitrantes (Moises, applis Electron).
+    *   **Injection native des commandes (Win32)** pour piloter même les applications récalcitrantes (Moises, applis Electron).
     *   **Mode WINDOWS :** Simulez des raccourcis clavier pour contrôler vos logiciels ou sites externes.
 *   **Overlay Persistant (Remote Control) :**
-    *   **Nouveau Design Compact :** Optimisé pour prendre le moins de place possible sur l'écran.
+    *   **Design Compact :** Optimisé pour prendre le moins de place possible sur l'écran.
     *   **Mode Singleton :** Gestion intelligente des fenêtres (ne s'ouvre qu'une fois).
     *   **Smart Close :** Fermez la remote sans être dérangé par la fenêtre principale (qui reste dans le Tray).
     *   **Feedback Visuel Unifié :** Les boutons clignotent que l'action vienne du MIDI, du Clavier (HID) ou du clic souris.
-*   **Persistance Sidecar JSON (Nouveau !) :**
+*   **Persistance Sidecar JSON :**
     *   Toutes vos modifications (BPM, Tonalité Originale, Tonalité Média, Pitch, Notes) sont désormais sauvegardées dans un petit fichier `.json` à côté de vos médias locaux.
     *   Vos métadonnées vous suivent partout, même si vous déplacez vos dossiers.
 *   **Éditeur de Médias Harmonisé :**
     *   Interface ultra-compacte et professionnelle, identique pour tous les types de médias (YouTube, Local, Multipiste).
-    *   **NOUVEAU ! Ligne Technique Unifiée** : BPM, Tonalité Originale, Tonalité Média, Pitch Original et Pitch Média sont désormais regroupés sur une seule ligne pour une visibilité instantanée sans défilement.
-    *   **Nouveau !** Modale de notes dédiée fusionnant la description YouTube et vos propres mémos techniques.
+    *   **Ligne Technique Unifiée** : BPM, Tonalité Originale, Tonalité Média, Pitch Original et Pitch Média sont désormais regroupés sur une seule ligne pour une visibilité instantanée sans défilement.
+    *   **Modale de notes dédiée** fusionnant la description YouTube et vos propres mémos techniques.
     *   **Optimisation Vision :** Plus de barre de défilement parasite dans les modales, tout est accessible en un coup d'œil.
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)

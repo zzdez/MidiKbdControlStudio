@@ -365,6 +365,13 @@ async def get_setlist():
                 with open(SETLIST_FILE, "w", encoding="utf-8") as f:
                     json.dump(items, f, indent=4)
 
+            # Ensure autoplay/autoreplay are strictly boolean or not outputted if undefined to avoid JS type issues
+            for item in items:
+                if "autoplay" in item and item["autoplay"] is not None:
+                    item["autoplay"] = bool(item["autoplay"])
+                if "autoreplay" in item and item["autoreplay"] is not None:
+                    item["autoreplay"] = bool(item["autoreplay"])
+
             return items
         except:
             return []
@@ -541,6 +548,7 @@ async def update_setlist_item(index: int, item: Dict):
                 "bpm": item.get("bpm", ""),
                 "key": item.get("key", ""),
                 "media_key": item.get("media_key", ""),
+                "scale": item.get("scale", ""),
                 "original_pitch": item.get("original_pitch", ""),
                 "target_pitch": item.get("target_pitch", ""),
                 "youtube_description": item.get("youtube_description", ""),
@@ -549,7 +557,9 @@ async def update_setlist_item(index: int, item: Dict):
                 "volume": item.get("volume", items[index].get("volume", 100)),
                 "subtitle_enabled": item.get("subtitle_enabled", items[index].get("subtitle_enabled", False)),
                 "subtitle_pos_y": item.get("subtitle_pos_y", items[index].get("subtitle_pos_y", 80)),
-                "loops": item.get("loops", items[index].get("loops", []))
+                "loops": item.get("loops", items[index].get("loops", [])),
+                "autoplay": item.get("autoplay", items[index].get("autoplay", False)),
+                "autoreplay": item.get("autoreplay", items[index].get("autoreplay", False))
             }
 
             items[index] = updated_item
@@ -618,7 +628,9 @@ async def get_settings():
         "media_folders": config_manager.get("media_folders", []),
         "midi_output_names": config_manager.get("midi_output_names", []),
         "midi_output_name": config_manager.get("midi_output_name", ""), # Legacy fallback
-        "language": config_manager.get("language", "fr")
+        "language": config_manager.get("language", "fr"),
+        "autoplay": config_manager.get("autoplay", False),
+        "autoreplay": config_manager.get("autoreplay", False)
     }
 
 @app.get("/api/locales/{lang}")
@@ -722,7 +734,15 @@ async def get_local_files():
     if os.path.exists(LOCAL_LIB_FILE):
         try:
             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                items = json.load(f)
+
+            for item in items:
+                if "autoplay" in item and item["autoplay"] is not None:
+                    item["autoplay"] = bool(item["autoplay"])
+                if "autoreplay" in item and item["autoreplay"] is not None:
+                    item["autoreplay"] = bool(item["autoreplay"])
+
+            return items
         except:
             return []
     return []
@@ -976,6 +996,7 @@ async def update_local_file(index: int, item: Dict):
             current["bpm"] = item.get("bpm", current.get("bpm", ""))
             current["key"] = item.get("key", current.get("key", ""))
             current["media_key"] = item.get("media_key", current.get("media_key", ""))
+            current["scale"] = item.get("scale", current.get("scale", ""))
             current["original_pitch"] = item.get("original_pitch", current.get("original_pitch", ""))
             current["target_pitch"] = item.get("target_pitch", current.get("target_pitch", ""))
             current["autoplay"] = item.get("autoplay", current.get("autoplay", False))
@@ -1193,12 +1214,22 @@ async def get_multitrack_settings(index: int):
                  
         if 0 <= index < len(items):
             path = items[index]["path"]
+            item_data = items[index]
+            result = {}
+
             if os.path.isdir(path):
                 settings_file = os.path.join(path, "airstep_meta.json")
                 if os.path.exists(settings_file):
                     with open(settings_file, "r", encoding="utf-8") as f:
-                        return json.load(f)
-            return {}
+                        result = json.load(f)
+
+            # Override/supplement with database properties for consistency
+            if "autoplay" in item_data:
+                result["autoplay"] = item_data["autoplay"]
+            if "autoreplay" in item_data:
+                result["autoreplay"] = item_data["autoreplay"]
+
+            return result
         else:
              raise HTTPException(status_code=404, detail="Index not found")
     except Exception as e:
@@ -1216,6 +1247,16 @@ async def save_multitrack_settings(index: int, request: Request):
                  
         if 0 <= index < len(items):
             path = items[index]["path"]
+
+            # Sync autoplay/autoreplay properties back to the main items DB too
+            if "autoplay" in settings:
+                items[index]["autoplay"] = settings["autoplay"]
+            if "autoreplay" in settings:
+                items[index]["autoreplay"] = settings["autoreplay"]
+
+            with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+
             if os.path.isdir(path):
                 settings_file = os.path.join(path, "airstep_meta.json")
                 with open(settings_file, "w", encoding="utf-8") as f:
