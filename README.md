@@ -43,6 +43,10 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     - **Mini-DAW Intégré :** Contrôles ultra-réactifs de Volume, Panoramique, Mute et Solo par piste avec sauvegarde automatique.
     - **Waveform Interactive :** WaveSurfer.js synchronisé avec menu contextuel de colorisation dynamique des pistes.
     - Option de Pitch Shifting et contrôle de vitesse (pour les pistes simples).
+*   **Fretboard Interactif & Gammes (Nouveau !) :**
+    - **Manche de Guitare Virtuel :** Affichez un manche (15 cases) superposé et déplaçable au-dessus de vos vidéos YouTube, MP3 ou Multipistes pour improviser instantanément.
+    - **Scales & Tonalité :** Affiche visuellement les notes d'une gamme spécifique (Pentatonique, Blues, Majeure, etc.) en fonction de la tonalité renseignée dans la base de données.
+    - **Mode Gaucher & Skins :** Option native pour inverser le manche, et sélection du thème visuel (Texture Bois réaliste ou Flat Design) depuis les réglages.
 *   **Audio Master Plan :**
     - **Volume Maître par Profil :** Chaque profil peut définir son propre volume système cible. Quand l'application détecte que vous ouvrez "Reaper", elle ajuste automatiquement le volume général de Windows pour vous !
     - **Volume Persistant par Média :** Les lecteurs (Web et Local) mémorisent le volume exact de chaque piste individuellement. Ajustez la jauge en direct, c'est sauvegardé instantanément !
