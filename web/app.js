@@ -6282,14 +6282,6 @@ async function saveLocalItemQuiet(index, item) {
     });
 }
 
-async function saveItemQuiet(index, item) {
-    await fetch(`/api/setlist/${index}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item)
-    });
-}
-
 function liveUpdatePlaybackOption(option, value) {
     if (window.currentPlayingIndex === undefined) return;
 
