@@ -9,7 +9,10 @@ const scaleFormulas = {
     minor_pentatonic: [0, 3, 5, 7, 10],
     blues: [0, 3, 5, 6, 7, 10],
     dorian: [0, 2, 3, 5, 7, 9, 10],
-    mixolydian: [0, 2, 4, 5, 7, 9, 10]
+    mixolydian: [0, 2, 4, 5, 7, 9, 10],
+    phrygian: [0, 1, 3, 5, 7, 8, 10],
+    lydian: [0, 2, 4, 6, 7, 9, 11],
+    locrian: [0, 1, 3, 5, 6, 8, 10]
 };
 
 // Aliases mapping for "sharp/flat" parsing from key inputs like "Am" or "Eb"
@@ -21,8 +24,19 @@ let fretboardState = {
     visible: false,
     key: "C",
     scale: "minor_pentatonic",
+    tuning: "standard",
     isLefty: false,
     skin: "flat" // 'flat' or 'wood'
+};
+
+const tuningPresets = {
+    "standard": ["E", "A", "D", "G", "B", "E"],
+    "drop_d": ["D", "A", "D", "G", "B", "E"],
+    "drop_c": ["C", "G", "C", "F", "A", "D"],
+    "eb": ["D#", "G#", "C#", "F#", "A#", "D#"],
+    "d": ["D", "G", "C", "F", "A", "D"],
+    "open_g": ["D", "G", "D", "G", "B", "D"],
+    "open_d": ["D", "A", "D", "F#", "A", "D"]
 };
 
 // --- DRAG LOGIC ---
@@ -113,10 +127,16 @@ function detectCurrentScale() {
             fretboardState.scale = isMin ? "minor_pentatonic" : "major_pentatonic";
         }
         document.getElementById("fretboard-scale").value = fretboardState.scale;
+
+    if (item.tuning) {
+        fretboardState.tuning = item.tuning;
+        document.getElementById("fretboard-tuning").value = fretboardState.tuning;
+    }
     } else {
         // Fallback or read from UI if no metadata
         fretboardState.key = document.getElementById("fretboard-key").value;
         fretboardState.scale = document.getElementById("fretboard-scale").value;
+        fretboardState.tuning = document.getElementById("fretboard-tuning").value;
     }
     updateFretboardButtonDisplays();
 }
@@ -154,10 +174,49 @@ function getScaleNotes(rootNote, scaleType) {
     return formula.map(interval => baseNotes[(rootIndex + interval) % 12]);
 }
 
-function renderFretboard() {
+function renderFretboard(silentSave = false) {
     fretboardState.key = document.getElementById("fretboard-key").value;
     fretboardState.scale = document.getElementById("fretboard-scale").value;
+    fretboardState.tuning = document.getElementById("fretboard-tuning").value;
     updateFretboardButtonDisplays();
+
+    if (silentSave && window.currentPlayingIndex !== undefined) {
+        let item = null;
+        let isLocal = false;
+
+        // Find the active item based on the active player type
+        if (currentActivePlayer === 'local' || currentActivePlayer === 'multitrack' || currentActivePlayer === 'waveform') {
+            item = localFiles[window.currentPlayingIndex];
+            isLocal = true;
+        } else if (currentActivePlayer === 'youtube') {
+            item = currentTrackList.find(t => t.originalIndex === window.currentPlayingIndex);
+        }
+
+        if (item) {
+            item.key = fretboardState.key;
+            item.scale = fretboardState.scale;
+            item.tuning = fretboardState.tuning;
+
+            // Sync with Global UI if currently playing track
+            const globalKey = document.getElementById("global-video-key");
+            const globalScale = document.getElementById("global-video-scale");
+            if (globalKey) {
+                globalKey.style.display = "inline";
+                globalKey.querySelector(".val").innerText = item.key;
+            }
+            if (globalScale) {
+                globalScale.style.display = "inline";
+                globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").options[document.getElementById("fretboard-scale").selectedIndex].text;
+            }
+
+            // Save to backend
+            if (isLocal) {
+                 saveLocalItemQuiet(window.currentPlayingIndex, item);
+            } else {
+                 saveItemQuiet(window.currentPlayingIndex, item);
+            }
+        }
+    }
 
     const fretsContainer = document.getElementById("fretboard-frets");
     const stringsContainer = document.getElementById("fretboard-strings");
@@ -236,7 +295,8 @@ function renderFretboard() {
     }
 
     // 2. Draw Strings & Notes
-    const displayStrings = [...stringTunes].reverse(); // E4 B3 G3 D3 A2 E2 (Top to Bottom visually)
+    const currentTuning = tuningPresets[fretboardState.tuning] || tuningPresets["standard"];
+    const displayStrings = [...currentTuning].reverse(); // (Top to Bottom visually)
 
     displayStrings.forEach((stringNote, stringIndex) => {
         // Draw the physical string line
@@ -274,8 +334,10 @@ function renderFretboard() {
             noteDot.style.display = "flex";
             noteDot.style.justifyContent = "center";
             noteDot.style.alignItems = "center";
-            noteDot.style.fontSize = "10px";
+            noteDot.style.fontSize = noteName.length > 1 ? "8.5px" : "10px"; // Adjust for sharps/flats
             noteDot.style.fontWeight = "bold";
+            noteDot.style.lineHeight = "1";
+            noteDot.style.letterSpacing = "-0.5px";
             noteDot.style.pointerEvents = "auto"; // Can hover if we want tooltips later
             noteDot.style.boxShadow = "0 2px 4px rgba(0,0,0,0.5)";
             noteDot.innerText = noteName;

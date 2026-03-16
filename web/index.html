@@ -19,9 +19,20 @@
         <div class="logo" style="display: flex; align-items: center; gap: 15px;">
             <img src="/assets/logo.png" alt="MidiKbd Control Studio" id="main-logo">
             <span id="header-device-status" data-i18n="web.status_waiting"
-                style="font-size: 0.85em; color: #888; font-weight: normal;">○ En
+                style="font-size: 0.85em; color: #888; font-weight: normal; margin-right: 15px;">○ En
                 attente...</span>
         </div>
+
+        <!-- GLOBAL VIDEO INFO (Center Header) -->
+        <div id="global-video-info" style="display: none; flex: 1; justify-content: center; align-items: center; text-align: center; overflow: hidden; white-space: nowrap; gap: 15px;">
+             <span id="global-video-title" style="font-weight: bold; font-size: 1.1em; color: white; text-overflow: ellipsis; overflow: hidden; max-width: 40vw;">Titre de la vidéo</span>
+             <div style="display: flex; gap: 10px; font-size: 0.85em; color: var(--accent);">
+                 <span id="global-video-bpm" style="display: none;">🎵 <span class="val"></span> BPM</span>
+                 <span id="global-video-key" style="display: none;">🎹 <span class="val"></span></span>
+                 <span id="global-video-scale" style="display: none;">🎸 <span class="val"></span></span>
+             </div>
+        </div>
+
         <div class="status-bar"
             style="display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; min-width: max-content;">
             <button id="btn-remote-native" class="btn-icon" onclick="toggleNativeRemote()"
@@ -73,14 +84,14 @@
 
                     <div style="display:flex; align-items:center; gap:8px;">
                         <!-- Key Select -->
-                        <select id="fretboard-key" style="padding:4px 8px; font-size:0.85em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:auto; width:auto;" onchange="renderFretboard()">
+                        <select id="fretboard-key" style="padding:4px 8px; font-size:0.85em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:auto; width:auto;" onchange="renderFretboard(true)">
                             <option value="C">C</option><option value="C#">C# / Db</option><option value="D">D</option><option value="D#">D# / Eb</option>
                             <option value="E">E</option><option value="F">F</option><option value="F#">F# / Gb</option><option value="G">G</option>
                             <option value="G#">G# / Ab</option><option value="A">A</option><option value="A#">A# / Bb</option><option value="B">B</option>
                         </select>
 
                         <!-- Scale Select -->
-                        <select id="fretboard-scale" style="padding:4px 8px; font-size:0.85em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:auto; width:auto;" onchange="renderFretboard()">
+                        <select id="fretboard-scale" style="padding:4px 8px; font-size:0.85em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:auto; width:auto;" onchange="renderFretboard(true)">
                             <option value="major_pentatonic" data-i18n="web.scale_major_pentatonic">Penta. Majeure</option>
                             <option value="minor_pentatonic" data-i18n="web.scale_minor_pentatonic" selected>Penta. Mineure</option>
                             <option value="major" data-i18n="web.scale_major">Majeure</option>
@@ -88,6 +99,20 @@
                             <option value="blues" data-i18n="web.scale_blues">Blues</option>
                             <option value="dorian" data-i18n="web.scale_dorian">Dorien</option>
                             <option value="mixolydian" data-i18n="web.scale_mixolydian">Mixolydien</option>
+                            <option value="phrygian" data-i18n="web.scale_phrygian">Phrygien</option>
+                            <option value="lydian" data-i18n="web.scale_lydian">Lydien</option>
+                            <option value="locrian" data-i18n="web.scale_locrian">Locrien</option>
+                        </select>
+
+                        <!-- Tuning Select -->
+                        <select id="fretboard-tuning" style="padding:4px 8px; font-size:0.85em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:auto; width:auto;" onchange="renderFretboard(true)">
+                            <option value="standard" data-i18n="web.tuning_standard" selected>Standard (E A D G B E)</option>
+                            <option value="drop_d" data-i18n="web.tuning_drop_d">Drop D (D A D G B E)</option>
+                            <option value="drop_c" data-i18n="web.tuning_drop_c">Drop C (C G C F A D)</option>
+                            <option value="eb" data-i18n="web.tuning_eb">Eb Standard (Eb Ab Db Gb Bb Eb)</option>
+                            <option value="d" data-i18n="web.tuning_d">D Standard (D G C F A D)</option>
+                            <option value="open_g" data-i18n="web.tuning_open_g">Open G (D G D G B D)</option>
+                            <option value="open_d" data-i18n="web.tuning_open_d">Open D (D A D F# A D)</option>
                         </select>
 
                         <!-- Hand toggle -->
@@ -176,6 +201,13 @@
                         <div id="audio-artist" data-i18n="web.lbl_artist" style="font-size:1em; color:#bbb;">Artiste
                         </div>
                         <div id="audio-album" data-i18n="web.lbl_album" style="font-size:0.8em; color:#888;">Album</div>
+
+                        <div id="audio-extra-infos" style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:8px; font-size:0.85em; color:var(--accent);">
+                            <span id="audio-bpm-info" style="display:none;">🎵 <span class="val"></span> BPM</span>
+                            <span id="audio-key-info" style="display:none;">🎹 <span class="val"></span></span>
+                            <span id="audio-scale-info" style="display:none;">🎸 <span class="val"></span></span>
+                            <span id="audio-tuning-info" style="display:none;">⚙️ <span class="val"></span></span>
+                        </div>
                     </div>
                     <!-- Audio Timeline & Loop Bar Row (NEW) -->
                     <div id="audio-timeline-row" class="timeline-row"
@@ -332,9 +364,16 @@
             <!-- Multitrack Player (DAW Mode) -->
             <div id="multitrack-container"
                 style="display:none; width:100%; height:100%; flex-direction:column; background:#121212; overflow-y:auto; padding-top: 5px;">
-                <div id="multitrack-header" style="text-align:center; margin-bottom:15px; flex-shrink:0;">
-                    <div id="multitrack-title" style="font-size:1.5em; font-weight:bold; color:white;">Multipiste</div>
-                    <div id="multitrack-artist" style="font-size:1em; color:#bbb;">Stems</div>
+                <div id="multitrack-header" style="display:flex; align-items:center; gap:15px; margin-bottom:15px; flex-shrink:0; padding: 0 10px;">
+                    <img id="mt-compact-art" src="" style="width: 50px; height: 50px; border-radius: 4px; object-fit: cover; display: none; border: 1px solid #333;">
+                    <div style="display:flex; flex-direction:column; justify-content:center;">
+                        <div id="multitrack-title" style="font-size:1.2em; font-weight:bold; color:white; line-height: 1.2;">Multipiste</div>
+                        <div id="multitrack-artist" style="font-size:0.9em; color:#bbb; line-height: 1.2;">Stems</div>
+                    </div>
+                    <div style="display:flex; gap: 10px; font-size: 0.85em; color: var(--accent); margin-left: auto;">
+                         <span id="mt-compact-bpm" style="display: none;">🎵 <span class="val"></span> BPM</span>
+                         <span id="mt-compact-key" style="display: none;">🎹 <span class="val"></span></span>
+                    </div>
                 </div>
 
 
@@ -818,7 +857,7 @@
 
                 <!-- Technical Data Row -->
                 <div class="row-inputs">
-                    <div class="col" style="position: relative;">
+                    <div class="col" style="position: relative; flex: 0.8;">
                         <label data-i18n="web.lbl_bpm"
                             style="display: flex; justify-content: space-between; align-items: center;">
                             BPM <a href="https://getsongbpm.com" target="_blank"
@@ -826,7 +865,7 @@
                         </label>
                         <input type="number" id="local-bpm" placeholder="120">
                     </div>
-                    <div class="col" style="position: relative;">
+                    <div class="col" style="position: relative; flex: 1;">
                         <label data-i18n="web.lbl_key"
                             style="display: flex; justify-content: space-between; align-items: center;">
                             Tonalité Orig. <a href="https://getsongkey.com" target="_blank"
@@ -835,16 +874,44 @@
                         <input type="text" id="local-key" placeholder="Ex: Am, G..."
                             data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
                     </div>
-                    <div class="col">
+                    <div class="col" style="flex: 1;">
                         <label data-i18n="web.lbl_media_key">Tonalité Média</label>
                         <input type="text" id="local-media-key" placeholder="Ex: Am" list="mt-key-suggestions">
                     </div>
-                    <div class="col">
-                        <label data-i18n="web.lbl_original_pitch">Pitch Orig. (Hz)</label>
+                    <div class="col" style="flex: 1.2;">
+                        <label data-i18n="web.lbl_scale">Gamme</label>
+                        <select id="local-scale">
+                            <option value="">Auto / Non défini</option>
+                            <option value="major_pentatonic" data-i18n="web.scale_major_pentatonic">Penta. Majeure</option>
+                            <option value="minor_pentatonic" data-i18n="web.scale_minor_pentatonic">Penta. Mineure</option>
+                            <option value="major" data-i18n="web.scale_major">Majeure</option>
+                            <option value="minor" data-i18n="web.scale_minor">Mineure Naturelle</option>
+                            <option value="blues" data-i18n="web.scale_blues">Blues</option>
+                            <option value="dorian" data-i18n="web.scale_dorian">Dorien</option>
+                            <option value="mixolydian" data-i18n="web.scale_mixolydian">Mixolydien</option>
+                            <option value="phrygian" data-i18n="web.scale_phrygian">Phrygien</option>
+                            <option value="lydian" data-i18n="web.scale_lydian">Lydien</option>
+                            <option value="locrian" data-i18n="web.scale_locrian">Locrien</option>
+                        </select>
+                    </div>
+                    <div class="col" style="flex: 1.2;">
+                        <label data-i18n="web.lbl_tuning">Accordage</label>
+                        <select id="local-tuning">
+                            <option value="standard" data-i18n="web.tuning_standard">Standard (E A D G B E)</option>
+                            <option value="drop_d" data-i18n="web.tuning_drop_d">Drop D (D A D G B E)</option>
+                            <option value="drop_c" data-i18n="web.tuning_drop_c">Drop C (C G C F A D)</option>
+                            <option value="eb" data-i18n="web.tuning_eb">Eb Standard (Eb Ab Db Gb Bb Eb)</option>
+                            <option value="d" data-i18n="web.tuning_d">D Standard (D G C F A D)</option>
+                            <option value="open_g" data-i18n="web.tuning_open_g">Open G (D G D G B D)</option>
+                            <option value="open_d" data-i18n="web.tuning_open_d">Open D (D A D F# A D)</option>
+                        </select>
+                    </div>
+                    <div class="col" style="flex: 0.8;">
+                        <label data-i18n="web.lbl_original_pitch">Pitch Orig.</label>
                         <input type="text" id="local-original-pitch" placeholder="432">
                     </div>
-                    <div class="col">
-                        <label data-i18n="web.lbl_target_pitch">Pitch Média (Hz)</label>
+                    <div class="col" style="flex: 0.8;">
+                        <label data-i18n="web.lbl_target_pitch">Pitch Média</label>
                         <input type="text" id="local-target-pitch" placeholder="440">
                     </div>
                 </div>
@@ -961,7 +1028,7 @@
                 <!-- NEW FIELDS: BPM, Key, Pitch -->
                 <!-- Technical Data Row -->
                 <div class="row-inputs">
-                    <div class="col" style="position: relative;">
+                    <div class="col" style="position: relative; flex: 0.8;">
                         <label data-i18n="web.lbl_bpm"
                             style="display: flex; justify-content: space-between; align-items: center;">
                             BPM <a href="https://getsongbpm.com" target="_blank"
@@ -969,7 +1036,7 @@
                         </label>
                         <input type="number" id="mt-bpm" placeholder="120">
                     </div>
-                    <div class="col" style="position: relative;">
+                    <div class="col" style="position: relative; flex: 1;">
                         <label data-i18n="web.lbl_key"
                             style="display: flex; justify-content: space-between; align-items: center;">
                             Tonalité Orig. <a href="https://getsongkey.com" target="_blank"
@@ -978,16 +1045,44 @@
                         <input type="text" id="mt-key" placeholder="Ex: Am, G..."
                             data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
                     </div>
-                    <div class="col">
+                    <div class="col" style="flex: 1;">
                         <label data-i18n="web.lbl_media_key">Tonalité Média</label>
                         <input type="text" id="mt-media-key" placeholder="Ex: Am" list="mt-key-suggestions">
                     </div>
-                    <div class="col">
-                        <label data-i18n="web.lbl_original_pitch">Pitch Orig. (Hz)</label>
+                    <div class="col" style="flex: 1.2;">
+                        <label data-i18n="web.lbl_scale">Gamme</label>
+                        <select id="mt-scale">
+                            <option value="">Auto / Non défini</option>
+                            <option value="major_pentatonic" data-i18n="web.scale_major_pentatonic">Penta. Majeure</option>
+                            <option value="minor_pentatonic" data-i18n="web.scale_minor_pentatonic">Penta. Mineure</option>
+                            <option value="major" data-i18n="web.scale_major">Majeure</option>
+                            <option value="minor" data-i18n="web.scale_minor">Mineure Naturelle</option>
+                            <option value="blues" data-i18n="web.scale_blues">Blues</option>
+                            <option value="dorian" data-i18n="web.scale_dorian">Dorien</option>
+                            <option value="mixolydian" data-i18n="web.scale_mixolydian">Mixolydien</option>
+                            <option value="phrygian" data-i18n="web.scale_phrygian">Phrygien</option>
+                            <option value="lydian" data-i18n="web.scale_lydian">Lydien</option>
+                            <option value="locrian" data-i18n="web.scale_locrian">Locrien</option>
+                        </select>
+                    </div>
+                    <div class="col" style="flex: 1.2;">
+                        <label data-i18n="web.lbl_tuning">Accordage</label>
+                        <select id="mt-tuning">
+                            <option value="standard" data-i18n="web.tuning_standard">Standard (E A D G B E)</option>
+                            <option value="drop_d" data-i18n="web.tuning_drop_d">Drop D (D A D G B E)</option>
+                            <option value="drop_c" data-i18n="web.tuning_drop_c">Drop C (C G C F A D)</option>
+                            <option value="eb" data-i18n="web.tuning_eb">Eb Standard (Eb Ab Db Gb Bb Eb)</option>
+                            <option value="d" data-i18n="web.tuning_d">D Standard (D G C F A D)</option>
+                            <option value="open_g" data-i18n="web.tuning_open_g">Open G (D G D G B D)</option>
+                            <option value="open_d" data-i18n="web.tuning_open_d">Open D (D A D F# A D)</option>
+                        </select>
+                    </div>
+                    <div class="col" style="flex: 0.8;">
+                        <label data-i18n="web.lbl_original_pitch">Pitch Orig.</label>
                         <input type="text" id="mt-original-pitch" placeholder="432">
                     </div>
-                    <div class="col">
-                        <label data-i18n="web.lbl_target_pitch">Pitch Média (Hz)</label>
+                    <div class="col" style="flex: 0.8;">
+                        <label data-i18n="web.lbl_target_pitch">Pitch Média</label>
                         <input type="text" id="mt-target-pitch" placeholder="440">
                     </div>
                 </div>
@@ -1182,7 +1277,7 @@
 
                 <!-- Technical Data Row -->
                 <div class="row-inputs">
-                    <div class="col" style="position: relative;">
+                    <div class="col" style="position: relative; flex: 0.8;">
                         <label data-i18n="web.lbl_bpm"
                             style="display: flex; justify-content: space-between; align-items: center;">
                             BPM <a href="https://getsongbpm.com" target="_blank"
@@ -1190,7 +1285,7 @@
                         </label>
                         <input type="number" id="edit-bpm" placeholder="120">
                     </div>
-                    <div class="col" style="position: relative;">
+                    <div class="col" style="position: relative; flex: 1;">
                         <label data-i18n="web.lbl_key"
                             style="display: flex; justify-content: space-between; align-items: center;">
                             Tonalité Orig. <a href="https://getsongkey.com" target="_blank"
@@ -1199,16 +1294,44 @@
                         <input type="text" id="edit-key" placeholder="Ex: Am, G..."
                             data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
                     </div>
-                    <div class="col">
+                    <div class="col" style="flex: 1;">
                         <label data-i18n="web.lbl_media_key">Tonalité Média</label>
                         <input type="text" id="edit-media-key" placeholder="Ex: Am" list="mt-key-suggestions">
                     </div>
-                    <div class="col">
-                        <label data-i18n="web.lbl_original_pitch">Pitch Orig. (Hz)</label>
+                    <div class="col" style="flex: 1.2;">
+                        <label data-i18n="web.lbl_scale">Gamme</label>
+                        <select id="edit-scale">
+                            <option value="">Auto / Non défini</option>
+                            <option value="major_pentatonic" data-i18n="web.scale_major_pentatonic">Penta. Majeure</option>
+                            <option value="minor_pentatonic" data-i18n="web.scale_minor_pentatonic">Penta. Mineure</option>
+                            <option value="major" data-i18n="web.scale_major">Majeure</option>
+                            <option value="minor" data-i18n="web.scale_minor">Mineure Naturelle</option>
+                            <option value="blues" data-i18n="web.scale_blues">Blues</option>
+                            <option value="dorian" data-i18n="web.scale_dorian">Dorien</option>
+                            <option value="mixolydian" data-i18n="web.scale_mixolydian">Mixolydien</option>
+                            <option value="phrygian" data-i18n="web.scale_phrygian">Phrygien</option>
+                            <option value="lydian" data-i18n="web.scale_lydian">Lydien</option>
+                            <option value="locrian" data-i18n="web.scale_locrian">Locrien</option>
+                        </select>
+                    </div>
+                    <div class="col" style="flex: 1.2;">
+                        <label data-i18n="web.lbl_tuning">Accordage</label>
+                        <select id="edit-tuning">
+                            <option value="standard" data-i18n="web.tuning_standard">Standard (E A D G B E)</option>
+                            <option value="drop_d" data-i18n="web.tuning_drop_d">Drop D (D A D G B E)</option>
+                            <option value="drop_c" data-i18n="web.tuning_drop_c">Drop C (C G C F A D)</option>
+                            <option value="eb" data-i18n="web.tuning_eb">Eb Standard (Eb Ab Db Gb Bb Eb)</option>
+                            <option value="d" data-i18n="web.tuning_d">D Standard (D G C F A D)</option>
+                            <option value="open_g" data-i18n="web.tuning_open_g">Open G (D G D G B D)</option>
+                            <option value="open_d" data-i18n="web.tuning_open_d">Open D (D A D F# A D)</option>
+                        </select>
+                    </div>
+                    <div class="col" style="flex: 0.8;">
+                        <label data-i18n="web.lbl_original_pitch">Pitch Orig.</label>
                         <input type="text" id="edit-original-pitch" placeholder="432">
                     </div>
-                    <div class="col">
-                        <label data-i18n="web.lbl_target_pitch">Pitch Média (Hz)</label>
+                    <div class="col" style="flex: 0.8;">
+                        <label data-i18n="web.lbl_target_pitch">Pitch Média</label>
                         <input type="text" id="edit-target-pitch" placeholder="440">
                     </div>
                 </div>
@@ -1369,10 +1492,14 @@
 
                     <h4 data-i18n="web.lbl_fretboard_style">Style du Fretboard</h4>
                     <select id="setting-fretboard-skin" onchange="changeFretboardSkin()"
-                        style="padding:10px; border-radius:10px; border:1px solid #333; background:#222; color:white; width:100%; margin-bottom: 20px;">
+                        style="padding:10px; border-radius:10px; border:1px solid #333; background:#222; color:white; width:100%; margin-bottom: 10px;">
                         <option value="flat" data-i18n="web.fretboard_flat">Plat & Sombre (Flat Dark)</option>
                         <option value="wood" data-i18n="web.fretboard_wood">Réaliste (Bois)</option>
                     </select>
+                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-bottom: 20px; background:#222; padding:15px; border-radius:10px; border:1px solid #333;">
+                        <input type="checkbox" id="setting-fretboard-autoclose" style="width:18px; height:18px;">
+                        <span data-i18n="web.lbl_fretboard_auto_close">Fermeture auto du manche au changement de média</span>
+                    </label>
 
                     <h4 data-i18n="web.lbl_youtube_api">Clé API YouTube (Optionnelle)</h4>
                     <label data-i18n="web.lbl_youtube_api_key">YouTube Data API Key</label>

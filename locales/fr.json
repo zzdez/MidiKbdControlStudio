@@ -317,8 +317,20 @@
         "scale_blues": "Blues",
         "scale_dorian": "Dorien",
         "scale_mixolydian": "Mixolydien",
+        "scale_phrygian": "Phrygien",
+        "scale_lydian": "Lydien",
+        "scale_locrian": "Locrien",
         "lbl_fretboard_style": "Style du Manche (Fretboard)",
         "fretboard_flat": "Plat & Sombre (Moderne)",
-        "fretboard_wood": "Réaliste (Texture Bois)"
+        "fretboard_wood": "Réaliste (Texture Bois)",
+        "lbl_tuning": "Accordage",
+        "tuning_standard": "Standard (E A D G B E)",
+        "tuning_drop_d": "Drop D (D A D G B E)",
+        "tuning_drop_c": "Drop C (C G C F A D)",
+        "tuning_eb": "Eb Standard (Eb Ab Db Gb Bb Eb)",
+        "tuning_d": "D Standard (D G C F A D)",
+        "tuning_open_g": "Open G (D G D G B D)",
+        "tuning_open_d": "Open D (D A D F# A D)",
+        "lbl_fretboard_auto_close": "Fermeture auto du manche au changement de média"
     }
 }
