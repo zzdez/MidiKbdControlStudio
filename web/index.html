@@ -14,74 +14,6 @@
 
 <body>
 
-    <!-- Fretboard Modal (Draggable) - Placed at top level of body to avoid z-index stacking context issues -->
-    <div id="fretboard-overlay" style="display:none; position:absolute; top:20px; left:20px; z-index:9999; background:rgba(20,20,20,0.95); border:1px solid #444; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.8); width:700px; padding:4px 8px; backdrop-filter:blur(5px);">
-
-        <!-- Header / Handle for dragging -->
-        <div id="fretboard-header" style="cursor:move; box-sizing: border-box; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding: 0 0 2px 0; margin-bottom: 2px; height: 30px;">
-            <div style="display:flex; align-items:center; gap:8px;">
-                <i class="ph ph-guitar" style="color:var(--accent); font-size:1em;"></i>
-                <span style="font-weight:bold; color:white; font-size:0.85em; margin:0;" data-i18n="web.lbl_scale">Gamme</span>
-            </div>
-
-            <div style="display:flex; align-items:center; gap:4px; height:100%;">
-                <!-- Key Select -->
-                <select id="fretboard-key" style="box-sizing: border-box; padding:0px 4px; font-size:0.75em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:20px; line-height:20px; width:auto; margin:0;" onchange="renderFretboard(true)">
-                    <option value="C">C</option><option value="C#">C# / Db</option><option value="D">D</option><option value="D#">D# / Eb</option>
-                    <option value="E">E</option><option value="F">F</option><option value="F#">F# / Gb</option><option value="G">G</option>
-                    <option value="G#">G# / Ab</option><option value="A">A</option><option value="A#">A# / Bb</option><option value="B">B</option>
-                </select>
-
-                <!-- Scale Select -->
-                <select id="fretboard-scale" style="box-sizing: border-box; padding:0px 4px; font-size:0.75em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:20px; line-height:20px; width:auto; margin:0;" onchange="renderFretboard(true)">
-                    <option value="major_pentatonic" data-i18n="web.scale_major_pentatonic">Penta. Majeure</option>
-                    <option value="minor_pentatonic" data-i18n="web.scale_minor_pentatonic" selected>Penta. Mineure</option>
-                    <option value="major" data-i18n="web.scale_major">Majeure</option>
-                    <option value="minor" data-i18n="web.scale_minor">Mineure Naturelle</option>
-                    <option value="blues" data-i18n="web.scale_blues">Blues</option>
-                    <option value="dorian" data-i18n="web.scale_dorian">Dorien</option>
-                    <option value="mixolydian" data-i18n="web.scale_mixolydian">Mixolydien</option>
-                    <option value="phrygian" data-i18n="web.scale_phrygian">Phrygien</option>
-                    <option value="lydian" data-i18n="web.scale_lydian">Lydien</option>
-                    <option value="locrian" data-i18n="web.scale_locrian">Locrien</option>
-                </select>
-
-                <!-- Tuning Select -->
-                <select id="fretboard-tuning" style="box-sizing: border-box; padding:0px 4px; font-size:0.75em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:20px; line-height:20px; width:auto; margin:0;" onchange="renderFretboard(true)">
-                    <option value="standard" data-i18n="web.tuning_standard" selected>Standard (E A D G B E)</option>
-                    <option value="drop_d" data-i18n="web.tuning_drop_d">Drop D (D A D G B E)</option>
-                    <option value="drop_c" data-i18n="web.tuning_drop_c">Drop C (C G C F A D)</option>
-                    <option value="eb" data-i18n="web.tuning_eb">Eb Standard (Eb Ab Db Gb Bb Eb)</option>
-                    <option value="d" data-i18n="web.tuning_d">D Standard (D G C F A D)</option>
-                    <option value="open_g" data-i18n="web.tuning_open_g">Open G (D G D G B D)</option>
-                    <option value="open_d" data-i18n="web.tuning_open_d">Open D (D A D F# A D)</option>
-                </select>
-
-                <!-- Hand toggle -->
-                <button id="fretboard-hand-toggle" class="btn-icon" title="Inverser Droitier/Gaucher" onclick="toggleFretboardHand()" style="box-sizing: border-box; font-size:0.9em; background:#222; border-radius:4px; padding:0px 6px; height:20px; margin:0; display:flex; align-items:center;">
-                    <i class="ph ph-hand-palm"></i>
-                </button>
-
-                <button class="btn-icon" onclick="toggleFretboard()" title="Fermer" style="box-sizing: border-box; font-size:1em; color:#bbb; height:20px; margin:0; display:flex; align-items:center; padding:0px;"><i class="ph ph-x"></i></button>
-            </div>
-        </div>
-
-        <!-- Neck Container -->
-        <!-- Use padding-top and padding-bottom to create safe zones for notes without changing neck proportion -->
-        <!-- Remove overflow hidden from parent too -->
-        <div style="padding: 10px 10px 0 10px;">
-            <div id="fretboard-neck-wrapper" style="position:relative; width:100%; height:130px; background:#1a1a1a; border-radius:4px; border:2px solid #0a0a0a;">
-                <!-- Wood Texture / Fretboard CSS rendered via JS -->
-                <div id="fretboard-neck" class="fretboard-right-handed" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex;">
-                    <!-- Nut (Sillet) -->
-                    <div id="fretboard-nut" style="width:8px; height:100%; background:#d4c4a8; border-right:1px solid #8c7b64; z-index:10; box-shadow:2px 0 5px rgba(0,0,0,0.5);"></div>
-                    <!-- Frets Area -->
-                    <div id="fretboard-frets" style="display:flex; flex:1; height:100%; position:relative;"></div>
-                    <!-- Strings Area (Overlay) -->
-                    <!-- Use visible overflow here to allow notes to protrude outside the boundaries visually while contained safely by outer wrapper padding -->
-                    <div id="fretboard-strings" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-around; pointer-events:none; z-index:15; overflow:visible;">
-                        <!-- E A D G B e -->
-                    </div>
                 </div>
             </div>
 
@@ -1761,6 +1693,84 @@
             <button class="btn-text" onclick="document.getElementById('modal-universal-tag').close()">Annuler</button>
         </div>
     </dialog>
+
+    <!-- Fretboard Modal (Draggable) - Placed at top level of body to avoid z-index stacking context issues -->
+    <div id="fretboard-overlay" style="display:none; position:absolute; top:20px; left:20px; z-index:9999; background:rgba(20,20,20,0.95); border:1px solid #444; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.8); width:700px; padding:4px 8px; backdrop-filter:blur(5px);">
+
+        <!-- Header / Handle for dragging -->
+        <div id="fretboard-header" style="cursor:move; box-sizing: border-box; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding: 0 0 2px 0; margin-bottom: 2px; height: 30px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <i class="ph ph-guitar" style="color:var(--accent); font-size:1em;"></i>
+                <span style="font-weight:bold; color:white; font-size:0.85em; margin:0;" data-i18n="web.lbl_scale">Gamme</span>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:4px; height:100%;">
+                <!-- Key Select -->
+                <select id="fretboard-key" style="box-sizing: border-box; padding:0px 4px; font-size:0.75em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:20px; line-height:20px; width:auto; margin:0;" onchange="renderFretboard(true)">
+                    <option value="C">C</option><option value="C#">C# / Db</option><option value="D">D</option><option value="D#">D# / Eb</option>
+                    <option value="E">E</option><option value="F">F</option><option value="F#">F# / Gb</option><option value="G">G</option>
+                    <option value="G#">G# / Ab</option><option value="A">A</option><option value="A#">A# / Bb</option><option value="B">B</option>
+                </select>
+
+                <!-- Scale Select -->
+                <select id="fretboard-scale" style="box-sizing: border-box; padding:0px 4px; font-size:0.75em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:20px; line-height:20px; width:auto; margin:0;" onchange="renderFretboard(true)">
+                    <option value="major_pentatonic" data-i18n="web.scale_major_pentatonic">Penta. Majeure</option>
+                    <option value="minor_pentatonic" data-i18n="web.scale_minor_pentatonic" selected>Penta. Mineure</option>
+                    <option value="major" data-i18n="web.scale_major">Majeure</option>
+                    <option value="minor" data-i18n="web.scale_minor">Mineure Naturelle</option>
+                    <option value="blues" data-i18n="web.scale_blues">Blues</option>
+                    <option value="dorian" data-i18n="web.scale_dorian">Dorien</option>
+                    <option value="mixolydian" data-i18n="web.scale_mixolydian">Mixolydien</option>
+                    <option value="phrygian" data-i18n="web.scale_phrygian">Phrygien</option>
+                    <option value="lydian" data-i18n="web.scale_lydian">Lydien</option>
+                    <option value="locrian" data-i18n="web.scale_locrian">Locrien</option>
+                </select>
+
+                <!-- Tuning Select -->
+                <select id="fretboard-tuning" style="box-sizing: border-box; padding:0px 4px; font-size:0.75em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:20px; line-height:20px; width:auto; margin:0;" onchange="renderFretboard(true)">
+                    <option value="standard" data-i18n="web.tuning_standard" selected>Standard (E A D G B E)</option>
+                    <option value="drop_d" data-i18n="web.tuning_drop_d">Drop D (D A D G B E)</option>
+                    <option value="drop_c" data-i18n="web.tuning_drop_c">Drop C (C G C F A D)</option>
+                    <option value="eb" data-i18n="web.tuning_eb">Eb Standard (Eb Ab Db Gb Bb Eb)</option>
+                    <option value="d" data-i18n="web.tuning_d">D Standard (D G C F A D)</option>
+                    <option value="open_g" data-i18n="web.tuning_open_g">Open G (D G D G B D)</option>
+                    <option value="open_d" data-i18n="web.tuning_open_d">Open D (D A D F# A D)</option>
+                </select>
+
+                <!-- Hand toggle -->
+                <button id="fretboard-hand-toggle" class="btn-icon" title="Inverser Droitier/Gaucher" onclick="toggleFretboardHand()" style="box-sizing: border-box; font-size:0.9em; background:#222; border-radius:4px; padding:0px 6px; height:20px; margin:0; display:flex; align-items:center;">
+                    <i class="ph ph-hand-palm"></i>
+                </button>
+
+                <button class="btn-icon" onclick="toggleFretboard()" title="Fermer" style="box-sizing: border-box; font-size:1em; color:#bbb; height:20px; margin:0; display:flex; align-items:center; padding:0px;"><i class="ph ph-x"></i></button>
+            </div>
+        </div>
+
+        <!-- Neck Container -->
+        <!-- Use padding-top and padding-bottom to create safe zones for notes without changing neck proportion -->
+        <!-- Remove overflow hidden from parent too -->
+        <div style="padding: 10px 10px 0 10px;">
+            <div id="fretboard-neck-wrapper" style="position:relative; width:100%; height:130px; background:#1a1a1a; border-radius:4px; border:2px solid #0a0a0a;">
+                <!-- Wood Texture / Fretboard CSS rendered via JS -->
+                <div id="fretboard-neck" class="fretboard-right-handed" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex;">
+                    <!-- Nut (Sillet) -->
+                    <div id="fretboard-nut" style="width:8px; height:100%; background:#d4c4a8; border-right:1px solid #8c7b64; z-index:10; box-shadow:2px 0 5px rgba(0,0,0,0.5);"></div>
+                    <!-- Frets Area -->
+                    <div id="fretboard-frets" style="display:flex; flex:1; height:100%; position:relative;"></div>
+                    <!-- Strings Area (Overlay) -->
+                    <!-- Use visible overflow here to allow notes to protrude outside the boundaries visually while contained safely by outer wrapper padding -->
+                    <div id="fretboard-strings" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:space-around; pointer-events:none; z-index:15; overflow:visible;">
+                        <!-- E A D G B e -->
+                    </div>
+                    </div>
+                </div>
+
+                <!-- Fret Numbers -->
+                <div id="fretboard-numbers" style="display:flex; width:100%; height:18px; margin-top:5px; padding-left: 8px;">
+                    <!-- Will be populated via JS -->
+                </div>
+            </div>
+        </div>
 </body>
 
 </html>
