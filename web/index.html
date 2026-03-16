@@ -1705,6 +1705,11 @@
             </div>
 
             <div style="display:flex; align-items:center; gap:4px; height:100%;">
+                <!-- Fret Count Toggle -->
+                <button id="btn-fret-count" onclick="cycleFretCount()" title="Alterner 15 / 22 / 24 Cases" style="box-sizing: border-box; padding:0px 6px; font-size:0.75em; background:#222; color:white; border:1px solid #444; border-radius:4px; height:20px; line-height:20px; margin:0; cursor:pointer;">
+                    15
+                </button>
+
                 <!-- Key Select -->
                 <select id="fretboard-key" style="box-sizing: border-box; padding:0px 4px; font-size:0.75em; background:#111; color:white; border:1px solid #444; border-radius:4px; height:20px; line-height:20px; width:auto; margin:0;" onchange="renderFretboard(true)">
                     <option value="C">C</option><option value="C#">C# / Db</option><option value="D">D</option><option value="D#">D# / Eb</option>

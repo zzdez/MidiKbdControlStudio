@@ -1,5 +1,4 @@
 // Fretboard Logic
-const fretsCount = 15;
 const stringTunes = ["E", "A", "D", "G", "B", "E"];
 const baseNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const scaleFormulas = {
@@ -26,7 +25,8 @@ let fretboardState = {
     scale: "minor_pentatonic",
     tuning: "standard",
     isLefty: false,
-    skin: "flat" // 'flat' or 'wood'
+    skin: "flat",
+    fretsCount: 15
 };
 
 const tuningPresets = {
@@ -259,11 +259,11 @@ function renderFretboard(silentSave = false) {
     const activeScaleNotes = getScaleNotes(fretboardState.key, fretboardState.scale);
 
     // 1. Draw Frets (Background vertical dividers & inlays) & Numbers
-    const inlays = [3, 5, 7, 9, 15];
-    const doubleInlays = [12];
+    const inlays = [3, 5, 7, 9, 15, 17, 19, 21];
+    const doubleInlays = [12, 24];
 
-    for (let f = 1; f <= fretsCount; f++) {
-        const visualFretNum = isLefty ? (fretsCount - f + 1) : f;
+    for (let f = 1; f <= fretboardState.fretsCount; f++) {
+        const visualFretNum = isLefty ? (fretboardState.fretsCount - f + 1) : f;
 
         const fretDiv = document.createElement("div");
         fretDiv.style.flex = "1";
@@ -287,6 +287,12 @@ function renderFretboard(silentSave = false) {
         if (inlays.includes(visualFretNum) || doubleInlays.includes(visualFretNum)) {
             numDiv.innerText = visualFretNum;
         }
+
+        // When frets > 15, the numbers may get squished if text is too large
+        if (fretboardState.fretsCount > 15) {
+            numDiv.style.fontSize = "10px";
+        }
+
         numbersContainer.appendChild(numDiv);
 
         // Inlays
@@ -383,7 +389,7 @@ function renderFretboard(silentSave = false) {
                 }
             } else {
                 // Calculate percentage based on fret container
-                const fretWidthPct = 100 / fretsCount;
+                const fretWidthPct = 100 / fretboardState.fretsCount;
                 let xPosPct;
                 if (isLefty) {
                     xPosPct = 100 - (fretNum * fretWidthPct) + (fretWidthPct / 2);
@@ -412,9 +418,24 @@ function renderFretboard(silentSave = false) {
         // Draw Nut Note (0)
         drawNote(0, true);
 
-        // Draw Fretted Notes (1-15)
-        for (let f = 1; f <= fretsCount; f++) {
+        // Draw Fretted Notes
+        for (let f = 1; f <= fretboardState.fretsCount; f++) {
             drawNote(f, false);
         }
     });
+}
+
+function cycleFretCount() {
+    if (fretboardState.fretsCount === 15) {
+        fretboardState.fretsCount = 22;
+    } else if (fretboardState.fretsCount === 22) {
+        fretboardState.fretsCount = 24;
+    } else {
+        fretboardState.fretsCount = 15;
+    }
+
+    const btn = document.getElementById("btn-fret-count");
+    if (btn) btn.innerHTML = fretboardState.fretsCount;
+
+    renderFretboard();
 }
