@@ -324,6 +324,10 @@
         "fretboard_flat": "Plat & Sombre (Moderne)",
         "fretboard_wood": "Réaliste (Texture Bois)",
         "fretboard_pos_all": "Toutes Pos.",
+        "inst_guitar_6": "Guitare (6)",
+        "inst_guitar_7": "Guitare (7)",
+        "inst_bass_4": "Basse (4)",
+        "inst_bass_5": "Basse (5)",
         "lbl_tuning": "Accordage",
         "tuning_standard": "Standard (E A D G B E)",
         "tuning_drop_d": "Drop D (D A D G B E)",
@@ -332,6 +336,12 @@
         "tuning_d": "D Standard (D G C F A D)",
         "tuning_open_g": "Open G (D G D G B D)",
         "tuning_open_d": "Open D (D A D F# A D)",
+        "tuning_standard_7": "Standard (B E A D G B E)",
+        "tuning_drop_a_7": "Drop A (A E A D G B E)",
+        "tuning_standard_bass_4": "Standard (E A D G)",
+        "tuning_drop_d_bass_4": "Drop D (D A D G)",
+        "tuning_eb_bass_4": "Eb Standard (Eb Ab Db Gb)",
+        "tuning_standard_bass_5": "Standard (B E A D G)",
         "lbl_fretboard_auto_close": "Fermeture auto du manche au changement de média"
     }
 }

@@ -21,6 +21,7 @@ const noteAliases = {
 
 let fretboardState = {
     visible: false,
+    instrument: "guitar_6",
     key: "C",
     scale: "minor_pentatonic",
     tuning: "standard",
@@ -29,14 +30,47 @@ let fretboardState = {
     fretsCount: 15
 };
 
+const instruments = {
+    "guitar_6": {
+        name: "Guitare (6)",
+        icon: "ph-guitar",
+        tunings: ["standard", "drop_d", "drop_c", "eb", "d", "open_g", "open_d"]
+    },
+    "guitar_7": {
+        name: "Guitare (7)",
+        icon: "ph-guitar",
+        tunings: ["standard_7", "drop_a_7"]
+    },
+    "bass_4": {
+        name: "Basse (4)",
+        icon: "ph-speaker-hifi",
+        tunings: ["standard_bass_4", "drop_d_bass_4", "eb_bass_4"]
+    },
+    "bass_5": {
+        name: "Basse (5)",
+        icon: "ph-speaker-hifi",
+        tunings: ["standard_bass_5"]
+    }
+};
+
 const tuningPresets = {
+    // Guitar 6
     "standard": ["E", "A", "D", "G", "B", "E"],
     "drop_d": ["D", "A", "D", "G", "B", "E"],
     "drop_c": ["C", "G", "C", "F", "A", "D"],
     "eb": ["D#", "G#", "C#", "F#", "A#", "D#"],
     "d": ["D", "G", "C", "F", "A", "D"],
     "open_g": ["D", "G", "D", "G", "B", "D"],
-    "open_d": ["D", "A", "D", "F#", "A", "D"]
+    "open_d": ["D", "A", "D", "F#", "A", "D"],
+    // Guitar 7
+    "standard_7": ["B", "E", "A", "D", "G", "B", "E"],
+    "drop_a_7": ["A", "E", "A", "D", "G", "B", "E"],
+    // Bass 4
+    "standard_bass_4": ["E", "A", "D", "G"],
+    "drop_d_bass_4": ["D", "A", "D", "G"],
+    "eb_bass_4": ["D#", "G#", "C#", "F#"],
+    // Bass 5
+    "standard_bass_5": ["B", "E", "A", "D", "G"]
 };
 
 // --- DRAG LOGIC ---
@@ -79,7 +113,58 @@ function makeDraggable(overlayId, headerId) {
 // Ensure init after DOM
 document.addEventListener("DOMContentLoaded", () => {
     makeDraggable("fretboard-overlay", "fretboard-header");
+
+    // Close instrument menu when clicking outside
+    document.addEventListener("click", (e) => {
+        const menu = document.getElementById("fretboard-instrument-menu");
+        const btn = document.getElementById("btn-instrument-select");
+        if (menu && menu.style.display === "block" && !menu.contains(e.target) && !btn.contains(e.target)) {
+            menu.style.display = "none";
+        }
+    });
 });
+
+function toggleInstrumentMenu(e) {
+    if (e) e.preventDefault();
+    const menu = document.getElementById("fretboard-instrument-menu");
+    if (menu) {
+        menu.style.display = menu.style.display === "none" ? "block" : "none";
+    }
+}
+
+function changeInstrument(instKey) {
+    if (!instruments[instKey]) return;
+
+    fretboardState.instrument = instKey;
+    const inst = instruments[instKey];
+
+    // Update Header UI
+    document.getElementById("fretboard-instrument-icon").className = "ph " + inst.icon;
+    document.getElementById("fretboard-instrument-label").innerText = inst.name;
+    document.getElementById("fretboard-instrument-menu").style.display = "none";
+
+    // Update Tunings Dropdown
+    const tuningSelect = document.getElementById("fretboard-tuning");
+    tuningSelect.innerHTML = "";
+
+    inst.tunings.forEach(t => {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.setAttribute("data-i18n", `web.tuning_${t}`);
+        opt.innerText = t; // Will be localized
+        tuningSelect.appendChild(opt);
+    });
+
+    // Default to the first tuning of the new instrument
+    fretboardState.tuning = inst.tunings[0];
+    tuningSelect.value = fretboardState.tuning;
+
+    if (typeof applyTranslations === "function") {
+        applyTranslations();
+    }
+
+    renderFretboard(true);
+}
 
 function toggleFretboard() {
     const fb = document.getElementById("fretboard-overlay");
@@ -128,10 +213,40 @@ function detectCurrentScale() {
         }
         document.getElementById("fretboard-scale").value = fretboardState.scale;
 
-    if (item.tuning) {
-        fretboardState.tuning = item.tuning;
-        document.getElementById("fretboard-tuning").value = fretboardState.tuning;
-    }
+        // Restore Instrument (if saved), else default to guitar_6
+        let savedInst = item.instrument || "guitar_6";
+        if (instruments[savedInst]) {
+            // Only update UI, changeInstrument will trigger a render, we don't want that here
+            fretboardState.instrument = savedInst;
+            const inst = instruments[savedInst];
+            document.getElementById("fretboard-instrument-icon").className = "ph " + inst.icon;
+            document.getElementById("fretboard-instrument-label").innerText = inst.name;
+
+            // Re-populate tunings for this instrument
+            const tuningSelect = document.getElementById("fretboard-tuning");
+            tuningSelect.innerHTML = "";
+            inst.tunings.forEach(t => {
+                const opt = document.createElement("option");
+                opt.value = t;
+                opt.setAttribute("data-i18n", `web.tuning_${t}`);
+                opt.innerText = t;
+                tuningSelect.appendChild(opt);
+            });
+        }
+
+        if (item.tuning && instruments[fretboardState.instrument].tunings.includes(item.tuning)) {
+            fretboardState.tuning = item.tuning;
+            document.getElementById("fretboard-tuning").value = fretboardState.tuning;
+        } else {
+             // Fallback to instrument default if tuning is invalid for this instrument
+             fretboardState.tuning = instruments[fretboardState.instrument].tunings[0];
+             document.getElementById("fretboard-tuning").value = fretboardState.tuning;
+        }
+
+        if (typeof applyTranslations === "function") {
+            applyTranslations();
+        }
+
     } else {
         // Fallback or read from UI if no metadata
         fretboardState.key = document.getElementById("fretboard-key").value;
@@ -280,6 +395,7 @@ function renderFretboard(silentSave = false) {
             item.key = fretboardState.key;
             item.scale = fretboardState.scale;
             item.tuning = fretboardState.tuning;
+            item.instrument = fretboardState.instrument;
 
             // Sync with Global UI if currently playing track
             const globalKey = document.getElementById("global-video-key");
@@ -414,23 +530,28 @@ function renderFretboard(silentSave = false) {
     // 2. Draw Strings & Notes
     const currentTuning = tuningPresets[fretboardState.tuning] || tuningPresets["standard"];
     const displayStrings = [...currentTuning].reverse(); // (Top to Bottom visually)
+    const numStrings = displayStrings.length;
 
     displayStrings.forEach((stringNote, stringIndex) => {
         // Draw the physical string line
         const strLine = document.createElement("div");
         strLine.style.width = "100%";
-        strLine.style.height = (1 + (stringIndex * 0.5)) + "px"; // Thicker for lower strings
+
+        // Bass strings are naturally thicker
+        const isBass = fretboardState.instrument.startsWith("bass_");
+        const baseThickness = isBass ? 2 : 1;
+        strLine.style.height = (baseThickness + (stringIndex * (isBass ? 0.8 : 0.5))) + "px";
+
         strLine.style.background = fretboardState.skin === "wood" ? "linear-gradient(to bottom, #eee, #999)" : "#444";
         strLine.style.boxShadow = "0 1px 2px rgba(0,0,0,0.5)";
         strLine.style.position = "absolute";
-        // Calculate vertical position to distribute evenly with margins using calc
-        // We use a safe margin on top and bottom (e.g. 5px) to space out the strings naturally
-        // Total usable area: 100% - 10px.
-        // We add 5px base offset.
-        // So string 0 is at 5px down (from top edge)
-        // String 5 is at 100% - 5px (from top edge)
-        const strMargin = 5;
-        const topPct = (stringIndex / 5);
+
+        // Calculate vertical position dynamically based on number of strings
+        // We use a safe margin on top and bottom (e.g. 8px) to space out the strings naturally
+        const strMargin = 8;
+        // The denominator is (numStrings - 1) to distribute across the available space
+        const topPct = numStrings > 1 ? (stringIndex / (numStrings - 1)) : 0.5;
+
         strLine.style.top = `calc(${strMargin}px + ${topPct} * (100% - ${strMargin * 2}px))`;
         strLine.style.transform = "translateY(-50%)"; // Center vertically on its own coordinate
 
