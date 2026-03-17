@@ -501,23 +501,32 @@ function renderFretboard(silentSave = false) {
         numbersContainer.appendChild(numDiv);
 
         // Inlays
+        const inlayColor = fretboardState.skin === "wood" ? "rgba(255,255,255,0.7)" : "#d4c4a8";
+
         if (inlays.includes(visualFretNum)) {
             const dot = document.createElement("div");
             dot.style.width = "12px"; dot.style.height = "12px";
             dot.style.borderRadius = "50%";
-            dot.style.background = fretboardState.skin === "wood" ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.15)";
+            dot.style.background = inlayColor;
+
+            // For flat skin, maybe make them slightly less opaque so they don't overpower the notes,
+            // but keep the d4c4a8 color base.
+            if (fretboardState.skin !== "wood") dot.style.opacity = "0.4";
+
             fretDiv.appendChild(dot);
         } else if (doubleInlays.includes(visualFretNum)) {
             const dot1 = document.createElement("div");
             dot1.style.width = "12px"; dot1.style.height = "12px";
             dot1.style.borderRadius = "50%";
-            dot1.style.background = fretboardState.skin === "wood" ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.15)";
+            dot1.style.background = inlayColor;
+            if (fretboardState.skin !== "wood") dot1.style.opacity = "0.4";
             dot1.style.position = "absolute"; dot1.style.top = "25%";
 
             const dot2 = document.createElement("div");
             dot2.style.width = "12px"; dot2.style.height = "12px";
             dot2.style.borderRadius = "50%";
-            dot2.style.background = fretboardState.skin === "wood" ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.15)";
+            dot2.style.background = inlayColor;
+            if (fretboardState.skin !== "wood") dot2.style.opacity = "0.4";
             dot2.style.position = "absolute"; dot2.style.bottom = "25%";
 
             fretDiv.appendChild(dot1);
@@ -594,16 +603,35 @@ function renderFretboard(silentSave = false) {
                 }
             }
 
+            // Calculate Interval
+            const rootIndex = getNoteIndex(fretboardState.key);
+            const noteIndex = getNoteIndex(noteName);
+            let interval = (noteIndex - rootIndex) % 12;
+            if (interval < 0) interval += 12;
+
+            let bgColor = "#555";
+            let textColor = "#fff";
+
+            if (isRoot) {
+                bgColor = "var(--accent)";
+                textColor = "#000";
+            } else if (interval === 3 || interval === 4 || interval === 7) {
+                // Minor 3rd, Major 3rd, Perfect 5th
+                bgColor = "#e0e0e0";
+                textColor = "#000";
+            } else if (interval === 6) {
+                // Flat 5 (Blue note)
+                bgColor = "#e74c3c";
+                textColor = "#fff";
+            }
+
             const noteDot = document.createElement("div");
             noteDot.style.position = "absolute";
             noteDot.style.width = "18px";
             noteDot.style.height = "18px";
             noteDot.style.borderRadius = "50%";
-
-            const isWood = fretboardState.skin === "wood";
-            noteDot.style.background = isRoot ? "var(--accent)" : (isWood ? "#555" : "#d4c4a8");
-            noteDot.style.color = isRoot ? "#000" : (isWood ? "#fff" : "#000");
-
+            noteDot.style.background = bgColor;
+            noteDot.style.color = textColor;
             noteDot.style.display = "flex";
             noteDot.style.justifyContent = "center";
             noteDot.style.alignItems = "center";
