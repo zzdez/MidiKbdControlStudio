@@ -599,8 +599,11 @@ function renderFretboard(silentSave = false) {
             noteDot.style.width = "18px";
             noteDot.style.height = "18px";
             noteDot.style.borderRadius = "50%";
-            noteDot.style.background = isRoot ? "var(--accent)" : "#555";
-            noteDot.style.color = isRoot ? "#000" : "#fff";
+
+            const isWood = fretboardState.skin === "wood";
+            noteDot.style.background = isRoot ? "var(--accent)" : (isWood ? "#555" : "#d4c4a8");
+            noteDot.style.color = isRoot ? "#000" : (isWood ? "#fff" : "#000");
+
             noteDot.style.display = "flex";
             noteDot.style.justifyContent = "center";
             noteDot.style.alignItems = "center";
