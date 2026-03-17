@@ -603,11 +603,9 @@ function renderFretboard(silentSave = false) {
                 }
             }
 
-            // Calculate Interval
-            const rootIndex = getNoteIndex(fretboardState.key);
-            const noteIndex = getNoteIndex(noteName);
-            let interval = (noteIndex - rootIndex) % 12;
-            if (interval < 0) interval += 12;
+            // Style logic based on Display Mode
+            const displayModeSelect = document.getElementById("fretboard-display-mode");
+            const displayMode = displayModeSelect ? displayModeSelect.value : "intervals";
 
             let bgColor = "#555";
             let textColor = "#fff";
@@ -615,13 +613,29 @@ function renderFretboard(silentSave = false) {
             if (isRoot) {
                 bgColor = "var(--accent)";
                 textColor = "#000";
-            } else if (interval === 3 || interval === 4 || interval === 7) {
-                // Minor 3rd, Major 3rd, Perfect 5th
-                bgColor = "#e0e0e0";
-                textColor = "#000";
-            } else if (interval === 6) {
-                // Flat 5 (Blue note)
-                bgColor = "#e74c3c";
+            } else if (displayMode === "intervals") {
+                // Calculate Interval
+                const rootIndex = getNoteIndex(fretboardState.key);
+                const noteIndex = getNoteIndex(noteName);
+                let interval = (noteIndex - rootIndex) % 12;
+                if (interval < 0) interval += 12;
+
+                if (interval === 3 || interval === 4 || interval === 7) {
+                    // Minor 3rd, Major 3rd, Perfect 5th
+                    bgColor = "#e0e0e0";
+                    textColor = "#000";
+                } else if (interval === 6) {
+                    // Flat 5 (Blue note)
+                    bgColor = "#e74c3c";
+                    textColor = "#fff";
+                }
+            } else if (displayMode === "classic") {
+                // Classic: All other notes are the nut color (d4c4a8 for flat, or 555 for wood)
+                bgColor = fretboardState.skin === "wood" ? "#555" : "#d4c4a8";
+                textColor = fretboardState.skin === "wood" ? "#fff" : "#000";
+            } else if (displayMode === "minimal") {
+                // Minimal: All other notes are dark gray (already default: #555, #fff)
+                bgColor = "#555";
                 textColor = "#fff";
             }
 
