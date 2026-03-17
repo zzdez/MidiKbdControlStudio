@@ -215,7 +215,7 @@ class MetadataService:
             if hasattr(audio, 'info') and hasattr(audio.info, 'length'):
                 length = audio.info.length
 
-            return {
+            res = {
                 "title": title,
                 "artist": artist,
                 "album": album,
@@ -223,9 +223,51 @@ class MetadataService:
                 "year": year,
                 "duration": length
             }
+
+            # Merging with Sidecar JSON if available (priority to sidecar for extended fields)
+            sidecar_path = path + ".json"
+            if os.path.exists(sidecar_path):
+                try:
+                    import json
+                    with open(sidecar_path, "r", encoding="utf-8") as f:
+                        sidecar_data = json.load(f)
+
+                        # Apply sidecar overrides
+                        if sidecar_data.get("title"): res["title"] = sidecar_data["title"]
+                        if sidecar_data.get("artist"): res["artist"] = sidecar_data["artist"]
+                        if sidecar_data.get("album"): res["album"] = sidecar_data["album"]
+                        if sidecar_data.get("genre"): res["genre"] = sidecar_data["genre"]
+                        if sidecar_data.get("year"): res["year"] = sidecar_data["year"]
+
+                        # Add Extended metadata that Mutagen doesn't reliably map
+                        res["bpm"] = sidecar_data.get("bpm", "")
+                        res["key"] = sidecar_data.get("key", "")
+                        res["media_key"] = sidecar_data.get("media_key", "")
+                        res["scale"] = sidecar_data.get("scale", "")
+                        res["original_pitch"] = sidecar_data.get("original_pitch", "")
+                        res["target_pitch"] = sidecar_data.get("target_pitch", "")
+                        res["category"] = sidecar_data.get("category", "")
+                        res["user_notes"] = sidecar_data.get("user_notes", "")
+                except Exception as e:
+                    logging.error(f"Error reading single file sidecar JSON: {e}")
+
+            return res
+
         except Exception as e:
             print(f"Metadata Read Error: {e}")
-            return {"title": os.path.basename(path)}
+
+            res = {"title": os.path.basename(path)}
+            # Try to read sidecar even if Mutagen fails
+            sidecar_path = path + ".json"
+            if os.path.exists(sidecar_path):
+                try:
+                    import json
+                    with open(sidecar_path, "r", encoding="utf-8") as f:
+                        sidecar_data = json.load(f)
+                        res.update(sidecar_data)
+                except: pass
+
+            return res
 
     def generate_peaks(self, file_path: str, num_samples: int = 8000) -> list:
         """
@@ -363,6 +405,30 @@ class MetadataService:
                 return False
 
         ext = os.path.splitext(path)[1].lower()
+
+        # --- SIDECAR UPDATE FOR SINGLE FILES (MP3, WAV, MKV, etc) ---
+        sidecar_path = path + ".json"
+        import json
+
+        # Merge with existing sidecar data if present
+        sidecar_data = {}
+        if os.path.exists(sidecar_path):
+            try:
+                with open(sidecar_path, "r", encoding="utf-8") as f:
+                    sidecar_data = json.load(f)
+            except Exception as e:
+                logging.error(f"Error reading existing sidecar JSON for update: {e}")
+
+        # Update with new values (keep existing keys we don't know about)
+        for key, value in data.items():
+            if key not in ["cover_data", "stems", "is_multitrack", "duration", "chapters"]:
+                sidecar_data[key] = value
+
+        try:
+            with open(sidecar_path, "w", encoding="utf-8") as f:
+                json.dump(sidecar_data, f, indent=4)
+        except Exception as e:
+            logging.error(f"Error writing sidecar JSON: {e}")
 
         # --- 0. PREPARE COVER DATA ---
         cover_data_bin, mime_type = self._resolve_cover_bin(data.get("cover_data"))

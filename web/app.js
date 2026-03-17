@@ -922,6 +922,11 @@ async function loadSettings() {
             } else if (Object.keys(translations).length === 0) {
                 await loadTranslations(currentLang);
             }
+
+            // Sync Fretboard State if loaded
+            if (typeof fretboardState !== 'undefined') {
+                fretboardState.skin = currentSettings.fretboard_skin || "flat";
+            }
         }
     } catch (e) {
         console.error("Settings Load Error", e);
@@ -958,11 +963,29 @@ async function openSettingsModal() {
 
         const arCb = document.getElementById("setting-autoreplay");
         if (arCb) arCb.checked = currentSettings.autoreplay === true; // Default to false
+
+        const fbSkin = document.getElementById("setting-fretboard-skin");
+        if (fbSkin) fbSkin.value = currentSettings.fretboard_skin || "flat"; // Default
+
+        const fbAutoClose = document.getElementById("setting-fretboard-autoclose");
+        if (fbAutoClose) fbAutoClose.checked = currentSettings.fretboard_autoclose || false;
+
         renderSettingsFolders();
 
         // Show Modal
         document.getElementById("settings-modal").showModal();
         switchSettingsTab('general'); // Reset to first tab
+    }
+}
+
+function changeFretboardSkin() {
+    const selector = document.getElementById("setting-fretboard-skin");
+    if (!selector) return;
+
+    // Live update if the fretboard is open
+    if (typeof fretboardState !== 'undefined') {
+        fretboardState.skin = selector.value;
+        renderFretboard();
     }
 }
 
@@ -1104,6 +1127,20 @@ async function saveSettings() {
     const arCb = document.getElementById("setting-autoreplay");
     if (arCb) currentSettings.autoreplay = arCb.checked;
 
+    const fbSkin = document.getElementById("setting-fretboard-skin");
+    if (fbSkin) {
+        currentSettings.fretboard_skin = fbSkin.value;
+        if (typeof fretboardState !== 'undefined') {
+            fretboardState.skin = fbSkin.value;
+            renderFretboard();
+        }
+    }
+
+    const fbAutoClose = document.getElementById("setting-fretboard-autoclose");
+    if (fbAutoClose) {
+        currentSettings.fretboard_autoclose = fbAutoClose.checked;
+    }
+
     try {
         await fetch("/api/settings", {
             method: "POST",
@@ -1214,6 +1251,8 @@ function openEditModal(index) {
     document.getElementById("edit-bpm").value = track.bpm || "";
     document.getElementById("edit-key").value = track.key || "";
     document.getElementById("edit-media-key").value = track.media_key || "";
+    document.getElementById("edit-scale").value = track.scale || "";
+    document.getElementById("edit-tuning").value = track.tuning || "standard";
     document.getElementById("edit-original-pitch").value = track.original_pitch || "";
     document.getElementById("edit-target-pitch").value = track.target_pitch || "";
 
@@ -1680,6 +1719,8 @@ async function saveItem() {
         bpm: document.getElementById("edit-bpm").value,
         key: document.getElementById("edit-key").value,
         media_key: document.getElementById("edit-media-key").value,
+        scale: document.getElementById("edit-scale").value,
+        tuning: document.getElementById("edit-tuning").value,
         original_pitch: document.getElementById("edit-original-pitch").value,
         target_pitch: document.getElementById("edit-target-pitch").value,
         subtitle_enabled: window.tempModalSubEnabled || false,
@@ -1921,6 +1962,24 @@ function playTrack(track) {
     // STOP ALL MEDIA first
     stopAllMedia();
 
+    // Fretboard intelligent handling on track change
+    if (typeof fretboardState !== 'undefined' && fretboardState.visible) {
+        if (currentSettings && currentSettings.fretboard_autoclose) {
+             toggleFretboard(); // Close it
+        } else {
+             // Keep it open but update to new track scale
+             setTimeout(() => {
+                  detectCurrentScale();
+                  renderFretboard();
+             }, 500);
+        }
+    }
+
+    const globalTitle = document.getElementById("global-video-title");
+    const globalBpm = document.getElementById("global-video-bpm");
+    const globalKey = document.getElementById("global-video-key");
+    const globalScale = document.getElementById("global-video-scale");
+
     // Determine Autoplay/Autoreplay
     // Important: if not defined in track, we use global settings, but we assign it to memory
     // so any subsequent save from modals or UI doesn't send "undefined"
@@ -1990,6 +2049,16 @@ function playTrack(track) {
         ytDiv.style.display = "block";
         currentActivePlayer = 'youtube'; // Important for logic tracking
 
+        // GLOBAL HEADER
+        document.getElementById("global-video-info").style.display = "flex";
+        globalTitle.innerText = track.title || track.url;
+        if (track.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = track.bpm; } else { globalBpm.style.display = "none"; }
+        if (track.key) { globalKey.style.display = "inline"; globalKey.querySelector(".val").innerText = track.key; } else { globalKey.style.display = "none"; }
+        if (track.scale) {
+            globalScale.style.display = "inline";
+            globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${track.scale}"]`)?.text || track.scale;
+        } else { globalScale.style.display = "none"; }
+
         // Display Custom Timeline for YouTube
         const timeline = document.getElementById("video-timeline-container");
         if (timeline) {
@@ -2036,6 +2105,8 @@ function playTrack(track) {
     } else {
         // Generic / Direct URL (could be any iframeable content)
         setMode("GENERIC", getProfile(track, "Web Generic")); // Fallback
+
+        document.getElementById("global-video-info").style.display = "none";
 
         // SMART EMBED CONVERSION
         // Automatically convert known platforms to Embed URL
@@ -2862,6 +2933,11 @@ async function playLocal(index) {
     // RENDER CHAPTERS
     renderChapters(file.chapters);
 
+    const globalTitle = document.getElementById("global-video-title");
+    const globalBpm = document.getElementById("global-video-bpm");
+    const globalKey = document.getElementById("global-video-key");
+    const globalScale = document.getElementById("global-video-scale");
+
     // AUTO-RESET PITCH
     updatePitch(0);
 
@@ -2909,6 +2985,19 @@ async function playLocal(index) {
     // GLOBAL STOP
     stopAllMedia();
 
+    // Fretboard intelligent handling on track change
+    if (typeof fretboardState !== 'undefined' && fretboardState.visible) {
+        if (currentSettings && currentSettings.fretboard_autoclose) {
+             toggleFretboard(); // Close it
+        } else {
+             // Keep it open but update to new track scale
+             setTimeout(() => {
+                  detectCurrentScale();
+                  renderFretboard();
+             }, 500); // slight delay to ensure window.currentPlayingIndex has fully resolved everywhere
+        }
+    }
+
     const v = document.getElementById("html5-player");
 
     // Clean Reset without triggering errors
@@ -2947,6 +3036,7 @@ async function playLocal(index) {
         const target = getProfile(file, "Web Audio Local");
         console.log("[DEBUG JS] Envoi demande setMode (MULTITRACK) avec profil :", target);
         setMode("AUDIO", target);
+        document.getElementById("global-video-info").style.display = "none";
 
         videoContainer.style.display = "none";
         audioContainer.style.display = "none";
@@ -2959,7 +3049,17 @@ async function playLocal(index) {
         const valT = document.getElementById("video-timeline-container");
         if (valT) valT.style.display = "none";
 
-        document.getElementById("multitrack-title").innerText = file.title;
+        document.getElementById("multitrack-title").innerText = file.title || "Multitrack";
+        document.getElementById("multitrack-artist").innerText = file.artist || "Stems";
+        const mtArt = document.getElementById("mt-compact-art");
+        mtArt.onload = () => mtArt.style.display = "block";
+        mtArt.onerror = () => mtArt.style.display = "none";
+        mtArt.src = `/api/local/art/${index}?t=${Date.now()}`;
+
+        const mtBpm = document.getElementById("mt-compact-bpm");
+        const mtKey = document.getElementById("mt-compact-key");
+        if (file.bpm) { mtBpm.style.display = "inline"; mtBpm.querySelector(".val").innerText = file.bpm; } else { mtBpm.style.display = "none"; }
+        if (file.key) { mtKey.style.display = "inline"; mtKey.querySelector(".val").innerText = file.key; } else { mtKey.style.display = "none"; }
 
         if (wavesurfer) wavesurfer.pause();
         v.style.display = "none";
@@ -3427,6 +3527,7 @@ async function playLocal(index) {
         const target = getProfile(file, "Web Audio Local");
         console.log("[DEBUG JS] Envoi demande setMode (AUDIO) avec profil :", target);
         setMode("AUDIO", target); // Context Switch
+        document.getElementById("global-video-info").style.display = "none";
 
         videoContainer.style.display = "none";
         audioContainer.style.display = "flex";
@@ -3447,6 +3548,26 @@ async function playLocal(index) {
         document.getElementById("audio-title").innerText = file.title;
         document.getElementById("audio-artist").innerText = file.artist || "Artiste Inconnu";
         document.getElementById("audio-album").innerText = file.album || "";
+
+    const eBpm = document.getElementById("audio-bpm-info");
+    const eKey = document.getElementById("audio-key-info");
+    const eScale = document.getElementById("audio-scale-info");
+    const eTuning = document.getElementById("audio-tuning-info");
+
+    if (file.bpm) { eBpm.style.display = "inline"; eBpm.querySelector(".val").innerText = file.bpm; } else { eBpm.style.display = "none"; }
+    if (file.key) { eKey.style.display = "inline"; eKey.querySelector(".val").innerText = file.key; } else { eKey.style.display = "none"; }
+    if (file.scale) {
+        eScale.style.display = "inline";
+        const txt = document.getElementById("fretboard-scale").querySelector(`option[value="${file.scale}"]`)?.text || file.scale;
+        eScale.querySelector(".val").innerText = txt;
+    } else { eScale.style.display = "none"; }
+
+    if (file.tuning && file.tuning !== 'standard') {
+        eTuning.style.display = "inline";
+        const txt = document.getElementById("fretboard-tuning").querySelector(`option[value="${file.tuning}"]`)?.text || file.tuning;
+        eTuning.querySelector(".val").innerText = txt;
+    } else { eTuning.style.display = "none"; }
+
 
         const artImg = document.getElementById("audio-art");
         // Reset first
@@ -3484,6 +3605,16 @@ async function playLocal(index) {
         const target = getProfile(file, "Web Video Local");
         console.log("[DEBUG JS] Envoi demande setMode (VIDEO) avec profil :", target);
         setMode("VIDEO", target); // Context Switch
+
+        document.getElementById("global-video-info").style.display = "flex";
+        globalTitle.innerText = file.title || "Video";
+        if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
+        if (file.key) { globalKey.style.display = "inline"; globalKey.querySelector(".val").innerText = file.key; } else { globalKey.style.display = "none"; }
+        if (file.scale) {
+            globalScale.style.display = "inline";
+            globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${file.scale}"]`)?.text || file.scale;
+        } else { globalScale.style.display = "none"; }
+
 
         videoContainer.style.display = "flex";
         audioContainer.style.display = "none";
@@ -4590,6 +4721,8 @@ function openEditLocalModal(index) {
     document.getElementById("local-bpm").value = item.bpm || "";
     document.getElementById("local-key").value = item.key || "";
     document.getElementById("local-media-key").value = item.media_key || "";
+    document.getElementById("local-scale").value = item.scale || "";
+    document.getElementById("local-tuning").value = item.tuning || "standard";
     document.getElementById("local-original-pitch").value = item.original_pitch || "";
     document.getElementById("local-target-pitch").value = item.target_pitch || "";
     document.getElementById("local-target-profile").value = item.target_profile || "Auto";
@@ -4650,6 +4783,8 @@ function openMultitrackModal(index) {
     document.getElementById("mt-bpm").value = item.bpm || "";
     document.getElementById("mt-key").value = item.key || "";
     document.getElementById("mt-media-key").value = item.media_key || "";
+    document.getElementById("mt-scale").value = item.scale || "";
+    document.getElementById("mt-tuning").value = item.tuning || "standard";
     document.getElementById("mt-original-pitch").value = item.original_pitch || "";
     document.getElementById("mt-target-pitch").value = item.target_pitch || "";
     document.getElementById("mt-target-profile").value = item.target_profile || "Auto";
@@ -4701,6 +4836,8 @@ async function saveMultitrackItem() {
         bpm: document.getElementById("mt-bpm").value,
         key: document.getElementById("mt-key").value,
         media_key: document.getElementById("mt-media-key").value,
+        scale: document.getElementById("mt-scale").value,
+        tuning: document.getElementById("mt-tuning").value,
         original_pitch: document.getElementById("mt-original-pitch").value,
         target_pitch: document.getElementById("mt-target-pitch").value,
         target_profile: document.getElementById("mt-target-profile").value,
@@ -4764,6 +4901,8 @@ async function saveLocalItem() {
         bpm: document.getElementById("local-bpm").value,
         key: document.getElementById("local-key").value,
         media_key: document.getElementById("local-media-key").value,
+        scale: document.getElementById("local-scale").value,
+        tuning: document.getElementById("local-tuning").value,
         original_pitch: document.getElementById("local-original-pitch").value,
         target_pitch: document.getElementById("local-target-pitch").value,
         target_profile: document.getElementById("local-target-profile").value,
@@ -6129,6 +6268,14 @@ async function saveLocalItemQuiet(index, item) {
 
 async function saveItemQuiet(index, item) {
     await fetch(`/api/setlist/${index}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item)
+    });
+}
+
+async function saveLocalItemQuiet(index, item) {
+    await fetch(`/api/local/${index}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(item)

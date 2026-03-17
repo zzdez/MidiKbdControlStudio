@@ -242,3 +242,15 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **Sécurisation des Variables Globales :** La fonction `syncPlaybackSettingsToModals` a été purgée de toute réaffectation des variables globales (`window.currentAutoreplay`), garantissant qu'elle ne sert plus qu'à pré-remplir les cases à cocher du DOM.
 *   **Direct-to-Save depuis les Switches :**
     *   Les modifications effectuées depuis les interrupteurs (Autoplay/Autoreplay) des modales déclenchent désormais une mise à jour silencieuse immédiate (`saveItemQuiet` / `saveLocalItemQuiet`) vers le backend, éliminant le besoin de valider par le bouton "Sauvegarder".
+
+### 25. Évolution V19 : Fretboard Interactif & Gammes (MVP)
+*   **Architecture Frontend (`fretboard.js`) :**
+    *   **Séparation des responsabilités :** Toute la logique musicale (calcul des intervalles de gamme, rendu du DOM à la volée, mapping des notes sur le manche) a été isolée dans un script dédié pour ne pas alourdir `app.js`.
+    *   **Composant Flottant :** Le Fretboard utilise un système de Drag-and-Drop natif (via onmousedown/mousemove) appliqué à son header, évitant ainsi le blocage visuel de la balise `<dialog>`.
+    *   **Responsive CSS :** Les cordes et les notes (15 cases) sont positionnées en pourcentage CSS absolu pour garantir une adaptation au resize futur.
+*   **Intégration Backend (`metadata_service.py` & `server.py`) :**
+    *   **Support du paramètre `scale` :** Injection stricte du nouveau champ `scale` (ex: "minor_pentatonic") dans tous les flux de sauvegarde locaux et distants.
+    *   **Sidecar Fallback :** Le script de scan de la librairie locale (`scan_file_metadata`) a été patché pour ouvrir systématiquement le `[fichier].json` associé afin de récupérer la `scale` étendue que Mutagen ne supporte pas nativement.
+*   **Harmonisation Visuelle de Lecture :**
+    *   **Header Global Vidéo :** Création du conteneur `#global-video-info` dans la `header-right` pour afficher le Titre et le BPM des vidéos (YouTube/Local), évitant de surcharger le lecteur central avec du texte par-dessus l'image.
+    *   **Header Multipiste Dynamique :** Fusion de la pochette (`#multitrack-art`) et des stats musicales directement dans la barre de titre du Mini-DAW via Flexbox pour minimiser l'impact vertical (hauteur critique pour conserver un maximum de pistes visibles).
