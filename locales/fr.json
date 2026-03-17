@@ -323,6 +323,7 @@
         "lbl_fretboard_style": "Style du Manche (Fretboard)",
         "fretboard_flat": "Plat & Sombre (Moderne)",
         "fretboard_wood": "Réaliste (Texture Bois)",
+        "fretboard_pos_all": "Toutes Pos.",
         "lbl_tuning": "Accordage",
         "tuning_standard": "Standard (E A D G B E)",
         "tuning_drop_d": "Drop D (D A D G B E)",

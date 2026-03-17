@@ -174,10 +174,94 @@ function getScaleNotes(rootNote, scaleType) {
     return formula.map(interval => baseNotes[(rootIndex + interval) % 12]);
 }
 
+function getPositionFretRange(rootNote, scaleType, position, tuning) {
+    if (position === "all") return null;
+
+    const scaleNotes = getScaleNotes(rootNote, scaleType);
+    const formula = scaleFormulas[scaleType];
+    const numNotesInScale = formula.length;
+
+    // Convert 1-based position to 0-based index
+    let posIndex = parseInt(position) - 1;
+
+    // Safety check, but we map invalid higher positions back to a logical lower position using modulo
+    if (posIndex >= numNotesInScale) {
+        // Pentatonics only have 5 positions, diatonic scales have 7.
+        // If a user has a pentatonic selected and chooses position 6, map it to pos 1.
+        posIndex = posIndex % numNotesInScale;
+    }
+
+    // Find where the root note is on the lowest string
+    const currentTuning = tuningPresets[tuning] || tuningPresets["standard"];
+    const lowestStringNote = currentTuning[0]; // Usually E
+
+    // Find the first fret of the root note on the lowest string
+    let rootFretOnE = -1;
+    for (let f = 0; f < 12; f++) {
+        if (getNoteAtFret(lowestStringNote, f) === rootNote) {
+            rootFretOnE = f;
+            break;
+        }
+    }
+
+    // Calculate the fret of the target note for the requested position on the lowest string
+    // The positions start from the root note.
+    const intervalFromRoot = formula[posIndex];
+    let posStartFret = (rootFretOnE + intervalFromRoot) % 12;
+
+    // We want the position block to generally span ~4-5 frets.
+    // Allow a small offset (e.g., -1 to +4) for visual highlighting
+    // to capture notes just behind the position start (often used in scale boxes).
+
+    // Special handling to map it logically across the fretboard up to fret 24.
+    // We will highlight all occurrences of this "block" of frets across octaves.
+    return {
+        start: posStartFret,
+        span: 4 // Highlight 4 frets from the start note
+    };
+}
+
+
+function updatePositionDropdown() {
+    const positionSelect = document.getElementById("fretboard-position");
+    if (!positionSelect) return;
+
+    const scaleType = document.getElementById("fretboard-scale").value;
+    const formula = scaleFormulas[scaleType];
+    const numPositions = formula.length; // e.g. 5 for pentatonic, 7 for diatonic
+
+    // Remember currently selected position
+    let currentVal = positionSelect.value;
+
+    // Clear current options except "All"
+    positionSelect.innerHTML = `<option value="all" data-i18n="web.fretboard_pos_all">All Pos</option>`;
+
+    for (let i = 1; i <= numPositions; i++) {
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.innerText = "Pos " + i;
+        positionSelect.appendChild(opt);
+    }
+
+    // Re-apply localization immediately
+    if (typeof applyTranslations === "function") {
+        applyTranslations();
+    }
+
+    // Restore previous selection if valid
+    if (currentVal !== "all" && parseInt(currentVal) <= numPositions) {
+        positionSelect.value = currentVal;
+    } else {
+        positionSelect.value = "all";
+    }
+}
+
+
 function renderFretboard(silentSave = false) {
     fretboardState.key = document.getElementById("fretboard-key").value;
     fretboardState.scale = document.getElementById("fretboard-scale").value;
     fretboardState.tuning = document.getElementById("fretboard-tuning").value;
+    updatePositionDropdown();
     updateFretboardButtonDisplays();
 
     if (silentSave && window.currentPlayingIndex !== undefined) {
@@ -257,6 +341,11 @@ function renderFretboard(silentSave = false) {
     numbersContainer.innerHTML = "";
 
     const activeScaleNotes = getScaleNotes(fretboardState.key, fretboardState.scale);
+
+    // Position handling
+    const positionSelect = document.getElementById("fretboard-position");
+    const activePosition = positionSelect ? positionSelect.value : "all";
+    const posRange = getPositionFretRange(fretboardState.key, fretboardState.scale, activePosition, fretboardState.tuning);
 
     // 1. Draw Frets (Background vertical dividers & inlays) & Numbers
     const inlays = [3, 5, 7, 9, 15, 17, 19, 21];
@@ -356,6 +445,34 @@ function renderFretboard(silentSave = false) {
 
             const isRoot = (noteName === fretboardState.key);
 
+            // Position Highlight Logic
+            let inPosition = true;
+            if (posRange && !isNut) {
+                // Check if the current fret falls within the position block across any octave
+                // We use modulo 12 to check against the base octave shape
+                const modFret = fretNum % 12;
+
+                // The span might cross the octave boundary (e.g., frets 10, 11, 0, 1, 2)
+                let startMod = posRange.start;
+                let endMod = (posRange.start + posRange.span) % 12;
+
+                if (startMod <= endMod) {
+                    inPosition = (modFret >= startMod && modFret <= endMod);
+                } else {
+                    // Span crosses the 12th fret
+                    inPosition = (modFret >= startMod || modFret <= endMod);
+                }
+            } else if (posRange && isNut) {
+                // For nut (open strings), check if open string note is in the position block
+                let startMod = posRange.start;
+                let endMod = (posRange.start + posRange.span) % 12;
+                if (startMod <= endMod) {
+                    inPosition = (0 >= startMod && 0 <= endMod);
+                } else {
+                    inPosition = (0 >= startMod || 0 <= endMod);
+                }
+            }
+
             const noteDot = document.createElement("div");
             noteDot.style.position = "absolute";
             noteDot.style.width = "18px";
@@ -372,6 +489,20 @@ function renderFretboard(silentSave = false) {
             noteDot.style.letterSpacing = "-0.5px";
             noteDot.style.pointerEvents = "auto"; // Can hover if we want tooltips later
             noteDot.style.boxShadow = "0 2px 4px rgba(0,0,0,0.5)";
+
+            // Dim notes outside the active position
+            if (posRange && !inPosition) {
+                noteDot.style.opacity = "0.2";
+                noteDot.style.boxShadow = "none";
+                noteDot.style.zIndex = "10";
+            } else {
+                noteDot.style.opacity = "1";
+                noteDot.style.zIndex = "20";
+                if (posRange) {
+                     noteDot.style.transition = "all 0.2s ease";
+                }
+            }
+
             noteDot.innerText = noteName;
 
             // Positioning
@@ -380,11 +511,11 @@ function renderFretboard(silentSave = false) {
             if (isNut) {
                 if (isLefty) {
                     noteDot.style.right = "0";
-                    noteDot.style.transform = "translate(50%, -50%)";
+                    noteDot.style.transform = posRange && inPosition ? "translate(50%, -50%) scale(1.15)" : "translate(50%, -50%)";
                     noteDot.style.top = yPosStr;
                 } else {
                     noteDot.style.left = "0";
-                    noteDot.style.transform = "translate(-50%, -50%)";
+                    noteDot.style.transform = posRange && inPosition ? "translate(-50%, -50%) scale(1.15)" : "translate(-50%, -50%)";
                     noteDot.style.top = yPosStr;
                 }
             } else {
@@ -403,11 +534,11 @@ function renderFretboard(silentSave = false) {
                 const nutOffsetPx = 8;
                 if (isLefty) {
                     noteDot.style.right = `calc(${100 - xPosPct}% + ${nutOffsetPx}px)`;
-                    noteDot.style.transform = "translate(50%, -50%)";
+                    noteDot.style.transform = posRange && inPosition ? "translate(50%, -50%) scale(1.15)" : "translate(50%, -50%)";
                     noteDot.style.top = yPosStr;
                 } else {
                     noteDot.style.left = `calc(${xPosPct}% + ${nutOffsetPx}px)`;
-                    noteDot.style.transform = "translate(-50%, -50%)";
+                    noteDot.style.transform = posRange && inPosition ? "translate(-50%, -50%) scale(1.15)" : "translate(-50%, -50%)";
                     noteDot.style.top = yPosStr;
                 }
             }

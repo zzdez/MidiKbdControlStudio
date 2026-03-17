@@ -1695,6 +1695,18 @@
             </div>
 
             <div style="display:flex; align-items:center; gap:4px; height:100%;">
+                <!-- Position Select -->
+                <select id="fretboard-position" style="box-sizing: border-box; padding:0px 4px; font-size:0.75em; background:#222; color:white; border:1px solid #444; border-radius:4px; height:20px; line-height:20px; width:auto; margin:0;" onchange="renderFretboard(false)">
+                    <option value="all" data-i18n="web.fretboard_pos_all">All Pos</option>
+                    <option value="1">Pos 1</option>
+                    <option value="2">Pos 2</option>
+                    <option value="3">Pos 3</option>
+                    <option value="4">Pos 4</option>
+                    <option value="5">Pos 5</option>
+                    <option value="6">Pos 6</option>
+                    <option value="7">Pos 7</option>
+                </select>
+
                 <!-- Fret Count Toggle -->
                 <button id="btn-fret-count" onclick="cycleFretCount()" title="Alterner 15 / 22 / 24 Cases" style="box-sizing: border-box; padding:0px 6px; font-size:0.75em; background:#222; color:white; border:1px solid #444; border-radius:4px; height:20px; line-height:20px; margin:0; cursor:pointer;">
                     15

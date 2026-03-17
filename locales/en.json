@@ -323,6 +323,7 @@
         "lbl_fretboard_style": "Fretboard Style",
         "fretboard_flat": "Flat & Dark (Modern)",
         "fretboard_wood": "Realistic (Wood Texture)",
+        "fretboard_pos_all": "All Pos.",
         "lbl_tuning": "Tuning",
         "tuning_standard": "Standard (E A D G B E)",
         "tuning_drop_d": "Drop D (D A D G B E)",
