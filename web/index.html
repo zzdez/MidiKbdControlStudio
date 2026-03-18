@@ -9,6 +9,7 @@
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="lib/wavesurfer.min.js"></script>
     <script src="lib/wavesurfer-multitrack.min.js"></script>
+
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 </head>
 
@@ -25,11 +26,12 @@
 
         <!-- GLOBAL VIDEO INFO (Center Header) -->
         <div id="global-video-info" style="display: none; flex: 1; justify-content: center; align-items: center; text-align: center; overflow: hidden; white-space: nowrap; gap: 15px;">
+             <img id="global-video-cover" src="" style="width: 30px; height: 30px; border-radius: 4px; object-fit: cover; display: none; border: 1px solid #333; margin-right: 5px;">
              <span id="global-video-title" style="font-weight: bold; font-size: 1.1em; color: white; text-overflow: ellipsis; overflow: hidden; max-width: 40vw;">Titre de la vidéo</span>
-             <div style="display: flex; gap: 10px; font-size: 0.85em; color: var(--accent);">
-                 <span id="global-video-bpm" style="display: none;">🎵 <span class="val"></span> BPM</span>
-                 <span id="global-video-key" style="display: none;">🎹 <span class="val"></span></span>
-                 <span id="global-video-scale" style="display: none;">🎸 <span class="val"></span></span>
+             <div style="display: flex; gap: 10px; font-size: 0.85em; color: var(--accent); align-items: center;">
+                 <span id="global-video-bpm" style="display: none; background: #222; padding: 2px 6px; border-radius: 4px; border: 1px solid #333;">🎵 <span class="val"></span> BPM</span>
+                 <span id="global-video-key" style="display: none; background: #222; padding: 2px 6px; border-radius: 4px; border: 1px solid #333;">🎹 <span class="val"></span></span>
+                 <span id="global-video-scale" style="display: none; background: #222; padding: 2px 6px; border-radius: 4px; border: 1px solid #333;">🎸 <span class="val"></span></span>
              </div>
         </div>
 
@@ -39,6 +41,9 @@
                 data-i18n-title="web.btn_remote" title="Afficher/Masquer la télécommande flottante"
                 style="margin-right: 5px;">
                 <i class="ph ph-device-mobile"></i>
+            </button>
+            <button id="btn-toggle-metronome" class="btn-icon" onclick="toggleMetronomeUI()" title="Métronome" style="margin-right: 5px;">
+                <i class="ph ph-metronome"></i>
             </button>
             <button id="btn-toggle-theater" class="btn-icon" onclick="toggleTheaterMode()"
                 data-i18n-title="web.btn_theater" title="Mode Plein Écran (Théâtre)" style="margin-right: 5px;">
@@ -296,17 +301,8 @@
             <!-- Multitrack Player (DAW Mode) -->
             <div id="multitrack-container"
                 style="display:none; width:100%; height:100%; flex-direction:column; background:#121212; overflow-y:auto; padding-top: 5px;">
-                <div id="multitrack-header" style="display:flex; align-items:center; gap:15px; margin-bottom:15px; flex-shrink:0; padding: 0 10px;">
-                    <img id="mt-compact-art" src="" style="width: 50px; height: 50px; border-radius: 4px; object-fit: cover; display: none; border: 1px solid #333;">
-                    <div style="display:flex; flex-direction:column; justify-content:center;">
-                        <div id="multitrack-title" style="font-size:1.2em; font-weight:bold; color:white; line-height: 1.2;">Multipiste</div>
-                        <div id="multitrack-artist" style="font-size:0.9em; color:#bbb; line-height: 1.2;">Stems</div>
-                    </div>
-                    <div style="display:flex; gap: 10px; font-size: 0.85em; color: var(--accent); margin-left: auto;">
-                         <span id="mt-compact-bpm" style="display: none;">🎵 <span class="val"></span> BPM</span>
-                         <span id="mt-compact-key" style="display: none;">🎹 <span class="val"></span></span>
-                    </div>
-                </div>
+                <!-- Header MultiPiste Supprimé car fusionné en haut -->
+                <div id="multitrack-header" style="display:none;"></div>
 
 
                 <!-- Controls bar for multitrack -->
@@ -793,21 +789,21 @@
                         <label data-i18n="web.lbl_bpm"
                             style="display: flex; justify-content: space-between; align-items: center;">
                             BPM <a href="https://getsongbpm.com" target="_blank"
-                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM.com)</a>
+                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM)</a>
                         </label>
                         <input type="number" id="local-bpm" placeholder="120">
                     </div>
                     <div class="col" style="position: relative; flex: 1;">
                         <label data-i18n="web.lbl_key"
                             style="display: flex; justify-content: space-between; align-items: center;">
-                            Tonalité Orig. <a href="https://getsongkey.com" target="_blank"
-                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey.com)</a>
+                            Ton. Orig. <a href="https://getsongkey.com" target="_blank"
+                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey)</a>
                         </label>
                         <input type="text" id="local-key" placeholder="Ex: Am, G..."
                             data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
                     </div>
                     <div class="col" style="flex: 1;">
-                        <label data-i18n="web.lbl_media_key">Tonalité Média</label>
+                        <label data-i18n="web.lbl_media_key">Ton. Média</label>
                         <input type="text" id="local-media-key" placeholder="Ex: Am" list="mt-key-suggestions">
                     </div>
                     <div class="col" style="flex: 1.2;">
@@ -826,6 +822,9 @@
                             <option value="locrian" data-i18n="web.scale_locrian">Locrien</option>
                         </select>
                     </div>
+                </div>
+                <!-- Row 2 : Accordage / Pitch -->
+                <div class="row-inputs">
                     <div class="col" style="flex: 1.2;">
                         <label data-i18n="web.lbl_tuning">Accordage</label>
                         <select id="local-tuning">
@@ -964,21 +963,21 @@
                         <label data-i18n="web.lbl_bpm"
                             style="display: flex; justify-content: space-between; align-items: center;">
                             BPM <a href="https://getsongbpm.com" target="_blank"
-                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM.com)</a>
+                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM)</a>
                         </label>
                         <input type="number" id="mt-bpm" placeholder="120">
                     </div>
                     <div class="col" style="position: relative; flex: 1;">
                         <label data-i18n="web.lbl_key"
                             style="display: flex; justify-content: space-between; align-items: center;">
-                            Tonalité Orig. <a href="https://getsongkey.com" target="_blank"
-                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey.com)</a>
+                            Ton. Orig. <a href="https://getsongkey.com" target="_blank"
+                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey)</a>
                         </label>
                         <input type="text" id="mt-key" placeholder="Ex: Am, G..."
                             data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
                     </div>
                     <div class="col" style="flex: 1;">
-                        <label data-i18n="web.lbl_media_key">Tonalité Média</label>
+                        <label data-i18n="web.lbl_media_key">Ton. Média</label>
                         <input type="text" id="mt-media-key" placeholder="Ex: Am" list="mt-key-suggestions">
                     </div>
                     <div class="col" style="flex: 1.2;">
@@ -997,6 +996,9 @@
                             <option value="locrian" data-i18n="web.scale_locrian">Locrien</option>
                         </select>
                     </div>
+                </div>
+                <!-- Row 2 : Accordage / Pitch -->
+                <div class="row-inputs">
                     <div class="col" style="flex: 1.2;">
                         <label data-i18n="web.lbl_tuning">Accordage</label>
                         <select id="mt-tuning">
@@ -1213,21 +1215,21 @@
                         <label data-i18n="web.lbl_bpm"
                             style="display: flex; justify-content: space-between; align-items: center;">
                             BPM <a href="https://getsongbpm.com" target="_blank"
-                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM.com)</a>
+                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM)</a>
                         </label>
                         <input type="number" id="edit-bpm" placeholder="120">
                     </div>
                     <div class="col" style="position: relative; flex: 1;">
                         <label data-i18n="web.lbl_key"
                             style="display: flex; justify-content: space-between; align-items: center;">
-                            Tonalité Orig. <a href="https://getsongkey.com" target="_blank"
-                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey.com)</a>
+                            Ton. Orig. <a href="https://getsongkey.com" target="_blank"
+                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey)</a>
                         </label>
                         <input type="text" id="edit-key" placeholder="Ex: Am, G..."
                             data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
                     </div>
                     <div class="col" style="flex: 1;">
-                        <label data-i18n="web.lbl_media_key">Tonalité Média</label>
+                        <label data-i18n="web.lbl_media_key">Ton. Média</label>
                         <input type="text" id="edit-media-key" placeholder="Ex: Am" list="mt-key-suggestions">
                     </div>
                     <div class="col" style="flex: 1.2;">
@@ -1246,6 +1248,9 @@
                             <option value="locrian" data-i18n="web.scale_locrian">Locrien</option>
                         </select>
                     </div>
+                </div>
+                <!-- Row 2 : Accordage / Pitch -->
+                <div class="row-inputs">
                     <div class="col" style="flex: 1.2;">
                         <label data-i18n="web.lbl_tuning">Accordage</label>
                         <select id="edit-tuning">
@@ -1585,6 +1590,8 @@
 
     <script src="lib/pitch_shifter.js?v=2"></script>
     <script src="fretboard.js?v=1"></script>
+    <script src="js/metronome.js"></script>
+    <script src="js/ui_metronome.js"></script>
     <script src="app.js?v=4"></script>
     <!-- SUBTITLE TRACKS MODAL -->
     <dialog id="modal-subtitle-tracks" class="preview-modal"
@@ -1806,6 +1813,87 @@
                 </div>
             </div>
         </div>
+
+    <!-- METRONOME DOCK (Draggable) -->
+    <div id="metronome-overlay" style="display:none; position:absolute; top:80px; left:20px; z-index:9998; background:rgba(20,20,20,0.95); border:1px solid #444; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.8); width:320px; padding:8px 12px; backdrop-filter:blur(5px); flex-direction:column; gap:8px;">
+        <!-- Header -->
+        <div id="metronome-header" style="cursor:move; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:6px; margin-bottom:4px;">
+            <div style="display:flex; align-items:center; gap:6px; color:var(--accent); font-weight:bold; font-size:0.9em;">
+                <i class="ph ph-metronome"></i> <span data-i18n="web.title_metronome">Métronome</span>
+            </div>
+            <button class="btn-icon" onclick="toggleMetronomeUI()" title="Fermer" style="color:#bbb; padding:0; height:20px;"><i class="ph ph-x"></i></button>
+        </div>
+        
+        <!-- Controls -->
+        <div style="display:flex; justify-content:center; align-items:center; gap:15px; margin: 10px 0;">
+            <button class="control-btn" id="btn-metro-play" onclick="metronomeTogglePlay()" style="font-size:2em; color:#fff;"><i class="ph ph-play-circle ph-fill"></i></button>
+            <div style="text-align:center;">
+                <input type="number" id="metro-bpm-input" value="120" min="30" max="300" style="width:60px; font-size:1.5em; font-weight:bold; text-align:center; background:transparent; border:none; border-bottom:1px solid #555; color:#fff;" onchange="metronomeSetBpm(this.value)">
+                <div style="font-size:0.7em; color:#888;">BPM</div>
+            </div>
+            <button class="control-btn" onclick="metronomeTap()" style="font-size:1.2em; border:1px solid #444; border-radius:4px; padding:4px 8px;" data-i18n="web.btn_tap">TAP</button>
+        </div>
+
+        <!-- Slider -->
+        <input type="range" id="metro-bpm-slider" min="30" max="300" value="120" style="width:100%; margin: 5px 0;" oninput="metronomeSetBpm(this.value)">
+
+        <!-- Options -->
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:0.8em;">
+            <div style="display:flex; align-items:center; gap:5px;">
+                <label data-i18n="web.lbl_signature">Signature:</label>
+                <select id="metro-signature" onchange="metronomeSetSignature(this.value)" style="padding:2px; height:auto; background:#111; border:1px solid #444; color:#fff; border-radius:3px;">
+                    <option value="1">1/4</option>
+                    <option value="2">2/4</option>
+                    <option value="3">3/4</option>
+                    <option value="4" selected>4/4</option>
+                    <option value="6">6/8</option>
+                </select>
+            </div>
+            
+            <label class="modern-switch" style="font-size:0.9em; display:flex; align-items:center;">
+                <input type="checkbox" id="metro-sync-media" onchange="metronomeToggleSync(this.checked)">
+                <span class="switch-slider"></span>
+                <span class="switch-label" style="margin-left:5px;" data-i18n="web.lbl_sync_media">Sync Média</span>
+            </label>
+        </div>
+
+        <div id="metro-sync-options" style="display:none; justify-content:space-between; align-items:center; gap:10px; font-size:0.8em; margin-top:5px; padding-top:5px; border-top:1px dashed #333;">
+            <div style="display:flex; align-items:center; gap:5px;" title="Décalage pour caler le 1er temps" data-i18n-title="web.lbl_offset_hint">
+                <i class="ph ph-clock-counter-clockwise"></i> Offset (ms):
+                <input type="number" id="metro-sync-offset" value="0" step="10" style="width:50px; padding:2px; height:auto; background:#111; border:1px solid #444; color:#fff; border-radius:3px;" onchange="metronomeSetOffset(this.value)">
+            </div>
+            <div style="color:var(--accent); font-size:0.9em;" id="metro-sync-info">Auto</div>
+        </div>
+
+        <!-- Beat Visualizer -->
+        <div id="metro-visualizer" style="display:flex; justify-content:center; gap:8px; margin-top:10px;">
+            <div class="metro-dot" id="metro-dot-0" style="width:12px; height:12px; border-radius:50%; background:#333;"></div>
+            <div class="metro-dot" id="metro-dot-1" style="width:12px; height:12px; border-radius:50%; background:#333;"></div>
+            <div class="metro-dot" id="metro-dot-2" style="width:12px; height:12px; border-radius:50%; background:#333;"></div>
+            <div class="metro-dot" id="metro-dot-3" style="width:12px; height:12px; border-radius:50%; background:#333;"></div>
+        </div>
+
+        <!-- Speed Trainer -->
+        <div id="metro-trainer-container" style="margin-top:10px; border-top:1px solid #333; padding-top:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; cursor:pointer;" onclick="document.getElementById('metro-trainer-body').style.display = document.getElementById('metro-trainer-body').style.display === 'none' ? 'block' : 'none'">
+                <strong style="font-size:0.85em; color:#aaa;"><i class="ph ph-trend-up"></i> Speed Trainer</strong>
+                <i class="ph ph-caret-down" style="font-size:0.8em; color:#666;"></i>
+            </div>
+            <div id="metro-trainer-body" style="display:none; font-size:0.8em;">
+                <div style="display:flex; gap:10px; margin-bottom:5px;">
+                    <div style="flex:1;"><label>Target BPM</label><input type="number" id="metro-train-target" value="160" style="padding:2px; height:20px;"></div>
+                    <div style="flex:1;"><label>+ BPM</label><input type="number" id="metro-train-inc" value="5" style="padding:2px; height:20px;"></div>
+                    <div style="flex:1;"><label>Mesures</label><input type="number" id="metro-train-meas" value="4" style="padding:2px; height:20px;"></div>
+                </div>
+                <label class="modern-switch" style="font-size:0.9em; display:flex; align-items:center; margin-top:8px;">
+                    <input type="checkbox" id="metro-train-enable" onchange="metronomeToggleTrainer(this.checked)">
+                    <span class="switch-slider"></span>
+                    <span class="switch-label" style="margin-left:5px; color:var(--accent);">Activer l'entraînement</span>
+                </label>
+            </div>
+        </div>
+    </div>
+<script src="js/metronome.js"></script>
 </body>
 
 </html>

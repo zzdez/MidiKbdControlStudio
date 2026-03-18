@@ -100,8 +100,12 @@ function makeDraggable(overlayId, headerId) {
         pos2 = pos4 - e.clientY;
         pos3 = e.clientX;
         pos4 = e.clientY;
-        overlay.style.top = (overlay.offsetTop - pos2) + "px";
-        overlay.style.left = (overlay.offsetLeft - pos1) + "px";
+        
+        let newTop = overlay.offsetTop - pos2;
+        let newLeft = overlay.offsetLeft - pos1;
+        
+        overlay.style.top = newTop + "px";
+        overlay.style.left = newLeft + "px";
     }
 
     function closeDragElement() {
