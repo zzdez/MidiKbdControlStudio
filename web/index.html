@@ -45,6 +45,9 @@
             <button id="btn-toggle-metronome" class="btn-icon" onclick="toggleMetronomeUI()" title="Métronome" style="margin-right: 5px;">
                 <i class="ph ph-metronome"></i>
             </button>
+            <button id="btn-toggle-global-cues" class="btn-icon" onclick="toggleGlobalCues()" title="Activer/Désactiver tous les Décomptes" style="margin-right: 5px; color: var(--success);">
+                <i class="ph ph-bell-ringing"></i>
+            </button>
             <button id="btn-toggle-theater" class="btn-icon" onclick="toggleTheaterMode()"
                 data-i18n-title="web.btn_theater" title="Mode Plein Écran (Théâtre)" style="margin-right: 5px;">
                 <i class="ph ph-corners-out"></i>
@@ -297,7 +300,7 @@
                                 style="display:none; padding:2px 4px; color:var(--accent);"><i
                                     class="ph ph-floppy-disk"></i></button>
                             <button class="control-btn" id="btn-cue-add-audio" onclick="openCueModal()"
-                                title="Ajouter Décompte" style="display:none; padding:2px 4px; color:var(--success);"><i
+                                title="Ajouter Décompte" style="padding:2px 4px; color:var(--success);"><i
                                     class="ph ph-flag"></i></button>
                         </div>
                     </div>
@@ -392,7 +395,7 @@
                                 style="display:none; padding:2px 4px; color:var(--accent);"><i
                                     class="ph ph-floppy-disk"></i></button>
                             <button class="control-btn" id="btn-cue-add-mt" onclick="openCueModal()"
-                                title="Ajouter Décompte" style="display:none; padding:2px 4px; color:var(--success);"><i
+                                title="Ajouter Décompte" style="padding:2px 4px; color:var(--success);"><i
                                     class="ph ph-flag"></i></button>
                         </div>
                     </div>
@@ -560,7 +563,7 @@
                             style="display:none; padding:2px 4px; color:var(--accent);"><i
                                 class="ph ph-floppy-disk"></i></button>
                         <button class="control-btn" id="btn-cue-add-video" onclick="openCueModal()"
-                            title="Ajouter Décompte" style="display:none; padding:2px 4px; color:var(--success);"><i
+                            title="Ajouter Décompte" style="padding:2px 4px; color:var(--success);"><i
                                 class="ph ph-flag"></i></button>
                     </div>
                 </div>
@@ -1456,10 +1459,23 @@
                 <input type="checkbox" id="cue-modal-visual" style="width:18px; height:18px;" checked>
                 <span>Afficher le décompte géant à l'écran (HUD)</span>
             </label>
+
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer; background:#222; padding:10px; border-radius:8px; border:1px solid #333; margin-top:5px;">
+                <input type="checkbox" id="cue-modal-visual-only" style="width:18px; height:18px;">
+                <span>Visuel uniquement (Muet)</span>
+            </label>
+
+            <div id="cue-list-container" style="margin-top:15px; border-top:1px solid #444; padding-top:15px;">
+                <h4 style="margin:0 0 10px 0; color:#ccc;">Repères existants</h4>
+                <ul id="cue-modal-list" style="list-style:none; padding:0; margin:0; max-height:150px; overflow-y:auto; background:#1a1a1a; border-radius:4px; border:1px solid #333;">
+                    <!-- Les repères apparaitront ici -->
+                </ul>
+            </div>
         </div>
-        <div class="modal-footer">
-            <button class="btn-text" onclick="document.getElementById('modal-edit-cue').close()">Annuler</button>
-            <button class="btn-primary" onclick="confirmSaveCue()">Enregistrer Repère</button>
+        <div class="modal-footer" style="justify-content: flex-end; gap: 10px; display: flex;">
+            <button class="btn-text" id="btn-cue-delete" onclick="deleteCurrentCue()" style="display:none; color:var(--danger); margin-right:auto;">Supprimer Média</button>
+            <button class="btn-text" onclick="document.getElementById('modal-edit-cue').close()">Fermer</button>
+            <button class="btn-primary" id="btn-cue-save" onclick="confirmSaveCue()">Nouveau (Enregistrer)</button>
         </div>
     </dialog>
 

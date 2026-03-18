@@ -6008,7 +6008,94 @@ function playSavedLoop(l, forceActive = true) {
     }
 }
 
-// --- AUDIO CUES MODAL LOGIC ---
+// --- AUDIO CUES MODAL LOGIC & ENGINE ---
+let isGlobalCuesEnabled = true;
+
+function toggleGlobalCues() {
+    isGlobalCuesEnabled = !isGlobalCuesEnabled;
+    const btn = document.getElementById("btn-toggle-global-cues");
+    if (btn) {
+        btn.style.color = isGlobalCuesEnabled ? "var(--success)" : "#888";
+    }
+}
+
+let activeEditCueId = null;
+
+function renderCueList() {
+    const list = document.getElementById("cue-modal-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!currentCues || currentCues.length === 0) {
+        list.innerHTML = "<li style='padding:10px; color:#888; text-align:center;'>Aucun repère enregistré</li>";
+        return;
+    }
+    
+    const sortedCues = [...currentCues].sort((a,b) => a.time - b.time);
+    sortedCues.forEach(cue => {
+        const li = document.createElement("li");
+        li.style.padding = "8px 10px";
+        li.style.borderBottom = "1px solid #333";
+        li.style.cursor = "pointer";
+        li.style.display = "flex";
+        li.style.justifyContent = "space-between";
+        li.style.alignItems = "center";
+        
+        if (activeEditCueId === cue.id) {
+            li.style.background = "rgba(3, 218, 198, 0.2)"; // actif
+        } else {
+            li.style.background = "transparent";
+            li.addEventListener('mouseenter', () => li.style.background = "rgba(255,255,255,0.05)");
+            li.addEventListener('mouseleave', () => li.style.background = "transparent");
+        }
+        
+        li.onclick = () => editCue(cue.id);
+        
+        const nameSpan = document.createElement("span");
+        nameSpan.innerText = cue.name || "Sans nom";
+        nameSpan.style.color = "white";
+        
+        const timeSpan = document.createElement("span");
+        timeSpan.innerText = formatTimeCustom(cue.time);
+        timeSpan.style.color = "var(--success)";
+        timeSpan.style.fontFamily = "monospace";
+        
+        li.appendChild(nameSpan);
+        li.appendChild(timeSpan);
+        list.appendChild(li);
+    });
+}
+
+function editCue(id) {
+    const cue = currentCues.find(c => c.id === id);
+    if (!cue) return;
+    
+    activeEditCueId = id;
+    pendingCueTime = cue.time;
+    
+    document.getElementById("cue-modal-timing").innerText = formatTimeCustom(pendingCueTime);
+    document.getElementById("cue-modal-name").value = cue.name || "";
+    document.getElementById("cue-modal-sound").value = cue.sound || "stick";
+    document.getElementById("cue-modal-bpm").value = cue.bpm || 120;
+    document.getElementById("cue-modal-measures").value = cue.measures || 1;
+    document.getElementById("cue-modal-vol").value = cue.volume !== undefined ? cue.volume : 0.8;
+    document.getElementById("cue-modal-offset").value = cue.offset || 0;
+    document.getElementById("cue-modal-visual").checked = cue.visual !== false;
+    document.getElementById("cue-modal-visual-only").checked = cue.visual_only === true;
+    
+    document.getElementById("btn-cue-delete").style.display = "inline-block";
+    document.getElementById("btn-cue-save").innerText = "Mettre à jour";
+    renderCueList();
+}
+
+function deleteCurrentCue() {
+    if (!activeEditCueId) return;
+    currentCues = currentCues.filter(c => c.id !== activeEditCueId);
+    activeEditCueId = null;
+    renderCuesUI();
+    saveLoopsToBackend();
+    document.getElementById("modal-edit-cue").close();
+}
+
 function openCueModal() {
     const modal = document.getElementById("modal-edit-cue");
     if (!modal) return;
@@ -6023,7 +6110,11 @@ function openCueModal() {
     }
 
     pendingCueTime = getCurrentPlayerTime();
+    activeEditCueId = null; // Default to create mode
+    
     document.getElementById("cue-modal-timing").innerText = formatTimeCustom(pendingCueTime);
+    document.getElementById("btn-cue-delete").style.display = "none";
+    document.getElementById("btn-cue-save").innerText = "Nouveau (Enregistrer)";
     
     // Pre-fill BPM if available globally
     const globalBpmSpan = document.getElementById("global-video-bpm");
@@ -6036,7 +6127,9 @@ function openCueModal() {
     
     document.getElementById("cue-modal-name").value = "";
     document.getElementById("cue-modal-offset").value = 0;
+    document.getElementById("cue-modal-visual-only").checked = false;
     
+    renderCueList();
     modal.showModal();
 }
 
@@ -6048,20 +6141,36 @@ function confirmSaveCue() {
     const vol = parseFloat(document.getElementById("cue-modal-vol").value) || 0.8;
     const offset = parseFloat(document.getElementById("cue-modal-offset").value) || 0;
     const visual = document.getElementById("cue-modal-visual").checked;
+    const visualOnly = document.getElementById("cue-modal-visual-only").checked;
     
-    const newCue = {
-        id: Date.now(),
-        name: name,
-        time: pendingCueTime,
-        sound: sound,
-        bpm: bpm,
-        measures: measures,
-        volume: vol,
-        offset: offset,
-        visual: visual
-    };
+    if (activeEditCueId) {
+        const idx = currentCues.findIndex(c => c.id === activeEditCueId);
+        if (idx !== -1) {
+            currentCues[idx].name = name;
+            currentCues[idx].sound = sound;
+            currentCues[idx].bpm = bpm;
+            currentCues[idx].measures = measures;
+            currentCues[idx].volume = vol;
+            currentCues[idx].offset = offset;
+            currentCues[idx].visual = visual;
+            currentCues[idx].visual_only = visualOnly;
+        }
+    } else {
+        const newCue = {
+            id: Date.now(),
+            name: name,
+            time: pendingCueTime,
+            sound: sound,
+            bpm: bpm,
+            measures: measures,
+            volume: vol,
+            offset: offset,
+            visual: visual,
+            visual_only: visualOnly
+        };
+        currentCues.push(newCue);
+    }
     
-    currentCues.push(newCue);
     renderCuesUI();
     saveLoopsToBackend(); 
     document.getElementById("modal-edit-cue").close();
@@ -6088,27 +6197,30 @@ function playCueSequence(cue) {
 
 function scheduleCueTick(time, cue, beatIndex, totalBeats) {
     if (!cueAudioCtx) return;
-    const osc = cueAudioCtx.createOscillator();
-    const gain = cueAudioCtx.createGain();
     
-    osc.connect(gain);
-    gain.connect(cueAudioCtx.destination);
-    
-    if (cue.sound === 'ping') {
-        osc.frequency.value = 880; 
-        osc.type = 'sine';
-    } else { // stick / click
-        osc.frequency.value = (beatIndex === 0 && totalBeats >= 4) ? 1200 : 800; // Accent on first beat
-        osc.type = 'square';
+    if (!cue.visual_only) {
+        const osc = cueAudioCtx.createOscillator();
+        const gain = cueAudioCtx.createGain();
+        
+        osc.connect(gain);
+        gain.connect(cueAudioCtx.destination);
+        
+        if (cue.sound === 'ping') {
+            osc.frequency.value = 880; 
+            osc.type = 'sine';
+        } else { // stick / click
+            osc.frequency.value = (beatIndex === 0 && totalBeats >= 4) ? 1200 : 800; // Accent on first beat
+            osc.type = 'square';
+        }
+        
+        const vol = cue.volume !== undefined ? cue.volume : 0.8;
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime(vol, time + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+        
+        osc.start(time);
+        osc.stop(time + 0.1);
     }
-    
-    const vol = cue.volume !== undefined ? cue.volume : 0.8;
-    gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(vol, time + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
-    
-    osc.start(time);
-    osc.stop(time + 0.1);
     
     if (cue.visual) {
         const delayMs = Math.max(0, (time - cueAudioCtx.currentTime) * 1000);
@@ -6133,6 +6245,7 @@ function triggerCueHud(number) {
 }
 
 function checkCues(time) {
+    if (!isGlobalCuesEnabled) return;
     if (!currentCues || currentCues.length === 0) return;
     
     const isPlaying = (currentActivePlayer === 'local' && !document.getElementById('html5-player').paused) || 
