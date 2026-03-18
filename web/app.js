@@ -87,6 +87,11 @@ let isSequentialLoop = false; // Toggle between loop 1 or loop sequential
 let currentLoops = []; // Array of saved loops for the active track
 let activeSavedLoopId = null; // Track which loop is being edited/resized
 
+// --- AUDIO CUES (COUNT-INS) ---
+let currentCues = [];
+let pendingCueTime = null;
+let lastPlayedCueId = null;
+
 // --- GLOBAL DEVICE STATUS ---
 let currentDeviceName = "Aucun";
 let currentConnectionMode = "MIDO";
@@ -3502,7 +3507,6 @@ async function playLocal(index) {
             });
             updateHiddenTracksList(file);
 
-            setupUniversalLoopSelection();
             updateLoopUI();
             renderLoopsUI();
         });
@@ -5550,11 +5554,12 @@ function updateActiveChapter(currentTime) {
 function getUniversalDuration() {
     let dur = 0;
     if (currentActivePlayer === 'youtube' && player && typeof player.getDuration === "function") dur = player.getDuration();
-    else if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+    else if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
         if (vid && !isNaN(vid.duration)) dur = vid.duration;
-        if (dur === 0 && wavesurfer && !isNaN(wavesurfer.getDuration())) dur = wavesurfer.getDuration();
-    } else if (currentActivePlayer === 'multitrack' && window.multitrack) {
+    } else if (currentActivePlayer === 'waveform') {
+        if (wavesurfer && !isNaN(wavesurfer.getDuration())) dur = wavesurfer.getDuration();
+    } else if (currentActivePlayer === 'multitrack' && window.multitrack && window.multitrack.wavesurfers) {
         window.multitrack.wavesurfers.forEach(ws => {
             const wsDur = ws.getDuration();
             if (wsDur > dur) dur = wsDur;
@@ -5565,11 +5570,12 @@ function getUniversalDuration() {
 
 function getCurrentPlayerTime() {
     if (currentActivePlayer === 'multitrack' && window.multitrack) {
-        return window.multitrack.getCurrentTime();
-    } else if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        return (window.multitrack.wavesurfers && window.multitrack.wavesurfers[0]) ? window.multitrack.wavesurfers[0].getCurrentTime() : 0;
+    } else if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
-        if (vid && vid.style.display !== "none") return vid.currentTime;
-        if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none") return wavesurfer.getCurrentTime();
+        return vid ? vid.currentTime : 0;
+    } else if (currentActivePlayer === 'waveform') {
+        return wavesurfer ? wavesurfer.getCurrentTime() : 0;
     } else if (currentActivePlayer === 'youtube' && player && typeof player.getCurrentTime === "function") {
         return player.getCurrentTime();
     }
@@ -5604,6 +5610,19 @@ function setLoopB() {
         alert(t("web.msg_loop_b_after_a"));
     }
     updateLoopUI();
+
+    // Resume play if it was paused (bug fix)
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && vid.style.display !== "none" && vid.paused) {
+            vid.play().catch(e => console.log(e));
+        }
+        if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none" && !wavesurfer.isPlaying()) {
+            wavesurfer.play();
+        }
+    } else if (currentActivePlayer === 'youtube' && player && typeof player.playVideo === "function" && player.getPlayerState() !== 1) {
+        player.playVideo();
+    }
 }
 
 function clearLoop() {
@@ -5620,24 +5639,6 @@ function clearLoop() {
     markersA.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = "none"; });
     markersB.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = "none"; });
     areas.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = "none"; });
-
-    // Clear saved loop regions from ALL possible containers
-    document.querySelectorAll('.saved-loop-region').forEach(el => el.remove());
-
-    updateLoopUI();
-
-    // Resume play if it was paused (bug fix)
-    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
-        const vid = document.getElementById("html5-player");
-        if (vid && vid.style.display !== "none" && vid.paused) {
-            vid.play().catch(e => console.log(e));
-        }
-        if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none" && !wavesurfer.isPlaying()) {
-            wavesurfer.play();
-        }
-    } else if (currentActivePlayer === 'youtube' && player && typeof player.playVideo === "function" && player.getPlayerState() !== 1) {
-        player.playVideo();
-    }
 }
 
 function updateLoopUI() {
@@ -5826,6 +5827,7 @@ function checkLoop(currentTime) {
 setInterval(() => {
     const time = getCurrentPlayerTime();
     if (isLoopActive) checkLoop(time);
+    checkCues(time);
 
     if (currentActivePlayer === 'youtube') {
         updateTimelineUI(time);
@@ -5931,6 +5933,7 @@ async function saveLoopsToBackend() {
         const track = currentTrackList.find(t => t.originalIndex === currentPlayingIndex);
         if (track) {
             track.loops = currentLoops;
+            track.audio_cues = currentCues;
             await fetch(`/api/setlist/${currentPlayingIndex}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -5941,6 +5944,7 @@ async function saveLoopsToBackend() {
         const item = localFiles[currentPlayingIndex];
         if (item) {
             item.loops = currentLoops;
+            item.audio_cues = currentCues;
             await fetch(`/api/local/${currentPlayingIndex}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -6002,6 +6006,202 @@ function playSavedLoop(l, forceActive = true) {
     } else if (currentActivePlayer === 'youtube' && player && typeof player.playVideo === "function") {
         player.playVideo();
     }
+}
+
+// --- AUDIO CUES MODAL LOGIC ---
+function openCueModal() {
+    const modal = document.getElementById("modal-edit-cue");
+    if (!modal) return;
+    
+    // Pause players
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && !vid.paused) vid.pause();
+        if (wavesurfer && wavesurfer.isPlaying()) wavesurfer.pause();
+    } else if (currentActivePlayer === 'youtube' && player && typeof player.pauseVideo === "function") {
+        player.pauseVideo();
+    }
+
+    pendingCueTime = getCurrentPlayerTime();
+    document.getElementById("cue-modal-timing").innerText = formatTimeCustom(pendingCueTime);
+    
+    // Pre-fill BPM if available globally
+    const globalBpmSpan = document.getElementById("global-video-bpm");
+    if (globalBpmSpan && globalBpmSpan.style.display !== "none") {
+        const bpmTxt = globalBpmSpan.querySelector(".val").innerText;
+        if (!isNaN(parseInt(bpmTxt))) {
+            document.getElementById("cue-modal-bpm").value = parseInt(bpmTxt);
+        }
+    }
+    
+    document.getElementById("cue-modal-name").value = "";
+    document.getElementById("cue-modal-offset").value = 0;
+    
+    modal.showModal();
+}
+
+function confirmSaveCue() {
+    const name = document.getElementById("cue-modal-name").value.trim() || "Repère sans nom";
+    const sound = document.getElementById("cue-modal-sound").value;
+    const bpm = parseFloat(document.getElementById("cue-modal-bpm").value) || 120;
+    const measures = parseFloat(document.getElementById("cue-modal-measures").value) || 1;
+    const vol = parseFloat(document.getElementById("cue-modal-vol").value) || 0.8;
+    const offset = parseFloat(document.getElementById("cue-modal-offset").value) || 0;
+    const visual = document.getElementById("cue-modal-visual").checked;
+    
+    const newCue = {
+        id: Date.now(),
+        name: name,
+        time: pendingCueTime,
+        sound: sound,
+        bpm: bpm,
+        measures: measures,
+        volume: vol,
+        offset: offset,
+        visual: visual
+    };
+    
+    currentCues.push(newCue);
+    renderCuesUI();
+    saveLoopsToBackend(); 
+    document.getElementById("modal-edit-cue").close();
+}
+
+const cueAudioCtx = window.AudioContext ? new AudioContext() : (window.webkitAudioContext ? new webkitAudioContext() : null);
+
+function playCueSequence(cue) {
+    if (!cueAudioCtx) return;
+    if (cueAudioCtx.state === 'suspended') cueAudioCtx.resume();
+    
+    // Total beats to schedule
+    const totalBeats = Math.floor(cue.measures * 4);
+    if (totalBeats <= 0) return;
+    
+    const beatDuration = 60 / cue.bpm;
+    const now = cueAudioCtx.currentTime; 
+    
+    for (let b = 0; b < totalBeats; b++) {
+        const timeToPlay = now + (b * beatDuration);
+        scheduleCueTick(timeToPlay, cue, b, totalBeats);
+    }
+}
+
+function scheduleCueTick(time, cue, beatIndex, totalBeats) {
+    if (!cueAudioCtx) return;
+    const osc = cueAudioCtx.createOscillator();
+    const gain = cueAudioCtx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(cueAudioCtx.destination);
+    
+    if (cue.sound === 'ping') {
+        osc.frequency.value = 880; 
+        osc.type = 'sine';
+    } else { // stick / click
+        osc.frequency.value = (beatIndex === 0 && totalBeats >= 4) ? 1200 : 800; // Accent on first beat
+        osc.type = 'square';
+    }
+    
+    const vol = cue.volume !== undefined ? cue.volume : 0.8;
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(vol, time + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+    
+    osc.start(time);
+    osc.stop(time + 0.1);
+    
+    if (cue.visual) {
+        const delayMs = Math.max(0, (time - cueAudioCtx.currentTime) * 1000);
+        setTimeout(() => {
+            triggerCueHud(totalBeats - beatIndex); // counting down
+        }, delayMs);
+    }
+}
+
+function triggerCueHud(number) {
+    const hud = document.getElementById("cue-hud-overlay");
+    if (!hud) return;
+    hud.innerText = number;
+    hud.style.display = "block";
+    hud.style.opacity = "1";
+    hud.style.transform = "translate(-50%, -50%) scale(1.5)";
+    
+    setTimeout(() => {
+        hud.style.transform = "translate(-50%, -50%) scale(1)";
+        hud.style.opacity = "0";
+    }, 150);
+}
+
+function checkCues(time) {
+    if (!currentCues || currentCues.length === 0) return;
+    
+    const isPlaying = (currentActivePlayer === 'local' && !document.getElementById('html5-player').paused) || 
+                      (currentActivePlayer === 'waveform' && wavesurfer && typeof wavesurfer.isPlaying === 'function' && wavesurfer.isPlaying()) || 
+                      (currentActivePlayer === 'youtube' && player && typeof player.getPlayerState === 'function' && player.getPlayerState() === 1) ||
+                      (currentActivePlayer === 'multitrack' && window.multitrack && window.multitrack.wavesurfers && window.multitrack.wavesurfers[0] && typeof window.multitrack.wavesurfers[0].isPlaying === 'function' && window.multitrack.wavesurfers[0].isPlaying());
+    
+    if (!isPlaying) return;
+
+    currentCues.forEach(cue => {
+        const totalBeats = Math.floor(cue.measures * 4);
+        if (totalBeats <= 0) return;
+        
+        const preRollTime = totalBeats * (60 / cue.bpm);
+        const offsetSec = (cue.offset || 0) / 1000.0;
+        const triggerTime = cue.time - preRollTime + offsetSec;
+        
+        if (time >= triggerTime && time <= triggerTime + 0.150) {
+            if (lastPlayedCueId === cue.id && (performance.now() - window.lastCueTriggerRealTime) < 2000) return;
+            lastPlayedCueId = cue.id;
+            window.lastCueTriggerRealTime = performance.now();
+            playCueSequence(cue);
+        }
+    });
+}
+
+function renderCuesUI() {
+    document.querySelectorAll('.cue-marker').forEach(e => e.remove());
+    if (!currentCues || currentCues.length === 0) return;
+
+    let timelineBg = null;
+    let duration = null;
+
+    if (currentActivePlayer === 'youtube' && player && typeof player.getDuration === "function") {
+        timelineBg = document.getElementById("video-loop-bar");
+        duration = player.getDuration();
+    } else if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && vid.duration) {
+            timelineBg = document.getElementById(currentActivePlayer === 'waveform' ? "audio-loop-bar" : "video-loop-bar");
+            duration = vid.duration;
+        }
+    } else if (currentActivePlayer === 'multitrack') {
+         timelineBg = document.getElementById("mt-loop-bar");
+         if (window.multitrack && window.multitrack.buffers && window.multitrack.buffers[0]) {
+              duration = window.multitrack.buffers[0].duration;
+         }
+    }
+
+    if (!timelineBg || !duration || duration <= 0) return;
+
+    currentCues.forEach(cue => {
+        const pct = (cue.time / duration) * 100;
+        const marker = document.createElement("div");
+        marker.className = "cue-marker";
+        marker.style.cssText = `position:absolute; bottom:0; left:${pct}%; width:2px; height:100%; background:var(--success); z-index:10; cursor:pointer; pointer-events:auto; box-shadow: 0 0 5px var(--success);`;
+        marker.title = `${cue.name} - Double Click = Supprimer`;
+        
+        marker.ondblclick = (e) => {
+            e.stopPropagation();
+            if (confirm(`Supprimer le repère "${cue.name}" ?`)) {
+                currentCues = currentCues.filter(c => c.id !== cue.id);
+                renderCuesUI();
+                saveLoopsToBackend();
+            }
+        };
+        
+        timelineBg.appendChild(marker);
+    });
 }
 
 function renderLoopsUI() {
@@ -6206,7 +6406,9 @@ function deleteLoop(id) {
 function loadLoopsForTrack(trackOrItem) {
     clearLoop(); // Reset active loops when loading a new track
     currentLoops = trackOrItem.loops || [];
+    currentCues = trackOrItem.audio_cues || [];
     renderLoopsUI();
+    renderCuesUI(); 
     updateLoopUI(); // Refresh Toolbar Buttons visibility
 }
 
@@ -6365,7 +6567,8 @@ function liveUpdatePlaybackOption(option, value) {
 // --- UNIVERSAL MOUSE LOOP SELECTION ---
 function setupUniversalLoopSelection() {
     let isDragging = false;
-    let dragMode = 'CREATE'; // 'CREATE', 'RESIZE_A', 'RESIZE_B'
+    let dragMode = null; // 'CREATE', 'RESIZE_A', 'RESIZE_B', 'POTENTIAL_CREATE'
+    let dragStartTime = 0;
 
     const getXTime = (clientX, rect) => {
         const x = clientX - rect.left;
@@ -6401,18 +6604,17 @@ function setupUniversalLoopSelection() {
 
         if (loopA !== null && Math.abs(time - loopA) < thresholdSec) {
             dragMode = 'RESIZE_A';
+            isDragging = true;
         } else if (loopB !== null && Math.abs(time - loopB) < thresholdSec) {
             dragMode = 'RESIZE_B';
+            isDragging = true;
         } else {
-            dragMode = 'CREATE';
-            activeSavedLoopId = null;
-            loopA = time;
-            loopB = null;
-            isLoopActive = false;
+            dragMode = 'POTENTIAL_CREATE';
+            dragStartTime = time;
+            isDragging = false; // wait for move
         }
 
         e.preventDefault();
-        isDragging = true;
         updateLoopUI();
     };
 
@@ -6421,7 +6623,7 @@ function setupUniversalLoopSelection() {
         if (!bar && !content) return;
 
         // Visual feedback
-        if (!isDragging) {
+        if (!isDragging && dragMode !== 'POTENTIAL_CREATE') {
             const targetNode = (bar && bar.contains(e.target)) ? bar : (content && content.contains(e.target) ? content : null);
             if (targetNode) {
                 const rect = targetNode.getBoundingClientRect();
@@ -6442,11 +6644,25 @@ function setupUniversalLoopSelection() {
         const time = getXTime(e.clientX, rect);
         const clampedTime = Math.max(0, Math.min(dur, time));
 
+        if (dragMode === 'POTENTIAL_CREATE') {
+            if (Math.abs(clampedTime - dragStartTime) > 0.1) {
+                dragMode = 'CREATE';
+                isDragging = true;
+                activeSavedLoopId = null;
+                loopA = dragStartTime;
+                loopB = clampedTime;
+                isLoopActive = true;
+            } else {
+                return; // Hasn't moved enough
+            }
+        }
+        
         if (dragMode === 'CREATE') {
-            if (clampedTime > loopA) {
+            if (clampedTime > dragStartTime) {
+                loopA = dragStartTime;
                 loopB = clampedTime;
             } else {
-                loopB = loopA;
+                loopB = dragStartTime;
                 loopA = clampedTime;
             }
             isLoopActive = true;
@@ -6462,15 +6678,22 @@ function setupUniversalLoopSelection() {
     };
 
     const onMouseUp = () => {
+        if (dragMode === 'POTENTIAL_CREATE') {
+            seekPlayerTo(dragStartTime); // Just a click to seek
+            dragMode = null;
+            return;
+        }
+
         if (!isDragging) return;
         isDragging = false;
+        
         if (loopA !== null && loopB !== null && Math.abs(loopB - loopA) > 0.1) {
             isLoopActive = true;
             if (dragMode === 'CREATE' || dragMode === 'RESIZE_A') seekPlayerTo(loopA);
         } else if (dragMode === 'CREATE') {
-            if (loopA !== null) seekPlayerTo(loopA);
-            clearLoop();
+            clearLoop(); // Only clears A-B bounds now, not the saved regions in UI!
         }
+        dragMode = null;
         updateLoopUI();
     };
 

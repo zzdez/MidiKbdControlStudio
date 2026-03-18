@@ -59,6 +59,11 @@
 
     <!-- MAIN LAYOUT -->
     <main class="cockpit">
+    
+        <!-- CUE HUD OVERLAY (Full Screen Flashing Numbers) -->
+        <div id="cue-hud-overlay" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:9000; font-size:15em; font-weight:bold; color:var(--danger); text-shadow:0 0 40px var(--danger), 0 0 10px white; pointer-events:none; opacity:0; transition:opacity 0.1s; text-align:center;">
+            4
+        </div>
 
         <!-- COLONNE GAUCHE (70%) -->
         <section class="media-zone">
@@ -291,6 +296,9 @@
                                 title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
                                 style="display:none; padding:2px 4px; color:var(--accent);"><i
                                     class="ph ph-floppy-disk"></i></button>
+                            <button class="control-btn" id="btn-cue-add-audio" onclick="openCueModal()"
+                                title="Ajouter Décompte" style="display:none; padding:2px 4px; color:var(--success);"><i
+                                    class="ph ph-flag"></i></button>
                         </div>
                     </div>
                     <div class="controls-right-spacer"></div>
@@ -383,6 +391,9 @@
                                 title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
                                 style="display:none; padding:2px 4px; color:var(--accent);"><i
                                     class="ph ph-floppy-disk"></i></button>
+                            <button class="control-btn" id="btn-cue-add-mt" onclick="openCueModal()"
+                                title="Ajouter Décompte" style="display:none; padding:2px 4px; color:var(--success);"><i
+                                    class="ph ph-flag"></i></button>
                         </div>
                     </div>
                     <div class="controls-right-spacer"></div>
@@ -548,6 +559,9 @@
                             title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
                             style="display:none; padding:2px 4px; color:var(--accent);"><i
                                 class="ph ph-floppy-disk"></i></button>
+                        <button class="control-btn" id="btn-cue-add-video" onclick="openCueModal()"
+                            title="Ajouter Décompte" style="display:none; padding:2px 4px; color:var(--success);"><i
+                                class="ph ph-flag"></i></button>
                     </div>
                 </div>
                 <div class="controls-right-spacer"></div>
@@ -1385,6 +1399,70 @@
         </div>
     </dialog>
 
+    <!-- AUDIO CUE EDIT MODAL (Count-ins / Repères Sonores) -->
+    <dialog id="modal-edit-cue">
+        <div class="modal-header">
+            <h3>Configuration du Repère & Décompte</h3>
+            <button onclick="document.getElementById('modal-edit-cue').close()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:15px; padding-bottom:10px;">
+            <div style="background:#222; padding:10px; border-radius:8px; border:1px solid #333; text-align:center;">
+                <span style="color:#888; font-size:0.9em;">Position absolue du repère ciblée :</span>
+                <div id="cue-modal-timing" style="color:var(--success); font-family:monospace; font-size:1.2em; font-weight:bold; margin-top:5px;">00:00:000</div>
+            </div>
+
+            <div>
+                <label>Nom du Repère</label>
+                <input type="text" id="cue-modal-name" placeholder="Ex: Départ Solo, Pont..." style="width:100%; box-sizing:border-box; font-size:1.1em; padding:8px;">
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <label>Son</label>
+                    <select id="cue-modal-sound" style="width:100%; padding:8px; background:#222; color:white; border:1px solid #444; border-radius:4px;">
+                        <option value="stick" selected>Baguettes (Sticks)</option>
+                        <option value="click">Métronome (Click)</option>
+                        <option value="ping">Ping (Avertissement simple)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Tempo (BPM)</label>
+                    <input type="number" id="cue-modal-bpm" value="120" style="width:100%; box-sizing:border-box; padding:8px; font-size:1em;">
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <label>Durée (Nb Mesures avant)</label>
+                    <select id="cue-modal-measures" style="width:100%; padding:8px; background:#222; color:white; border:1px solid #444; border-radius:4px;">
+                        <option value="0.25">1 Temps</option>
+                        <option value="0.5">2 Temps</option>
+                        <option value="1" selected>1 Mesure (4 Temps)</option>
+                        <option value="2">2 Mesures (8 Temps)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Volume</label>
+                    <input type="range" id="cue-modal-vol" min="0" max="1" step="0.1" value="0.8" style="width:100%; margin-top:10px;">
+                </div>
+            </div>
+            
+            <div>
+                <label>Ajustement Fin (Offset ms) >0 = retarde, <0 = avance</label>
+                <input type="number" id="cue-modal-offset" value="0" style="width:100%; box-sizing:border-box; padding:8px; font-size:1em;">
+            </div>
+
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer; background:#222; padding:10px; border-radius:8px; border:1px solid #333;">
+                <input type="checkbox" id="cue-modal-visual" style="width:18px; height:18px;" checked>
+                <span>Afficher le décompte géant à l'écran (HUD)</span>
+            </label>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-text" onclick="document.getElementById('modal-edit-cue').close()">Annuler</button>
+            <button class="btn-primary" onclick="confirmSaveCue()">Enregistrer Repère</button>
+        </div>
+    </dialog>
+
     <!-- SETTINGS MODAL -->
     <dialog id="settings-modal">
         <div class="modal-header">
@@ -1893,7 +1971,6 @@
             </div>
         </div>
     </div>
-<script src="js/metronome.js"></script>
 </body>
 
 </html>
