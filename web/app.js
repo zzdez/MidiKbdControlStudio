@@ -1911,6 +1911,11 @@ function stopAllMedia() {
     console.log("Stopping all media players...");
     currentActivePlayer = null; // Important to prevent clearLoop from restarting old media during transition
 
+    if (window.currentMultitrackAbortController) {
+        window.currentMultitrackAbortController.abort();
+        window.currentMultitrackAbortController = null;
+    }
+
     // 1. YouTube
     if (player && typeof player.stopVideo === "function") {
         try { player.stopVideo(); } catch (e) { }
@@ -3387,75 +3392,97 @@ async function playLocal(index) {
                 input.select();
             };
         });
-        const mtOptions = await Promise.all(file.stems.map(async (stem, i) => {
-            const name = stem.name || stem.path.split(/[\\/]/).pop().replace(/\.[^/.]+$/, "");
+        if (window.currentMultitrackAbortController) {
+            window.currentMultitrackAbortController.abort();
+        }
+        window.currentMultitrackAbortController = new AbortController();
+        const signal = window.currentMultitrackAbortController.signal;
 
-            // Fetch pre-calculated peaks AND the audio file entirely to RAM
-            let peaksArray = undefined;
-            let audioUrl = "/api/stream?path=" + encodeURIComponent(stem.path); // fallback
-            let mediaElement = null;
+        let mtOptions = [];
+        try {
+            mtOptions = await Promise.all(file.stems.map(async (stem, i) => {
+                const name = stem.name || stem.path.split(/[\\/]/).pop().replace(/\.[^/.]+$/, "");
 
-            try {
-                // Parallel fetch limits network bottleneck
-                const [peaksRes, audioRes] = await Promise.all([
-                    fetch(`/api/local/peaks/${index}/${i}`),
-                    fetch("/api/stream?path=" + encodeURIComponent(stem.path))
-                ]);
+                // Fetch pre-calculated peaks AND the audio file entirely to RAM
+                let peaksArray = undefined;
+                let audioUrl = "/api/stream?path=" + encodeURIComponent(stem.path); // fallback
+                let mediaElement = null;
 
-                if (peaksRes.ok) {
-                    const data = await peaksRes.json();
-                    if (data && data.length > 0) {
-                        peaksArray = [new Float32Array(data)];
-                    }
-                }
+                try {
+                    // Parallel fetch limits network bottleneck
+                    const [peaksRes, audioRes] = await Promise.all([
+                        fetch(`/api/local/peaks/${index}/${i}`, { signal }),
+                        fetch("/api/stream?path=" + encodeURIComponent(stem.path), { signal })
+                    ]);
 
-                if (audioRes.ok) {
-                    const blob = await audioRes.blob();
-                    audioUrl = URL.createObjectURL(blob);
-
-                    // Create explicit Audio media element forcing preload
-                    mediaElement = new Audio();
-                    mediaElement.src = audioUrl;
-                    mediaElement.crossOrigin = "anonymous";
-                    mediaElement.preload = "auto";
-
-                    // Route to WebAudio for Panning
-                    if (!window.mtAudioCtx) {
-                        const AudioContext = window.AudioContext || window.webkitAudioContext;
-                        window.mtAudioCtx = new AudioContext();
+                    if (peaksRes.ok) {
+                        const data = await peaksRes.json();
+                        if (data && data.length > 0) {
+                            peaksArray = [new Float32Array(data)];
+                        }
                     }
 
-                    const source = window.mtAudioCtx.createMediaElementSource(mediaElement);
-                    const panner = window.mtAudioCtx.createStereoPanner();
-                    panner.pan.value = 0;
-                    source.connect(panner);
-                    panner.connect(window.mtAudioCtx.destination);
+                    if (audioRes.ok) {
+                        const blob = await audioRes.blob();
+                        audioUrl = URL.createObjectURL(blob);
 
-                    mediaElement._panner = panner;
+                        // Create explicit Audio media element forcing preload
+                        mediaElement = new Audio();
+                        mediaElement.src = audioUrl;
+                        mediaElement.crossOrigin = "anonymous";
+                        mediaElement.preload = "auto";
+
+                        // Route to WebAudio for Panning
+                        if (!window.mtAudioCtx) {
+                            const AudioContext = window.AudioContext || window.webkitAudioContext;
+                            window.mtAudioCtx = new AudioContext();
+                        }
+
+                        const source = window.mtAudioCtx.createMediaElementSource(mediaElement);
+                        const panner = window.mtAudioCtx.createStereoPanner();
+                        panner.pan.value = 0;
+                        source.connect(panner);
+                        panner.connect(window.mtAudioCtx.destination);
+
+                        mediaElement._panner = panner;
+                    }
+                } catch (e) {
+                    if (e.name === 'AbortError') throw e;
+                    console.error("Multitrack fetch error:", e);
                 }
-            } catch (e) {
-                console.error("Multitrack fetch error:", e);
+
+                const waveCol = appliedColors[i];
+                const progCol = generateDarkerColor(waveCol);
+
+                return {
+                    id: i,
+                    url: audioUrl, // Fallback if media is strictly needed by plugins
+                    volume: 1,
+                    peaks: peaksArray,
+                    options: {
+                        media: mediaElement, // Forces HTML5 but guarantees 0ms latency thanks to RAM blob
+                        waveColor: waveCol,
+                        progressColor: progCol,
+                        height: 70,
+                        barWidth: 2,
+                        barGap: 1,
+                        barRadius: 2
+                    }
+                };
+            }));
+            
+            if (signal.aborted) {
+                console.log("[MT] Load cleanly aborted before creating Wavesurfers.");
+                return;
             }
-
-            const waveCol = appliedColors[i];
-            const progCol = generateDarkerColor(waveCol);
-
-            return {
-                id: i,
-                url: audioUrl, // Fallback if media is strictly needed by plugins
-                volume: 1,
-                peaks: peaksArray,
-                options: {
-                    media: mediaElement, // Forces HTML5 but guarantees 0ms latency thanks to RAM blob
-                    waveColor: waveCol,
-                    progressColor: progCol,
-                    height: 70,
-                    barWidth: 2,
-                    barGap: 1,
-                    barRadius: 2
-                }
-            };
-        }));
+        } catch (e) {
+            if (e.name === 'AbortError') {
+                console.log("[MT] Load aborted by user switching tracks.");
+                return;
+            }
+            console.error("Multitrack Promise.all failed:", e);
+            return;
+        }
 
         window.multitrack = Multitrack.create(mtOptions, {
             container: trackWaveforms,
@@ -5570,7 +5597,8 @@ function getUniversalDuration() {
 
 function getCurrentPlayerTime() {
     if (currentActivePlayer === 'multitrack' && window.multitrack) {
-        return (window.multitrack.wavesurfers && window.multitrack.wavesurfers[0]) ? window.multitrack.wavesurfers[0].getCurrentTime() : 0;
+        return (window.multitrack.wavesurfers && window.multitrack.wavesurfers[0] && typeof window.multitrack.wavesurfers[0].getCurrentTime === 'function') 
+            ? window.multitrack.wavesurfers[0].getCurrentTime() : 0;
     } else if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
         return vid ? vid.currentTime : 0;
@@ -6009,14 +6037,19 @@ function playSavedLoop(l, forceActive = true) {
 }
 
 // --- AUDIO CUES MODAL LOGIC & ENGINE ---
-let isGlobalCuesEnabled = true;
+let globalCueAudioEnabled = true;
+let globalCueVisualEnabled = true;
 
-function toggleGlobalCues() {
-    isGlobalCuesEnabled = !isGlobalCuesEnabled;
-    const btn = document.getElementById("btn-toggle-global-cues");
-    if (btn) {
-        btn.style.color = isGlobalCuesEnabled ? "var(--success)" : "#888";
-    }
+function toggleGlobalCueAudio() {
+    globalCueAudioEnabled = !globalCueAudioEnabled;
+    const btn = document.getElementById("btn-toggle-global-audio-cues");
+    if (btn) btn.style.color = globalCueAudioEnabled ? "var(--success)" : "#888";
+}
+
+function toggleGlobalCueVisual() {
+    globalCueVisualEnabled = !globalCueVisualEnabled;
+    const btn = document.getElementById("btn-toggle-global-visual-cues");
+    if (btn) btn.style.color = globalCueVisualEnabled ? "var(--success)" : "#888";
 }
 
 let activeEditCueId = null;
@@ -6198,7 +6231,7 @@ function playCueSequence(cue) {
 function scheduleCueTick(time, cue, beatIndex, totalBeats) {
     if (!cueAudioCtx) return;
     
-    if (!cue.visual_only) {
+    if (globalCueAudioEnabled && !cue.visual_only) {
         const osc = cueAudioCtx.createOscillator();
         const gain = cueAudioCtx.createGain();
         
@@ -6222,7 +6255,7 @@ function scheduleCueTick(time, cue, beatIndex, totalBeats) {
         osc.stop(time + 0.1);
     }
     
-    if (cue.visual) {
+    if (globalCueVisualEnabled && cue.visual) {
         const delayMs = Math.max(0, (time - cueAudioCtx.currentTime) * 1000);
         setTimeout(() => {
             triggerCueHud(totalBeats - beatIndex); // counting down
@@ -6245,7 +6278,7 @@ function triggerCueHud(number) {
 }
 
 function checkCues(time) {
-    if (!isGlobalCuesEnabled) return;
+    if (!globalCueAudioEnabled && !globalCueVisualEnabled) return;
     if (!currentCues || currentCues.length === 0) return;
     
     const isPlaying = (currentActivePlayer === 'local' && !document.getElementById('html5-player').paused) || 
