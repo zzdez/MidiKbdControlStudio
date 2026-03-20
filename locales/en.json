@@ -346,6 +346,25 @@
         "title_metronome": "Metronome",
         "btn_tap": "TAP",
         "lbl_signature": "Signature:",
-        "lbl_sync_media": "Sync Media"
+        "lbl_sync_media": "Sync Media",
+        "modal_cue_title": "Cue & Count-in Configuration",
+        "lbl_position_absolute": "Absolute target cue position:",
+        "lbl_cue_name": "Cue Name",
+        "placeholder_cue_name": "Ex: Solo Start, Bridge...",
+        "sound_stick": "Sticks",
+        "sound_click": "Metronome (Click)",
+        "sound_ping": "Ping (Simple Warning)",
+        "lbl_tempo": "Tempo (BPM)",
+        "lbl_duration_measures": "Duration (Measures)",
+        "lbl_volume": "Volume",
+        "lbl_offset_hint": "Offset (ms) >0 delays, <0 advances",
+        "lbl_visual_hud": "Show giant countdown (HUD)",
+        "lbl_visual_only": "Visual only (Mute)",
+        "lbl_existing_cues": "Existing Cues",
+        "btn_cue_delete": "Delete",
+        "btn_cue_save_new": "New (Save)",
+        "btn_cue_update": "Update",
+        "lbl_no_cue_recorded": "No cue recorded",
+        "msg_confirm_delete_cue": "Delete cue \"{value}\" ?"
     }
 }

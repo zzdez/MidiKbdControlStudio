@@ -346,6 +346,25 @@
         "title_metronome": "Métronome",
         "btn_tap": "TAP",
         "lbl_signature": "Signature:",
-        "lbl_sync_media": "Sync Média"
+        "lbl_sync_media": "Sync Média",
+        "modal_cue_title": "Configuration du Repère & Décompte",
+        "lbl_position_absolute": "Position absolue du repère ciblée :",
+        "lbl_cue_name": "Nom du Repère",
+        "placeholder_cue_name": "Ex: Départ Solo, Pont...",
+        "sound_stick": "Baguettes (Sticks)",
+        "sound_click": "Métronome (Click)",
+        "sound_ping": "Ping (Avertissement simple)",
+        "lbl_tempo": "Tempo (BPM)",
+        "lbl_duration_measures": "Durée (Nb Mesures)",
+        "lbl_volume": "Volume",
+        "lbl_offset_hint": "Offset (ms) >0 retarde, <0 avance",
+        "lbl_visual_hud": "Afficher décompte géant (HUD)",
+        "lbl_visual_only": "Visuel uniquement (Muet)",
+        "lbl_existing_cues": "Repères existants",
+        "btn_cue_delete": "Supprimer",
+        "btn_cue_save_new": "Nouveau (Enregistrer)",
+        "btn_cue_update": "Mettre à jour",
+        "lbl_no_cue_recorded": "Aucun repère enregistré",
+        "msg_confirm_delete_cue": "Supprimer le repère \"{value}\" ?"
     }
 }

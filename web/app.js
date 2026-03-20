@@ -6105,7 +6105,7 @@ function renderCueList() {
     if (!list) return;
     list.innerHTML = "";
     if (!currentCues || currentCues.length === 0) {
-        list.innerHTML = "<li style='padding:10px; color:#888; text-align:center;'>Aucun repère enregistré</li>";
+        list.innerHTML = `<li style='padding:10px; color:#888; text-align:center;'>${t("web.lbl_no_cue_recorded", "Aucun repère enregistré")}</li>`;
         return;
     }
     
@@ -6162,7 +6162,7 @@ function editCue(id) {
     document.getElementById("cue-modal-visual-only").checked = cue.visual_only === true;
     
     document.getElementById("btn-cue-delete").style.display = "inline-block";
-    document.getElementById("btn-cue-save").innerText = "Mettre à jour";
+    document.getElementById("btn-cue-save").innerText = t("web.btn_cue_update", "Mettre à jour");
     renderCueList();
 }
 
@@ -6193,7 +6193,7 @@ function openCueModal() {
     
     document.getElementById("cue-modal-timing").innerText = formatTimeCustom(pendingCueTime);
     document.getElementById("btn-cue-delete").style.display = "none";
-    document.getElementById("btn-cue-save").innerText = "Nouveau (Enregistrer)";
+    document.getElementById("btn-cue-save").innerText = t("web.btn_cue_save_new", "Nouveau (Enregistrer)");
     
     // Pre-fill BPM if available globally
     const globalBpmSpan = document.getElementById("global-video-bpm");
@@ -6213,7 +6213,7 @@ function openCueModal() {
 }
 
 function confirmSaveCue() {
-    const name = document.getElementById("cue-modal-name").value.trim() || "Repère sans nom";
+    const name = document.getElementById("cue-modal-name").value.trim() || t("web.lbl_no_name", "Sans nom");
     const sound = document.getElementById("cue-modal-sound").value;
     const bpm = parseFloat(document.getElementById("cue-modal-bpm").value) || 120;
     const measures = parseFloat(document.getElementById("cue-modal-measures").value) || 1;
@@ -6390,7 +6390,7 @@ function renderCuesUI() {
         
         marker.ondblclick = (e) => {
             e.stopPropagation();
-            if (confirm(`Supprimer le repère "${cue.name}" ?`)) {
+            if (confirm(t("web.msg_confirm_delete_cue", 'Supprimer le repère "{value}" ?').replace('{value}', cue.name))) {
                 currentCues = currentCues.filter(c => c.id !== cue.id);
                 renderCuesUI();
                 saveLoopsToBackend();
