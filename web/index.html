@@ -45,10 +45,13 @@
             <button id="btn-toggle-metronome" class="btn-icon" onclick="toggleMetronomeUI()" title="Métronome" style="margin-right: 5px;">
                 <i class="ph ph-metronome"></i>
             </button>
-            <button id="btn-toggle-global-audio-cues" class="btn-icon" onclick="toggleGlobalCueAudio()" title="Activer/Désactiver le son des Décomptes (Global)" style="margin-right: 5px; color: var(--success);">
+            <button id="btn-global-cue-add" class="btn-icon" onclick="openCueModal()" title="Créer/Éditer un Repère" style="margin-right: 5px; color: #888;">
+                <i class="ph ph-flag"></i>
+            </button>
+            <button id="btn-toggle-global-audio-cues" class="btn-icon" onclick="toggleGlobalCueAudio()" title="Activer/Désactiver le son des Décomptes (Global)" style="margin-right: 5px; color: #444;">
                 <i class="ph ph-bell-ringing"></i>
             </button>
-            <button id="btn-toggle-global-visual-cues" class="btn-icon" onclick="toggleGlobalCueVisual()" title="Activer/Désactiver l'affichage géant HUD (Global)" style="margin-right: 5px; color: var(--success);">
+            <button id="btn-toggle-global-visual-cues" class="btn-icon" onclick="toggleGlobalCueVisual()" title="Activer/Désactiver l'affichage géant HUD (Global)" style="margin-right: 5px; color: #444;">
                 <i class="ph ph-eye"></i>
             </button>
             <button id="btn-toggle-theater" class="btn-icon" onclick="toggleTheaterMode()"
@@ -302,9 +305,7 @@
                                 title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
                                 style="display:none; padding:2px 4px; color:var(--accent);"><i
                                     class="ph ph-floppy-disk"></i></button>
-                            <button class="control-btn" id="btn-cue-add-audio" onclick="openCueModal()"
-                                title="Ajouter Décompte" style="padding:2px 4px; color:var(--success);"><i
-                                    class="ph ph-flag"></i></button>
+                            <!-- Flag Moved to Global Header -->
                         </div>
                     </div>
                     <div class="controls-right-spacer"></div>
@@ -397,9 +398,7 @@
                                 title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
                                 style="display:none; padding:2px 4px; color:var(--accent);"><i
                                     class="ph ph-floppy-disk"></i></button>
-                            <button class="control-btn" id="btn-cue-add-mt" onclick="openCueModal()"
-                                title="Ajouter Décompte" style="padding:2px 4px; color:var(--success);"><i
-                                    class="ph ph-flag"></i></button>
+                            <!-- Flag Moved to Global Header -->
                         </div>
                     </div>
                     <div class="controls-right-spacer"></div>
@@ -565,9 +564,7 @@
                             title="Sauvegarder Boucle" data-i18n-title="web.hint_loop_save"
                             style="display:none; padding:2px 4px; color:var(--accent);"><i
                                 class="ph ph-floppy-disk"></i></button>
-                        <button class="control-btn" id="btn-cue-add-video" onclick="openCueModal()"
-                            title="Ajouter Décompte" style="padding:2px 4px; color:var(--success);"><i
-                                class="ph ph-flag"></i></button>
+                        <!-- Flag Moved to Global Header -->
                     </div>
                 </div>
                 <div class="controls-right-spacer"></div>

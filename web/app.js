@@ -1916,6 +1916,13 @@ function stopAllMedia() {
         window.currentMultitrackAbortController = null;
     }
 
+    if (window.currentMultitrackBlobUrls) {
+        window.currentMultitrackBlobUrls.forEach(url => {
+            try { URL.revokeObjectURL(url); } catch(e){}
+        });
+        window.currentMultitrackBlobUrls = [];
+    }
+
     // 1. YouTube
     if (player && typeof player.stopVideo === "function") {
         try { player.stopVideo(); } catch (e) { }
@@ -3397,42 +3404,43 @@ async function playLocal(index) {
         }
         window.currentMultitrackAbortController = new AbortController();
         const signal = window.currentMultitrackAbortController.signal;
+        window.currentMultitrackBlobUrls = [];
 
         let mtOptions = [];
         try {
+            console.log("[MT] Starting Promise.all for stems...", file.stems.length);
             mtOptions = await Promise.all(file.stems.map(async (stem, i) => {
                 const name = stem.name || stem.path.split(/[\\/]/).pop().replace(/\.[^/.]+$/, "");
 
-                // Fetch pre-calculated peaks AND the audio file entirely to RAM
                 let peaksArray = undefined;
-                let audioUrl = "/api/stream?path=" + encodeURIComponent(stem.path); // fallback
+                let audioUrl = "/api/stream?path=" + encodeURIComponent(stem.path);
                 let mediaElement = null;
 
                 try {
-                    // Parallel fetch limits network bottleneck
+                    console.log(`[MT] Stem ${i} : Fetching data...`);
                     const [peaksRes, audioRes] = await Promise.all([
                         fetch(`/api/local/peaks/${index}/${i}`, { signal }),
                         fetch("/api/stream?path=" + encodeURIComponent(stem.path), { signal })
                     ]);
+                    console.log(`[MT] Stem ${i} : Fetch headers received. AudioRes OK=?`, audioRes.ok);
 
                     if (peaksRes.ok) {
                         const data = await peaksRes.json();
-                        if (data && data.length > 0) {
-                            peaksArray = [new Float32Array(data)];
-                        }
+                        if (data && data.length > 0) peaksArray = [new Float32Array(data)];
                     }
 
                     if (audioRes.ok) {
+                        console.log(`[MT] Stem ${i} : Starting blob download...`);
                         const blob = await audioRes.blob();
+                        console.log(`[MT] Stem ${i} : Blob downloaded, creating ObjectURL...`);
                         audioUrl = URL.createObjectURL(blob);
+                        window.currentMultitrackBlobUrls.push(audioUrl);
 
-                        // Create explicit Audio media element forcing preload
                         mediaElement = new Audio();
                         mediaElement.src = audioUrl;
                         mediaElement.crossOrigin = "anonymous";
                         mediaElement.preload = "auto";
 
-                        // Route to WebAudio for Panning
                         if (!window.mtAudioCtx) {
                             const AudioContext = window.AudioContext || window.webkitAudioContext;
                             window.mtAudioCtx = new AudioContext();
@@ -3448,7 +3456,7 @@ async function playLocal(index) {
                     }
                 } catch (e) {
                     if (e.name === 'AbortError') throw e;
-                    console.error("Multitrack fetch error:", e);
+                    console.error(`[MT] Multitrack fetch error for stem ${i}:`, e);
                 }
 
                 const waveCol = appliedColors[i];
@@ -3456,11 +3464,11 @@ async function playLocal(index) {
 
                 return {
                     id: i,
-                    url: audioUrl, // Fallback if media is strictly needed by plugins
+                    url: audioUrl,
                     volume: 1,
                     peaks: peaksArray,
                     options: {
-                        media: mediaElement, // Forces HTML5 but guarantees 0ms latency thanks to RAM blob
+                        media: mediaElement,
                         waveColor: waveCol,
                         progressColor: progCol,
                         height: 70,
@@ -3471,6 +3479,7 @@ async function playLocal(index) {
                 };
             }));
             
+            console.log("[MT] Promise.all completed successfully. Signal aborted?", signal.aborted);
             if (signal.aborted) {
                 console.log("[MT] Load cleanly aborted before creating Wavesurfers.");
                 return;
@@ -3480,25 +3489,28 @@ async function playLocal(index) {
                 console.log("[MT] Load aborted by user switching tracks.");
                 return;
             }
-            console.error("Multitrack Promise.all failed:", e);
+            console.error("[MT] Multitrack Promise.all failed critically:", e);
             return;
         }
 
-        window.multitrack = Multitrack.create(mtOptions, {
-            container: trackWaveforms,
-            rightButtonDrag: false,
-            cursorWidth: 2,
-            cursorColor: '#fff', // Changed from var(--accent) to eliminate vertical purple line at start
-            trackBackground: '#2d2d2d',
-            trackBorderColor: '#333', // Match header border
-            timelineOptions: {
-                height: 20,
-                style: {
-                    color: '#888',
-                    fontSize: '10px'
+        console.log("[MT] Creating Multitrack instance...");
+        try {
+            window.multitrack = Multitrack.create(mtOptions, {
+                container: trackWaveforms,
+                rightButtonDrag: false,
+                cursorWidth: 2,
+                cursorColor: '#fff',
+                trackBackground: '#2d2d2d',
+                trackBorderColor: '#333',
+                timelineOptions: {
+                    height: 20,
+                    style: { color: '#888', fontSize: '10px' }
                 }
-            }
-        });
+            });
+            console.log("[MT] Instance created successfully.");
+        } catch(e) {
+            console.error("[MT] Multitrack.create failed:", e);
+        }
 
         // Global Sync was moved to Top
 
@@ -6040,16 +6052,50 @@ function playSavedLoop(l, forceActive = true) {
 let globalCueAudioEnabled = true;
 let globalCueVisualEnabled = true;
 
+let userForceAudio = false;
+let userForceVisual = false;
+
 function toggleGlobalCueAudio() {
     globalCueAudioEnabled = !globalCueAudioEnabled;
+    userForceAudio = globalCueAudioEnabled;
     const btn = document.getElementById("btn-toggle-global-audio-cues");
     if (btn) btn.style.color = globalCueAudioEnabled ? "var(--success)" : "#888";
 }
 
 function toggleGlobalCueVisual() {
     globalCueVisualEnabled = !globalCueVisualEnabled;
+    userForceVisual = globalCueVisualEnabled;
     const btn = document.getElementById("btn-toggle-global-visual-cues");
     if (btn) btn.style.color = globalCueVisualEnabled ? "var(--success)" : "#888";
+}
+
+function updateGlobalCueButtonsState() {
+    userForceAudio = false;
+    userForceVisual = false;
+    
+    const btnAudio = document.getElementById("btn-toggle-global-audio-cues");
+    const btnVisual = document.getElementById("btn-toggle-global-visual-cues");
+    const btnFlag = document.getElementById("btn-global-cue-add");
+    
+    if (!currentCues || currentCues.length === 0) {
+        if (btnAudio) btnAudio.style.color = "#444";
+        if (btnVisual) btnVisual.style.color = "#444";
+        if (btnFlag) btnFlag.style.color = "#888";
+        globalCueAudioEnabled = false;
+        globalCueVisualEnabled = false;
+        return;
+    }
+    
+    if (btnFlag) btnFlag.style.color = "var(--danger)";
+    
+    const hasAudioCue = currentCues.some(c => !c.visual_only);
+    const hasVisualCue = currentCues.some(c => c.visual !== false);
+    
+    globalCueAudioEnabled = hasAudioCue;
+    globalCueVisualEnabled = hasVisualCue;
+    
+    if (btnAudio) btnAudio.style.color = globalCueAudioEnabled ? "var(--success)" : "#888";
+    if (btnVisual) btnVisual.style.color = globalCueVisualEnabled ? "var(--success)" : "#888";
 }
 
 let activeEditCueId = null;
@@ -6231,7 +6277,9 @@ function playCueSequence(cue) {
 function scheduleCueTick(time, cue, beatIndex, totalBeats) {
     if (!cueAudioCtx) return;
     
-    if (globalCueAudioEnabled && !cue.visual_only) {
+    const shouldPlayAudio = globalCueAudioEnabled && (!cue.visual_only || userForceAudio);
+    
+    if (shouldPlayAudio) {
         const osc = cueAudioCtx.createOscillator();
         const gain = cueAudioCtx.createGain();
         
@@ -6255,7 +6303,9 @@ function scheduleCueTick(time, cue, beatIndex, totalBeats) {
         osc.stop(time + 0.1);
     }
     
-    if (globalCueVisualEnabled && cue.visual) {
+    const shouldShowVisual = globalCueVisualEnabled && (cue.visual || userForceVisual);
+    
+    if (shouldShowVisual) {
         const delayMs = Math.max(0, (time - cueAudioCtx.currentTime) * 1000);
         setTimeout(() => {
             triggerCueHud(totalBeats - beatIndex); // counting down
@@ -6307,6 +6357,7 @@ function checkCues(time) {
 
 function renderCuesUI() {
     document.querySelectorAll('.cue-marker').forEach(e => e.remove());
+    updateGlobalCueButtonsState();
     if (!currentCues || currentCues.length === 0) return;
 
     let timelineBg = null;
