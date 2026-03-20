@@ -152,6 +152,12 @@ class MetadataService:
                 "target_pitch": sidecar_data.get("target_pitch", ""),
                 "category": sidecar_data.get("category", ""),
                 "user_notes": sidecar_data.get("user_notes", ""),
+                "loops": sidecar_data.get("loops", []),
+                "audio_cues": sidecar_data.get("audio_cues", []),
+                "volume": sidecar_data.get("volume", 100),
+                "autoplay": sidecar_data.get("autoplay", False),
+                "autoreplay": sidecar_data.get("autoreplay", False),
+                "subtitle_pos_y": sidecar_data.get("subtitle_pos_y", 80),
                 "duration": max_duration,
                 "is_multitrack": True,
                 "stems": stems
@@ -248,6 +254,12 @@ class MetadataService:
                         res["target_pitch"] = sidecar_data.get("target_pitch", "")
                         res["category"] = sidecar_data.get("category", "")
                         res["user_notes"] = sidecar_data.get("user_notes", "")
+                        res["loops"] = sidecar_data.get("loops", [])
+                        res["audio_cues"] = sidecar_data.get("audio_cues", [])
+                        res["volume"] = sidecar_data.get("volume", 100)
+                        res["autoplay"] = sidecar_data.get("autoplay", False)
+                        res["autoreplay"] = sidecar_data.get("autoreplay", False)
+                        res["subtitle_pos_y"] = sidecar_data.get("subtitle_pos_y", 80)
                 except Exception as e:
                     logging.error(f"Error reading single file sidecar JSON: {e}")
 

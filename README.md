@@ -52,6 +52,12 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     - **Volume Persistant par Média :** Les lecteurs (Web et Local) mémorisent le volume exact de chaque piste individuellement. Ajustez la jauge en direct, c'est sauvegardé instantanément !
     - Contrôle UX unifié avec pourcentage en temps réel et fonction *Mute* rapide.
     - **Persistance des Options de Lecture :** Vos préférences de lecture (Autoplay, Autoreplay) sont strictement enregistrées par média et garanties sans désynchronisation d'interface lors de vos éditions en arrière-plan.
+*   **Métronome Haute Précision (Nouveau !) :**
+    - **Web Audio Context :** Remplacement des tickrate logiciels imprécis par une interface à oscillateurs dédiée, synchrone avec le débit du processeur.
+    - **Sync Link :** Le métronome recalcule le BPM à la volée en cas de changement de vitesse (*Rate*) sur les lecteurs Web ou locaux.
+*   **Repères & Décomptes Audio Cues (Nouveau !) :**
+    - **Timeline Marker :** Posez des drapeaux pour programmer des avertisseurs visuels HUD avant les couplets.
+    - **Global Override :** Mutez l'intégralité des bips d'un clic sur la Cloche sans perdre vos calibrations.
 *   **Système d'Entraînement Avancé (A-B Looping 3 États) :**
     - **Boucles Multiples :** Définissez, nommez et sauvegardez plusieurs boucles (Points A & B) pour chaque morceau, incluant **désormais un support total et visuel pour les vidéos YouTube en streaming**.
     - **Mode Séquentiel Intelligent :** Activez "Boucle Unique" pour répéter la section, ou "Boucle Séquentielle" pour passer automatiquement à la suite d'accords suivante une fois le solo maîtrisé.

@@ -560,6 +560,7 @@ async def update_setlist_item(index: int, item: Dict):
                 "subtitle_enabled": item.get("subtitle_enabled", items[index].get("subtitle_enabled", False)),
                 "subtitle_pos_y": item.get("subtitle_pos_y", items[index].get("subtitle_pos_y", 80)),
                 "loops": item.get("loops", items[index].get("loops", [])),
+                "audio_cues": item.get("audio_cues", items[index].get("audio_cues", [])),
                 "autoplay": item.get("autoplay", items[index].get("autoplay", False)),
                 "autoreplay": item.get("autoreplay", items[index].get("autoreplay", False))
             }
@@ -995,6 +996,7 @@ async def update_local_file(index: int, item: Dict):
             current["subtitle_pos_y"] = item.get("subtitle_pos_y", current.get("subtitle_pos_y", 80))
             current["volume"] = item.get("volume", current.get("volume", 100))
             current["loops"] = item.get("loops", current.get("loops", []))
+            current["audio_cues"] = item.get("audio_cues", current.get("audio_cues", []))
             current["bpm"] = item.get("bpm", current.get("bpm", ""))
             current["key"] = item.get("key", current.get("key", ""))
             current["media_key"] = item.get("media_key", current.get("media_key", ""))

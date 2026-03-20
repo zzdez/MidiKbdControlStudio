@@ -342,6 +342,10 @@
         "tuning_drop_d_bass_4": "Drop D (D A D G)",
         "tuning_eb_bass_4": "Eb Standard (Eb Ab Db Gb)",
         "tuning_standard_bass_5": "Standard (B E A D G)",
-        "lbl_fretboard_auto_close": "Auto-close fretboard on media change"
+        "lbl_fretboard_auto_close": "Auto-close fretboard on media change",
+        "title_metronome": "Metronome",
+        "btn_tap": "TAP",
+        "lbl_signature": "Signature:",
+        "lbl_sync_media": "Sync Media"
     }
 }

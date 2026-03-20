@@ -254,3 +254,19 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
 *   **Harmonisation Visuelle de Lecture :**
     *   **Header Global Vidéo :** Création du conteneur `#global-video-info` dans la `header-right` pour afficher le Titre et le BPM des vidéos (YouTube/Local), évitant de surcharger le lecteur central avec du texte par-dessus l'image.
     *   **Header Multipiste Dynamique :** Fusion de la pochette (`#multitrack-art`) et des stats musicales directement dans la barre de titre du Mini-DAW via Flexbox pour minimiser l'impact vertical (hauteur critique pour conserver un maximum de pistes visibles).
+### 26. Évolution V20 : Métronome Haute Précision (Web Audio)
+*   **Audio Engine (`metronome.js`) :**
+    *   **Phase accurate :** Remplacement des implémentations `setInterval` par un Scheduler AudioContext Web Audio via lookahead, garantissant un clic immuable même sous haute charge CPU.
+    *   **Visual ticks :** Animation LED réactive pilotée par un Web Worker asynchrone pour une synchronisation tempo/visuelle parfaite.
+*   **UI interactif (`ui_metronome.js`) :**
+    *   **Draggable Float :** Conception d’une fenêtre flottante en verre dépoli (`backdrop-filter`) avec Tap Tempo et sélection de signature rythmique.
+    *   **Sync Médias :** Pont dynamique multipliant le BPM original par le coefficient de vitesse (`playbackRate`) en temps réel, incluant la gestion d'un Offset MS pour épingler le temps 1.
+
+### 27. Évolution V21 : Repères Sonores V2 & Anti-Leak Multipistes
+*   **Système d'Audio Cues (`app.js` & `server.py`) :**
+    *   **Global Layout :** Dé-duplication du bouton "Ajouter Repère" (Drapeau) des lecteurs pour concentration au sommet de la barre de statuts.
+    *   **Smart Toggles (Cloches/Œil) :** Analyseurs d'états au chargement de piste pour griser les contrôles orphelins. Logique `userForce` pour prioriser le clic humain sur les préréglages persistants muets.
+    *   **Dictionnaire Modale :** Interface d’édition réécrite listant les points de passage actifs d'un titre individuellement.
+*   **Stabilité & Drainage RAM (`app.js`) :**
+    *   **Garbage Collection :** Forçage du recyclage Blob via `URL.revokeObjectURL()` dans `stopAllMedia` pour endiguer les fuites de mémoire (OOM) lors des changements consécutifs de multipistes WAV.
+    *   **Fetch Killer :** AbortController ré-injecté pour rompre les flux réseau WAV pendants.

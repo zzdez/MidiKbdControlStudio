@@ -87,6 +87,11 @@ let isSequentialLoop = false; // Toggle between loop 1 or loop sequential
 let currentLoops = []; // Array of saved loops for the active track
 let activeSavedLoopId = null; // Track which loop is being edited/resized
 
+// --- AUDIO CUES (COUNT-INS) ---
+let currentCues = [];
+let pendingCueTime = null;
+let lastPlayedCueId = null;
+
 // --- GLOBAL DEVICE STATUS ---
 let currentDeviceName = "Aucun";
 let currentConnectionMode = "MIDO";
@@ -1906,6 +1911,18 @@ function stopAllMedia() {
     console.log("Stopping all media players...");
     currentActivePlayer = null; // Important to prevent clearLoop from restarting old media during transition
 
+    if (window.currentMultitrackAbortController) {
+        window.currentMultitrackAbortController.abort();
+        window.currentMultitrackAbortController = null;
+    }
+
+    if (window.currentMultitrackBlobUrls) {
+        window.currentMultitrackBlobUrls.forEach(url => {
+            try { URL.revokeObjectURL(url); } catch(e){}
+        });
+        window.currentMultitrackBlobUrls = [];
+    }
+
     // 1. YouTube
     if (player && typeof player.stopVideo === "function") {
         try { player.stopVideo(); } catch (e) { }
@@ -2058,6 +2075,9 @@ function playTrack(track) {
             globalScale.style.display = "inline";
             globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${track.scale}"]`)?.text || track.scale;
         } else { globalScale.style.display = "none"; }
+
+        const globalCover = document.getElementById("global-video-cover");
+        if (globalCover) globalCover.style.display = "none";
 
         // Display Custom Timeline for YouTube
         const timeline = document.getElementById("video-timeline-container");
@@ -3036,7 +3056,15 @@ async function playLocal(index) {
         const target = getProfile(file, "Web Audio Local");
         console.log("[DEBUG JS] Envoi demande setMode (MULTITRACK) avec profil :", target);
         setMode("AUDIO", target);
-        document.getElementById("global-video-info").style.display = "none";
+        
+        document.getElementById("global-video-info").style.display = "flex";
+        globalTitle.innerText = file.title || "Multitrack";
+        if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
+        if (file.key) { globalKey.style.display = "inline"; globalKey.querySelector(".val").innerText = file.key; } else { globalKey.style.display = "none"; }
+        if (file.scale) {
+            globalScale.style.display = "inline";
+            globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${file.scale}"]`)?.text || file.scale;
+        } else { globalScale.style.display = "none"; }
 
         videoContainer.style.display = "none";
         audioContainer.style.display = "none";
@@ -3049,17 +3077,12 @@ async function playLocal(index) {
         const valT = document.getElementById("video-timeline-container");
         if (valT) valT.style.display = "none";
 
-        document.getElementById("multitrack-title").innerText = file.title || "Multitrack";
-        document.getElementById("multitrack-artist").innerText = file.artist || "Stems";
-        const mtArt = document.getElementById("mt-compact-art");
-        mtArt.onload = () => mtArt.style.display = "block";
-        mtArt.onerror = () => mtArt.style.display = "none";
-        mtArt.src = `/api/local/art/${index}?t=${Date.now()}`;
-
-        const mtBpm = document.getElementById("mt-compact-bpm");
-        const mtKey = document.getElementById("mt-compact-key");
-        if (file.bpm) { mtBpm.style.display = "inline"; mtBpm.querySelector(".val").innerText = file.bpm; } else { mtBpm.style.display = "none"; }
-        if (file.key) { mtKey.style.display = "inline"; mtKey.querySelector(".val").innerText = file.key; } else { mtKey.style.display = "none"; }
+        const globalCover = document.getElementById("global-video-cover");
+        if (globalCover) {
+            globalCover.onload = () => globalCover.style.display = "block";
+            globalCover.onerror = () => globalCover.style.display = "none";
+            globalCover.src = `/api/local/art/${index}?t=${Date.now()}`;
+        }
 
         if (wavesurfer) wavesurfer.pause();
         v.style.display = "none";
@@ -3376,91 +3399,118 @@ async function playLocal(index) {
                 input.select();
             };
         });
-        const mtOptions = await Promise.all(file.stems.map(async (stem, i) => {
-            const name = stem.name || stem.path.split(/[\\/]/).pop().replace(/\.[^/.]+$/, "");
+        if (window.currentMultitrackAbortController) {
+            window.currentMultitrackAbortController.abort();
+        }
+        window.currentMultitrackAbortController = new AbortController();
+        const signal = window.currentMultitrackAbortController.signal;
+        window.currentMultitrackBlobUrls = [];
 
-            // Fetch pre-calculated peaks AND the audio file entirely to RAM
-            let peaksArray = undefined;
-            let audioUrl = "/api/stream?path=" + encodeURIComponent(stem.path); // fallback
-            let mediaElement = null;
+        let mtOptions = [];
+        try {
+            console.log("[MT] Starting Promise.all for stems...", file.stems.length);
+            mtOptions = await Promise.all(file.stems.map(async (stem, i) => {
+                const name = stem.name || stem.path.split(/[\\/]/).pop().replace(/\.[^/.]+$/, "");
 
-            try {
-                // Parallel fetch limits network bottleneck
-                const [peaksRes, audioRes] = await Promise.all([
-                    fetch(`/api/local/peaks/${index}/${i}`),
-                    fetch("/api/stream?path=" + encodeURIComponent(stem.path))
-                ]);
+                let peaksArray = undefined;
+                let audioUrl = "/api/stream?path=" + encodeURIComponent(stem.path);
+                let mediaElement = null;
 
-                if (peaksRes.ok) {
-                    const data = await peaksRes.json();
-                    if (data && data.length > 0) {
-                        peaksArray = [new Float32Array(data)];
-                    }
-                }
+                try {
+                    console.log(`[MT] Stem ${i} : Fetching data...`);
+                    const [peaksRes, audioRes] = await Promise.all([
+                        fetch(`/api/local/peaks/${index}/${i}`, { signal }),
+                        fetch("/api/stream?path=" + encodeURIComponent(stem.path), { signal })
+                    ]);
+                    console.log(`[MT] Stem ${i} : Fetch headers received. AudioRes OK=?`, audioRes.ok);
 
-                if (audioRes.ok) {
-                    const blob = await audioRes.blob();
-                    audioUrl = URL.createObjectURL(blob);
-
-                    // Create explicit Audio media element forcing preload
-                    mediaElement = new Audio();
-                    mediaElement.src = audioUrl;
-                    mediaElement.crossOrigin = "anonymous";
-                    mediaElement.preload = "auto";
-
-                    // Route to WebAudio for Panning
-                    if (!window.mtAudioCtx) {
-                        const AudioContext = window.AudioContext || window.webkitAudioContext;
-                        window.mtAudioCtx = new AudioContext();
+                    if (peaksRes.ok) {
+                        const data = await peaksRes.json();
+                        if (data && data.length > 0) peaksArray = [new Float32Array(data)];
                     }
 
-                    const source = window.mtAudioCtx.createMediaElementSource(mediaElement);
-                    const panner = window.mtAudioCtx.createStereoPanner();
-                    panner.pan.value = 0;
-                    source.connect(panner);
-                    panner.connect(window.mtAudioCtx.destination);
+                    if (audioRes.ok) {
+                        console.log(`[MT] Stem ${i} : Starting blob download...`);
+                        const blob = await audioRes.blob();
+                        console.log(`[MT] Stem ${i} : Blob downloaded, creating ObjectURL...`);
+                        audioUrl = URL.createObjectURL(blob);
+                        window.currentMultitrackBlobUrls.push(audioUrl);
 
-                    mediaElement._panner = panner;
+                        mediaElement = new Audio();
+                        mediaElement.src = audioUrl;
+                        mediaElement.crossOrigin = "anonymous";
+                        mediaElement.preload = "auto";
+
+                        if (!window.mtAudioCtx) {
+                            const AudioContext = window.AudioContext || window.webkitAudioContext;
+                            window.mtAudioCtx = new AudioContext();
+                        }
+
+                        const source = window.mtAudioCtx.createMediaElementSource(mediaElement);
+                        const panner = window.mtAudioCtx.createStereoPanner();
+                        panner.pan.value = 0;
+                        source.connect(panner);
+                        panner.connect(window.mtAudioCtx.destination);
+
+                        mediaElement._panner = panner;
+                    }
+                } catch (e) {
+                    if (e.name === 'AbortError') throw e;
+                    console.error(`[MT] Multitrack fetch error for stem ${i}:`, e);
                 }
-            } catch (e) {
-                console.error("Multitrack fetch error:", e);
+
+                const waveCol = appliedColors[i];
+                const progCol = generateDarkerColor(waveCol);
+
+                return {
+                    id: i,
+                    url: audioUrl,
+                    volume: 1,
+                    peaks: peaksArray,
+                    options: {
+                        media: mediaElement,
+                        waveColor: waveCol,
+                        progressColor: progCol,
+                        height: 70,
+                        barWidth: 2,
+                        barGap: 1,
+                        barRadius: 2
+                    }
+                };
+            }));
+            
+            console.log("[MT] Promise.all completed successfully. Signal aborted?", signal.aborted);
+            if (signal.aborted) {
+                console.log("[MT] Load cleanly aborted before creating Wavesurfers.");
+                return;
             }
-
-            const waveCol = appliedColors[i];
-            const progCol = generateDarkerColor(waveCol);
-
-            return {
-                id: i,
-                url: audioUrl, // Fallback if media is strictly needed by plugins
-                volume: 1,
-                peaks: peaksArray,
-                options: {
-                    media: mediaElement, // Forces HTML5 but guarantees 0ms latency thanks to RAM blob
-                    waveColor: waveCol,
-                    progressColor: progCol,
-                    height: 70,
-                    barWidth: 2,
-                    barGap: 1,
-                    barRadius: 2
-                }
-            };
-        }));
-
-        window.multitrack = Multitrack.create(mtOptions, {
-            container: trackWaveforms,
-            rightButtonDrag: false,
-            cursorWidth: 2,
-            cursorColor: '#fff', // Changed from var(--accent) to eliminate vertical purple line at start
-            trackBackground: '#2d2d2d',
-            trackBorderColor: '#333', // Match header border
-            timelineOptions: {
-                height: 20,
-                style: {
-                    color: '#888',
-                    fontSize: '10px'
-                }
+        } catch (e) {
+            if (e.name === 'AbortError') {
+                console.log("[MT] Load aborted by user switching tracks.");
+                return;
             }
-        });
+            console.error("[MT] Multitrack Promise.all failed critically:", e);
+            return;
+        }
+
+        console.log("[MT] Creating Multitrack instance...");
+        try {
+            window.multitrack = Multitrack.create(mtOptions, {
+                container: trackWaveforms,
+                rightButtonDrag: false,
+                cursorWidth: 2,
+                cursorColor: '#fff',
+                trackBackground: '#2d2d2d',
+                trackBorderColor: '#333',
+                timelineOptions: {
+                    height: 20,
+                    style: { color: '#888', fontSize: '10px' }
+                }
+            });
+            console.log("[MT] Instance created successfully.");
+        } catch(e) {
+            console.error("[MT] Multitrack.create failed:", e);
+        }
 
         // Global Sync was moved to Top
 
@@ -3496,7 +3546,6 @@ async function playLocal(index) {
             });
             updateHiddenTracksList(file);
 
-            setupUniversalLoopSelection();
             updateLoopUI();
             renderLoopsUI();
         });
@@ -3527,7 +3576,22 @@ async function playLocal(index) {
         const target = getProfile(file, "Web Audio Local");
         console.log("[DEBUG JS] Envoi demande setMode (AUDIO) avec profil :", target);
         setMode("AUDIO", target); // Context Switch
-        document.getElementById("global-video-info").style.display = "none";
+        
+        document.getElementById("global-video-info").style.display = "flex";
+        globalTitle.innerText = file.title || "Audio";
+        if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
+        if (file.key) { globalKey.style.display = "inline"; globalKey.querySelector(".val").innerText = file.key; } else { globalKey.style.display = "none"; }
+        if (file.scale) {
+            globalScale.style.display = "inline";
+            globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${file.scale}"]`)?.text || file.scale;
+        } else { globalScale.style.display = "none"; }
+
+        const globalCover = document.getElementById("global-video-cover");
+        if (globalCover) {
+            globalCover.onload = () => globalCover.style.display = "block";
+            globalCover.onerror = () => globalCover.style.display = "none";
+            globalCover.src = `/api/local/art/${index}?t=${Date.now()}`;
+        }
 
         videoContainer.style.display = "none";
         audioContainer.style.display = "flex";
@@ -3615,6 +3679,12 @@ async function playLocal(index) {
             globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${file.scale}"]`)?.text || file.scale;
         } else { globalScale.style.display = "none"; }
 
+        const globalCover = document.getElementById("global-video-cover");
+        if (globalCover) {
+            globalCover.onload = () => globalCover.style.display = "block";
+            globalCover.onerror = () => globalCover.style.display = "none";
+            globalCover.src = `/api/local/art/${index}?t=${Date.now()}`;
+        }
 
         videoContainer.style.display = "flex";
         audioContainer.style.display = "none";
@@ -5441,6 +5511,31 @@ function updatePlayPauseIcon(type, isPlaying) {
         icon.classList.remove('ph-pause-circle');
         icon.classList.add('ph-play-circle');
     }
+
+    // -- METRONOME SYNC --
+    if (window.isSyncMedia && window.metronome) {
+        if (isPlaying && !window.metronome.isPlaying) {
+            // Adjust BPM dynamically from UI just in case
+            const currentBpm = parseInt(document.getElementById("metro-bpm-input").value) || 120;
+            // Get current speed factor
+            let rate = 1.0;
+            if (type === 'multitrack') rate = parseFloat(document.getElementById('btn-multitrack-speed').innerText) || 1.0;
+            else if (type === 'video') rate = parseFloat(document.getElementById('btn-video-speed').innerText) || 1.0;
+            else if (type === 'audio') rate = parseFloat(document.getElementById('btn-audio-speed').innerText) || 1.0;
+            
+            window.metronome.setBpm(currentBpm * rate);
+            
+            // Start
+            metronomeTogglePlay();
+            
+            // Apply Offset
+            const offsetMs = parseInt(document.getElementById("metro-sync-offset").value) || 0;
+            window.metronome.nextNoteTime = window.metronome.audioContext.currentTime + (offsetMs / 1000.0);
+            
+        } else if (!isPlaying && window.metronome.isPlaying) {
+            metronomeTogglePlay();
+        }
+    }
 }
 
 // Video Control Overrides for Chapters
@@ -5498,11 +5593,12 @@ function updateActiveChapter(currentTime) {
 function getUniversalDuration() {
     let dur = 0;
     if (currentActivePlayer === 'youtube' && player && typeof player.getDuration === "function") dur = player.getDuration();
-    else if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+    else if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
         if (vid && !isNaN(vid.duration)) dur = vid.duration;
-        if (dur === 0 && wavesurfer && !isNaN(wavesurfer.getDuration())) dur = wavesurfer.getDuration();
-    } else if (currentActivePlayer === 'multitrack' && window.multitrack) {
+    } else if (currentActivePlayer === 'waveform') {
+        if (wavesurfer && !isNaN(wavesurfer.getDuration())) dur = wavesurfer.getDuration();
+    } else if (currentActivePlayer === 'multitrack' && window.multitrack && window.multitrack.wavesurfers) {
         window.multitrack.wavesurfers.forEach(ws => {
             const wsDur = ws.getDuration();
             if (wsDur > dur) dur = wsDur;
@@ -5513,11 +5609,13 @@ function getUniversalDuration() {
 
 function getCurrentPlayerTime() {
     if (currentActivePlayer === 'multitrack' && window.multitrack) {
-        return window.multitrack.getCurrentTime();
-    } else if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        return (window.multitrack.wavesurfers && window.multitrack.wavesurfers[0] && typeof window.multitrack.wavesurfers[0].getCurrentTime === 'function') 
+            ? window.multitrack.wavesurfers[0].getCurrentTime() : 0;
+    } else if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
-        if (vid && vid.style.display !== "none") return vid.currentTime;
-        if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none") return wavesurfer.getCurrentTime();
+        return vid ? vid.currentTime : 0;
+    } else if (currentActivePlayer === 'waveform') {
+        return wavesurfer ? wavesurfer.getCurrentTime() : 0;
     } else if (currentActivePlayer === 'youtube' && player && typeof player.getCurrentTime === "function") {
         return player.getCurrentTime();
     }
@@ -5552,6 +5650,19 @@ function setLoopB() {
         alert(t("web.msg_loop_b_after_a"));
     }
     updateLoopUI();
+
+    // Resume play if it was paused (bug fix)
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && vid.style.display !== "none" && vid.paused) {
+            vid.play().catch(e => console.log(e));
+        }
+        if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none" && !wavesurfer.isPlaying()) {
+            wavesurfer.play();
+        }
+    } else if (currentActivePlayer === 'youtube' && player && typeof player.playVideo === "function" && player.getPlayerState() !== 1) {
+        player.playVideo();
+    }
 }
 
 function clearLoop() {
@@ -5568,24 +5679,6 @@ function clearLoop() {
     markersA.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = "none"; });
     markersB.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = "none"; });
     areas.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = "none"; });
-
-    // Clear saved loop regions from ALL possible containers
-    document.querySelectorAll('.saved-loop-region').forEach(el => el.remove());
-
-    updateLoopUI();
-
-    // Resume play if it was paused (bug fix)
-    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
-        const vid = document.getElementById("html5-player");
-        if (vid && vid.style.display !== "none" && vid.paused) {
-            vid.play().catch(e => console.log(e));
-        }
-        if (wavesurfer && document.getElementById("audio-player-container").style.display !== "none" && !wavesurfer.isPlaying()) {
-            wavesurfer.play();
-        }
-    } else if (currentActivePlayer === 'youtube' && player && typeof player.playVideo === "function" && player.getPlayerState() !== 1) {
-        player.playVideo();
-    }
 }
 
 function updateLoopUI() {
@@ -5774,6 +5867,7 @@ function checkLoop(currentTime) {
 setInterval(() => {
     const time = getCurrentPlayerTime();
     if (isLoopActive) checkLoop(time);
+    checkCues(time);
 
     if (currentActivePlayer === 'youtube') {
         updateTimelineUI(time);
@@ -5879,6 +5973,7 @@ async function saveLoopsToBackend() {
         const track = currentTrackList.find(t => t.originalIndex === currentPlayingIndex);
         if (track) {
             track.loops = currentLoops;
+            track.audio_cues = currentCues;
             await fetch(`/api/setlist/${currentPlayingIndex}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -5889,6 +5984,7 @@ async function saveLoopsToBackend() {
         const item = localFiles[currentPlayingIndex];
         if (item) {
             item.loops = currentLoops;
+            item.audio_cues = currentCues;
             await fetch(`/api/local/${currentPlayingIndex}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -5950,6 +6046,359 @@ function playSavedLoop(l, forceActive = true) {
     } else if (currentActivePlayer === 'youtube' && player && typeof player.playVideo === "function") {
         player.playVideo();
     }
+}
+
+// --- AUDIO CUES MODAL LOGIC & ENGINE ---
+let globalCueAudioEnabled = true;
+let globalCueVisualEnabled = true;
+
+let userForceAudio = false;
+let userForceVisual = false;
+
+function toggleGlobalCueAudio() {
+    globalCueAudioEnabled = !globalCueAudioEnabled;
+    userForceAudio = globalCueAudioEnabled;
+    const btn = document.getElementById("btn-toggle-global-audio-cues");
+    if (btn) btn.style.color = globalCueAudioEnabled ? "var(--success)" : "#888";
+}
+
+function toggleGlobalCueVisual() {
+    globalCueVisualEnabled = !globalCueVisualEnabled;
+    userForceVisual = globalCueVisualEnabled;
+    const btn = document.getElementById("btn-toggle-global-visual-cues");
+    if (btn) btn.style.color = globalCueVisualEnabled ? "var(--success)" : "#888";
+}
+
+function updateGlobalCueButtonsState() {
+    userForceAudio = false;
+    userForceVisual = false;
+    
+    const btnAudio = document.getElementById("btn-toggle-global-audio-cues");
+    const btnVisual = document.getElementById("btn-toggle-global-visual-cues");
+    const btnFlag = document.getElementById("btn-global-cue-add");
+    
+    if (!currentCues || currentCues.length === 0) {
+        if (btnAudio) btnAudio.style.color = "#444";
+        if (btnVisual) btnVisual.style.color = "#444";
+        if (btnFlag) btnFlag.style.color = "#888";
+        globalCueAudioEnabled = false;
+        globalCueVisualEnabled = false;
+        return;
+    }
+    
+    if (btnFlag) btnFlag.style.color = "var(--danger)";
+    
+    const hasAudioCue = currentCues.some(c => !c.visual_only);
+    const hasVisualCue = currentCues.some(c => c.visual !== false);
+    
+    globalCueAudioEnabled = hasAudioCue;
+    globalCueVisualEnabled = hasVisualCue;
+    
+    if (btnAudio) btnAudio.style.color = globalCueAudioEnabled ? "var(--success)" : "#888";
+    if (btnVisual) btnVisual.style.color = globalCueVisualEnabled ? "var(--success)" : "#888";
+}
+
+let activeEditCueId = null;
+
+function renderCueList() {
+    const list = document.getElementById("cue-modal-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!currentCues || currentCues.length === 0) {
+        list.innerHTML = "<li style='padding:10px; color:#888; text-align:center;'>Aucun repère enregistré</li>";
+        return;
+    }
+    
+    const sortedCues = [...currentCues].sort((a,b) => a.time - b.time);
+    sortedCues.forEach(cue => {
+        const li = document.createElement("li");
+        li.style.padding = "8px 10px";
+        li.style.borderBottom = "1px solid #333";
+        li.style.cursor = "pointer";
+        li.style.display = "flex";
+        li.style.justifyContent = "space-between";
+        li.style.alignItems = "center";
+        
+        if (activeEditCueId === cue.id) {
+            li.style.background = "rgba(3, 218, 198, 0.2)"; // actif
+        } else {
+            li.style.background = "transparent";
+            li.addEventListener('mouseenter', () => li.style.background = "rgba(255,255,255,0.05)");
+            li.addEventListener('mouseleave', () => li.style.background = "transparent");
+        }
+        
+        li.onclick = () => editCue(cue.id);
+        
+        const nameSpan = document.createElement("span");
+        nameSpan.innerText = cue.name || "Sans nom";
+        nameSpan.style.color = "white";
+        
+        const timeSpan = document.createElement("span");
+        timeSpan.innerText = formatTimeCustom(cue.time);
+        timeSpan.style.color = "var(--success)";
+        timeSpan.style.fontFamily = "monospace";
+        
+        li.appendChild(nameSpan);
+        li.appendChild(timeSpan);
+        list.appendChild(li);
+    });
+}
+
+function editCue(id) {
+    const cue = currentCues.find(c => c.id === id);
+    if (!cue) return;
+    
+    activeEditCueId = id;
+    pendingCueTime = cue.time;
+    
+    document.getElementById("cue-modal-timing").innerText = formatTimeCustom(pendingCueTime);
+    document.getElementById("cue-modal-name").value = cue.name || "";
+    document.getElementById("cue-modal-sound").value = cue.sound || "stick";
+    document.getElementById("cue-modal-bpm").value = cue.bpm || 120;
+    document.getElementById("cue-modal-measures").value = cue.measures || 1;
+    document.getElementById("cue-modal-vol").value = cue.volume !== undefined ? cue.volume : 0.8;
+    document.getElementById("cue-modal-offset").value = cue.offset || 0;
+    document.getElementById("cue-modal-visual").checked = cue.visual !== false;
+    document.getElementById("cue-modal-visual-only").checked = cue.visual_only === true;
+    
+    document.getElementById("btn-cue-delete").style.display = "inline-block";
+    document.getElementById("btn-cue-save").innerText = "Mettre à jour";
+    renderCueList();
+}
+
+function deleteCurrentCue() {
+    if (!activeEditCueId) return;
+    currentCues = currentCues.filter(c => c.id !== activeEditCueId);
+    activeEditCueId = null;
+    renderCuesUI();
+    saveLoopsToBackend();
+    document.getElementById("modal-edit-cue").close();
+}
+
+function openCueModal() {
+    const modal = document.getElementById("modal-edit-cue");
+    if (!modal) return;
+    
+    // Pause players
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && !vid.paused) vid.pause();
+        if (wavesurfer && wavesurfer.isPlaying()) wavesurfer.pause();
+    } else if (currentActivePlayer === 'youtube' && player && typeof player.pauseVideo === "function") {
+        player.pauseVideo();
+    }
+
+    pendingCueTime = getCurrentPlayerTime();
+    activeEditCueId = null; // Default to create mode
+    
+    document.getElementById("cue-modal-timing").innerText = formatTimeCustom(pendingCueTime);
+    document.getElementById("btn-cue-delete").style.display = "none";
+    document.getElementById("btn-cue-save").innerText = "Nouveau (Enregistrer)";
+    
+    // Pre-fill BPM if available globally
+    const globalBpmSpan = document.getElementById("global-video-bpm");
+    if (globalBpmSpan && globalBpmSpan.style.display !== "none") {
+        const bpmTxt = globalBpmSpan.querySelector(".val").innerText;
+        if (!isNaN(parseInt(bpmTxt))) {
+            document.getElementById("cue-modal-bpm").value = parseInt(bpmTxt);
+        }
+    }
+    
+    document.getElementById("cue-modal-name").value = "";
+    document.getElementById("cue-modal-offset").value = 0;
+    document.getElementById("cue-modal-visual-only").checked = false;
+    
+    renderCueList();
+    modal.showModal();
+}
+
+function confirmSaveCue() {
+    const name = document.getElementById("cue-modal-name").value.trim() || "Repère sans nom";
+    const sound = document.getElementById("cue-modal-sound").value;
+    const bpm = parseFloat(document.getElementById("cue-modal-bpm").value) || 120;
+    const measures = parseFloat(document.getElementById("cue-modal-measures").value) || 1;
+    const vol = parseFloat(document.getElementById("cue-modal-vol").value) || 0.8;
+    const offset = parseFloat(document.getElementById("cue-modal-offset").value) || 0;
+    const visual = document.getElementById("cue-modal-visual").checked;
+    const visualOnly = document.getElementById("cue-modal-visual-only").checked;
+    
+    if (activeEditCueId) {
+        const idx = currentCues.findIndex(c => c.id === activeEditCueId);
+        if (idx !== -1) {
+            currentCues[idx].name = name;
+            currentCues[idx].sound = sound;
+            currentCues[idx].bpm = bpm;
+            currentCues[idx].measures = measures;
+            currentCues[idx].volume = vol;
+            currentCues[idx].offset = offset;
+            currentCues[idx].visual = visual;
+            currentCues[idx].visual_only = visualOnly;
+        }
+    } else {
+        const newCue = {
+            id: Date.now(),
+            name: name,
+            time: pendingCueTime,
+            sound: sound,
+            bpm: bpm,
+            measures: measures,
+            volume: vol,
+            offset: offset,
+            visual: visual,
+            visual_only: visualOnly
+        };
+        currentCues.push(newCue);
+    }
+    
+    renderCuesUI();
+    saveLoopsToBackend(); 
+    document.getElementById("modal-edit-cue").close();
+}
+
+const cueAudioCtx = window.AudioContext ? new AudioContext() : (window.webkitAudioContext ? new webkitAudioContext() : null);
+
+function playCueSequence(cue) {
+    if (!cueAudioCtx) return;
+    if (cueAudioCtx.state === 'suspended') cueAudioCtx.resume();
+    
+    // Total beats to schedule
+    const totalBeats = Math.floor(cue.measures * 4);
+    if (totalBeats <= 0) return;
+    
+    const beatDuration = 60 / cue.bpm;
+    const now = cueAudioCtx.currentTime; 
+    
+    for (let b = 0; b < totalBeats; b++) {
+        const timeToPlay = now + (b * beatDuration);
+        scheduleCueTick(timeToPlay, cue, b, totalBeats);
+    }
+}
+
+function scheduleCueTick(time, cue, beatIndex, totalBeats) {
+    if (!cueAudioCtx) return;
+    
+    const shouldPlayAudio = globalCueAudioEnabled && (!cue.visual_only || userForceAudio);
+    
+    if (shouldPlayAudio) {
+        const osc = cueAudioCtx.createOscillator();
+        const gain = cueAudioCtx.createGain();
+        
+        osc.connect(gain);
+        gain.connect(cueAudioCtx.destination);
+        
+        if (cue.sound === 'ping') {
+            osc.frequency.value = 880; 
+            osc.type = 'sine';
+        } else { // stick / click
+            osc.frequency.value = (beatIndex === 0 && totalBeats >= 4) ? 1200 : 800; // Accent on first beat
+            osc.type = 'square';
+        }
+        
+        const vol = cue.volume !== undefined ? cue.volume : 0.8;
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime(vol, time + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+        
+        osc.start(time);
+        osc.stop(time + 0.1);
+    }
+    
+    const shouldShowVisual = globalCueVisualEnabled && (cue.visual || userForceVisual);
+    
+    if (shouldShowVisual) {
+        const delayMs = Math.max(0, (time - cueAudioCtx.currentTime) * 1000);
+        setTimeout(() => {
+            triggerCueHud(totalBeats - beatIndex); // counting down
+        }, delayMs);
+    }
+}
+
+function triggerCueHud(number) {
+    const hud = document.getElementById("cue-hud-overlay");
+    if (!hud) return;
+    hud.innerText = number;
+    hud.style.display = "block";
+    hud.style.opacity = "1";
+    hud.style.transform = "translate(-50%, -50%) scale(1.5)";
+    
+    setTimeout(() => {
+        hud.style.transform = "translate(-50%, -50%) scale(1)";
+        hud.style.opacity = "0";
+    }, 150);
+}
+
+function checkCues(time) {
+    if (!globalCueAudioEnabled && !globalCueVisualEnabled) return;
+    if (!currentCues || currentCues.length === 0) return;
+    
+    const isPlaying = (currentActivePlayer === 'local' && !document.getElementById('html5-player').paused) || 
+                      (currentActivePlayer === 'waveform' && wavesurfer && typeof wavesurfer.isPlaying === 'function' && wavesurfer.isPlaying()) || 
+                      (currentActivePlayer === 'youtube' && player && typeof player.getPlayerState === 'function' && player.getPlayerState() === 1) ||
+                      (currentActivePlayer === 'multitrack' && window.multitrack && window.multitrack.wavesurfers && window.multitrack.wavesurfers[0] && typeof window.multitrack.wavesurfers[0].isPlaying === 'function' && window.multitrack.wavesurfers[0].isPlaying());
+    
+    if (!isPlaying) return;
+
+    currentCues.forEach(cue => {
+        const totalBeats = Math.floor(cue.measures * 4);
+        if (totalBeats <= 0) return;
+        
+        const preRollTime = totalBeats * (60 / cue.bpm);
+        const offsetSec = (cue.offset || 0) / 1000.0;
+        const triggerTime = cue.time - preRollTime + offsetSec;
+        
+        if (time >= triggerTime && time <= triggerTime + 0.150) {
+            if (lastPlayedCueId === cue.id && (performance.now() - window.lastCueTriggerRealTime) < 2000) return;
+            lastPlayedCueId = cue.id;
+            window.lastCueTriggerRealTime = performance.now();
+            playCueSequence(cue);
+        }
+    });
+}
+
+function renderCuesUI() {
+    document.querySelectorAll('.cue-marker').forEach(e => e.remove());
+    updateGlobalCueButtonsState();
+    if (!currentCues || currentCues.length === 0) return;
+
+    let timelineBg = null;
+    let duration = null;
+
+    if (currentActivePlayer === 'youtube' && player && typeof player.getDuration === "function") {
+        timelineBg = document.getElementById("video-loop-bar");
+        duration = player.getDuration();
+    } else if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+        const vid = document.getElementById("html5-player");
+        if (vid && vid.duration) {
+            timelineBg = document.getElementById(currentActivePlayer === 'waveform' ? "audio-loop-bar" : "video-loop-bar");
+            duration = vid.duration;
+        }
+    } else if (currentActivePlayer === 'multitrack') {
+         timelineBg = document.getElementById("mt-loop-bar");
+         if (window.multitrack && window.multitrack.buffers && window.multitrack.buffers[0]) {
+              duration = window.multitrack.buffers[0].duration;
+         }
+    }
+
+    if (!timelineBg || !duration || duration <= 0) return;
+
+    currentCues.forEach(cue => {
+        const pct = (cue.time / duration) * 100;
+        const marker = document.createElement("div");
+        marker.className = "cue-marker";
+        marker.style.cssText = `position:absolute; bottom:0; left:${pct}%; width:2px; height:100%; background:var(--success); z-index:10; cursor:pointer; pointer-events:auto; box-shadow: 0 0 5px var(--success);`;
+        marker.title = `${cue.name} - Double Click = Supprimer`;
+        
+        marker.ondblclick = (e) => {
+            e.stopPropagation();
+            if (confirm(`Supprimer le repère "${cue.name}" ?`)) {
+                currentCues = currentCues.filter(c => c.id !== cue.id);
+                renderCuesUI();
+                saveLoopsToBackend();
+            }
+        };
+        
+        timelineBg.appendChild(marker);
+    });
 }
 
 function renderLoopsUI() {
@@ -6154,7 +6603,9 @@ function deleteLoop(id) {
 function loadLoopsForTrack(trackOrItem) {
     clearLoop(); // Reset active loops when loading a new track
     currentLoops = trackOrItem.loops || [];
+    currentCues = trackOrItem.audio_cues || [];
     renderLoopsUI();
+    renderCuesUI(); 
     updateLoopUI(); // Refresh Toolbar Buttons visibility
 }
 
@@ -6313,7 +6764,8 @@ function liveUpdatePlaybackOption(option, value) {
 // --- UNIVERSAL MOUSE LOOP SELECTION ---
 function setupUniversalLoopSelection() {
     let isDragging = false;
-    let dragMode = 'CREATE'; // 'CREATE', 'RESIZE_A', 'RESIZE_B'
+    let dragMode = null; // 'CREATE', 'RESIZE_A', 'RESIZE_B', 'POTENTIAL_CREATE'
+    let dragStartTime = 0;
 
     const getXTime = (clientX, rect) => {
         const x = clientX - rect.left;
@@ -6349,18 +6801,17 @@ function setupUniversalLoopSelection() {
 
         if (loopA !== null && Math.abs(time - loopA) < thresholdSec) {
             dragMode = 'RESIZE_A';
+            isDragging = true;
         } else if (loopB !== null && Math.abs(time - loopB) < thresholdSec) {
             dragMode = 'RESIZE_B';
+            isDragging = true;
         } else {
-            dragMode = 'CREATE';
-            activeSavedLoopId = null;
-            loopA = time;
-            loopB = null;
-            isLoopActive = false;
+            dragMode = 'POTENTIAL_CREATE';
+            dragStartTime = time;
+            isDragging = false; // wait for move
         }
 
         e.preventDefault();
-        isDragging = true;
         updateLoopUI();
     };
 
@@ -6369,7 +6820,7 @@ function setupUniversalLoopSelection() {
         if (!bar && !content) return;
 
         // Visual feedback
-        if (!isDragging) {
+        if (!isDragging && dragMode !== 'POTENTIAL_CREATE') {
             const targetNode = (bar && bar.contains(e.target)) ? bar : (content && content.contains(e.target) ? content : null);
             if (targetNode) {
                 const rect = targetNode.getBoundingClientRect();
@@ -6390,11 +6841,25 @@ function setupUniversalLoopSelection() {
         const time = getXTime(e.clientX, rect);
         const clampedTime = Math.max(0, Math.min(dur, time));
 
+        if (dragMode === 'POTENTIAL_CREATE') {
+            if (Math.abs(clampedTime - dragStartTime) > 0.1) {
+                dragMode = 'CREATE';
+                isDragging = true;
+                activeSavedLoopId = null;
+                loopA = dragStartTime;
+                loopB = clampedTime;
+                isLoopActive = true;
+            } else {
+                return; // Hasn't moved enough
+            }
+        }
+        
         if (dragMode === 'CREATE') {
-            if (clampedTime > loopA) {
+            if (clampedTime > dragStartTime) {
+                loopA = dragStartTime;
                 loopB = clampedTime;
             } else {
-                loopB = loopA;
+                loopB = dragStartTime;
                 loopA = clampedTime;
             }
             isLoopActive = true;
@@ -6410,15 +6875,22 @@ function setupUniversalLoopSelection() {
     };
 
     const onMouseUp = () => {
+        if (dragMode === 'POTENTIAL_CREATE') {
+            seekPlayerTo(dragStartTime); // Just a click to seek
+            dragMode = null;
+            return;
+        }
+
         if (!isDragging) return;
         isDragging = false;
+        
         if (loopA !== null && loopB !== null && Math.abs(loopB - loopA) > 0.1) {
             isLoopActive = true;
             if (dragMode === 'CREATE' || dragMode === 'RESIZE_A') seekPlayerTo(loopA);
         } else if (dragMode === 'CREATE') {
-            if (loopA !== null) seekPlayerTo(loopA);
-            clearLoop();
+            clearLoop(); // Only clears A-B bounds now, not the saved regions in UI!
         }
+        dragMode = null;
         updateLoopUI();
     };
 
