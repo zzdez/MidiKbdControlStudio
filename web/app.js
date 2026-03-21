@@ -6105,43 +6105,99 @@ function renderCueList() {
     if (!list) return;
     list.innerHTML = "";
     if (!currentCues || currentCues.length === 0) {
-        list.innerHTML = `<li style='padding:10px; color:#888; text-align:center;'>${t("web.lbl_no_cue_recorded", "Aucun repère enregistré")}</li>`;
+        list.innerHTML = `<li style='padding:8px 10px; font-size:11px; color:#888; text-align:center;'>${t("web.lbl_no_cue_recorded", "Aucun repère enregistré")}</li>`;
         return;
     }
     
     const sortedCues = [...currentCues].sort((a,b) => a.time - b.time);
     sortedCues.forEach(cue => {
         const li = document.createElement("li");
-        li.style.padding = "8px 10px";
-        li.style.borderBottom = "1px solid #333";
+        li.style.padding = "6px 10px";
+        li.style.borderBottom = "1px solid #222";
         li.style.cursor = "pointer";
         li.style.display = "flex";
         li.style.justifyContent = "space-between";
         li.style.alignItems = "center";
+        li.style.fontSize = "11px";
         
         if (activeEditCueId === cue.id) {
             li.style.background = "rgba(3, 218, 198, 0.2)"; // actif
         } else {
             li.style.background = "transparent";
-            li.addEventListener('mouseenter', () => li.style.background = "rgba(255,255,255,0.05)");
-            li.addEventListener('mouseleave', () => li.style.background = "transparent");
+            li.addEventListener('mouseenter', () => { if (activeEditCueId !== cue.id) li.style.background = "rgba(255,255,255,0.05)"; });
+            li.addEventListener('mouseleave', () => { if (activeEditCueId !== cue.id) li.style.background = "transparent"; });
         }
         
         li.onclick = () => editCue(cue.id);
         
-        const nameSpan = document.createElement("span");
-        nameSpan.innerText = cue.name || "Sans nom";
-        nameSpan.style.color = "white";
+        const leftDiv = document.createElement("div");
+        leftDiv.style.display = "flex";
+        leftDiv.style.gap = "8px";
+        leftDiv.style.alignItems = "center";
+        leftDiv.style.overflow = "hidden";
+        leftDiv.style.flexGrow = "1";
         
         const timeSpan = document.createElement("span");
         timeSpan.innerText = formatTimeCustom(cue.time);
         timeSpan.style.color = "var(--success)";
         timeSpan.style.fontFamily = "monospace";
+        timeSpan.style.flexShrink = "0";
         
-        li.appendChild(nameSpan);
-        li.appendChild(timeSpan);
+        const nameSpan = document.createElement("span");
+        nameSpan.innerText = cue.name || t("web.lbl_no_name", "Sans nom");
+        nameSpan.style.color = "white";
+        nameSpan.style.whiteSpace = "nowrap";
+        nameSpan.style.overflow = "hidden";
+        nameSpan.style.textOverflow = "ellipsis";
+        
+        leftDiv.appendChild(timeSpan);
+        leftDiv.appendChild(nameSpan);
+        
+        const rightDiv = document.createElement("div");
+        rightDiv.style.display = "flex";
+        rightDiv.style.alignItems = "center";
+        rightDiv.style.flexShrink = "0";
+        
+        const deleteBtn = document.createElement("button");
+        deleteBtn.innerHTML = '<i class="ph ph-trash"></i>';
+        deleteBtn.style.background = "transparent";
+        deleteBtn.style.border = "none";
+        deleteBtn.style.color = "#888";
+        deleteBtn.style.cursor = "pointer";
+        deleteBtn.style.padding = "2px 5px";
+        deleteBtn.style.fontSize = "1.1em";
+        deleteBtn.title = t("web.btn_cue_delete", "Supprimer");
+        
+        deleteBtn.addEventListener('mouseenter', () => deleteBtn.style.color = "var(--danger)");
+        deleteBtn.addEventListener('mouseleave', () => deleteBtn.style.color = "#888");
+        
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation(); // Empêcher l'édition du repère
+            deleteCue(cue.id);
+        };
+        
+        rightDiv.appendChild(deleteBtn);
+        
+        li.appendChild(leftDiv);
+        li.appendChild(rightDiv);
         list.appendChild(li);
     });
+}
+
+function deleteCue(id) {
+    const cue = currentCues.find(c => c.id === id);
+    const cueName = cue ? (cue.name || t("web.lbl_no_name", "Sans nom")) : "";
+    if (confirm(t("web.msg_confirm_delete_cue", 'Supprimer le repère "{value}" ?').replace('{value}', cueName))) {
+        currentCues = currentCues.filter(c => c.id !== id);
+        if (activeEditCueId === id) {
+            activeEditCueId = null;
+            openCueModal(); // Reset les champs de la modale en mode Nouveau
+        } else {
+            renderCuesUI();
+            saveLoopsToBackend();
+            renderCueList();
+        }
+    }
 }
 
 function editCue(id) {
@@ -6161,18 +6217,8 @@ function editCue(id) {
     document.getElementById("cue-modal-visual").checked = cue.visual !== false;
     document.getElementById("cue-modal-visual-only").checked = cue.visual_only === true;
     
-    document.getElementById("btn-cue-delete").style.display = "inline-block";
     document.getElementById("btn-cue-save").innerText = t("web.btn_cue_update", "Mettre à jour");
     renderCueList();
-}
-
-function deleteCurrentCue() {
-    if (!activeEditCueId) return;
-    currentCues = currentCues.filter(c => c.id !== activeEditCueId);
-    activeEditCueId = null;
-    renderCuesUI();
-    saveLoopsToBackend();
-    document.getElementById("modal-edit-cue").close();
 }
 
 function openCueModal() {
@@ -6192,7 +6238,6 @@ function openCueModal() {
     activeEditCueId = null; // Default to create mode
     
     document.getElementById("cue-modal-timing").innerText = formatTimeCustom(pendingCueTime);
-    document.getElementById("btn-cue-delete").style.display = "none";
     document.getElementById("btn-cue-save").innerText = t("web.btn_cue_save_new", "Nouveau (Enregistrer)");
     
     // Pre-fill BPM if available globally

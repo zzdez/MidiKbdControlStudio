@@ -365,6 +365,11 @@
         "btn_cue_save_new": "Nouveau (Enregistrer)",
         "btn_cue_update": "Mettre à jour",
         "lbl_no_cue_recorded": "Aucun repère enregistré",
-        "msg_confirm_delete_cue": "Supprimer le repère \"{value}\" ?"
+        "msg_confirm_delete_cue": "Supprimer le repère \"{value}\" ?",
+        "lbl_speed_trainer": "Speed Trainer",
+        "lbl_target_bpm": "BPM Cible",
+        "lbl_bpm_increment": "+ BPM",
+        "lbl_measures": "Mesures",
+        "lbl_enable_trainer": "Activer l'entraînement"
     }
 }

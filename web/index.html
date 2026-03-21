@@ -1460,7 +1460,7 @@
                     </div>
                 </div>
 
-                <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
+                <div style="display:flex; flex-direction:row; gap:12px; margin-top:8px; align-items:center;">
                     <label class="modern-switch">
                         <input type="checkbox" id="cue-modal-visual" checked>
                         <span class="switch-slider"></span>
@@ -1475,7 +1475,7 @@
                 </div>
 
                 <div id="cue-list-container" style="margin-top:10px; border-top:1px solid #333; padding-top:8px;">
-                    <label data-i18n="web.lbl_existing_cues" style="margin-bottom:5px; display:block;">Repères existants</label>
+                    <label data-i18n="web.lbl_existing_cues">Repères existants</label>
                     <ul id="cue-modal-list" style="list-style:none; padding:0; margin:0; max-height:120px; overflow-y:auto; background:#111; border-radius:4px; border:1px solid #222;">
                         <!-- Les repères apparaitront ici -->
                     </ul>
@@ -1483,7 +1483,6 @@
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn-text" id="btn-cue-delete" onclick="deleteCurrentCue()" style="display:none; color:var(--danger); margin-right:auto;" data-i18n="web.btn_cue_delete">Supprimer</button>
             <button class="btn-text" onclick="document.getElementById('modal-edit-cue').close()" data-i18n="web.btn_close">Fermer</button>
             <button class="btn-primary" id="btn-cue-save" onclick="confirmSaveCue()" data-i18n="web.btn_cue_save_new">Nouveau (Enregistrer)</button>
         </div>
@@ -1980,19 +1979,30 @@
         <!-- Speed Trainer -->
         <div id="metro-trainer-container" style="margin-top:10px; border-top:1px solid #333; padding-top:10px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; cursor:pointer;" onclick="document.getElementById('metro-trainer-body').style.display = document.getElementById('metro-trainer-body').style.display === 'none' ? 'block' : 'none'">
-                <strong style="font-size:0.85em; color:#aaa;"><i class="ph ph-trend-up"></i> Speed Trainer</strong>
+                <strong style="font-size:0.85em; color:#aaa;"><i class="ph ph-trend-up"></i> <span data-i18n="web.lbl_speed_trainer">Speed Trainer</span></strong>
                 <i class="ph ph-caret-down" style="font-size:0.8em; color:#666;"></i>
             </div>
-            <div id="metro-trainer-body" style="display:none; font-size:0.8em;">
-                <div style="display:flex; gap:10px; margin-bottom:5px;">
-                    <div style="flex:1;"><label>Target BPM</label><input type="number" id="metro-train-target" value="160" style="padding:2px; height:20px;"></div>
-                    <div style="flex:1;"><label>+ BPM</label><input type="number" id="metro-train-inc" value="5" style="padding:2px; height:20px;"></div>
-                    <div style="flex:1;"><label>Mesures</label><input type="number" id="metro-train-meas" value="4" style="padding:2px; height:20px;"></div>
+            <div id="metro-trainer-body" style="display:none;">
+                <div class="edit-form">
+                    <div class="row-inputs">
+                        <div class="col">
+                            <label data-i18n="web.lbl_target_bpm">BPM Cible</label>
+                            <input type="number" id="metro-train-target" value="160">
+                        </div>
+                        <div class="col">
+                            <label data-i18n="web.lbl_bpm_increment">+ BPM</label>
+                            <input type="number" id="metro-train-inc" value="5">
+                        </div>
+                        <div class="col">
+                            <label data-i18n="web.lbl_measures">Mesures</label>
+                            <input type="number" id="metro-train-meas" value="4">
+                        </div>
+                    </div>
                 </div>
                 <label class="modern-switch" style="font-size:0.9em; display:flex; align-items:center; margin-top:8px;">
                     <input type="checkbox" id="metro-train-enable" onchange="metronomeToggleTrainer(this.checked)">
                     <span class="switch-slider"></span>
-                    <span class="switch-label" style="margin-left:5px; color:var(--accent);">Activer l'entraînement</span>
+                    <span class="switch-label" style="margin-left:5px; color:var(--accent);" data-i18n="web.lbl_enable_trainer">Activer l'entraînement</span>
                 </label>
             </div>
         </div>

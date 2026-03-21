@@ -365,6 +365,11 @@
         "btn_cue_save_new": "New (Save)",
         "btn_cue_update": "Update",
         "lbl_no_cue_recorded": "No cue recorded",
-        "msg_confirm_delete_cue": "Delete cue \"{value}\" ?"
+        "msg_confirm_delete_cue": "Delete cue \"{value}\" ?",
+        "lbl_speed_trainer": "Speed Trainer",
+        "lbl_target_bpm": "Target BPM",
+        "lbl_bpm_increment": "+ BPM",
+        "lbl_measures": "Measures",
+        "lbl_enable_trainer": "Enable Trainer"
     }
 }
