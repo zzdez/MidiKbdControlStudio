@@ -6411,16 +6411,25 @@ function renderCuesUI() {
     if (currentActivePlayer === 'youtube' && player && typeof player.getDuration === "function") {
         timelineBg = document.getElementById("video-loop-bar");
         duration = player.getDuration();
-    } else if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+    } else if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
-        if (vid && vid.duration) {
-            timelineBg = document.getElementById(currentActivePlayer === 'waveform' ? "audio-loop-bar" : "video-loop-bar");
+        if (vid && !isNaN(vid.duration)) {
+            timelineBg = document.getElementById("video-loop-bar");
             duration = vid.duration;
         }
-    } else if (currentActivePlayer === 'multitrack') {
+    } else if (currentActivePlayer === 'waveform') {
+        timelineBg = document.getElementById("audio-loop-bar");
+        if (wavesurfer && !isNaN(wavesurfer.getDuration())) {
+            duration = wavesurfer.getDuration();
+        }
+    } else if (currentActivePlayer === 'multitrack' && window.multitrack) {
          timelineBg = document.getElementById("mt-loop-bar");
-         if (window.multitrack && window.multitrack.buffers && window.multitrack.buffers[0]) {
-              duration = window.multitrack.buffers[0].duration;
+         if (window.multitrack.wavesurfers) {
+             duration = 0;
+             window.multitrack.wavesurfers.forEach(ws => {
+                 const wsDur = ws.getDuration();
+                 if (wsDur > duration) duration = wsDur;
+             });
          }
     }
 
@@ -6430,12 +6439,13 @@ function renderCuesUI() {
         const pct = (cue.time / duration) * 100;
         const marker = document.createElement("div");
         marker.className = "cue-marker";
-        marker.style.cssText = `position:absolute; bottom:0; left:${pct}%; width:2px; height:100%; background:var(--success); z-index:10; cursor:pointer; pointer-events:auto; box-shadow: 0 0 5px var(--success);`;
-        marker.title = `${cue.name} - Double Click = Supprimer`;
+        marker.style.cssText = `position:absolute; bottom:-4px; left:${pct}%; width:2px; height:calc(100% + 8px); background:#f1c40f; z-index:10; cursor:pointer; pointer-events:auto; box-shadow: 0 0 4px rgba(241, 196, 15, 0.8);`;
+        marker.title = `${cue.name || "Sans nom"} (${formatTimeCustom(cue.time)})`;
         
         marker.ondblclick = (e) => {
             e.stopPropagation();
-            if (confirm(t("web.msg_confirm_delete_cue", 'Supprimer le repère "{value}" ?').replace('{value}', cue.name))) {
+            const cueName = cue.name || t("web.lbl_no_name", "Sans nom");
+            if (confirm(t("web.msg_confirm_delete_cue", 'Supprimer le repère "{value}" ?').replace('{value}', cueName))) {
                 currentCues = currentCues.filter(c => c.id !== cue.id);
                 renderCuesUI();
                 saveLoopsToBackend();
@@ -6485,7 +6495,9 @@ function renderLoopsUI() {
     }
 
     if (dur === 0) {
-        if (currentLoops && currentLoops.length > 0) setTimeout(renderLoopsUI, 500);
+        const hasLoops = currentLoops && currentLoops.length > 0;
+        const hasCues = currentCues && currentCues.length > 0;
+        if (hasLoops || hasCues) setTimeout(renderLoopsUI, 500);
         return;
     }
 
@@ -6502,6 +6514,7 @@ function renderLoopsUI() {
 
     if (!currentLoops || currentLoops.length === 0) {
         if (row) row.style.height = "16px";
+        renderCuesUI();
         return;
     }
 
@@ -6567,6 +6580,8 @@ function renderLoopsUI() {
         region.onclick = (e) => { e.stopPropagation(); playSavedLoop(l, true); };
         timelineBg.appendChild(region);
     });
+
+    renderCuesUI();
 }
 
 function toggleLoopState() {
