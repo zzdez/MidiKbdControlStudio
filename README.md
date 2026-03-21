@@ -55,9 +55,11 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
 *   **Métronome Haute Précision (Nouveau !) :**
     - **Web Audio Context :** Remplacement des tickrate logiciels imprécis par une interface à oscillateurs dédiée, synchrone avec le débit du processeur.
     - **Sync Link :** Le métronome recalcule le BPM à la volée en cas de changement de vitesse (*Rate*) sur les lecteurs Web ou locaux.
+    - **Interface Compacte :** Harmonisation des champs de configuration (Speed Trainer) pour un rendu moderne et sans débordement.
 *   **Repères & Décomptes Audio Cues (Nouveau !) :**
     - **Timeline Marker :** Posez des drapeaux pour programmer des avertisseurs visuels HUD avant les couplets.
     - **Global Override :** Mutez l'intégralité des bips d'un clic sur la Cloche sans perdre vos calibrations.
+    - **Repères Visuels Timeline :** Affichage automatique de légers traits jaunes permettant de situer instantanément les zones clés.
 *   **Système d'Entraînement Avancé (A-B Looping 3 États) :**
     - **Boucles Multiples :** Définissez, nommez et sauvegardez plusieurs boucles (Points A & B) pour chaque morceau, incluant **désormais un support total et visuel pour les vidéos YouTube en streaming**.
     - **Mode Séquentiel Intelligent :** Activez "Boucle Unique" pour répéter la section, ou "Boucle Séquentielle" pour passer automatiquement à la suite d'accords suivante une fois le solo maîtrisé.
