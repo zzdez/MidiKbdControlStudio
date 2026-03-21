@@ -14,6 +14,11 @@ class MetronomeEngine {
         this.currentBeatInMeasure = 0;
         this.timerWorker = null;
         
+        // Sounds
+        this.soundBuffers = {}; // { claves_high: AudioBuffer, ... }
+        this.currentSoundSet = 'digital1'; // Default
+        this.availableSoundSets = {}; // From API
+        
         // Callbacks
         this.onBeat = null; // function(currentBeat, time)
         
@@ -29,6 +34,7 @@ class MetronomeEngine {
     init() {
         if (!this.audioContext) {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.loadSoundSets(); // Load sounds once context is ready
         }
         
         // Create an inline Web Worker for precise timing regardless of main thread load
@@ -59,6 +65,45 @@ class MetronomeEngine {
                 }
             };
             this.timerWorker.postMessage({ 'interval': this.lookahead });
+        }
+    }
+
+    async loadSoundSets() {
+        try {
+            const response = await fetch('/api/metronome/sounds');
+            this.availableSoundSets = await response.json();
+            
+            // Trigger UI update if callback exists (will be added in ui_metronome)
+            if (this.onSoundsListLoaded) {
+                 this.onSoundsListLoaded(this.availableSoundSets);
+            }
+            
+            // Load default
+            await this.loadSoundSet(this.currentSoundSet);
+        } catch (e) {
+            console.error("Failed to load metronome sounds list", e);
+        }
+    }
+
+    async loadSoundSet(setName) {
+        if (!this.availableSoundSets[setName]) return;
+        
+        this.currentSoundSet = setName;
+        const types = this.availableSoundSets[setName];
+        
+        for (const type of types) {
+            const key = `${setName}_${type}`;
+            if (this.soundBuffers[key]) continue; // Already loaded
+            
+            try {
+                const url = `/assets/metronome/${key}.mp3`;
+                const response = await fetch(url);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                this.soundBuffers[key] = audioBuffer;
+            } catch (e) {
+                console.error(`Failed to load sound sample ${key}`, e);
+            }
         }
     }
 
@@ -98,27 +143,39 @@ class MetronomeEngine {
             }, Math.max(0, timeUntilNote * 1000));
         }
 
-        // --- SYNTHESIZE CLICK ---
-        const osc = this.audioContext.createOscillator();
-        const envelope = this.audioContext.createGain();
+        // --- PLAY SAMPLE ---
+        const bufferKey = beatNumber === 0 ? `${this.currentSoundSet}_high` : `${this.currentSoundSet}_low`;
+        const buffer = this.soundBuffers[bufferKey] || this.soundBuffers[`${this.currentSoundSet}_high` /* fallback */];
 
-        osc.connect(envelope);
-        envelope.connect(this.audioContext.destination);
-
-        if (beatNumber === 0) {
-            // High frequency for downbeat (first beat)
-            osc.frequency.value = 1000.0;
+        if (buffer) {
+            const source = this.audioContext.createBufferSource();
+            source.buffer = buffer;
+            const gainNode = this.audioContext.createGain();
+            gainNode.gain.value = 1.0; 
+            source.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            source.start(time);
         } else {
-            // Lower frequency for subsequent beats
-            osc.frequency.value = 800.0;
+            // FALLBACK TO SYNTHESIZE CLICK
+            const osc = this.audioContext.createOscillator();
+            const envelope = this.audioContext.createGain();
+
+            osc.connect(envelope);
+            envelope.connect(this.audioContext.destination);
+
+            if (beatNumber === 0) {
+                osc.frequency.value = 1000.0;
+            } else {
+                osc.frequency.value = 800.0;
+            }
+
+            envelope.gain.value = 1;
+            envelope.gain.exponentialRampToValueAtTime(1, time + 0.001);
+            envelope.gain.exponentialRampToValueAtTime(0.001, time + 0.05); 
+
+            osc.start(time);
+            osc.stop(time + 0.05);
         }
-
-        envelope.gain.value = 1;
-        envelope.gain.exponentialRampToValueAtTime(1, time + 0.001);
-        envelope.gain.exponentialRampToValueAtTime(0.001, time + 0.05); // Sharp decay for a click sound
-
-        osc.start(time);
-        osc.stop(time + 0.05);
     }
 
     scheduler() {

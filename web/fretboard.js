@@ -713,6 +713,15 @@ function renderFretboard(silentSave = false) {
                 }
             }
 
+            // Save original styles for restoration during animation clearing
+            noteDot.className = "note-dot-element";
+            noteDot.dataset.note = noteName;
+            noteDot.dataset.fret = fretNum;
+            noteDot.dataset.string = stringIndex;
+            noteDot.dataset.origBg = bgColor;
+            noteDot.dataset.origTransform = noteDot.style.transform;
+            noteDot.dataset.origZ = noteDot.style.zIndex;
+
             stringsContainer.appendChild(noteDot);
         };
 
@@ -724,6 +733,12 @@ function renderFretboard(silentSave = false) {
             drawNote(f, false);
         }
     });
+
+    if (typeof applyTranslations === "function") applyTranslations();
+
+    if (fretboardTrainerActive) {
+        generateExerciseNotes();
+    }
 }
 
 function cycleFretCount() {
@@ -740,3 +755,137 @@ function cycleFretCount() {
 
     renderFretboard();
 }
+
+// ==========================================
+// FRETBOARD TRAINING LOGIC
+// ==========================================
+
+let fretboardTrainerActive = false;
+let fretboardExerciseNotes = [];
+let currentExerciseIndex = -1;
+
+function toggleFretTrainer() {
+    const body = document.getElementById("fret-trainer-body");
+    const icon = document.getElementById("fret-trainer-toggle-icon");
+    if (!body || !icon) return;
+    
+    if (body.style.display === "none") {
+        body.style.display = "flex";
+        icon.className = "ph ph-caret-down";
+    } else {
+        body.style.display = "none";
+        icon.className = "ph ph-caret-right";
+    }
+}
+
+function toggleFretboardTrainer(enabled) {
+    fretboardTrainerActive = enabled;
+    if (window.metronome) {
+        window.metronome.isTraining = enabled;
+        if (enabled) {
+            window.metronome.trainTargetBPM = parseInt(document.getElementById("fret-train-target").value) || 160;
+            window.metronome.trainIncrement = parseInt(document.getElementById("fret-train-inc").value) || 5;
+            window.metronome.trainMeasures = parseInt(document.getElementById("fret-train-meas").value) || 4;
+            generateExerciseNotes();
+        } else {
+            clearNoteHighlights();
+        }
+    }
+}
+
+function generateExerciseNotes() {
+    const dots = Array.from(document.querySelectorAll("#fretboard-strings .note-dot-element"));
+    if (dots.length === 0) return;
+
+    const positionSelect = document.getElementById("fretboard-position");
+    const activePosition = positionSelect ? positionSelect.value : "all";
+    
+    let activeDots = dots;
+    if (activePosition !== "all") {
+        activeDots = dots.filter(d => d.style.opacity === "1");
+    }
+
+    const exercise = document.getElementById("fret-exercise").value;
+
+    // Sort by pitch (stringIndex descending, fretNum ascending)
+    activeDots.sort((a, b) => {
+        const strA = parseInt(a.dataset.string);
+        const strB = parseInt(b.dataset.string);
+        const fretA = parseInt(a.dataset.fret);
+        const fretB = parseInt(b.dataset.fret);
+
+        if (strA !== strB) {
+            return strB - strA; // Low string to High string
+        }
+        return fretA - fretB;
+    });
+
+    if (exercise === "desc") {
+        activeDots.reverse();
+    } else if (exercise === "loop") {
+        const asc = [...activeDots];
+        const desc = [...activeDots].reverse().slice(1, -1);
+        activeDots = asc.concat(desc);
+    }
+
+    fretboardExerciseNotes = activeDots;
+    currentExerciseIndex = -1;
+}
+
+function highlightNextNote() {
+    if (!fretboardTrainerActive || fretboardExerciseNotes.length === 0) return;
+
+    clearNoteHighlights();
+    currentExerciseIndex = (currentExerciseIndex + 1) % fretboardExerciseNotes.length;
+    const activeDot = fretboardExerciseNotes[currentExerciseIndex];
+
+    if (activeDot) {
+        activeDot.style.background = "var(--success)";
+        activeDot.style.boxShadow = "0 0 10px 4px var(--success)";
+        activeDot.style.transform = activeDot.style.transform + " scale(1.3)";
+        activeDot.style.zIndex = "100";
+    }
+}
+
+function clearNoteHighlights() {
+    if (fretboardExerciseNotes) {
+        fretboardExerciseNotes.forEach(dot => {
+            if (dot.dataset.origBg) {
+                dot.style.background = dot.dataset.origBg;
+                dot.style.boxShadow = "0 2px 4px rgba(0,0,0,0.5)";
+                dot.style.transform = dot.dataset.origTransform || "none";
+                dot.style.zIndex = dot.dataset.origZ || "20";
+            }
+        });
+    }
+}
+
+function fretboardTogglePlay() {
+    if (!window.metronome) return;
+    const isPlaying = window.metronome.toggle();
+    const btn = document.getElementById("fret-train-play");
+    if (!btn) return;
+
+    if (isPlaying) {
+        btn.innerHTML = '<i class="ph ph-stop-circle" style="color:#cf6679;"></i>';
+        if (fretboardTrainerActive) {
+            generateExerciseNotes();
+        }
+    } else {
+        btn.innerHTML = '<i class="ph ph-play-circle"></i>';
+        clearNoteHighlights();
+    }
+}
+
+// Chain metronome callback
+document.addEventListener("DOMContentLoaded", () => {
+    if (window.metronome) {
+        const originalOnBeat = window.metronome.onBeat;
+        window.metronome.onBeat = (currentBeat) => {
+            if (originalOnBeat) originalOnBeat(currentBeat);
+            if (fretboardTrainerActive) {
+                highlightNextNote();
+            }
+        };
+    }
+});

@@ -1915,6 +1915,58 @@
                     <!-- Will be populated via JS -->
                 </div>
             </div>
+
+            <!-- Fretboard Trainer (Collapsible) -->
+            <div id="fret-trainer-container" style="border-top:1px solid #333; padding:4px 8px; margin-top:2px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; cursor:pointer;" onclick="toggleFretTrainer()">
+                    <strong style="font-size:0.8em; color:#aaa;"><i class="ph ph-barbell"></i> <span data-i18n="web.lbl_scale_trainer">Entraînement</span></strong>
+                    <i id="fret-trainer-toggle-icon" class="ph ph-caret-right" style="font-size:0.75em; color:#666;"></i>
+                </div>
+                
+                <div id="fret-trainer-body" style="display:none; flex-direction:column; gap:4px;">
+                    <!-- Mode & Exercise -->
+                    <div style="display:flex; gap:8px; font-size:0.75em; align-items:center;">
+                        <label data-i18n="web.lbl_exercise">Exercice:</label>
+                        <select id="fret-exercise" style="flex:1; padding:2px; height:auto; background:#111; border:1px solid #444; color:#fff; border-radius:3px;">
+                            <option value="asc" data-i18n="web.exercise_asc">Montant</option>
+                            <option value="desc" data-i18n="web.exercise_desc">Descendant</option>
+                            <option value="loop" data-i18n="web.exercise_loop">Aller-Retour</option>
+                        </select>
+                    </div>
+
+                    <!-- Trainer Controls Row -->
+                    <div class="edit-form" style="margin-top:2px;">
+                        <div class="row-inputs" style="gap:4px;">
+                            <div class="col">
+                                <label data-i18n="web.lbl_target_bpm" style="font-size:0.7em;">Cible</label>
+                                <input type="number" id="fret-train-target" value="160" style="padding:1px; font-size:0.8em; height:18px;">
+                            </div>
+                            <div class="col">
+                                <label data-i18n="web.lbl_bpm_increment" style="font-size:0.7em;">+ BPM</label>
+                                <input type="number" id="fret-train-inc" value="5" style="padding:1px; font-size:0.8em; height:18px;">
+                            </div>
+                            <div class="col">
+                                <label data-i18n="web.lbl_measures" style="font-size:0.7em;">Mesures</label>
+                                <input type="number" id="fret-train-meas" value="4" style="padding:1px; font-size:0.8em; height:18px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer Toggles -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                        <label class="modern-switch" style="font-size:0.75em; display:flex; align-items:center;">
+                            <input type="checkbox" id="fret-train-enable" onchange="toggleFretboardTrainer(this.checked)">
+                            <span class="switch-slider" style="transform: scale(0.8);"></span>
+                            <span class="switch-label" style="margin-left:2px; color:var(--accent);" data-i18n="web.lbl_activate">Activer</span>
+                        </label>
+
+                        <!-- Play/Pause inside Fretboard -->
+                        <button class="btn-icon" id="fret-train-play" onclick="fretboardTogglePlay()" style="font-size:1.1em; color:#fff; padding:0; height:20px;">
+                            <i class="ph ph-play-circle"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
     <!-- METRONOME DOCK (Draggable) -->
@@ -1939,6 +1991,14 @@
 
         <!-- Slider -->
         <input type="range" id="metro-bpm-slider" min="30" max="300" value="120" style="width:100%; margin: 5px 0;" oninput="metronomeSetBpm(this.value)">
+
+        <!-- Sound Selection -->
+        <div style="display:flex; align-items:center; gap:5px; font-size:0.8em; margin-bottom: 5px;">
+            <label data-i18n="web.lbl_metro_sound">Son:</label>
+            <select id="metro-sound-set" onchange="window.metronome.loadSoundSet(this.value)" style="flex:1; padding:2px; height:auto; background:#111; border:1px solid #444; color:#fff; border-radius:3px;">
+                <!-- Dynamically populated -->
+            </select>
+        </div>
 
         <!-- Options -->
         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:0.8em;">
@@ -2005,8 +2065,7 @@
                     <span class="switch-label" style="margin-left:5px; color:var(--accent);" data-i18n="web.lbl_enable_trainer">Activer l'entraînement</span>
                 </label>
             </div>
-        </div>
-    </div>
+            <!-- Fretboard Trainer removed -->
 </body>
 
 </html>
