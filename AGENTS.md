@@ -262,11 +262,10 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **Draggable Float :** Conception d’une fenêtre flottante en verre dépoli (`backdrop-filter`) avec Tap Tempo et sélection de signature rythmique.
     *   **Sync Médias :** Pont dynamique multipliant le BPM original par le coefficient de vitesse (`playbackRate`) en temps réel, incluant la gestion d'un Offset MS pour épingler le temps 1.
 
-### 27. Évolution V21 : Repères Sonores V2 & Anti-Leak Multipistes
-*   **Système d'Audio Cues (`app.js` & `server.py`) :**
-    *   **Global Layout :** Dé-duplication du bouton "Ajouter Repère" (Drapeau) des lecteurs pour concentration au sommet de la barre de statuts.
-    *   **Smart Toggles (Cloches/Œil) :** Analyseurs d'états au chargement de piste pour griser les contrôles orphelins. Logique `userForce` pour prioriser le clic humain sur les préréglages persistants muets.
-    *   **Dictionnaire Modale :** Interface d’édition réécrite listant les points de passage actifs d'un titre individuellement.
-*   **Stabilité & Drainage RAM (`app.js`) :**
-    *   **Garbage Collection :** Forçage du recyclage Blob via `URL.revokeObjectURL()` dans `stopAllMedia` pour endiguer les fuites de mémoire (OOM) lors des changements consécutifs de multipistes WAV.
-    *   **Fetch Killer :** AbortController ré-injecté pour rompre les flux réseau WAV pendants.
+### 28. Évolution V22 : Harmonisation Modales & Repères Visuels
+*   **Harmonisation des Modales (`web/index.html` & `style.css`) :**
+    *   **Repères & Métronome :** Alignement strict sur la grille `.edit-form` / `.row-inputs` pour un rendu compact (< 800px) sans débordement de champs. Interrupteurs bascules placés en ligne.
+    *   **Barre de Contrôle :** Désactivation du wrapping (`flex-wrap: nowrap`) et resserrement des espacements (`gap: 8px`) pour forcer l'alignement sur une seule ligne.
+*   **Ergonomie & UX (`app.js`) :**
+    *   **Repères d'un Clic :** Remplacement du bouton footer "Supprimer" par une icône corbeille `<i class="ph ph-trash"></i>` directe sur chaque ligne de la liste des repères.
+    *   **Repères Visuels Timeline :** Programmation de marqueurs `.cue-marker` dynamiques (Jaunes Néon, `calc(100% + 8px)`) débordant de la barre de progression dès la lecture lancée (Tous Médias, incluant WaveSurfer et Multipistes).

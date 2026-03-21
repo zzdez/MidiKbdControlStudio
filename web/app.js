@@ -6105,43 +6105,99 @@ function renderCueList() {
     if (!list) return;
     list.innerHTML = "";
     if (!currentCues || currentCues.length === 0) {
-        list.innerHTML = "<li style='padding:10px; color:#888; text-align:center;'>Aucun repère enregistré</li>";
+        list.innerHTML = `<li style='padding:8px 10px; font-size:11px; color:#888; text-align:center;'>${t("web.lbl_no_cue_recorded", "Aucun repère enregistré")}</li>`;
         return;
     }
     
     const sortedCues = [...currentCues].sort((a,b) => a.time - b.time);
     sortedCues.forEach(cue => {
         const li = document.createElement("li");
-        li.style.padding = "8px 10px";
-        li.style.borderBottom = "1px solid #333";
+        li.style.padding = "6px 10px";
+        li.style.borderBottom = "1px solid #222";
         li.style.cursor = "pointer";
         li.style.display = "flex";
         li.style.justifyContent = "space-between";
         li.style.alignItems = "center";
+        li.style.fontSize = "11px";
         
         if (activeEditCueId === cue.id) {
             li.style.background = "rgba(3, 218, 198, 0.2)"; // actif
         } else {
             li.style.background = "transparent";
-            li.addEventListener('mouseenter', () => li.style.background = "rgba(255,255,255,0.05)");
-            li.addEventListener('mouseleave', () => li.style.background = "transparent");
+            li.addEventListener('mouseenter', () => { if (activeEditCueId !== cue.id) li.style.background = "rgba(255,255,255,0.05)"; });
+            li.addEventListener('mouseleave', () => { if (activeEditCueId !== cue.id) li.style.background = "transparent"; });
         }
         
         li.onclick = () => editCue(cue.id);
         
-        const nameSpan = document.createElement("span");
-        nameSpan.innerText = cue.name || "Sans nom";
-        nameSpan.style.color = "white";
+        const leftDiv = document.createElement("div");
+        leftDiv.style.display = "flex";
+        leftDiv.style.gap = "8px";
+        leftDiv.style.alignItems = "center";
+        leftDiv.style.overflow = "hidden";
+        leftDiv.style.flexGrow = "1";
         
         const timeSpan = document.createElement("span");
         timeSpan.innerText = formatTimeCustom(cue.time);
         timeSpan.style.color = "var(--success)";
         timeSpan.style.fontFamily = "monospace";
+        timeSpan.style.flexShrink = "0";
         
-        li.appendChild(nameSpan);
-        li.appendChild(timeSpan);
+        const nameSpan = document.createElement("span");
+        nameSpan.innerText = cue.name || t("web.lbl_no_name", "Sans nom");
+        nameSpan.style.color = "white";
+        nameSpan.style.whiteSpace = "nowrap";
+        nameSpan.style.overflow = "hidden";
+        nameSpan.style.textOverflow = "ellipsis";
+        
+        leftDiv.appendChild(timeSpan);
+        leftDiv.appendChild(nameSpan);
+        
+        const rightDiv = document.createElement("div");
+        rightDiv.style.display = "flex";
+        rightDiv.style.alignItems = "center";
+        rightDiv.style.flexShrink = "0";
+        
+        const deleteBtn = document.createElement("button");
+        deleteBtn.innerHTML = '<i class="ph ph-trash"></i>';
+        deleteBtn.style.background = "transparent";
+        deleteBtn.style.border = "none";
+        deleteBtn.style.color = "#888";
+        deleteBtn.style.cursor = "pointer";
+        deleteBtn.style.padding = "2px 5px";
+        deleteBtn.style.fontSize = "1.1em";
+        deleteBtn.title = t("web.btn_cue_delete", "Supprimer");
+        
+        deleteBtn.addEventListener('mouseenter', () => deleteBtn.style.color = "var(--danger)");
+        deleteBtn.addEventListener('mouseleave', () => deleteBtn.style.color = "#888");
+        
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation(); // Empêcher l'édition du repère
+            deleteCue(cue.id);
+        };
+        
+        rightDiv.appendChild(deleteBtn);
+        
+        li.appendChild(leftDiv);
+        li.appendChild(rightDiv);
         list.appendChild(li);
     });
+}
+
+function deleteCue(id) {
+    const cue = currentCues.find(c => c.id === id);
+    const cueName = cue ? (cue.name || t("web.lbl_no_name", "Sans nom")) : "";
+    if (confirm(t("web.msg_confirm_delete_cue", 'Supprimer le repère "{value}" ?').replace('{value}', cueName))) {
+        currentCues = currentCues.filter(c => c.id !== id);
+        if (activeEditCueId === id) {
+            activeEditCueId = null;
+            openCueModal(); // Reset les champs de la modale en mode Nouveau
+        } else {
+            renderCuesUI();
+            saveLoopsToBackend();
+            renderCueList();
+        }
+    }
 }
 
 function editCue(id) {
@@ -6161,18 +6217,8 @@ function editCue(id) {
     document.getElementById("cue-modal-visual").checked = cue.visual !== false;
     document.getElementById("cue-modal-visual-only").checked = cue.visual_only === true;
     
-    document.getElementById("btn-cue-delete").style.display = "inline-block";
-    document.getElementById("btn-cue-save").innerText = "Mettre à jour";
+    document.getElementById("btn-cue-save").innerText = t("web.btn_cue_update", "Mettre à jour");
     renderCueList();
-}
-
-function deleteCurrentCue() {
-    if (!activeEditCueId) return;
-    currentCues = currentCues.filter(c => c.id !== activeEditCueId);
-    activeEditCueId = null;
-    renderCuesUI();
-    saveLoopsToBackend();
-    document.getElementById("modal-edit-cue").close();
 }
 
 function openCueModal() {
@@ -6192,8 +6238,7 @@ function openCueModal() {
     activeEditCueId = null; // Default to create mode
     
     document.getElementById("cue-modal-timing").innerText = formatTimeCustom(pendingCueTime);
-    document.getElementById("btn-cue-delete").style.display = "none";
-    document.getElementById("btn-cue-save").innerText = "Nouveau (Enregistrer)";
+    document.getElementById("btn-cue-save").innerText = t("web.btn_cue_save_new", "Nouveau (Enregistrer)");
     
     // Pre-fill BPM if available globally
     const globalBpmSpan = document.getElementById("global-video-bpm");
@@ -6213,7 +6258,7 @@ function openCueModal() {
 }
 
 function confirmSaveCue() {
-    const name = document.getElementById("cue-modal-name").value.trim() || "Repère sans nom";
+    const name = document.getElementById("cue-modal-name").value.trim() || t("web.lbl_no_name", "Sans nom");
     const sound = document.getElementById("cue-modal-sound").value;
     const bpm = parseFloat(document.getElementById("cue-modal-bpm").value) || 120;
     const measures = parseFloat(document.getElementById("cue-modal-measures").value) || 1;
@@ -6366,16 +6411,25 @@ function renderCuesUI() {
     if (currentActivePlayer === 'youtube' && player && typeof player.getDuration === "function") {
         timelineBg = document.getElementById("video-loop-bar");
         duration = player.getDuration();
-    } else if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+    } else if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
-        if (vid && vid.duration) {
-            timelineBg = document.getElementById(currentActivePlayer === 'waveform' ? "audio-loop-bar" : "video-loop-bar");
+        if (vid && !isNaN(vid.duration)) {
+            timelineBg = document.getElementById("video-loop-bar");
             duration = vid.duration;
         }
-    } else if (currentActivePlayer === 'multitrack') {
+    } else if (currentActivePlayer === 'waveform') {
+        timelineBg = document.getElementById("audio-loop-bar");
+        if (wavesurfer && !isNaN(wavesurfer.getDuration())) {
+            duration = wavesurfer.getDuration();
+        }
+    } else if (currentActivePlayer === 'multitrack' && window.multitrack) {
          timelineBg = document.getElementById("mt-loop-bar");
-         if (window.multitrack && window.multitrack.buffers && window.multitrack.buffers[0]) {
-              duration = window.multitrack.buffers[0].duration;
+         if (window.multitrack.wavesurfers) {
+             duration = 0;
+             window.multitrack.wavesurfers.forEach(ws => {
+                 const wsDur = ws.getDuration();
+                 if (wsDur > duration) duration = wsDur;
+             });
          }
     }
 
@@ -6385,12 +6439,13 @@ function renderCuesUI() {
         const pct = (cue.time / duration) * 100;
         const marker = document.createElement("div");
         marker.className = "cue-marker";
-        marker.style.cssText = `position:absolute; bottom:0; left:${pct}%; width:2px; height:100%; background:var(--success); z-index:10; cursor:pointer; pointer-events:auto; box-shadow: 0 0 5px var(--success);`;
-        marker.title = `${cue.name} - Double Click = Supprimer`;
+        marker.style.cssText = `position:absolute; bottom:-4px; left:${pct}%; width:2px; height:calc(100% + 8px); background:#f1c40f; z-index:10; cursor:pointer; pointer-events:auto; box-shadow: 0 0 4px rgba(241, 196, 15, 0.8);`;
+        marker.title = `${cue.name || "Sans nom"} (${formatTimeCustom(cue.time)})`;
         
         marker.ondblclick = (e) => {
             e.stopPropagation();
-            if (confirm(`Supprimer le repère "${cue.name}" ?`)) {
+            const cueName = cue.name || t("web.lbl_no_name", "Sans nom");
+            if (confirm(t("web.msg_confirm_delete_cue", 'Supprimer le repère "{value}" ?').replace('{value}', cueName))) {
                 currentCues = currentCues.filter(c => c.id !== cue.id);
                 renderCuesUI();
                 saveLoopsToBackend();
@@ -6440,7 +6495,9 @@ function renderLoopsUI() {
     }
 
     if (dur === 0) {
-        if (currentLoops && currentLoops.length > 0) setTimeout(renderLoopsUI, 500);
+        const hasLoops = currentLoops && currentLoops.length > 0;
+        const hasCues = currentCues && currentCues.length > 0;
+        if (hasLoops || hasCues) setTimeout(renderLoopsUI, 500);
         return;
     }
 
@@ -6457,6 +6514,7 @@ function renderLoopsUI() {
 
     if (!currentLoops || currentLoops.length === 0) {
         if (row) row.style.height = "16px";
+        renderCuesUI();
         return;
     }
 
@@ -6522,6 +6580,8 @@ function renderLoopsUI() {
         region.onclick = (e) => { e.stopPropagation(); playSavedLoop(l, true); };
         timelineBg.appendChild(region);
     });
+
+    renderCuesUI();
 }
 
 function toggleLoopState() {

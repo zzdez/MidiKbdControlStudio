@@ -232,7 +232,7 @@ iframe {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 8px;
     flex: 1;
 }
 
@@ -881,7 +881,7 @@ dialog::backdrop {
     justify-content: space-between;
     /* Important for 3-part layout */
     position: relative;
-    gap: 15px;
+    gap: 8px;
     background: #1e1e1e;
     padding: 10px 20px;
     border-radius: 0;
@@ -889,7 +889,7 @@ dialog::backdrop {
     box-shadow: none;
     border-top: 1px solid #333;
     min-height: 55px;
-    flex-wrap: wrap; /* Allow wrapping on small screens */
+    flex-wrap: nowrap; /* Force single line */
 }
 
 .control-btn {

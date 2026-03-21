@@ -140,7 +140,7 @@
 
                 <!-- Display Content Wrapper -->
                 <div id="audio-display-content"
-                    style="width:100%; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; min-height:0; overflow:hidden;">
+                    style="width:100%; flex:1; max-height:800px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; min-height:0; overflow:hidden;">
                     <!-- Album Art -->
                     <img id="audio-art" src=""
                         style="max-height: 40%; max-width: 80%; object-fit: contain; margin-bottom: 0px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); display:none;"
@@ -1405,77 +1405,86 @@
     <!-- AUDIO CUE EDIT MODAL (Count-ins / Repères Sonores) -->
     <dialog id="modal-edit-cue">
         <div class="modal-header">
-            <h3>Configuration du Repère & Décompte</h3>
+            <h3 data-i18n="web.modal_cue_title">Configuration du Repère & Décompte</h3>
             <button onclick="document.getElementById('modal-edit-cue').close()" class="btn-close">×</button>
         </div>
-        <div class="modal-body" style="display:flex; flex-direction:column; gap:15px; padding-bottom:10px;">
-            <div style="background:#222; padding:10px; border-radius:8px; border:1px solid #333; text-align:center;">
-                <span style="color:#888; font-size:0.9em;">Position absolue du repère ciblée :</span>
-                <div id="cue-modal-timing" style="color:var(--success); font-family:monospace; font-size:1.2em; font-weight:bold; margin-top:5px;">00:00:000</div>
-            </div>
-
-            <div>
-                <label>Nom du Repère</label>
-                <input type="text" id="cue-modal-name" placeholder="Ex: Départ Solo, Pont..." style="width:100%; box-sizing:border-box; font-size:1.1em; padding:8px;">
-            </div>
-
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div>
-                    <label>Son</label>
-                    <select id="cue-modal-sound" style="width:100%; padding:8px; background:#222; color:white; border:1px solid #444; border-radius:4px;">
-                        <option value="stick" selected>Baguettes (Sticks)</option>
-                        <option value="click">Métronome (Click)</option>
-                        <option value="ping">Ping (Avertissement simple)</option>
-                    </select>
+        <div class="modal-body">
+            <div class="edit-form">
+                <div style="background:#222; padding:8px; border-radius:4px; border:1px solid #333; text-align:center; margin-bottom:10px;">
+                    <span style="color:#888; font-size:0.85em;" data-i18n="web.lbl_position_absolute">Position absolue du repère ciblée :</span>
+                    <div id="cue-modal-timing" style="color:var(--success); font-family:monospace; font-size:1.1em; font-weight:bold; margin-top:2px;">00:00:000</div>
                 </div>
-                <div>
-                    <label>Tempo (BPM)</label>
-                    <input type="number" id="cue-modal-bpm" value="120" style="width:100%; box-sizing:border-box; padding:8px; font-size:1em;">
+
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_cue_name">Nom du Repère</label>
+                        <input type="text" id="cue-modal-name" placeholder="Ex: Départ Solo, Pont..." data-i18n-placeholder="web.placeholder_cue_name">
+                    </div>
                 </div>
-            </div>
 
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div>
-                    <label>Durée (Nb Mesures avant)</label>
-                    <select id="cue-modal-measures" style="width:100%; padding:8px; background:#222; color:white; border:1px solid #444; border-radius:4px;">
-                        <option value="0.25">1 Temps</option>
-                        <option value="0.5">2 Temps</option>
-                        <option value="1" selected>1 Mesure (4 Temps)</option>
-                        <option value="2">2 Mesures (8 Temps)</option>
-                    </select>
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_sound">Son</label>
+                        <select id="cue-modal-sound">
+                            <option value="stick" selected data-i18n="web.sound_stick">Baguettes (Sticks)</option>
+                            <option value="click" data-i18n="web.sound_click">Métronome (Click)</option>
+                            <option value="ping" data-i18n="web.sound_ping">Ping (Avertissement simple)</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_tempo">Tempo (BPM)</label>
+                        <input type="number" id="cue-modal-bpm" value="120">
+                    </div>
                 </div>
-                <div>
-                    <label>Volume</label>
-                    <input type="range" id="cue-modal-vol" min="0" max="1" step="0.1" value="0.8" style="width:100%; margin-top:10px;">
+
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_duration_measures">Durée (Nb Mesures)</label>
+                        <select id="cue-modal-measures">
+                            <option value="0.25">1 Temps</option>
+                            <option value="0.5">2 Temps</option>
+                            <option value="1" selected>1 Mesure (4 Temps)</option>
+                            <option value="2">2 Mesures (8 Temps)</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label data-i18n="web.lbl_volume">Volume</label>
+                        <input type="range" id="cue-modal-vol" min="0" max="1" step="0.1" value="0.8">
+                    </div>
                 </div>
-            </div>
-            
-            <div>
-                <label>Ajustement Fin (Offset ms) >0 = retarde, <0 = avance</label>
-                <input type="number" id="cue-modal-offset" value="0" style="width:100%; box-sizing:border-box; padding:8px; font-size:1em;">
-            </div>
 
-            <label style="display:flex; align-items:center; gap:10px; cursor:pointer; background:#222; padding:10px; border-radius:8px; border:1px solid #333;">
-                <input type="checkbox" id="cue-modal-visual" style="width:18px; height:18px;" checked>
-                <span>Afficher le décompte géant à l'écran (HUD)</span>
-            </label>
+                <div class="row-inputs">
+                    <div class="col">
+                        <label data-i18n="web.lbl_offset_hint">Offset (ms) >0 retarde, <0 avance</label>
+                        <input type="number" id="cue-modal-offset" value="0">
+                    </div>
+                </div>
 
-            <label style="display:flex; align-items:center; gap:10px; cursor:pointer; background:#222; padding:10px; border-radius:8px; border:1px solid #333; margin-top:5px;">
-                <input type="checkbox" id="cue-modal-visual-only" style="width:18px; height:18px;">
-                <span>Visuel uniquement (Muet)</span>
-            </label>
+                <div style="display:flex; flex-direction:row; gap:12px; margin-top:8px; align-items:center;">
+                    <label class="modern-switch">
+                        <input type="checkbox" id="cue-modal-visual" checked>
+                        <span class="switch-slider"></span>
+                        <span class="switch-label" data-i18n="web.lbl_visual_hud">Afficher décompte géant (HUD)</span>
+                    </label>
 
-            <div id="cue-list-container" style="margin-top:15px; border-top:1px solid #444; padding-top:15px;">
-                <h4 style="margin:0 0 10px 0; color:#ccc;">Repères existants</h4>
-                <ul id="cue-modal-list" style="list-style:none; padding:0; margin:0; max-height:150px; overflow-y:auto; background:#1a1a1a; border-radius:4px; border:1px solid #333;">
-                    <!-- Les repères apparaitront ici -->
-                </ul>
+                    <label class="modern-switch">
+                        <input type="checkbox" id="cue-modal-visual-only">
+                        <span class="switch-slider"></span>
+                        <span class="switch-label" data-i18n="web.lbl_visual_only">Visuel uniquement (Muet)</span>
+                    </label>
+                </div>
+
+                <div id="cue-list-container" style="margin-top:10px; border-top:1px solid #333; padding-top:8px;">
+                    <label data-i18n="web.lbl_existing_cues">Repères existants</label>
+                    <ul id="cue-modal-list" style="list-style:none; padding:0; margin:0; max-height:120px; overflow-y:auto; background:#111; border-radius:4px; border:1px solid #222;">
+                        <!-- Les repères apparaitront ici -->
+                    </ul>
+                </div>
             </div>
         </div>
-        <div class="modal-footer" style="justify-content: flex-end; gap: 10px; display: flex;">
-            <button class="btn-text" id="btn-cue-delete" onclick="deleteCurrentCue()" style="display:none; color:var(--danger); margin-right:auto;">Supprimer Média</button>
-            <button class="btn-text" onclick="document.getElementById('modal-edit-cue').close()">Fermer</button>
-            <button class="btn-primary" id="btn-cue-save" onclick="confirmSaveCue()">Nouveau (Enregistrer)</button>
+        <div class="modal-footer">
+            <button class="btn-text" onclick="document.getElementById('modal-edit-cue').close()" data-i18n="web.btn_close">Fermer</button>
+            <button class="btn-primary" id="btn-cue-save" onclick="confirmSaveCue()" data-i18n="web.btn_cue_save_new">Nouveau (Enregistrer)</button>
         </div>
     </dialog>
 
@@ -1970,19 +1979,30 @@
         <!-- Speed Trainer -->
         <div id="metro-trainer-container" style="margin-top:10px; border-top:1px solid #333; padding-top:10px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; cursor:pointer;" onclick="document.getElementById('metro-trainer-body').style.display = document.getElementById('metro-trainer-body').style.display === 'none' ? 'block' : 'none'">
-                <strong style="font-size:0.85em; color:#aaa;"><i class="ph ph-trend-up"></i> Speed Trainer</strong>
+                <strong style="font-size:0.85em; color:#aaa;"><i class="ph ph-trend-up"></i> <span data-i18n="web.lbl_speed_trainer">Speed Trainer</span></strong>
                 <i class="ph ph-caret-down" style="font-size:0.8em; color:#666;"></i>
             </div>
-            <div id="metro-trainer-body" style="display:none; font-size:0.8em;">
-                <div style="display:flex; gap:10px; margin-bottom:5px;">
-                    <div style="flex:1;"><label>Target BPM</label><input type="number" id="metro-train-target" value="160" style="padding:2px; height:20px;"></div>
-                    <div style="flex:1;"><label>+ BPM</label><input type="number" id="metro-train-inc" value="5" style="padding:2px; height:20px;"></div>
-                    <div style="flex:1;"><label>Mesures</label><input type="number" id="metro-train-meas" value="4" style="padding:2px; height:20px;"></div>
+            <div id="metro-trainer-body" style="display:none;">
+                <div class="edit-form">
+                    <div class="row-inputs">
+                        <div class="col">
+                            <label data-i18n="web.lbl_target_bpm">BPM Cible</label>
+                            <input type="number" id="metro-train-target" value="160">
+                        </div>
+                        <div class="col">
+                            <label data-i18n="web.lbl_bpm_increment">+ BPM</label>
+                            <input type="number" id="metro-train-inc" value="5">
+                        </div>
+                        <div class="col">
+                            <label data-i18n="web.lbl_measures">Mesures</label>
+                            <input type="number" id="metro-train-meas" value="4">
+                        </div>
+                    </div>
                 </div>
                 <label class="modern-switch" style="font-size:0.9em; display:flex; align-items:center; margin-top:8px;">
                     <input type="checkbox" id="metro-train-enable" onchange="metronomeToggleTrainer(this.checked)">
                     <span class="switch-slider"></span>
-                    <span class="switch-label" style="margin-left:5px; color:var(--accent);">Activer l'entraînement</span>
+                    <span class="switch-label" style="margin-left:5px; color:var(--accent);" data-i18n="web.lbl_enable_trainer">Activer l'entraînement</span>
                 </label>
             </div>
         </div>
