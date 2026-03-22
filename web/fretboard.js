@@ -14,6 +14,24 @@ const scaleFormulas = {
     locrian: [0, 1, 3, 5, 6, 8, 10]
 };
 
+// Dictionnaire d'ajustements (offset et largeur) pour coller aux boîtes standards
+const positionModifiers = {
+    "minor_pentatonic": [
+        { offset: 0, span: 3 },  // Pos 1 (ex: 7-10)
+        { offset: -1, span: 3 }, // Pos 2 (ex: 9-12)
+        { offset: -1, span: 4 }, // Pos 3 (ex: 11-15)
+        { offset: 0, span: 3 },  // Pos 4 (ex: 14-17)
+        { offset: -1, span: 3 }  // Pos 5 (ex: 16-19)
+    ],
+    "major_pentatonic": [
+        { offset: -1, span: 3 }, // Pos 1 (équivalent Pos 2 mineure)
+        { offset: -1, span: 4 }, // Pos 2 (équivalent Pos 3 mineure)
+        { offset: 0, span: 3 },  // Pos 3 (équivalent Pos 4 mineure)
+        { offset: -1, span: 3 }, // Pos 4 (équivalent Pos 5 mineure)
+        { offset: 0, span: 3 }   // Pos 5 (équivalent Pos 1 mineure)
+    ]
+};
+
 // Aliases mapping for "sharp/flat" parsing from key inputs like "Am" or "Eb"
 const noteAliases = {
     "Db": "C#", "Eb": "D#", "Gb": "F#", "Ab": "G#", "Bb": "A#"
@@ -293,10 +311,11 @@ function getScaleNotes(rootNote, scaleType) {
     return formula.map(interval => baseNotes[(rootIndex + interval) % 12]);
 }
 
+
+
 function getPositionFretRange(rootNote, scaleType, position, tuning) {
     if (position === "all") return null;
 
-    const scaleNotes = getScaleNotes(rootNote, scaleType);
     const formula = scaleFormulas[scaleType];
     const numNotesInScale = formula.length;
 
@@ -328,15 +347,24 @@ function getPositionFretRange(rootNote, scaleType, position, tuning) {
     const intervalFromRoot = formula[posIndex];
     let posStartFret = (rootFretOnE + intervalFromRoot) % 12;
 
-    // We want the position block to generally span ~4-5 frets.
-    // Allow a small offset (e.g., -1 to +4) for visual highlighting
-    // to capture notes just behind the position start (often used in scale boxes).
+    // --- AJUSTEMENT DES BOÎTES ---
+    let offset = 0;
+    let span = 4; // Valeur par défaut
 
-    // Special handling to map it logically across the fretboard up to fret 24.
-    // We will highlight all occurrences of this "block" of frets across octaves.
+    if (typeof positionModifiers !== 'undefined') {
+        const mods = positionModifiers[scaleType];
+        if (mods && mods[posIndex]) {
+            offset = mods[posIndex].offset;
+            span = mods[posIndex].span;
+        }
+    }
+
+    // Appliquer le décalage avec modulo sécurisé pour les valeurs négatives
+    posStartFret = (posStartFret + offset + 12) % 12;
+
     return {
         start: posStartFret,
-        span: 4 // Highlight 4 frets from the start note
+        span: span 
     };
 }
 
@@ -582,28 +610,38 @@ function renderFretboard(silentSave = false) {
             // Position Highlight Logic
             let inPosition = true;
             if (posRange && !isNut) {
-                // Check if the current fret falls within the position block across any octave
-                // We use modulo 12 to check against the base octave shape
-                const modFret = fretNum % 12;
+                const octaveSelect = document.getElementById("fretboard-octave");
+                const octaveMode = octaveSelect ? octaveSelect.value : "all";
 
-                // The span might cross the octave boundary (e.g., frets 10, 11, 0, 1, 2)
-                let startMod = posRange.start;
-                let endMod = (posRange.start + posRange.span) % 12;
-
-                if (startMod <= endMod) {
-                    inPosition = (modFret >= startMod && modFret <= endMod);
+                if (octaveMode === "low" && fretNum > 12) {
+                    inPosition = false;
+                } else if (octaveMode === "high" && fretNum < 12) {
+                    inPosition = false;
                 } else {
-                    // Span crosses the 12th fret
-                    inPosition = (modFret >= startMod || modFret <= endMod);
+                    const modFret = fretNum % 12;
+                    let startMod = posRange.start;
+                    let endMod = (posRange.start + posRange.span) % 12;
+
+                    if (startMod <= endMod) {
+                        inPosition = (modFret >= startMod && modFret <= endMod);
+                    } else {
+                        inPosition = (modFret >= startMod || modFret <= endMod);
+                    }
                 }
             } else if (posRange && isNut) {
-                // For nut (open strings), check if open string note is in the position block
-                let startMod = posRange.start;
-                let endMod = (posRange.start + posRange.span) % 12;
-                if (startMod <= endMod) {
-                    inPosition = (0 >= startMod && 0 <= endMod);
+                const octaveSelect = document.getElementById("fretboard-octave");
+                const octaveMode = octaveSelect ? octaveSelect.value : "all";
+
+                if (octaveMode === "high") {
+                    inPosition = false; // Nut est forcément octave basse
                 } else {
-                    inPosition = (0 >= startMod || 0 <= endMod);
+                    let startMod = posRange.start;
+                    let endMod = (posRange.start + posRange.span) % 12;
+                    if (startMod <= endMod) {
+                        inPosition = (0 >= startMod && 0 <= endMod);
+                    } else {
+                        inPosition = (0 >= startMod || 0 <= endMod);
+                    }
                 }
             }
 
@@ -630,7 +668,7 @@ function renderFretboard(silentSave = false) {
                     textColor = "#000";
                 } else if (interval === 6) {
                     // Flat 5 (Blue note)
-                    bgColor = "#e74c3c";
+                    bgColor = "#1e88e5"; // Bleu
                     textColor = "#fff";
                 }
             } else if (displayMode === "classic") {
@@ -807,7 +845,7 @@ function generateExerciseNotes() {
 
     const exercise = document.getElementById("fret-exercise").value;
 
-    // Sort by pitch (stringIndex descending, fretNum ascending)
+    // 1. BASE SORT: Ascending Pitch (Lowest string first, lowest fret first)
     activeDots.sort((a, b) => {
         const strA = parseInt(a.dataset.string);
         const strB = parseInt(b.dataset.string);
@@ -815,7 +853,7 @@ function generateExerciseNotes() {
         const fretB = parseInt(b.dataset.fret);
 
         if (strA !== strB) {
-            return strB - strA; // Low string to High string
+            return strB - strA; // Low string (index 5) to High string (index 0)
         }
         return fretA - fretB;
     });
@@ -826,6 +864,58 @@ function generateExerciseNotes() {
         const asc = [...activeDots];
         const desc = [...activeDots].reverse().slice(1, -1);
         activeDots = asc.concat(desc);
+    } else if (exercise === "third") {
+        let sequence = [];
+        for (let i = 0; i < activeDots.length - 2; i++) {
+            sequence.push(activeDots[i]);
+            sequence.push(activeDots[i + 2]);
+        }
+        activeDots = sequence;
+    } else if (exercise === "group3") {
+        let sequence = [];
+        for (let i = 0; i < activeDots.length - 2; i++) {
+            sequence.push(activeDots[i]);
+            sequence.push(activeDots[i + 1]);
+            sequence.push(activeDots[i + 2]);
+        }
+        activeDots = sequence;
+    } else if (exercise === "group4") {
+        let sequence = [];
+        for (let i = 0; i < activeDots.length - 3; i++) {
+            sequence.push(activeDots[i]);
+            sequence.push(activeDots[i + 1]);
+            sequence.push(activeDots[i + 2]);
+            sequence.push(activeDots[i + 3]);
+        }
+        activeDots = sequence;
+    } else if (exercise === "zigzag") {
+        // Group by blocks of 4 frets
+        let groups = {};
+        activeDots.forEach(dot => {
+            const fret = parseInt(dot.dataset.fret);
+            const groupIndex = Math.floor(fret / 4);
+            if (!groups[groupIndex]) groups[groupIndex] = [];
+            groups[groupIndex].push(dot);
+        });
+
+        let ordered = [];
+        const sortedGroups = Object.keys(groups).sort((a,b) => a-b);
+        sortedGroups.forEach((key, index) => {
+            let grpDots = groups[key];
+            grpDots.sort((a,b) => {
+                const strA = parseInt(a.dataset.string);
+                const strB = parseInt(b.dataset.string);
+                const fretA = parseInt(a.dataset.fret);
+                const fretB = parseInt(b.dataset.fret);
+                if (strA !== strB) return strB - strA;
+                return fretA - fretB;
+            });
+            if (index % 2 === 1) {
+                grpDots.reverse();
+            }
+            ordered = ordered.concat(grpDots);
+        });
+        activeDots = ordered;
     }
 
     fretboardExerciseNotes = activeDots;
@@ -879,6 +969,26 @@ function fretboardTogglePlay() {
 
 // Chain metronome callback
 document.addEventListener("DOMContentLoaded", () => {
+    // Charger le volume sauvegardé
+    const savedVol = localStorage.getItem('metronome_volume');
+    if (savedVol !== null) {
+        if (window.metronome) {
+            window.metronome.setVolume(savedVol / 100);
+        }
+        // Attendre que le DOM soit complètement câblé pour mettre à jour les éléments graphiques
+        setTimeout(() => {
+            const fSlider = document.getElementById("fretboard-metro-volume");
+            const mSlider = document.getElementById("metro-volume");
+            const fLabel = document.getElementById("fretboard-metro-vol-label");
+            const mLabel = document.getElementById("metro-vol-label");
+            
+            if (fSlider) fSlider.value = savedVol;
+            if (mSlider) mSlider.value = savedVol;
+            if (fLabel) fLabel.innerText = savedVol + "%";
+            if (mLabel) mLabel.innerText = savedVol + "%";
+        }, 150);
+    }
+
     if (window.metronome) {
         const originalOnBeat = window.metronome.onBeat;
         window.metronome.onBeat = (currentBeat) => {
@@ -889,3 +999,25 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 });
+
+function updateMetronomeVolume(val) {
+    const volume = val / 100;
+    if (window.metronome) {
+        window.metronome.setVolume(volume);
+    }
+    
+    // Sauvegarder dans localStorage
+    localStorage.setItem('metronome_volume', val);
+    
+    // Synchroniser la vue Fretboard
+    const fLabel = document.getElementById("fretboard-metro-vol-label");
+    if (fLabel) fLabel.innerText = val + "%";
+    const fSlider = document.getElementById("fretboard-metro-volume");
+    if (fSlider && fSlider.value != val) fSlider.value = val;
+
+    // Synchroniser la vue Modale Métronome
+    const mLabel = document.getElementById("metro-vol-label");
+    if (mLabel) mLabel.innerText = val + "%";
+    const mSlider = document.getElementById("metro-volume");
+    if (mSlider && mSlider.value != val) mSlider.value = val;
+}

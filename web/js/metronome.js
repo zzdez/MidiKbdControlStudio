@@ -29,11 +29,15 @@ class MetronomeEngine {
         this.trainMeasures = 4; // Increment after X measures
         this.measuresCounted = 0;
         this.onTrainProgress = null; // function(newBpm)
+        this.volume = 1.0; // Volume global
     }
 
     init() {
         if (!this.audioContext) {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.masterGainNode = this.audioContext.createGain();
+            this.masterGainNode.connect(this.audioContext.destination);
+            this.masterGainNode.gain.value = this.volume;
             this.loadSoundSets(); // Load sounds once context is ready
         }
         
@@ -153,7 +157,7 @@ class MetronomeEngine {
             const gainNode = this.audioContext.createGain();
             gainNode.gain.value = 1.0; 
             source.connect(gainNode);
-            gainNode.connect(this.audioContext.destination);
+            gainNode.connect(this.masterGainNode || this.audioContext.destination);
             source.start(time);
         } else {
             // FALLBACK TO SYNTHESIZE CLICK
@@ -161,7 +165,7 @@ class MetronomeEngine {
             const envelope = this.audioContext.createGain();
 
             osc.connect(envelope);
-            envelope.connect(this.audioContext.destination);
+            envelope.connect(this.masterGainNode || this.audioContext.destination);
 
             if (beatNumber === 0) {
                 osc.frequency.value = 1000.0;
@@ -212,6 +216,13 @@ class MetronomeEngine {
         this.bpm = newBpm;
     }
     
+    setVolume(value) {
+        this.volume = value;
+        if (this.masterGainNode) {
+            this.masterGainNode.gain.value = value;
+        }
+    }
+
     setSignature(beats) {
         this.beatsPerMeasure = beats;
         // ensure we don't break sequence logic immediately
