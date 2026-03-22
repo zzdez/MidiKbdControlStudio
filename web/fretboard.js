@@ -370,6 +370,9 @@ function getPositionFretRange(rootNote, scaleType, position, tuning) {
 }
 
 function isNoteInPosition(fretNum, isNut, posRange, octaveMode = "all", strictAbsolute = false) {
+    if (octaveMode === "low" && fretNum >= 12) return false;
+    if (octaveMode === "high" && fretNum < 12) return false;
+
     if (!posRange) return true;
 
     if (strictAbsolute) {
@@ -381,29 +384,29 @@ function isNoteInPosition(fretNum, isNut, posRange, octaveMode = "all", strictAb
         return (fretNum >= absStart && fretNum <= absEnd);
     }
 
-    if (octaveMode === "low" && fretNum > 12) return false;
-    if (octaveMode === "high" && fretNum < 12) return false;
+    const span = posRange.span;
+    const absStart = posRange.start;
+    const startMod = absStart % 12;
+    const modFret = fretNum % 12;
 
-    if (!isNut) {
-        const modFret = fretNum % 12;
-        const startMod = posRange.start % 12;
-        const endMod = (posRange.start + posRange.span) % 12;
+    let diff = (fretNum - absStart) % 12;
+    if (diff < 0) diff += 12;
 
-        if (startMod <= endMod) {
-            return (modFret >= startMod && modFret <= endMod);
-        } else {
-            return (modFret >= startMod || modFret <= endMod);
+    if (diff >= 0 && diff <= span) {
+        // Valider que l'octave de cette note ne déborde pas du manche
+        let cycleStart = Math.floor(fretNum / 12) * 12 + startMod;
+        if (modFret < startMod) {
+            cycleStart -= 12;
         }
-    } else {
-        if (octaveMode === "high") return false;
-        const startMod = posRange.start % 12;
-        const endMod = (posRange.start + posRange.span) % 12;
-        if (startMod <= endMod) {
-            return (0 >= startMod && 0 <= endMod);
-        } else {
-            return (0 >= startMod || 0 <= endMod);
+        const cycleEnd = cycleStart + span;
+        const totalFretsOnNeck = typeof fretboardState !== 'undefined' ? fretboardState.fretsCount : 12;
+
+        if (cycleStart < 0 || cycleEnd > totalFretsOnNeck) {
+            return false; // Boîte tronquée par le bout du manche (débordement gauche/droite)
         }
+        return true;
     }
+    return false;
 }
 
 
@@ -709,7 +712,7 @@ function renderFretboard(silentSave = false) {
             noteDot.style.boxShadow = "0 2px 4px rgba(0,0,0,0.5)";
 
             // Dim notes outside the active position
-            if (posRange && !inPosition) {
+            if (!inPosition) {
                 noteDot.style.opacity = "0.2";
                 noteDot.style.boxShadow = "none";
                 noteDot.style.zIndex = "10";
@@ -1011,6 +1014,16 @@ function generateExerciseNotes() {
 
 function highlightNextNote() {
     if (!fretboardTrainerActive || fretboardExerciseNotes.length === 0) return;
+
+    if (currentExerciseIndex >= fretboardExerciseNotes.length - 1) {
+        if (window.metronome && window.metronome.isCountInActive) {
+            window.metronome.isCountingIn = true;
+            window.metronome.countInBeatsRemaining = window.metronome.countInMeasures * window.metronome.beatsPerMeasure;
+            currentExerciseIndex = -1;
+            clearNoteHighlights();
+            return;
+        }
+    }
 
     clearNoteHighlights();
     currentExerciseIndex = (currentExerciseIndex + 1) % fretboardExerciseNotes.length;
