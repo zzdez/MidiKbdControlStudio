@@ -345,7 +345,7 @@ function getPositionFretRange(rootNote, scaleType, position, tuning) {
     // Calculate the fret of the target note for the requested position on the lowest string
     // The positions start from the root note.
     const intervalFromRoot = formula[posIndex];
-    let posStartFret = (rootFretOnE + intervalFromRoot) % 12;
+    let posStartFret = (rootFretOnE + intervalFromRoot);
 
     // --- AJUSTEMENT DES BOÎTES ---
     let offset = 0;
@@ -359,13 +359,51 @@ function getPositionFretRange(rootNote, scaleType, position, tuning) {
         }
     }
 
-    // Appliquer le décalage avec modulo sécurisé pour les valeurs négatives
-    posStartFret = (posStartFret + offset + 12) % 12;
+    // Appliquer le décalage (garde la valeur absolue sur le manche)
+    posStartFret = (posStartFret + offset);
+    if (posStartFret < 0) posStartFret += 12; // Gérer offsets négatifs d'ancrage
 
     return {
         start: posStartFret,
         span: span 
     };
+}
+
+function isNoteInPosition(fretNum, isNut, posRange, octaveMode = "all", strictAbsolute = false) {
+    if (!posRange) return true;
+
+    if (strictAbsolute) {
+        const absStart = posRange.start;
+        const absEnd = posRange.start + posRange.span;
+        if (isNut) {
+            return (0 >= absStart && 0 <= absEnd);
+        }
+        return (fretNum >= absStart && fretNum <= absEnd);
+    }
+
+    if (octaveMode === "low" && fretNum > 12) return false;
+    if (octaveMode === "high" && fretNum < 12) return false;
+
+    if (!isNut) {
+        const modFret = fretNum % 12;
+        const startMod = posRange.start % 12;
+        const endMod = (posRange.start + posRange.span) % 12;
+
+        if (startMod <= endMod) {
+            return (modFret >= startMod && modFret <= endMod);
+        } else {
+            return (modFret >= startMod || modFret <= endMod);
+        }
+    } else {
+        if (octaveMode === "high") return false;
+        const startMod = posRange.start % 12;
+        const endMod = (posRange.start + posRange.span) % 12;
+        if (startMod <= endMod) {
+            return (0 >= startMod && 0 <= endMod);
+        } else {
+            return (0 >= startMod || 0 <= endMod);
+        }
+    }
 }
 
 
@@ -495,6 +533,11 @@ function renderFretboard(silentSave = false) {
     const activePosition = positionSelect ? positionSelect.value : "all";
     const posRange = getPositionFretRange(fretboardState.key, fretboardState.scale, activePosition, fretboardState.tuning);
 
+    const startPosContainer = document.getElementById("fret-all-start-container");
+    if (startPosContainer) {
+        startPosContainer.style.display = activePosition === "all" ? "flex" : "none";
+    }
+
     // 1. Draw Frets (Background vertical dividers & inlays) & Numbers
     const inlays = [3, 5, 7, 9, 15, 17, 19, 21];
     const doubleInlays = [12, 24];
@@ -608,42 +651,9 @@ function renderFretboard(silentSave = false) {
             const isRoot = (noteName === fretboardState.key);
 
             // Position Highlight Logic
-            let inPosition = true;
-            if (posRange && !isNut) {
-                const octaveSelect = document.getElementById("fretboard-octave");
-                const octaveMode = octaveSelect ? octaveSelect.value : "all";
-
-                if (octaveMode === "low" && fretNum > 12) {
-                    inPosition = false;
-                } else if (octaveMode === "high" && fretNum < 12) {
-                    inPosition = false;
-                } else {
-                    const modFret = fretNum % 12;
-                    let startMod = posRange.start;
-                    let endMod = (posRange.start + posRange.span) % 12;
-
-                    if (startMod <= endMod) {
-                        inPosition = (modFret >= startMod && modFret <= endMod);
-                    } else {
-                        inPosition = (modFret >= startMod || modFret <= endMod);
-                    }
-                }
-            } else if (posRange && isNut) {
-                const octaveSelect = document.getElementById("fretboard-octave");
-                const octaveMode = octaveSelect ? octaveSelect.value : "all";
-
-                if (octaveMode === "high") {
-                    inPosition = false; // Nut est forcément octave basse
-                } else {
-                    let startMod = posRange.start;
-                    let endMod = (posRange.start + posRange.span) % 12;
-                    if (startMod <= endMod) {
-                        inPosition = (0 >= startMod && 0 <= endMod);
-                    } else {
-                        inPosition = (0 >= startMod || 0 <= endMod);
-                    }
-                }
-            }
+            const octaveSelect = document.getElementById("fretboard-octave");
+            const octaveMode = octaveSelect ? octaveSelect.value : "all";
+            let inPosition = isNoteInPosition(fretNum, isNut, posRange, octaveMode);
 
             // Style logic based on Display Mode
             const displayModeSelect = document.getElementById("fretboard-display-mode");
@@ -838,25 +848,102 @@ function generateExerciseNotes() {
     const positionSelect = document.getElementById("fretboard-position");
     const activePosition = positionSelect ? positionSelect.value : "all";
     
-    let activeDots = dots;
-    if (activePosition !== "all") {
+    let activeDots = [];
+    const exercise = document.getElementById("fret-exercise").value;
+
+    if (activePosition === "all") {
+        const scaleType = document.getElementById("fretboard-scale").value;
+        const keyNode = document.getElementById("fretboard-key").value;
+        const tuning = document.getElementById("fretboard-tuning").value;
+        const octaveSelect = document.getElementById("fretboard-octave");
+        const octaveMode = octaveSelect ? octaveSelect.value : "all";
+
+        const mods = typeof positionModifiers !== 'undefined' ? positionModifiers[scaleType] : null;
+        const formula = typeof scaleFormulas !== 'undefined' ? scaleFormulas[scaleType] : null;
+        const maxPos = mods ? Object.keys(mods).length : (formula ? formula.length : 5);
+
+        const startPosSelect = document.getElementById("fret-all-start-pos");
+        const startPos = startPosSelect ? parseInt(startPosSelect.value) || 1 : 1;
+
+        let chainDots = [];
+        let direction = "asc"; // Départ standard montant
+
+        let i = 0;
+        const totalFretsOnNeck = fretboardState.fretsCount;
+
+        while (true) {
+            // Pos standard (1 à 5)
+            const currentPos = ((startPos - 1 + i) % maxPos) + 1;
+            // Octave (0 pour 1ère octave, 12 pour 2ème...)
+            const octaveOffset = Math.floor((startPos - 1 + i) / maxPos) * 12;
+
+            const range = getPositionFretRange(keyNode, scaleType, currentPos, tuning);
+            if (!range) break;
+
+            // Appliquer le décalage d'octave
+            const absStart = range.start + octaveOffset;
+            const currentPosRange = {
+                start: absStart,
+                span: range.span
+            };
+
+            // Sortir si la boîte déborde de la fin du manche
+            const absEnd = absStart + range.span;
+            if (absEnd > totalFretsOnNeck) {
+                break; 
+            }
+
+            let posDots = dots.filter(d => {
+                const fret = parseInt(d.dataset.fret);
+                return isNoteInPosition(fret, fret === 0, currentPosRange, octaveMode, true);
+            });
+
+            // S'assurer que les notes récupérées sont bien sur le manche disponible
+            posDots = posDots.filter(d => parseInt(d.dataset.fret) <= totalFretsOnNeck);
+
+            if (posDots.length > 0) {
+                // Tri par pitch (Corde Grave -> Aiguë)
+                posDots.sort((a, b) => {
+                    const strA = parseInt(a.dataset.string);
+                    const strB = parseInt(b.dataset.string);
+                    const fretA = parseInt(a.dataset.fret);
+                    const fretB = parseInt(b.dataset.fret);
+                    if (strA !== strB) return strB - strA;
+                    return fretA - fretB;
+                });
+
+                if (direction === "desc") {
+                    posDots.reverse();
+                }
+
+                chainDots = chainDots.concat(posDots);
+
+                // Alterner la direction
+                direction = (direction === "asc") ? "desc" : "asc";
+            }
+            
+            i++;
+            if (i > 15) break; 
+        }
+        activeDots = chainDots;
+    } else {
         activeDots = dots.filter(d => d.style.opacity === "1");
     }
 
-    const exercise = document.getElementById("fret-exercise").value;
+    // 1. BASE SORT: Ascending Pitch (uniquement si une seule position sélectionnée)
+    if (activePosition !== "all") {
+        activeDots.sort((a, b) => {
+            const strA = parseInt(a.dataset.string);
+            const strB = parseInt(b.dataset.string);
+            const fretA = parseInt(a.dataset.fret);
+            const fretB = parseInt(b.dataset.fret);
 
-    // 1. BASE SORT: Ascending Pitch (Lowest string first, lowest fret first)
-    activeDots.sort((a, b) => {
-        const strA = parseInt(a.dataset.string);
-        const strB = parseInt(b.dataset.string);
-        const fretA = parseInt(a.dataset.fret);
-        const fretB = parseInt(b.dataset.fret);
-
-        if (strA !== strB) {
-            return strB - strA; // Low string (index 5) to High string (index 0)
-        }
-        return fretA - fretB;
-    });
+            if (strA !== strB) {
+                return strB - strA; // Low string (index 5) to High string (index 0)
+            }
+            return fretA - fretB;
+        });
+    }
 
     if (exercise === "desc") {
         activeDots.reverse();
@@ -990,6 +1077,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (window.metronome) {
+        window.metronome.onCountInVisual = (number) => {
+            if (typeof triggerCueHud === 'function') triggerCueHud(number);
+        };
+
         const originalOnBeat = window.metronome.onBeat;
         window.metronome.onBeat = (currentBeat) => {
             if (originalOnBeat) originalOnBeat(currentBeat);
@@ -1020,4 +1111,47 @@ function updateMetronomeVolume(val) {
     if (mLabel) mLabel.innerText = val + "%";
     const mSlider = document.getElementById("metro-volume");
     if (mSlider && mSlider.value != val) mSlider.value = val;
+}
+
+function toggleCountInOptions(checked) {
+    if (window.metronome) {
+        window.metronome.isCountInActive = checked;
+    }
+    const nodes = {
+        mOptions: document.getElementById('metro-count-in-options'),
+        fOptions: document.getElementById('fret-count-in-options'),
+        mActive: document.getElementById('metro-count-in-active'),
+        fActive: document.getElementById('fret-count-in-active')
+    };
+
+    if (nodes.mOptions) nodes.mOptions.style.display = checked ? 'flex' : 'none';
+    if (nodes.fOptions) nodes.fOptions.style.display = checked ? 'flex' : 'none';
+    if (nodes.mActive && nodes.mActive.checked !== checked) nodes.mActive.checked = checked;
+    if (nodes.fActive && nodes.fActive.checked !== checked) nodes.fActive.checked = checked;
+}
+
+function syncCountInSubOptions(property, value) {
+    if (window.metronome) {
+        window.metronome[property] = value;
+    }
+    
+    setTimeout(() => {
+        // Sound Checkboxes
+        const mSound = document.getElementById("metro-count-in-sound");
+        const fSound = document.getElementById("fret-count-in-sound");
+        if (mSound) mSound.checked = window.metronome.countInSound;
+        if (fSound) fSound.checked = window.metronome.countInSound;
+
+        // Visual Checkboxes
+        const mVisual = document.getElementById("metro-count-in-visual");
+        const fVisual = document.getElementById("fret-count-in-visual");
+        if (mVisual) mVisual.checked = window.metronome.countInVisual;
+        if (fVisual) fVisual.checked = window.metronome.countInVisual;
+
+        // Measures Selects
+        const mMeas = document.getElementById("metro-count-in-measures");
+        const fMeas = document.getElementById("fret-count-in-measures");
+        if (mMeas) mMeas.value = window.metronome.countInMeasures;
+        if (fMeas) fMeas.value = window.metronome.countInMeasures;
+    }, 10);
 }

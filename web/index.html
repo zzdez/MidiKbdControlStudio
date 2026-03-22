@@ -1955,6 +1955,20 @@
                             <option value="group4" data-i18n="web.exercise_group4">Groupes de 4</option>
                             <option value="zigzag" data-i18n="web.exercise_zigzag">Zig-Zag (Manche)</option>
                         </select>
+
+                        <!-- Start Position (Visible si Toutes positions) -->
+                        <div id="fret-all-start-container" style="display:none; align-items:center; gap:3px;">
+                            <span style="font-size:0.9em; color:#888;">Départ:</span>
+                            <select id="fret-all-start-pos" onchange="generateExerciseNotes()" style="padding:1px; background:#111; border:1px solid #444; color:#fff; border-radius:3px; font-size:0.95em;">
+                                <option value="1">Pos 1</option>
+                                <option value="2">Pos 2</option>
+                                <option value="3">Pos 3</option>
+                                <option value="4">Pos 4</option>
+                                <option value="5">Pos 5</option>
+                                <option value="6">Pos 6</option>
+                                <option value="7">Pos 7</option>
+                            </select>
+                        </div>
                     </div>
 
                     <!-- Trainer Controls Row -->
@@ -1973,6 +1987,23 @@
                                 <input type="number" id="fret-train-meas" value="4" style="padding:1px; font-size:0.8em; height:18px;">
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Décompte (Fretboard) -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:0.75em; border-top:1px dashed #333; padding-top:4px; margin-top:2px;">
+                         <label class="modern-switch" style="display:flex; align-items:center;">
+                              <input type="checkbox" id="fret-count-in-active" onchange="toggleCountInOptions(this.checked)">
+                              <span class="switch-slider"></span>
+                              <span class="switch-label" style="margin-left:4px;">Décompte</span>
+                         </label>
+                         <div id="fret-count-in-options" style="display:none; align-items:center; gap:6px;">
+                              <label style="display:flex; align-items:center; gap:1px;"><input type="checkbox" id="fret-count-in-sound" checked onchange="syncCountInSubOptions('countInSound', this.checked)"> Son</label>
+                              <label style="display:flex; align-items:center; gap:1px;"><input type="checkbox" id="fret-count-in-visual" checked onchange="syncCountInSubOptions('countInVisual', this.checked)"> Visuel</label>
+                              <select id="fret-count-in-measures" onchange="syncCountInSubOptions('countInMeasures', parseInt(this.value))" style="padding:1px; background:#111; border:1px solid #444; color:#fff; border-radius:3px; font-size:0.9em;">
+                                   <option value="1">1 M</option>
+                                   <option value="2">2 M</option>
+                              </select>
+                         </div>
                     </div>
 
                     <!-- Footer Toggles -->
@@ -2049,6 +2080,30 @@
                 <span class="switch-slider"></span>
                 <span class="switch-label" style="margin-left:5px;" data-i18n="web.lbl_sync_media">Sync Média</span>
             </label>
+        </div>
+
+        <!-- Count-In Control -->
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:0.8em; margin-top: 4px;">
+             <label class="modern-switch" style="font-size:0.9em; display:flex; align-items:center;">
+                  <input type="checkbox" id="metro-count-in-active" onchange="toggleCountInOptions(this.checked)">
+                  <span class="switch-slider"></span>
+                  <span class="switch-label" style="margin-left:5px;">Décompte</span>
+             </label>
+        </div>
+
+        <div id="metro-count-in-options" style="display:none; justify-content:space-between; align-items:center; gap:10px; font-size:0.8em; margin-top:3px; padding-top:3px; border-top:1px dashed #333;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <label style="display:flex; align-items:center; gap:2px;"><input type="checkbox" id="metro-count-in-sound" checked onchange="syncCountInSubOptions('countInSound', this.checked)"> Son</label>
+                <label style="display:flex; align-items:center; gap:2px;"><input type="checkbox" id="metro-count-in-visual" checked onchange="syncCountInSubOptions('countInVisual', this.checked)"> Visuel</label>
+            </div>
+            <div style="display:flex; align-items:center; gap:4px;">
+                 <span>Mesures:</span>
+                 <select id="metro-count-in-measures" onchange="syncCountInSubOptions('countInMeasures', parseInt(this.value))" style="padding:1px; background:#111; border:1px solid #444; color:#fff; border-radius:3px;">
+                     <option value="1">1</option>
+                     <option value="2">2</option>
+                     <option value="3">3</option>
+                 </select>
+            </div>
         </div>
 
         <div id="metro-sync-options" style="display:none; justify-content:space-between; align-items:center; gap:10px; font-size:0.8em; margin-top:5px; padding-top:5px; border-top:1px dashed #333;">
