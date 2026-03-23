@@ -586,7 +586,11 @@ function renderFretboard(silentSave = false) {
                 const absEnd = absStart + range.span;
                 const absAnchor = range.rootAnchor + k * 12;
 
-                if (absEnd >= 0 && absEnd <= fretboardState.fretsCount) {
+                // Règle de Symétrie Absolue :
+                // Une boîte DOIT tenir entièrement sur le bois de l'instrument.
+                // Si elle nécessite une frette -1, elle est incomplète et injouable formellement.
+                // Si elle dépasse 22/24, elle est incomplète et injouable.
+                if (absStart >= 0 && absEnd <= fretboardState.fretsCount) {
                      if (octaveMode === "low" && absAnchor >= 12) continue;
                      if (octaveMode === "high" && absAnchor < 12) continue;
 
@@ -997,14 +1001,14 @@ function generateExerciseNotes() {
                 const absEnd = absStart + range.span;
                 const absAnchor = range.rootAnchor + k * 12;
 
-                // L'exercice récupère toutes les boîtes jouables ou partiellement jouables
+                // L'exercice récupère toutes les boîtes jouables complètes
                 if (octaveMode === "low" && absAnchor >= 12) continue;
                 if (octaveMode === "high" && absAnchor < 12) continue;
 
-                // Règle d'Asymétrie :
-                // Start peut être < 0 (Sillet = Doigt Virtuel)
-                // Mais End DOIT physiquement tenir sur le manche, sinon la forme est brisée dans le vide.
-                if (absEnd >= 0 && absEnd <= totalFretsOnNeck) {
+                // Règle de Symétrie Absolue (Dogme de l'intégrité de position) :
+                // La boîte doit commencer à 0 ou plus (pas de frettes négatives tolérées).
+                // La boîte doit s'arrêter avant la fin du manche.
+                if (absStart >= 0 && absEnd <= totalFretsOnNeck) {
                      validBoxes.push({
                           pos: p,
                           start: absStart,
