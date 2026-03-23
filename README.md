@@ -121,6 +121,10 @@ Pour contrôler votre DAW depuis AirstepStudio, vous **DEVEZ** utiliser un câbl
 | **Boucle Précédente** | `Shift` + `Flèche Gauche` |
 | **Activer/Désactiver Boucle** | `R` (Toggle 3 États) |
 | **Redémarrer** | `0` ou `Début` |
+| **Démarrer Entraînement** | `Alt` + `Espace` |
+| **Recommencer Position** | `Alt` + `Home` ou `0` |
+| **Position Précédente** | `Alt` + `Flèche Gauche` |
+| **Position Suivante** | `Alt` + `Flèche Droite` |
 
 ## 🛠️ Installation (Développeurs)
 

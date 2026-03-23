@@ -2286,16 +2286,31 @@ window.addEventListener('keydown', (e) => {
     switch (e.code) {
         case 'Space':
         case 'KeyK': // YouTube standard
+            if (e.altKey) {
+                if (typeof fretboardTogglePlay === 'function') fretboardTogglePlay();
+                e.preventDefault();
+                return;
+            }
             command = 'media_play_pause';
             break;
         case 'ArrowLeft':
         case 'KeyJ': // YouTube standard (-10s usually, we do -5s)
+            if (e.altKey) {
+                if (typeof fretboardNavPosition === 'function') fretboardNavPosition(-1);
+                e.preventDefault();
+                return;
+            }
             if (e.shiftKey) command = 'media_loop_prev';
             else if (e.ctrlKey) command = 'media_chapter_prev';
             else command = 'media_rewind';
             break;
         case 'ArrowRight':
         case 'KeyL': // YouTube standard (+10s usually)
+            if (e.altKey) {
+                if (typeof fretboardNavPosition === 'function') fretboardNavPosition(1);
+                e.preventDefault();
+                return;
+            }
             if (e.shiftKey) command = 'media_loop_next';
             else if (e.ctrlKey) command = 'media_chapter_next';
             else command = 'media_forward';
@@ -2320,6 +2335,11 @@ window.addEventListener('keydown', (e) => {
         case 'Digit0':
         case 'Numpad0':
         case 'Home':
+            if (e.altKey) {
+                if (typeof fretboardRestart === 'function') fretboardRestart();
+                e.preventDefault();
+                return;
+            }
             command = 'media_restart';
             break;
         // Optional: Pitch access via Keyboard if needed later

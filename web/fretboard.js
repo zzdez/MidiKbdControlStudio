@@ -820,13 +820,46 @@ function toggleFretTrainer() {
     const icon = document.getElementById("fret-trainer-toggle-icon");
     if (!body || !icon) return;
     
-    if (body.style.display === "none") {
+    if (body.style.display === "none" || body.style.display === "") {
         body.style.display = "flex";
-        icon.className = "ph ph-caret-down";
+        if (icon) icon.className = "ph ph-caret-down";
+        
+        // Auto-activer si non coché
+        const enableCheck = document.getElementById("fret-train-enable");
+        if (enableCheck && !enableCheck.checked) {
+            enableCheck.checked = true;
+            if (typeof toggleFretboardTrainer === 'function') {
+                toggleFretboardTrainer(true);
+            }
+        }
     } else {
         body.style.display = "none";
-        icon.className = "ph ph-caret-right";
+        if (icon) icon.className = "ph ph-caret-right";
     }
+}
+
+/* --- Training Controls Helpers --- */
+
+function fretboardRestart() {
+    currentExerciseIndex = -1;
+    clearNoteHighlights();
+    if (typeof generateExerciseNotes === 'function') generateExerciseNotes();
+}
+
+function fretboardNavPosition(direction) {
+    const selector = document.getElementById("fretboard-position");
+    if (!selector) return;
+    
+    const count = selector.options.length;
+    let nextIndex = selector.selectedIndex + direction;
+    
+    if (nextIndex < 0) nextIndex = count - 1;
+    if (nextIndex >= count) nextIndex = 0;
+    
+    selector.selectedIndex = nextIndex;
+    selector.dispatchEvent(new Event('change'));
+    
+    if (typeof generateExerciseNotes === 'function') generateExerciseNotes();
 }
 
 function toggleFretboardTrainer(enabled) {
@@ -874,38 +907,54 @@ function generateExerciseNotes() {
         let i = 0;
         const totalFretsOnNeck = fretboardState.fretsCount;
 
-        while (true) {
-            // Pos standard (1 à 5)
-            const currentPos = ((startPos - 1 + i) % maxPos) + 1;
-            // Octave (0 pour 1ère octave, 12 pour 2ème...)
-            const octaveOffset = Math.floor((startPos - 1 + i) / maxPos) * 12;
+        let validBoxes = [];
+        
+        // 1. Collecter toutes les boîtes qui rentrent sur le manche
+        for (let k = -1; k <= 2; k++) {
+            for (let p = 1; p <= maxPos; p++) {
+                const range = getPositionFretRange(keyNode, scaleType, p, tuning);
+                if (!range) continue;
 
-            const range = getPositionFretRange(keyNode, scaleType, currentPos, tuning);
-            if (!range) break;
+                const absStart = range.start + k * 12;
+                const absEnd = absStart + range.span;
 
-            // Appliquer le décalage d'octave
-            const absStart = range.start + octaveOffset;
-            const currentPosRange = {
-                start: absStart,
-                span: range.span
-            };
-
-            // Sortir si la boîte déborde de la fin du manche
-            const absEnd = absStart + range.span;
-            if (absEnd > totalFretsOnNeck) {
-                break; 
+                if (absStart >= 0 && absEnd <= totalFretsOnNeck) {
+                     validBoxes.push({
+                          pos: p,
+                          start: absStart,
+                          span: range.span,
+                          octaveOffset: k * 12
+                     });
+                }
             }
+        }
+
+        // 2. Trier par position de départ (Gauche vers la Droite)
+        validBoxes.sort((a, b) => a.start - b.start);
+
+        // 3. Trouver l'index de départ selon le choix utilisateur (première boîte qui matche la pos)
+        let startIndex = validBoxes.findIndex(box => box.pos === startPos);
+        if (startIndex === -1) startIndex = 0;
+
+        chainDots = [];
+        direction = "asc"; // Départ montant
+
+        // 4. Parcourir les boîtes triées (en boucle)
+        for (let i = 0; i < validBoxes.length; i++) {
+            const box = validBoxes[(startIndex + i) % validBoxes.length];
+            
+            const currentPosRange = {
+                start: box.start,
+                span: box.span
+            };
 
             let posDots = dots.filter(d => {
                 const fret = parseInt(d.dataset.fret);
                 return isNoteInPosition(fret, fret === 0, currentPosRange, octaveMode, true);
             });
 
-            // S'assurer que les notes récupérées sont bien sur le manche disponible
-            posDots = posDots.filter(d => parseInt(d.dataset.fret) <= totalFretsOnNeck);
-
             if (posDots.length > 0) {
-                // Tri par pitch (Corde Grave -> Aiguë)
+                // Tri Pitch (Corde Grave -> Aiguë)
                 posDots.sort((a, b) => {
                     const strA = parseInt(a.dataset.string);
                     const strB = parseInt(b.dataset.string);
@@ -921,12 +970,9 @@ function generateExerciseNotes() {
 
                 chainDots = chainDots.concat(posDots);
 
-                // Alterner la direction
+                // Alterner direction pour le flux continu (Zig-Zag)
                 direction = (direction === "asc") ? "desc" : "asc";
             }
-            
-            i++;
-            if (i > 15) break; 
         }
         activeDots = chainDots;
     } else {

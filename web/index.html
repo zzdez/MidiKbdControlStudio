@@ -1939,7 +1939,31 @@
             <div id="fret-trainer-container" style="border-top:1px solid #333; padding:4px 8px; margin-top:2px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; cursor:pointer;" onclick="toggleFretTrainer()">
                     <strong style="font-size:0.8em; color:#aaa;"><i class="ph ph-barbell"></i> <span data-i18n="web.lbl_scale_trainer">Entraînement</span></strong>
-                    <i id="fret-trainer-toggle-icon" class="ph ph-caret-right" style="font-size:0.75em; color:#666;"></i>
+                    <div style="display:flex; align-items:center; gap:8px;" onclick="event.stopPropagation()">
+                        <!-- Navigation Prev -->
+                        <button class="btn-icon" id="fret-train-prev" onclick="fretboardNavPosition(-1)" title="Position Précédente" style="font-size:1em; color:#bbb; padding:0; height:18px;">
+                            <i class="ph ph-skip-back"></i>
+                        </button>
+                        <!-- Restart -->
+                        <button class="btn-icon" id="fret-train-restart" onclick="fretboardRestart()" title="Recommencer position" style="font-size:1em; color:#bbb; padding:0; height:18px;">
+                            <i class="ph ph-arrow-counter-clockwise"></i>
+                        </button>
+                        <!-- Play/Pause -->
+                        <button class="btn-icon" id="fret-train-play" onclick="fretboardTogglePlay()" title="Démarrer / Pause" style="font-size:1.05em; color:#fff; padding:0; height:18px;">
+                            <i class="ph ph-play-circle"></i>
+                        </button>
+                        <!-- Navigation Next -->
+                        <button class="btn-icon" id="fret-train-next" onclick="fretboardNavPosition(1)" title="Position Suivante" style="font-size:1em; color:#bbb; padding:0; height:18px;">
+                            <i class="ph ph-skip-forward"></i>
+                        </button>
+                        <!-- Active Toggle -->
+                        <label class="modern-switch" style="font-size:0.75em; display:flex; align-items:center; cursor:pointer;">
+                             <input type="checkbox" id="fret-train-enable" onchange="toggleFretboardTrainer(this.checked)">
+                             <span class="switch-slider" style="transform: scale(0.75);"></span>
+                        </label>
+                        <!-- Caret -->
+                        <i id="fret-trainer-toggle-icon" class="ph ph-caret-right" style="font-size:0.75em; color:#666;" onclick="toggleFretTrainer(); event.stopPropagation()"></i>
+                    </div>
                 </div>
                 
                 <div id="fret-trainer-body" style="display:none; flex-direction:column; gap:4px;">
@@ -2006,19 +2030,7 @@
                          </div>
                     </div>
 
-                    <!-- Footer Toggles -->
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                        <label class="modern-switch" style="font-size:0.75em; display:flex; align-items:center;">
-                            <input type="checkbox" id="fret-train-enable" onchange="toggleFretboardTrainer(this.checked)">
-                            <span class="switch-slider" style="transform: scale(0.8);"></span>
-                            <span class="switch-label" style="margin-left:2px; color:var(--accent);" data-i18n="web.lbl_activate">Activer</span>
-                        </label>
-
-                        <!-- Play/Pause inside Fretboard -->
-                        <button class="btn-icon" id="fret-train-play" onclick="fretboardTogglePlay()" style="font-size:1.1em; color:#fff; padding:0; height:20px;">
-                            <i class="ph ph-play-circle"></i>
-                        </button>
-                    </div>
+                    <!-- Footer Toggles retirés -->
                 </div>
             </div>
         </div>

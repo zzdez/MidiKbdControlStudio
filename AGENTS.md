@@ -269,3 +269,12 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
 *   **Ergonomie & UX (`app.js`) :**
     *   **Repères d'un Clic :** Remplacement du bouton footer "Supprimer" par une icône corbeille `<i class="ph ph-trash"></i>` directe sur chaque ligne de la liste des repères.
     *   **Repères Visuels Timeline :** Programmation de marqueurs `.cue-marker` dynamiques (Jaunes Néon, `calc(100% + 8px)`) débordant de la barre de progression dès la lecture lancée (Tous Médias, incluant WaveSurfer et Multipistes).
+
+### 29. Évolution V23 : Fretboard Logic & Limites Modulo (En cours)
+* **Problématiques de Modulo vs Physique :**
+    - Les exercices de gammes souffrent d'un conflit entre la **périodicité mathématique** (modulo 12) et les **frontières physiques** du manche (frettes 0 à 24).
+    - **Fusion du Sillet** : L'algorithme a dû être unifié pour que la frette 0 obéisse aux mêmes règles cycliques que les autres frettes, évitant des disparitions de notes en mode single-position.
+    - **All Positions (Offsets Négatifs)** : Le chaînage "Toutes positions" a été révisé pour collecter les boîtes en $k \in [-1, 2]$ afin d'inclure les morceaux de gammes situés à gauche de la root originelle.
+* **Limites de l'Approche Actuelle :**
+    - L'absence de modèle académique rigide pour la structure des boîtes (type système CAGED ou 3 notes par corde stabilisées) rend les jointures et l'échantillonnage de notes fragiles sous certains filtres d'octaves.
+    - **Recommandation session future** : Refondre la logique de notes sur une structure de "Grille de Boîtes" prédéfinies plutôt que sur une translation de modules purement calculée.
