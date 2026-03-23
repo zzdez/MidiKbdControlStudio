@@ -1995,13 +1995,20 @@
                         </div>
                     </div>
 
-                    <!-- Sons des Notes -->
+                    <!-- Sons Mixage -->
                     <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:0.75em; border-top:1px dashed #333; padding-top:4px; margin-top:2px;">
-                         <label class="modern-switch" style="display:flex; align-items:center; cursor:pointer;" title="Jouer le son de la note à chaque battement">
-                              <input type="checkbox" id="fret-train-note-sound" checked onchange="localStorage.setItem('fretboard_note_sound', this.checked)">
-                              <span class="switch-slider"></span>
-                              <span class="switch-label" style="margin-left:4px;">Son de la Note</span>
-                         </label>
+                         <div style="display:flex; gap:10px;">
+                             <label class="modern-switch" style="display:flex; align-items:center; cursor:pointer;" title="Jouer le clic du métronome">
+                                  <input type="checkbox" id="fret-train-metro-sound" checked onchange="if(window.metronome) window.metronome.isMetronomeSoundActive = this.checked">
+                                  <span class="switch-slider"></span>
+                                  <span class="switch-label" style="margin-left:4px;">Clic Métronome</span>
+                             </label>
+                             <label class="modern-switch" style="display:flex; align-items:center; cursor:pointer;" title="Jouer le son de la note à chaque battement">
+                                  <input type="checkbox" id="fret-train-note-sound" checked onchange="localStorage.setItem('fretboard_note_sound', this.checked)">
+                                  <span class="switch-slider"></span>
+                                  <span class="switch-label" style="margin-left:4px;">Son de la Note</span>
+                             </label>
+                         </div>
                          <div style="display:flex; align-items:center; gap:4px;">
                               <i class="ph ph-speaker-low" style="color:#888;"></i>
                               <input type="range" id="fret-train-note-vol" min="0" max="100" value="50" style="width:60px; height:3px; cursor:pointer;" oninput="localStorage.setItem('fretboard_note_volume', this.value / 100)">
@@ -2010,6 +2017,26 @@
 
                     <!-- Trainer Controls Row -->
                     <div class="edit-form" style="margin-top:2px;">
+                        <div class="row-inputs" style="gap:4px; margin-bottom:4px;">
+                            <div class="col">
+                                <label style="font-size:0.7em;">Départ (BPM)</label>
+                                <input type="number" id="fret-train-start" value="60" style="padding:1px; font-size:0.8em; height:18px;">
+                            </div>
+                            <div class="col">
+                                <label style="font-size:0.7em;">Mode</label>
+                                <select id="fret-train-mode" style="padding:1px; font-size:0.8em; height:18px; background:#111; color:#fff; border:1px solid #444; border-radius:3px; width:100%;">
+                                    <option value="accel">Accélération</option>
+                                    <option value="fixed">Fixe</option>
+                                </select>
+                            </div>
+                            <div class="col">
+                                <label style="font-size:0.7em;">Augmenter par</label>
+                                <select id="fret-train-trigger" style="padding:1px; font-size:0.8em; height:18px; background:#111; color:#fff; border:1px solid #444; border-radius:3px; width:100%;">
+                                    <option value="measures">X Mesures</option>
+                                    <option value="cycle">Fin de Cycle</option>
+                                </select>
+                            </div>
+                        </div>
                         <div class="row-inputs" style="gap:4px;">
                             <div class="col">
                                 <label data-i18n="web.lbl_target_bpm" style="font-size:0.7em;">Cible</label>

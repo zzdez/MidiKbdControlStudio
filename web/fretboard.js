@@ -1028,13 +1028,24 @@ function fretboardNavPosition(direction) {
 function toggleFretboardTrainer(enabled) {
     fretboardTrainerActive = enabled;
     if (window.metronome) {
-        window.metronome.isTraining = enabled;
         if (enabled) {
-            window.metronome.trainTargetBPM = parseInt(document.getElementById("fret-train-target").value) || 160;
-            window.metronome.trainIncrement = parseInt(document.getElementById("fret-train-inc").value) || 5;
-            window.metronome.trainMeasures = parseInt(document.getElementById("fret-train-meas").value) || 4;
+            const startBpm = parseInt(document.getElementById("fret-train-start") ? document.getElementById("fret-train-start").value : 60) || 60;
+            window.metronome.setBpm(startBpm); // Appliquer le BPM de départ
+            
+            const mode = document.getElementById("fret-train-mode") ? document.getElementById("fret-train-mode").value : 'accel';
+            window.metronome.isTraining = (mode === 'accel');
+            
+            window.metronome.trainTargetBPM = parseInt(document.getElementById("fret-train-target") ? document.getElementById("fret-train-target").value : 160) || 160;
+            window.metronome.trainIncrement = parseInt(document.getElementById("fret-train-inc") ? document.getElementById("fret-train-inc").value : 5) || 5;
+            window.metronome.trainMeasures = parseInt(document.getElementById("fret-train-meas") ? document.getElementById("fret-train-meas").value : 4) || 4;
+            window.metronome.trainTrigger = document.getElementById("fret-train-trigger") ? document.getElementById("fret-train-trigger").value : 'measures';
+            
+            // Appliquer l'état du son du métronome classique
+            window.metronome.isMetronomeSoundActive = document.getElementById("fret-train-metro-sound") ? document.getElementById("fret-train-metro-sound").checked : true;
+            
             generateExerciseNotes();
         } else {
+            window.metronome.isTraining = false;
             clearNoteHighlights();
         }
     }
@@ -1245,6 +1256,11 @@ function highlightNextNote() {
     if (!fretboardTrainerActive || fretboardExerciseNotes.length === 0) return;
 
     if (currentExerciseIndex >= fretboardExerciseNotes.length - 1) {
+        // --- FIN DE CYCLE ---
+        if (window.metronome && window.metronome.isTraining && window.metronome.trainTrigger === 'cycle') {
+             window.metronome.incrementTempo();
+        }
+
         if (window.metronome && window.metronome.isCountInActive) {
             window.metronome.isCountingIn = true;
             window.metronome.countInBeatsRemaining = window.metronome.countInMeasures * window.metronome.beatsPerMeasure;

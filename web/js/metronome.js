@@ -39,6 +39,10 @@ class MetronomeEngine {
         this.isCountingIn = false;
         this.countInBeatsRemaining = 0;
         this.onCountInVisual = null; // function(number)
+        
+        // --- ADDED FOR SPEED TRAINER EXPANSION ---
+        this.isMetronomeSoundActive = true;
+        this.trainTrigger = 'measures'; // 'measures' | 'cycle'
     }
 
     init() {
@@ -129,20 +133,23 @@ class MetronomeEngine {
         if (this.currentBeatInMeasure === this.beatsPerMeasure) {
             this.currentBeatInMeasure = 0;
             
-            // Training mode logic
-            if (this.isTraining) {
+            // Training mode logic (Measures trigger)
+            if (this.isTraining && this.trainTrigger === 'measures') {
                 this.measuresCounted++;
                 if (this.measuresCounted >= this.trainMeasures) {
                     this.measuresCounted = 0;
-                    if (this.bpm < this.trainTargetBPM) {
-                        this.bpm = Math.min(this.bpm + this.trainIncrement, this.trainTargetBPM);
-                        if (this.onTrainProgress) this.onTrainProgress(this.bpm);
-                        if (this.bpm >= this.trainTargetBPM) {
-                            // Reached target
-                            this.isTraining = false;
-                        }
-                    }
+                    this.incrementTempo();
                 }
+            }
+        }
+    }
+
+    incrementTempo() {
+        if (this.bpm < this.trainTargetBPM) {
+            this.bpm = Math.min(this.bpm + this.trainIncrement, this.trainTargetBPM);
+            if (this.onTrainProgress) this.onTrainProgress(this.bpm);
+            if (this.bpm >= this.trainTargetBPM) {
+                this.isTraining = false; // Reached target
             }
         }
     }
@@ -156,6 +163,8 @@ class MetronomeEngine {
                 this.onBeat(beatNumber);
             }, Math.max(0, timeUntilNote * 1000));
         }
+
+        if (!this.isMetronomeSoundActive) return;
 
         // --- PLAY SAMPLE ---
         const bufferKey = beatNumber === 0 ? `${this.currentSoundSet}_high` : `${this.currentSoundSet}_low`;
