@@ -102,14 +102,15 @@ class MetronomeEngine {
         if (!this.availableSoundSets[setName]) return;
         
         this.currentSoundSet = setName;
-        const types = this.availableSoundSets[setName];
+        const typesObj = this.availableSoundSets[setName];
+        const types = Object.keys(typesObj);
         
         for (const type of types) {
             const key = `${setName}_${type}`;
             if (this.soundBuffers[key]) continue; // Already loaded
             
             try {
-                const url = `/assets/metronome/${key}.mp3`;
+                const url = typesObj[type]; // URL from API
                 const response = await fetch(url);
                 const arrayBuffer = await response.arrayBuffer();
                 const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);

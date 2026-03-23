@@ -893,6 +893,87 @@ function cycleFretCount() {
 // FRETBOARD TRAINING LOGIC
 // ==========================================
 
+// --- SYNTHESIZER FOR NOTE PLAYBACK ---
+const instrumentBaseMidi = {
+    "guitar_6": [64, 59, 55, 50, 45, 40], // High E to Low E
+    "guitar_7": [64, 59, 55, 50, 45, 40, 35], // + Low B
+    "bass_4": [43, 38, 33, 28], // G2, D2, A1, E1
+    "bass_5": [43, 38, 33, 28, 23] // + Low B
+};
+
+function getMidiNote(stringIndex, fretNum) {
+    const inst = fretboardState.instrument;
+    const basePitches = instrumentBaseMidi[inst] || instrumentBaseMidi["guitar_6"];
+    
+    if (stringIndex >= basePitches.length) return null;
+    
+    const openMidi = basePitches[stringIndex];
+    
+    // Adjust for current tuning if not standard
+    const currentPreset = tuningPresets[fretboardState.tuning] || tuningPresets["standard"];
+    const standardPreset = tuningPresets[instruments[inst].tunings[0]]; // First is standard
+    
+    if (!currentPreset || !standardPreset) return openMidi + fretNum;
+    
+    const currentReversed = [...currentPreset].reverse();
+    const standardReversed = [...standardPreset].reverse();
+    
+    const currentNoteName = currentReversed[stringIndex];
+    const standardNoteName = standardReversed[stringIndex];
+    
+    if (!currentNoteName || !standardNoteName) return openMidi + fretNum;
+    
+    // Parse Note Names (remove minor 'm' alias if any)
+    const cleanCurrent = currentNoteName.replace("m", "");
+    const cleanStandard = standardNoteName.replace("m", "");
+    
+    const currentIndex = baseNotes.indexOf(cleanCurrent);
+    const standardIndex = baseNotes.indexOf(cleanStandard);
+    
+    if (currentIndex === -1 || standardIndex === -1) return openMidi + fretNum;
+    
+    let interval = currentIndex - standardIndex;
+    if (interval > 6) interval -= 12;
+    if (interval < -6) interval += 12;
+    
+    return openMidi + interval + fretNum;
+}
+
+function playNotePitch(dot) {
+    if (!dot) return;
+    const stringIndex = parseInt(dot.dataset.string);
+    const fretNum = parseInt(dot.dataset.fret);
+    
+    const midiNote = getMidiNote(stringIndex, fretNum);
+    if (!midiNote) return;
+    
+    const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+    
+    if (!window.metronome || !window.metronome.audioContext) return;
+    const ctx = window.metronome.audioContext;
+    
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    
+    osc.connect(env);
+    env.connect(window.metronome.masterGainNode || ctx.destination);
+    
+    osc.type = 'triangle'; 
+    osc.frequency.value = freq;
+    
+    const now = ctx.currentTime;
+    // Volume control from UI (fallback to 0.5)
+    const savedVol = localStorage.getItem('fretboard_note_volume');
+    const noteVolume = savedVol !== null ? parseFloat(savedVol) : 0.5;
+    
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(noteVolume, now + 0.005);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    
+    osc.start(now);
+    osc.stop(now + 0.3);
+}
+
 let fretboardTrainerActive = false;
 let fretboardExerciseNotes = [];
 let currentExerciseIndex = -1;
@@ -1182,6 +1263,12 @@ function highlightNextNote() {
         activeDot.style.boxShadow = "0 0 10px 4px var(--success)";
         activeDot.style.transform = activeDot.style.transform + " scale(1.3)";
         activeDot.style.zIndex = "100";
+        
+        // --- PLAY SOUND ---
+        const soundEnabled = document.getElementById("fret-train-note-sound") ? document.getElementById("fret-train-note-sound").checked : true;
+        if (soundEnabled) {
+             playNotePitch(activeDot);
+        }
     }
 }
 
@@ -1316,3 +1403,25 @@ function syncCountInSubOptions(property, value) {
         if (fMeas) fMeas.value = window.metronome.countInMeasures;
     }, 10);
 }
+
+// --- INITIALISATION UI (Sons des Notes) ---
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        const noteSoundCheck = document.getElementById("fret-train-note-sound");
+        const noteVolSlider = document.getElementById("fret-train-note-vol");
+        
+        if (noteSoundCheck) {
+            const savedSound = localStorage.getItem('fretboard_note_sound');
+            if (savedSound !== null) {
+                noteSoundCheck.checked = savedSound === 'true';
+            }
+        }
+        
+        if (noteVolSlider) {
+            const savedVol = localStorage.getItem('fretboard_note_volume');
+            if (savedVol !== null) {
+                noteVolSlider.value = parseFloat(savedVol) * 100;
+            }
+        }
+    }, 100);
+});

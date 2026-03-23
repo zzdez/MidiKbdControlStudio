@@ -1995,6 +1995,19 @@
                         </div>
                     </div>
 
+                    <!-- Sons des Notes -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:0.75em; border-top:1px dashed #333; padding-top:4px; margin-top:2px;">
+                         <label class="modern-switch" style="display:flex; align-items:center; cursor:pointer;" title="Jouer le son de la note à chaque battement">
+                              <input type="checkbox" id="fret-train-note-sound" checked onchange="localStorage.setItem('fretboard_note_sound', this.checked)">
+                              <span class="switch-slider"></span>
+                              <span class="switch-label" style="margin-left:4px;">Son de la Note</span>
+                         </label>
+                         <div style="display:flex; align-items:center; gap:4px;">
+                              <i class="ph ph-speaker-low" style="color:#888;"></i>
+                              <input type="range" id="fret-train-note-vol" min="0" max="100" value="50" style="width:60px; height:3px; cursor:pointer;" oninput="localStorage.setItem('fretboard_note_volume', this.value / 100)">
+                         </div>
+                    </div>
+
                     <!-- Trainer Controls Row -->
                     <div class="edit-form" style="margin-top:2px;">
                         <div class="row-inputs" style="gap:4px;">
