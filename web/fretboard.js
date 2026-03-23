@@ -331,12 +331,20 @@ function getPositionFretRange(rootNote, scaleType, position, tuning) {
 
     // Find where the root note is on the lowest string
     const currentTuning = tuningPresets[tuning] || tuningPresets["standard"];
-    const lowestStringNote = currentTuning[0]; // Usually E
+    let anchorStringNote = currentTuning[0]; // Par défaut, la corde la plus grave
 
-    // Find the first fret of the root note on the lowest string
+    // --- CORRECTION ALTERNATE TUNINGS & EXTENDED RANGE ---
+    // Les positions CAGED/Penta sont physiquement ancrées sur l'accordage standard (intervalles fixes).
+    // Drop D : la corde grave est détunée, mais les 5 autres sont standards, la boîte ne doit pas bouger.
+    // Basse 5C / Guitare 7C : La corde grave (B) est une extension. L'ancrage structurel reste le Mi (E).
+    if (tuning === "drop_d" || tuning === "bass_5" || tuning === "guitar_7") {
+        anchorStringNote = "E";
+    }
+
+    // Find the first fret of the root note on the structural anchor string
     let rootFretOnE = -1;
     for (let f = 0; f < 12; f++) {
-        if (getNoteAtFret(lowestStringNote, f) === rootNote) {
+        if (getNoteAtFret(anchorStringNote, f) === rootNote) {
             rootFretOnE = f;
             break;
         }
@@ -347,65 +355,82 @@ function getPositionFretRange(rootNote, scaleType, position, tuning) {
     const intervalFromRoot = formula[posIndex];
     let posStartFret = (rootFretOnE + intervalFromRoot);
 
-    // --- AJUSTEMENT DES BOÎTES ---
+    // --- AJUSTEMENT DES BOÎTES (Canonical Shapes) ---
     let offset = 0;
-    let span = 4; // Valeur par défaut
+    let span = 5; // Valeur par défaut pour Diatoniques (3 Notes Per String)
 
     if (typeof positionModifiers !== 'undefined') {
         const mods = positionModifiers[scaleType];
         if (mods && mods[posIndex]) {
             offset = mods[posIndex].offset;
             span = mods[posIndex].span;
+        } else if (scaleType.includes("pentatonic")) {
+            // Sécurité fallback pour pentatoniques
+            span = 4;
         }
     }
 
     // Appliquer le décalage (garde la valeur absolue sur le manche)
-    posStartFret = (posStartFret + offset);
-    if (posStartFret < 0) posStartFret += 12; // Gérer offsets négatifs d'ancrage
+    let finalStartFret = posStartFret + offset;
+    if (finalStartFret < 0 && finalStartFret > -10) finalStartFret += 12; // Gérer offsets négatifs d'ancrage
 
     return {
-        start: posStartFret,
-        span: span 
+        start: finalStartFret,
+        span: span,
+        rootAnchor: posStartFret
     };
 }
 
 function isNoteInPosition(fretNum, isNut, posRange, octaveMode = "all", strictAbsolute = false) {
-    if (octaveMode === "low" && fretNum >= 12) return false;
+    // Slicer Universel : les octaves opèrent comme DEUX manches physiquement distincts.
+    // Frette 12 agit comme une frontière dure (le sillet de la deuxième octave).
+    if (octaveMode === "low" && fretNum > 12) return false;
     if (octaveMode === "high" && fretNum < 12) return false;
 
     if (!posRange) return true;
+    
+    const baseStart = posRange.start;
+    const baseEnd = posRange.start + posRange.span;
+
+    const totalFretsOnNeck = typeof fretboardState !== 'undefined' ? fretboardState.fretsCount : 12;
 
     if (strictAbsolute) {
-        const absStart = posRange.start;
-        const absEnd = posRange.start + posRange.span;
-        if (isNut) {
-            return (0 >= absStart && 0 <= absEnd);
-        }
-        return (fretNum >= absStart && fretNum <= absEnd);
+        if (isNut && baseStart <= 0 && baseEnd >= 0) return true;
+        return (fretNum >= baseStart && fretNum <= baseEnd);
     }
 
-    const span = posRange.span;
-    const absStart = posRange.start;
-    const startMod = absStart % 12;
-    const modFret = fretNum % 12;
+    // Affichage standard : on allume la boîte et toutes ses répétitions aux octaves (-2 à +3)
+    if (isNut) {
+        for (let k = -2; k <= 3; k++) {
+            let octaveStart = baseStart + (k * 12);
+            let octaveEnd = baseEnd + (k * 12);
+            let octaveAnchor = posRange.rootAnchor + (k * 12);
+            
+            if (octaveMode === "low" && octaveAnchor >= 12) continue;
+            if (octaveMode === "high" && octaveAnchor < 12) continue;
 
-    let diff = (fretNum - absStart) % 12;
-    if (diff < 0) diff += 12;
-
-    if (diff >= 0 && diff <= span) {
-        // Valider que l'octave de cette note ne déborde pas du manche
-        let cycleStart = Math.floor(fretNum / 12) * 12 + startMod;
-        if (modFret < startMod) {
-            cycleStart -= 12;
+            if (octaveStart >= 0 && octaveEnd <= totalFretsOnNeck) {
+                if (0 >= octaveStart && 0 <= octaveEnd) return true;
+            }
         }
-        const cycleEnd = cycleStart + span;
-        const totalFretsOnNeck = typeof fretboardState !== 'undefined' ? fretboardState.fretsCount : 12;
-
-        if (cycleStart < 0 || cycleEnd > totalFretsOnNeck) {
-            return false; // Boîte tronquée par le bout du manche (débordement gauche/droite)
-        }
-        return true;
+        return false;
     }
+
+    for (let k = -2; k <= 3; k++) {
+        let octaveStart = baseStart + (k * 12);
+        let octaveEnd = baseEnd + (k * 12);
+        let octaveAnchor = posRange.rootAnchor + (k * 12);
+        
+        if (octaveMode === "low" && octaveAnchor >= 12) continue;
+        if (octaveMode === "high" && octaveAnchor < 12) continue;
+
+        if (octaveStart >= 0 && octaveEnd <= totalFretsOnNeck) {
+            if (fretNum >= octaveStart && fretNum <= octaveEnd) {
+                 return true;
+            }
+        }
+    }
+    
     return false;
 }
 
@@ -536,6 +561,41 @@ function renderFretboard(silentSave = false) {
     const activePosition = positionSelect ? positionSelect.value : "all";
     const posRange = getPositionFretRange(fretboardState.key, fretboardState.scale, activePosition, fretboardState.tuning);
 
+    const octaveSelect = document.getElementById("fretboard-octave");
+    const octaveMode = octaveSelect ? octaveSelect.value : "all";
+
+    // Si "All Positions", on calcule la carte exacte des boîtes valides asymétriques
+    // pour garantir que l'affichage visuel correspond à 100% des notes jouées par l'exercice sans déborder.
+    let globalValidBoxes = null;
+    if (activePosition === "all") {
+        globalValidBoxes = [];
+        const scaleType = fretboardState.scale;
+        const tuning = fretboardState.tuning;
+        const keyNode = fretboardState.key;
+        
+        const mods = typeof positionModifiers !== 'undefined' ? positionModifiers[scaleType] : null;
+        const formula = typeof scaleFormulas !== 'undefined' ? scaleFormulas[scaleType] : null;
+        const maxPos = mods ? Object.keys(mods).length : (formula ? formula.length : 5);
+        
+        for (let k = -1; k <= 2; k++) {
+            for (let p = 1; p <= maxPos; p++) {
+                const range = getPositionFretRange(keyNode, scaleType, p, tuning);
+                if (!range) continue;
+                
+                const absStart = range.start + k * 12;
+                const absEnd = absStart + range.span;
+                const absAnchor = range.rootAnchor + k * 12;
+
+                if (absEnd >= 0 && absEnd <= fretboardState.fretsCount) {
+                     if (octaveMode === "low" && absAnchor >= 12) continue;
+                     if (octaveMode === "high" && absAnchor < 12) continue;
+
+                     globalValidBoxes.push({ start: absStart, end: absEnd });
+                }
+            }
+        }
+    }
+
     const startPosContainer = document.getElementById("fret-all-start-container");
     if (startPosContainer) {
         startPosContainer.style.display = activePosition === "all" ? "flex" : "none";
@@ -656,7 +716,25 @@ function renderFretboard(silentSave = false) {
             // Position Highlight Logic
             const octaveSelect = document.getElementById("fretboard-octave");
             const octaveMode = octaveSelect ? octaveSelect.value : "all";
-            let inPosition = isNoteInPosition(fretNum, isNut, posRange, octaveMode);
+            
+            let inPosition = false;
+            if (activePosition === "all" && globalValidBoxes) {
+                // Étape 1 : S'assurer que la note relève d'une boîte physique complète (asymétrie fin de manche)
+                for (let i = 0; i < globalValidBoxes.length; i++) {
+                    const box = globalValidBoxes[i];
+                    if (isNut && box.start <= 0 && box.end >= 0) {
+                        inPosition = true; break;
+                    }
+                    if (fretNum >= box.start && fretNum <= box.end) {
+                        inPosition = true; break;
+                    }
+                }
+                // Étape 2 : SLICER Sillet Virtuel (Coupe aveugle aux confins des 12 frettes)
+                if (octaveMode === "low" && fretNum > 12) inPosition = false;
+                if (octaveMode === "high" && fretNum < 12) inPosition = false;
+            } else {
+                inPosition = isNoteInPosition(fretNum, isNut, posRange, octaveMode, false);
+            }
 
             // Style logic based on Display Mode
             const displayModeSelect = document.getElementById("fretboard-display-mode");
@@ -917,8 +995,16 @@ function generateExerciseNotes() {
 
                 const absStart = range.start + k * 12;
                 const absEnd = absStart + range.span;
+                const absAnchor = range.rootAnchor + k * 12;
 
-                if (absStart >= 0 && absEnd <= totalFretsOnNeck) {
+                // L'exercice récupère toutes les boîtes jouables ou partiellement jouables
+                if (octaveMode === "low" && absAnchor >= 12) continue;
+                if (octaveMode === "high" && absAnchor < 12) continue;
+
+                // Règle d'Asymétrie :
+                // Start peut être < 0 (Sillet = Doigt Virtuel)
+                // Mais End DOIT physiquement tenir sur le manche, sinon la forme est brisée dans le vide.
+                if (absEnd >= 0 && absEnd <= totalFretsOnNeck) {
                      validBoxes.push({
                           pos: p,
                           start: absStart,
@@ -979,14 +1065,26 @@ function generateExerciseNotes() {
         activeDots = dots.filter(d => d.style.opacity === "1");
     }
 
-    // 1. BASE SORT: Ascending Pitch (uniquement si une seule position sélectionnée)
+    // 1. BASE SORT: Ascending Pitch
+    // Si Single Position, il arrive que 2 octaves partagent le manche (Pos 1 basse et Pos 1 haute).
+    // On doit trier par BLOC D'OCTAVE d'abord, pour éviter les aller-retours incessants 21 -> 1.
     if (activePosition !== "all") {
         activeDots.sort((a, b) => {
-            const strA = parseInt(a.dataset.string);
-            const strB = parseInt(b.dataset.string);
             const fretA = parseInt(a.dataset.fret);
             const fretB = parseInt(b.dataset.fret);
+            
+            // Regrouper en tranches de 12 frettes pour les octaves
+            const blockA = Math.floor(fretA / 12);
+            const blockB = Math.floor(fretB / 12);
 
+            if (blockA !== blockB) {
+                return blockA - blockB; // Jouer l'octave basse totalement, PUIS l'octave haute
+            }
+
+            // Dans la même octave de boîte, tri par Pitch (Corde -> Frette)
+            const strA = parseInt(a.dataset.string);
+            const strB = parseInt(b.dataset.string);
+            
             if (strA !== strB) {
                 return strB - strA; // Low string (index 5) to High string (index 0)
             }

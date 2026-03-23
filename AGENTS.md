@@ -270,11 +270,10 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **Repères d'un Clic :** Remplacement du bouton footer "Supprimer" par une icône corbeille `<i class="ph ph-trash"></i>` directe sur chaque ligne de la liste des repères.
     *   **Repères Visuels Timeline :** Programmation de marqueurs `.cue-marker` dynamiques (Jaunes Néon, `calc(100% + 8px)`) débordant de la barre de progression dès la lecture lancée (Tous Médias, incluant WaveSurfer et Multipistes).
 
-### 29. Évolution V23 : Fretboard Logic & Limites Modulo (En cours)
-* **Problématiques de Modulo vs Physique :**
-    - Les exercices de gammes souffrent d'un conflit entre la **périodicité mathématique** (modulo 12) et les **frontières physiques** du manche (frettes 0 à 24).
-    - **Fusion du Sillet** : L'algorithme a dû être unifié pour que la frette 0 obéisse aux mêmes règles cycliques que les autres frettes, évitant des disparitions de notes en mode single-position.
-    - **All Positions (Offsets Négatifs)** : Le chaînage "Toutes positions" a été révisé pour collecter les boîtes en $k \in [-1, 2]$ afin d'inclure les morceaux de gammes situés à gauche de la root originelle.
-* **Limites de l'Approche Actuelle :**
-    - L'absence de modèle académique rigide pour la structure des boîtes (type système CAGED ou 3 notes par corde stabilisées) rend les jointures et l'échantillonnage de notes fragiles sous certains filtres d'octaves.
-    - **Recommandation session future** : Refondre la logique de notes sur une structure de "Grille de Boîtes" prédéfinies plutôt que sur une translation de modules purement calculée.
+### 29. Évolution V24 : Grille Géométrique Dynamique & Gammes (Refonte Fretboard)
+* **Système de Bounding Box Dynamique (`fretboard.js`) :**
+    - Suppression complète des `positionModifiers` (offsets en dur) qui bridaient les gammes aux simples pentatoniques. L'algorithme scanne désormais les notes actives sur le manche autour de la frette racine et calcule la largeur (span) et le décalage idéals pour former une "Boîte d'Ergonomie Parfaite" (3 à 5 frettes). Le système est donc robuste face à **n'importe quel accordage** (Drop D, Open G) et **n'importe quelle gamme** (Diatonique, Blues, etc.).
+* **Fiabilisation des Validations Modulo :**
+    - La fonction `isNoteInPosition` n'utilise plus de logique modulo complexe pour l'appartenance à un bloc. Les positions sont validées par limites physiques absolues (`minFret`, `maxFret`) projetées aux différentes octaves, évitant les sauts de notes de bordure.
+* **Exercices Continus (All Positions) :**
+    - Au lieu d'essayer de souder artificiellement les boîtes (qui se chevauchent naturellement dans l'apprentissage académique, ex: positions CAGED), l'exercice construit un chemin par boîte en respectant la direction `asc` ou `desc` demandée par l'utilisateur, et alterne parfaitement en cas de `Zig-Zag`. La limite basse des boîtes accepte désormais toutes les frettes jusqu'au sillet ($0$).
