@@ -219,7 +219,16 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **Consolidation** : Regroupement horizontal des 5 champs techniques (BPM, Tonalité Orig., Tonalité Média, Pitch Orig., Pitch Média) sur une seule ligne dans toutes les modales.
     *   **Abréviations Intelligentes** : Utilisation de labels compacts ("T. Orig.", "Orig. Key") et de liens externes abrégés ("GetSongBPM.com") pour garantir une lisibilité sans scroll.
 *   **Support "Tonalité Média" (Media Key) :**
-    *   **Persistance Sidecar** : Extension du schéma sidecar JSON pour inclure `media_key`, permettant de différencier la tonalité originale de l'œuvre et la tonalité réelle du fichier média (après Pitch Shifting éventuel).
+    *   **Persistance Sidecar** : Extension du schéma sidecar JSON pour inclure `media_key`, permettant de différencier la tonalité originale de la tonalité modifiée par le lecteur.
+
+### 23. Évolution V24 : Fretboard CAGED & Virtual Nut Paradigm (Unification)
+Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathématique et pédagogique fondamentale pour synchroniser l'affichage Visuel et la Génération d'Exercices :
+*   **Ancrage Absolu (Root Anchor) :** L'attribution d'une boîte à l'Octave 1 (`[0, 12]`) ou Octave 2 (`[12, 24]`) n'utilise plus les frontières de la boîte, mais uniquement la position de sa **Tonique sur la corde de Mi**. Cela permet d'assigner proprement une position à une octave même si la forme s'étale de 11 à 15 (Root = 12 -> Octave 2 gagnante).
+*   **Asymétrie Physique du Manche :**
+    *   **Sillet (Début) :** Une boîte allant de `-1` à `3` est **validée**. Le système filtre géométriquement les notes négatives, transformant l'ensemble en l'accord ouvert parfait `[0, 3]`. Le sillet agit comme un doigt virtuel.
+    *   **Vide (Fin) :** Une boîte allant de `22` à `26` sur une guitare 24 cases est **invalidée et détruite**. Toute boîte dont le `absEnd > fretsCount` est mathématiquement injouable et supprimée de `globalValidBoxes`.
+*   **Théorème du Sillet Virtuel (Virtual Nut) :** Pour forcer la démarcation stricte de 12 cases par octave tout en préservant l'intégrité des boîtes (ex: Pos 3 allant de 11 à 15 en Octave 2), la frette `12` opère comme un *Sillet Virtuel*. La fonction géométrique `isNoteInPosition` exécute un slicer absolu : toute note `< 12` en Octave 2 est atomisée. La Pos 3 s'affiche et se joue naturellement en `[12, 15]`, symétrie exacte de sa forme avec cordes à vide `[0, 3]`.
+*   **Protection contre la Dérive Instrumentale :** Le calcul de géométrie force la base `E` comme ancre ("AnchorString") même si l'instrument est "Drop D", "Basse 5" ou "Guitare 7", empêchant un glissement accidentel des grilles CAGED sur les plages standard. En revanche, un accordage full-drop (Eb, D) provoque un glissement parfait de la matrice. l'œuvre et la tonalité réelle du fichier média (après Pitch Shifting éventuel).
     *   **Flux de Données** : Intégration complète dans `app.js` (Frontend), `server.py` (API REST) et `metadata_service.py` (Backend).
 *   **Robustesse MusicAPI :**
     *   **Error Hardening** : Isolation stricte des appels API GetSongBPM/Key et Spotify via des blocs `try/except` globaux.
