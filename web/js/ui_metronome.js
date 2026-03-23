@@ -8,6 +8,12 @@ function toggleMetronomeUI() {
     
     if (dock.style.display === "none" || dock.style.display === "") {
         dock.style.display = "flex";
+        
+        // Initialize Engine & Load sounds
+        if (window.metronome) {
+            window.metronome.init();
+        }
+
         // Initialize dragging if not done yet
         if (!metronomeDraggable) {
             dragMetronomeElement(dock);
@@ -125,6 +131,26 @@ window.metronome.onTrainProgress = (newBpm) => {
     document.getElementById("metro-bpm-slider").value = newBpm;
     // Optional: visual flash
 };
+
+// Populate Sound List Callback
+if (window.metronome) {
+    window.metronome.onSoundsListLoaded = (soundsList) => {
+        const select = document.getElementById("metro-sound-set");
+        if (!select) return;
+        
+        select.innerHTML = "";
+        for (const setName in soundsList) {
+            const option = document.createElement("option");
+            option.value = setName;
+            // Capitalize first letter for display
+            option.innerText = setName.charAt(0).toUpperCase() + setName.slice(1);
+            if (setName === window.metronome.currentSoundSet) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        }
+    };
+}
 
 function resetBeatVisualizer() {
     document.querySelectorAll(".metro-dot").forEach(dot => {

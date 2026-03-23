@@ -330,6 +330,30 @@ async def get_status():
         "active_profile_name": active_profile_name
     }
 
+@app.get("/api/metronome/sounds")
+async def get_metronome_sounds():
+    """Returns available metronome sound kits grouped by prefix."""
+    sounds_dir = os.path.join(get_resource_path("assets"), "metronome")
+    if not os.path.exists(sounds_dir):
+         return {}
+         
+    kits = {}
+    try:
+         for filename in os.listdir(sounds_dir):
+              if filename.endswith(".mp3"):
+                   # Expecting format: prefix_type.mp3 (e.g. claves_high.mp3)
+                   parts = filename.rsplit("_", 1)
+                   if len(parts) == 2:
+                        prefix = parts[0]
+                        suffix = parts[1].replace(".mp3", "")
+                        if prefix not in kits:
+                             kits[prefix] = []
+                        kits[prefix].append(suffix)
+    except Exception as e:
+         logging.error(f"Error scanning metronome sounds: {e}")
+         
+    return kits
+
 @app.get("/api/system/capabilities")
 async def get_system_capabilities():
     """Returns availability of external tools (YT, FFmpeg)."""

@@ -14,6 +14,11 @@ class MetronomeEngine {
         this.currentBeatInMeasure = 0;
         this.timerWorker = null;
         
+        // Sounds
+        this.soundBuffers = {}; // { claves_high: AudioBuffer, ... }
+        this.currentSoundSet = 'digital1'; // Default
+        this.availableSoundSets = {}; // From API
+        
         // Callbacks
         this.onBeat = null; // function(currentBeat, time)
         
@@ -24,11 +29,25 @@ class MetronomeEngine {
         this.trainMeasures = 4; // Increment after X measures
         this.measuresCounted = 0;
         this.onTrainProgress = null; // function(newBpm)
+        this.volume = 1.0; // Volume global
+
+        // Décompte (Count-In)
+        this.isCountInActive = false;
+        this.countInMeasures = 1;
+        this.countInVisual = true;
+        this.countInSound = true;
+        this.isCountingIn = false;
+        this.countInBeatsRemaining = 0;
+        this.onCountInVisual = null; // function(number)
     }
 
     init() {
         if (!this.audioContext) {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.masterGainNode = this.audioContext.createGain();
+            this.masterGainNode.connect(this.audioContext.destination);
+            this.masterGainNode.gain.value = this.volume;
+            this.loadSoundSets(); // Load sounds once context is ready
         }
         
         // Create an inline Web Worker for precise timing regardless of main thread load
@@ -59,6 +78,45 @@ class MetronomeEngine {
                 }
             };
             this.timerWorker.postMessage({ 'interval': this.lookahead });
+        }
+    }
+
+    async loadSoundSets() {
+        try {
+            const response = await fetch('/api/metronome/sounds');
+            this.availableSoundSets = await response.json();
+            
+            // Trigger UI update if callback exists (will be added in ui_metronome)
+            if (this.onSoundsListLoaded) {
+                 this.onSoundsListLoaded(this.availableSoundSets);
+            }
+            
+            // Load default
+            await this.loadSoundSet(this.currentSoundSet);
+        } catch (e) {
+            console.error("Failed to load metronome sounds list", e);
+        }
+    }
+
+    async loadSoundSet(setName) {
+        if (!this.availableSoundSets[setName]) return;
+        
+        this.currentSoundSet = setName;
+        const types = this.availableSoundSets[setName];
+        
+        for (const type of types) {
+            const key = `${setName}_${type}`;
+            if (this.soundBuffers[key]) continue; // Already loaded
+            
+            try {
+                const url = `/assets/metronome/${key}.mp3`;
+                const response = await fetch(url);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                this.soundBuffers[key] = audioBuffer;
+            } catch (e) {
+                console.error(`Failed to load sound sample ${key}`, e);
+            }
         }
     }
 
@@ -98,33 +156,101 @@ class MetronomeEngine {
             }, Math.max(0, timeUntilNote * 1000));
         }
 
-        // --- SYNTHESIZE CLICK ---
-        const osc = this.audioContext.createOscillator();
-        const envelope = this.audioContext.createGain();
+        // --- PLAY SAMPLE ---
+        const bufferKey = beatNumber === 0 ? `${this.currentSoundSet}_high` : `${this.currentSoundSet}_low`;
+        const buffer = this.soundBuffers[bufferKey] || this.soundBuffers[`${this.currentSoundSet}_high` /* fallback */];
 
-        osc.connect(envelope);
-        envelope.connect(this.audioContext.destination);
-
-        if (beatNumber === 0) {
-            // High frequency for downbeat (first beat)
-            osc.frequency.value = 1000.0;
+        if (buffer) {
+            const source = this.audioContext.createBufferSource();
+            source.buffer = buffer;
+            const gainNode = this.audioContext.createGain();
+            gainNode.gain.value = 1.0; 
+            source.connect(gainNode);
+            gainNode.connect(this.masterGainNode || this.audioContext.destination);
+            source.start(time);
         } else {
-            // Lower frequency for subsequent beats
-            osc.frequency.value = 800.0;
+            // FALLBACK TO SYNTHESIZE CLICK
+            const osc = this.audioContext.createOscillator();
+            const envelope = this.audioContext.createGain();
+
+            osc.connect(envelope);
+            envelope.connect(this.masterGainNode || this.audioContext.destination);
+
+            if (beatNumber === 0) {
+                osc.frequency.value = 1000.0;
+            } else {
+                osc.frequency.value = 800.0;
+            }
+
+            envelope.gain.value = 1;
+            envelope.gain.exponentialRampToValueAtTime(1, time + 0.001);
+            envelope.gain.exponentialRampToValueAtTime(0.001, time + 0.05); 
+
+            osc.start(time);
+            osc.stop(time + 0.05);
+        }
+    }
+
+    scheduleCountInNote(time) {
+        // Décompte Visuel
+        if (this.countInVisual && this.onCountInVisual) {
+            const delayMs = Math.max(0, (time - this.audioContext.currentTime) * 1000);
+            setTimeout(() => {
+                if (this.onCountInVisual) {
+                    this.onCountInVisual(this.countInBeatsRemaining + 1);
+                }
+            }, delayMs);
         }
 
-        envelope.gain.value = 1;
-        envelope.gain.exponentialRampToValueAtTime(1, time + 0.001);
-        envelope.gain.exponentialRampToValueAtTime(0.001, time + 0.05); // Sharp decay for a click sound
+        // Décompte Sonore
+        if (this.countInSound) {
+            const buffer = this.soundBuffers[`${this.currentSoundSet}_high`] || Object.values(this.soundBuffers)[0];
+            if (buffer) {
+                const source = this.audioContext.createBufferSource();
+                source.buffer = buffer;
+                const gainNode = this.audioContext.createGain();
+                gainNode.gain.value = 1.0; 
+                source.connect(gainNode);
+                gainNode.connect(this.masterGainNode || this.audioContext.destination);
+                source.start(time);
+            } else {
+                const osc = this.audioContext.createOscillator();
+                const envelope = this.audioContext.createGain();
 
-        osc.start(time);
-        osc.stop(time + 0.05);
+                osc.connect(envelope);
+                envelope.connect(this.masterGainNode || this.audioContext.destination);
+
+                const beatOfMeasure = (this.beatsPerMeasure * this.countInMeasures - this.countInBeatsRemaining) % this.beatsPerMeasure;
+                if (beatOfMeasure === 0) {
+                    osc.frequency.value = 1000.0;
+                } else {
+                    osc.frequency.value = 800.0;
+                }
+
+                envelope.gain.value = 1;
+                envelope.gain.exponentialRampToValueAtTime(1, time + 0.001);
+                envelope.gain.exponentialRampToValueAtTime(0.001, time + 0.05); 
+
+                osc.start(time);
+                osc.stop(time + 0.05);
+            }
+        }
     }
 
     scheduler() {
         while (this.nextNoteTime < this.audioContext.currentTime + this.scheduleAheadTime) {
-            this.scheduleNote(this.currentBeatInMeasure, this.nextNoteTime);
-            this.nextNote()
+            if (this.isCountingIn) {
+                this.scheduleCountInNote(this.nextNoteTime);
+                this.countInBeatsRemaining--;
+                if (this.countInBeatsRemaining <= 0) {
+                    this.isCountingIn = false;
+                    this.currentBeatInMeasure = -1; // Reset à -1 pour démarrer sur le 1er temps (0) après incrément
+                }
+                this.nextNote();
+            } else {
+                this.scheduleNote(this.currentBeatInMeasure, this.nextNoteTime);
+                this.nextNote();
+            }
         }
     }
 
@@ -138,9 +264,17 @@ class MetronomeEngine {
         }
 
         this.isPlaying = true;
-        this.currentBeatInMeasure = 0;
         this.measuresCounted = 0;
         this.nextNoteTime = this.audioContext.currentTime + 0.05;
+
+        if (this.isCountInActive && this.countInMeasures > 0) {
+            this.isCountingIn = true;
+            this.countInBeatsRemaining = this.beatsPerMeasure * this.countInMeasures;
+        } else {
+            this.isCountingIn = false;
+        }
+
+        this.currentBeatInMeasure = 0; 
         this.timerWorker.postMessage('start');
     }
 
@@ -155,6 +289,13 @@ class MetronomeEngine {
         this.bpm = newBpm;
     }
     
+    setVolume(value) {
+        this.volume = value;
+        if (this.masterGainNode) {
+            this.masterGainNode.gain.value = value;
+        }
+    }
+
     setSignature(beats) {
         this.beatsPerMeasure = beats;
         // ensure we don't break sequence logic immediately

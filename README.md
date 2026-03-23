@@ -44,8 +44,10 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     - **Waveform Interactive :** WaveSurfer.js synchronisé avec menu contextuel de colorisation dynamique des pistes.
     - Option de Pitch Shifting et contrôle de vitesse (pour les pistes simples).
 *   **Fretboard Interactif & Gammes (Nouveau !) :**
-    - **Manche de Guitare Virtuel :** Affichez un manche (15 cases) superposé et déplaçable au-dessus de vos vidéos YouTube, MP3 ou Multipistes pour improviser instantanément.
-    - **Scales & Tonalité :** Affiche visuellement les notes d'une gamme spécifique (Pentatonique, Blues, Majeure, etc.) en fonction de la tonalité renseignée dans la base de données.
+    - **Manche Virtuel & CAGED System :** Affichez un manche (15, 22 ou 24 cases) superposé et déplaçable au-dessus de vos vidéos YouTube, MP3 ou Multipistes pour improviser instantanément en suivant la tonalité de l'œuvre.
+    - **Rigueur Pédagogique (Sillet Virtuel) :** Le métronome et l'affichage comprennent la guitare. Les octaves sont scindées avec une rigueur absolue à la frette 12 (Virtual Nut), et rejettent intelligemment toute position mathématiquement "injouable" qui dépasserait les limites du corps de l'instrument.
+    - **Générateur d'Exercices en Zig-Zag :** Apprenez les gammes (Pentatonique, Blues, Majeure, Modes) en balayant le manche de manière fluide ("Ascending", "Descending", "Zig-Zag", "Random"). Le métronome dynamique s'adapte à la vitesse de votre média !
+    - **Instruments Étendus & Tuning :** Support parfait des Guitares 7 Cordes, Basses 4 & 5 Cordes, et des accordages alternatifs (Drop D, Eb, D Standard). Les boîtes ne dérivent jamais !
     - **Mode Gaucher & Skins :** Option native pour inverser le manche, et sélection du thème visuel (Texture Bois réaliste ou Flat Design) depuis les réglages.
 *   **Audio Master Plan :**
     - **Volume Maître par Profil :** Chaque profil peut définir son propre volume système cible. Quand l'application détecte que vous ouvrez "Reaper", elle ajuste automatiquement le volume général de Windows pour vous !
@@ -121,6 +123,10 @@ Pour contrôler votre DAW depuis AirstepStudio, vous **DEVEZ** utiliser un câbl
 | **Boucle Précédente** | `Shift` + `Flèche Gauche` |
 | **Activer/Désactiver Boucle** | `R` (Toggle 3 États) |
 | **Redémarrer** | `0` ou `Début` |
+| **Démarrer Entraînement** | `Alt` + `Espace` |
+| **Recommencer Position** | `Alt` + `Home` ou `0` |
+| **Position Précédente** | `Alt` + `Flèche Gauche` |
+| **Position Suivante** | `Alt` + `Flèche Droite` |
 
 ## 🛠️ Installation (Développeurs)
 
