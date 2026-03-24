@@ -67,6 +67,17 @@ if os.path.exists(assets_path):
 else:
     print(f"Warning: Assets folder not found at {assets_path}")
 
+# --- MOUNT USER METRONOME SOUNDS ---
+user_sounds_dir = os.path.join(get_data_dir(), "metronome")
+if not os.path.exists(user_sounds_dir):
+    try:
+        os.makedirs(user_sounds_dir)
+    except Exception as e:
+        print(f"Error creating user metronome dir: {e}")
+
+if os.path.exists(user_sounds_dir):
+    app.mount("/assets_user", StaticFiles(directory=user_sounds_dir), name="metronome_user")
+
 server_loop = None
 config_manager = ConfigManager()
 music_api_client = MusicAPI(config_manager)
@@ -332,26 +343,42 @@ async def get_status():
 
 @app.get("/api/metronome/sounds")
 async def get_metronome_sounds():
-    """Returns available metronome sound kits grouped by prefix."""
-    sounds_dir = os.path.join(get_resource_path("assets"), "metronome")
-    if not os.path.exists(sounds_dir):
-         return {}
-         
+    """Returns available metronome sound kits grouped by prefix with URLs."""
     kits = {}
-    try:
-         for filename in os.listdir(sounds_dir):
-              if filename.endswith(".mp3"):
-                   # Expecting format: prefix_type.mp3 (e.g. claves_high.mp3)
-                   parts = filename.rsplit("_", 1)
-                   if len(parts) == 2:
-                        prefix = parts[0]
-                        suffix = parts[1].replace(".mp3", "")
+    
+    # 1. Scan default sounds (assets/metronome)
+    sounds_dir = os.path.join(get_resource_path("assets"), "metronome")
+    if os.path.exists(sounds_dir):
+        try:
+            for filename in os.listdir(sounds_dir):
+                if filename.endswith(".mp3"):
+                    parts = filename.rsplit("_", 1)
+                    if len(parts) == 2:
+                        prefix = parts[0].lower()
+                        suffix = parts[1].replace(".mp3", "").lower()
                         if prefix not in kits:
-                             kits[prefix] = []
-                        kits[prefix].append(suffix)
-    except Exception as e:
-         logging.error(f"Error scanning metronome sounds: {e}")
-         
+                            kits[prefix] = {}
+                        kits[prefix][suffix] = f"/assets/metronome/{filename}"
+        except Exception as e:
+            logging.error(f"Error scanning default metronome sounds: {e}")
+
+    # 2. Scan user sounds (data/metronome)
+    user_sounds_dir = os.path.join(get_data_dir(), "metronome")
+    if os.path.exists(user_sounds_dir):
+        try:
+            for filename in os.listdir(user_sounds_dir):
+                if filename.endswith(".mp3"):
+                    parts = filename.rsplit("_", 1)
+                    if len(parts) == 2:
+                        prefix = parts[0].lower()
+                        suffix = parts[1].replace(".mp3", "").lower()
+                        if prefix not in kits:
+                            kits[prefix] = {}
+                        # User sounds override default if same name
+                        kits[prefix][suffix] = f"/assets_user/{filename}"
+        except Exception as e:
+            logging.error(f"Error scanning user metronome sounds: {e}")
+
     return kits
 
 @app.get("/api/system/capabilities")

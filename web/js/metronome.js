@@ -39,6 +39,14 @@ class MetronomeEngine {
         this.isCountingIn = false;
         this.countInBeatsRemaining = 0;
         this.onCountInVisual = null; // function(number)
+        
+        // --- ADDED FOR SPEED TRAINER EXPANSION ---
+        this.isMetronomeSoundActive = true;
+        this.trainTrigger = 'measures'; // 'measures' | 'cycle'
+        this.fretboardSoundSet = 'digital1'; // Kit de sons pour le Fretboard Trainer
+        
+        // --- ADDED FOR RHYTHM SUBDIVISIONS ---
+        this.subdivision = 1; // 1 = Noires, 2 = Croches, 3 = Triolets, 4 = Doubles-croches
     }
 
     init() {
@@ -102,14 +110,15 @@ class MetronomeEngine {
         if (!this.availableSoundSets[setName]) return;
         
         this.currentSoundSet = setName;
-        const types = this.availableSoundSets[setName];
+        const typesObj = this.availableSoundSets[setName];
+        const types = Object.keys(typesObj);
         
         for (const type of types) {
             const key = `${setName}_${type}`;
             if (this.soundBuffers[key]) continue; // Already loaded
             
             try {
-                const url = `/assets/metronome/${key}.mp3`;
+                const url = typesObj[type]; // URL from API
                 const response = await fetch(url);
                 const arrayBuffer = await response.arrayBuffer();
                 const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
@@ -128,20 +137,23 @@ class MetronomeEngine {
         if (this.currentBeatInMeasure === this.beatsPerMeasure) {
             this.currentBeatInMeasure = 0;
             
-            // Training mode logic
-            if (this.isTraining) {
+            // Training mode logic (Measures trigger)
+            if (this.isTraining && this.trainTrigger === 'measures') {
                 this.measuresCounted++;
                 if (this.measuresCounted >= this.trainMeasures) {
                     this.measuresCounted = 0;
-                    if (this.bpm < this.trainTargetBPM) {
-                        this.bpm = Math.min(this.bpm + this.trainIncrement, this.trainTargetBPM);
-                        if (this.onTrainProgress) this.onTrainProgress(this.bpm);
-                        if (this.bpm >= this.trainTargetBPM) {
-                            // Reached target
-                            this.isTraining = false;
-                        }
-                    }
+                    this.incrementTempo();
                 }
+            }
+        }
+    }
+
+    incrementTempo() {
+        if (this.bpm < this.trainTargetBPM) {
+            this.bpm = Math.min(this.bpm + this.trainIncrement, this.trainTargetBPM);
+            if (this.onTrainProgress) this.onTrainProgress(this.bpm);
+            if (this.bpm >= this.trainTargetBPM) {
+                this.isTraining = false; // Reached target
             }
         }
     }
@@ -156,38 +168,96 @@ class MetronomeEngine {
             }, Math.max(0, timeUntilNote * 1000));
         }
 
-        // --- PLAY SAMPLE ---
-        const bufferKey = beatNumber === 0 ? `${this.currentSoundSet}_high` : `${this.currentSoundSet}_low`;
-        const buffer = this.soundBuffers[bufferKey] || this.soundBuffers[`${this.currentSoundSet}_high` /* fallback */];
+        if (this.isMetronomeSoundActive) {
+            // --- SEPARATION ET FIX SON ---
+            // Si la grille de gammes est ouverte, on utilise son kit de sons dédié
+            const activeSoundSet = (window.fretboardVisible && this.fretboardSoundSet) ? this.fretboardSoundSet : this.currentSoundSet;
+    
+            // --- PLAY SAMPLE ---
+            const bufferKey = beatNumber === 0 ? `${activeSoundSet}_high` : `${activeSoundSet}_low`;
+            const buffer = this.soundBuffers[bufferKey] || this.soundBuffers[`${activeSoundSet}_high` /* fallback */];
+    
+            if (buffer) {
+                const source = this.audioContext.createBufferSource();
+                source.buffer = buffer;
+                const gainNode = this.audioContext.createGain();
+                gainNode.gain.value = 1.0; 
+                source.connect(gainNode);
+                gainNode.connect(this.masterGainNode || this.audioContext.destination);
+                source.start(time);
+            } else {
+                // FALLBACK TO SYNTHESIZE CLICK
+                const osc = this.audioContext.createOscillator();
+                const envelope = this.audioContext.createGain();
+    
+                osc.connect(envelope);
+                envelope.connect(this.masterGainNode || this.audioContext.destination);
+    
+                if (beatNumber === 0) {
+                    osc.frequency.value = 1000.0;
+                } else {
+                    osc.frequency.value = 800.0;
+                }
+    
+                envelope.gain.value = 1;
+                envelope.gain.exponentialRampToValueAtTime(1, time + 0.001);
+                envelope.gain.exponentialRampToValueAtTime(0.001, time + 0.05); 
+    
+                osc.start(time);
+                osc.stop(time + 0.05);
+            }
+        }
+
+        // --- SUBDIVISIONS LOGIQUE ---
+        if (this.subdivision > 1) {
+            const secondsPerBeat = 60.0 / this.bpm;
+            const subTime = secondsPerBeat / this.subdivision;
+            for (let i = 1; i < this.subdivision; i++) {
+                const subAbsoluteTime = time + (i * subTime);
+                this.playSubdivisionNote(subAbsoluteTime);
+                
+                // --- ADDED FOR UI SYNC ---
+                if (this.onSubdivisionBeat) {
+                    const delay = (subAbsoluteTime - this.audioContext.currentTime) * 1000;
+                    setTimeout(() => {
+                        if (this.onSubdivisionBeat) this.onSubdivisionBeat();
+                    }, Math.max(0, delay));
+                }
+            }
+        }
+    }
+
+    playSubdivisionNote(time) {
+        if (!this.isMetronomeSoundActive) return;
+        
+        const activeSoundSet = (window.fretboardVisible && this.fretboardSoundSet) ? this.fretboardSoundSet : this.currentSoundSet;
+        const bufferKey = `${activeSoundSet}_div`;
+        const buffer = this.soundBuffers[bufferKey] || this.soundBuffers[`${activeSoundSet}_low` /* fallback */];
 
         if (buffer) {
             const source = this.audioContext.createBufferSource();
             source.buffer = buffer;
             const gainNode = this.audioContext.createGain();
-            gainNode.gain.value = 1.0; 
+            gainNode.gain.value = 0.6; // Un peu plus faible pour les subdivisions
             source.connect(gainNode);
             gainNode.connect(this.masterGainNode || this.audioContext.destination);
             source.start(time);
         } else {
-            // FALLBACK TO SYNTHESIZE CLICK
+            // Fallback Synthé
             const osc = this.audioContext.createOscillator();
             const envelope = this.audioContext.createGain();
 
             osc.connect(envelope);
             envelope.connect(this.masterGainNode || this.audioContext.destination);
 
-            if (beatNumber === 0) {
-                osc.frequency.value = 1000.0;
-            } else {
-                osc.frequency.value = 800.0;
-            }
+            osc.frequency.value = 700.0; // Pitch différent
 
-            envelope.gain.value = 1;
-            envelope.gain.exponentialRampToValueAtTime(1, time + 0.001);
-            envelope.gain.exponentialRampToValueAtTime(0.001, time + 0.05); 
+            envelope.gain.value = 0.5;
+            envelope.gain.exponentialRampToValueAtTime(0.5, time + 0.001);
+            envelope.gain.exponentialRampToValueAtTime(0.001, time + 0.03); 
 
             osc.start(time);
-            osc.stop(time + 0.05);
+            osc.stop(time + 0.03);
         }
     }
 
