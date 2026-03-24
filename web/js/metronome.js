@@ -43,6 +43,7 @@ class MetronomeEngine {
         // --- ADDED FOR SPEED TRAINER EXPANSION ---
         this.isMetronomeSoundActive = true;
         this.trainTrigger = 'measures'; // 'measures' | 'cycle'
+        this.fretboardSoundSet = 'digital1'; // Kit de sons pour le Fretboard Trainer
     }
 
     init() {
@@ -165,10 +166,14 @@ class MetronomeEngine {
         }
 
         if (!this.isMetronomeSoundActive) return;
+        
+        // --- SEPARATION ET FIX SON ---
+        // Si la grille de gammes est ouverte, on utilise son kit de sons dédié
+        const activeSoundSet = (window.fretboardVisible && this.fretboardSoundSet) ? this.fretboardSoundSet : this.currentSoundSet;
 
         // --- PLAY SAMPLE ---
-        const bufferKey = beatNumber === 0 ? `${this.currentSoundSet}_high` : `${this.currentSoundSet}_low`;
-        const buffer = this.soundBuffers[bufferKey] || this.soundBuffers[`${this.currentSoundSet}_high` /* fallback */];
+        const bufferKey = beatNumber === 0 ? `${activeSoundSet}_high` : `${activeSoundSet}_low`;
+        const buffer = this.soundBuffers[bufferKey] || this.soundBuffers[`${activeSoundSet}_high` /* fallback */];
 
         if (buffer) {
             const source = this.audioContext.createBufferSource();

@@ -76,7 +76,7 @@ if not os.path.exists(user_sounds_dir):
         print(f"Error creating user metronome dir: {e}")
 
 if os.path.exists(user_sounds_dir):
-    app.mount("/assets/metronome_user", StaticFiles(directory=user_sounds_dir), name="metronome_user")
+    app.mount("/assets_user", StaticFiles(directory=user_sounds_dir), name="metronome_user")
 
 server_loop = None
 config_manager = ConfigManager()
@@ -354,8 +354,8 @@ async def get_metronome_sounds():
                 if filename.endswith(".mp3"):
                     parts = filename.rsplit("_", 1)
                     if len(parts) == 2:
-                        prefix = parts[0]
-                        suffix = parts[1].replace(".mp3", "")
+                        prefix = parts[0].lower()
+                        suffix = parts[1].replace(".mp3", "").lower()
                         if prefix not in kits:
                             kits[prefix] = {}
                         kits[prefix][suffix] = f"/assets/metronome/{filename}"
@@ -370,12 +370,12 @@ async def get_metronome_sounds():
                 if filename.endswith(".mp3"):
                     parts = filename.rsplit("_", 1)
                     if len(parts) == 2:
-                        prefix = parts[0]
-                        suffix = parts[1].replace(".mp3", "")
+                        prefix = parts[0].lower()
+                        suffix = parts[1].replace(".mp3", "").lower()
                         if prefix not in kits:
                             kits[prefix] = {}
                         # User sounds override default if same name
-                        kits[prefix][suffix] = f"/assets/metronome_user/{filename}"
+                        kits[prefix][suffix] = f"/assets_user/{filename}"
         except Exception as e:
             logging.error(f"Error scanning user metronome sounds: {e}")
 

@@ -2322,10 +2322,18 @@ window.addEventListener('keydown', (e) => {
             command = 'media_chapter_next';
             break;
         case 'ArrowUp':
+            if (e.altKey) {
+                if (typeof adjustFretBpm === 'function') adjustFretBpm(1);
+                e.preventDefault(); return;
+            }
             if (e.shiftKey) command = 'media_pitch_up';
             else command = 'media_speed_up';
             break;
         case 'ArrowDown':
+            if (e.altKey) {
+                if (typeof adjustFretBpm === 'function') adjustFretBpm(-1);
+                e.preventDefault(); return;
+            }
             if (e.shiftKey) command = 'media_pitch_down';
             else command = 'media_speed_down';
             break;

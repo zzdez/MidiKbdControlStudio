@@ -9,6 +9,12 @@ function toggleMetronomeUI() {
     if (dock.style.display === "none" || dock.style.display === "") {
         dock.style.display = "flex";
         
+        // --- EXCLUSIVITE ---
+        // Fermer le Fretboard s'il est ouvert
+        if (typeof fretboardState !== 'undefined' && fretboardState.visible) {
+            if (typeof toggleFretboard === 'function') toggleFretboard();
+        }
+        
         // Initialize Engine & Load sounds
         if (window.metronome) {
             window.metronome.init();
@@ -29,6 +35,16 @@ function metronomeTogglePlay() {
     const btn = document.getElementById("btn-metro-play");
     if (isPlaying) {
         btn.innerHTML = '<i class="ph ph-stop-circle ph-fill" style="color:#cf6679;"></i>';
+        
+        // --- EXCLUSIVITE ---
+        // Décocher et Stopper le Fretboard Trainer s'il est actif
+        const fretboardEnableCheck = document.getElementById("fret-train-enable");
+        if (fretboardEnableCheck && fretboardEnableCheck.checked) {
+            fretboardEnableCheck.checked = false;
+            if (typeof toggleFretboardTrainer === 'function') {
+                toggleFretboardTrainer(false);
+            }
+        }
     } else {
         btn.innerHTML = '<i class="ph ph-play-circle ph-fill"></i>';
         resetBeatVisualizer();
@@ -127,28 +143,37 @@ window.metronome.onBeat = (currentBeat) => {
 };
 
 window.metronome.onTrainProgress = (newBpm) => {
-    document.getElementById("metro-bpm-input").value = newBpm;
-    document.getElementById("metro-bpm-slider").value = newBpm;
-    // Optional: visual flash
+    if (document.getElementById("metro-bpm-input")) document.getElementById("metro-bpm-input").value = newBpm;
+    if (document.getElementById("metro-bpm-slider")) document.getElementById("metro-bpm-slider").value = newBpm;
+    
+    // Mettre à jour l'affichage dans le Fretboard Trainer
+    const display = document.getElementById("fret-train-bpm-display");
+    if (display) {
+        display.innerText = `(BPM: ${newBpm})`;
+        display.style.display = "inline";
+    }
 };
 
 // Populate Sound List Callback
 if (window.metronome) {
     window.metronome.onSoundsListLoaded = (soundsList) => {
-        const select = document.getElementById("metro-sound-set");
-        if (!select) return;
+        const selectMetro = document.getElementById("metro-sound-set");
+        const selectFret = document.getElementById("fret-train-sound-set");
         
-        select.innerHTML = "";
-        for (const setName in soundsList) {
-            const option = document.createElement("option");
-            option.value = setName;
-            // Capitalize first letter for display
-            option.innerText = setName.charAt(0).toUpperCase() + setName.slice(1);
-            if (setName === window.metronome.currentSoundSet) {
-                option.selected = true;
+        const populate = (sel, current) => {
+            if (!sel) return;
+            sel.innerHTML = "";
+            for (const setName in soundsList) {
+                const option = document.createElement("option");
+                option.value = setName;
+                option.innerText = setName.charAt(0).toUpperCase() + setName.slice(1);
+                if (setName === current) option.selected = true;
+                sel.appendChild(option);
             }
-            select.appendChild(option);
-        }
+        };
+
+        populate(selectMetro, window.metronome.currentSoundSet);
+        populate(selectFret, window.metronome.fretboardSoundSet || 'digital1');
     };
 }
 
@@ -199,3 +224,10 @@ function dragMetronomeElement(elmnt) {
         document.onmousemove = null;
     }
 }
+
+// Initialiser au chargement pour peupler les listes de sons (Métronome et Fretboard)
+document.addEventListener("DOMContentLoaded", () => {
+    if (window.metronome) {
+        window.metronome.init();
+    }
+});
