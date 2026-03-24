@@ -116,6 +116,28 @@ function metronomeToggleTrainer(enabled) {
     window.metronome.trainMeasures = parseInt(document.getElementById("metro-train-meas").value) || 4;
 }
 
+function setMetronomeSubdivision(div) {
+    if (window.metronome) {
+        window.metronome.subdivision = div;
+    }
+    
+    // Synchroniser l'état actif des boutons ".subdivision-btn" partout
+    document.querySelectorAll(".subdivision-btn").forEach(btn => {
+        const val = parseInt(btn.getAttribute("data-value"));
+        if (val === div) {
+            btn.style.background = "var(--accent)";
+            btn.style.color = "#000";
+            btn.style.borderColor = "var(--accent)";
+            btn.style.fontWeight = "bold";
+        } else {
+            btn.style.background = "#222";
+            btn.style.color = "#fff";
+            btn.style.borderColor = "#444";
+            btn.style.fontWeight = "normal";
+        }
+    });
+}
+
 // Attach UI Callbacks to Engine
 window.metronome.onBeat = (currentBeat) => {
     // Light up correct dot

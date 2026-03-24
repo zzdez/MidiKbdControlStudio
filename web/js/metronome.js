@@ -44,6 +44,9 @@ class MetronomeEngine {
         this.isMetronomeSoundActive = true;
         this.trainTrigger = 'measures'; // 'measures' | 'cycle'
         this.fretboardSoundSet = 'digital1'; // Kit de sons pour le Fretboard Trainer
+        
+        // --- ADDED FOR RHYTHM SUBDIVISIONS ---
+        this.subdivision = 1; // 1 = Noires, 2 = Croches, 3 = Triolets, 4 = Doubles-croches
     }
 
     init() {
@@ -165,44 +168,96 @@ class MetronomeEngine {
             }, Math.max(0, timeUntilNote * 1000));
         }
 
+        if (this.isMetronomeSoundActive) {
+            // --- SEPARATION ET FIX SON ---
+            // Si la grille de gammes est ouverte, on utilise son kit de sons dédié
+            const activeSoundSet = (window.fretboardVisible && this.fretboardSoundSet) ? this.fretboardSoundSet : this.currentSoundSet;
+    
+            // --- PLAY SAMPLE ---
+            const bufferKey = beatNumber === 0 ? `${activeSoundSet}_high` : `${activeSoundSet}_low`;
+            const buffer = this.soundBuffers[bufferKey] || this.soundBuffers[`${activeSoundSet}_high` /* fallback */];
+    
+            if (buffer) {
+                const source = this.audioContext.createBufferSource();
+                source.buffer = buffer;
+                const gainNode = this.audioContext.createGain();
+                gainNode.gain.value = 1.0; 
+                source.connect(gainNode);
+                gainNode.connect(this.masterGainNode || this.audioContext.destination);
+                source.start(time);
+            } else {
+                // FALLBACK TO SYNTHESIZE CLICK
+                const osc = this.audioContext.createOscillator();
+                const envelope = this.audioContext.createGain();
+    
+                osc.connect(envelope);
+                envelope.connect(this.masterGainNode || this.audioContext.destination);
+    
+                if (beatNumber === 0) {
+                    osc.frequency.value = 1000.0;
+                } else {
+                    osc.frequency.value = 800.0;
+                }
+    
+                envelope.gain.value = 1;
+                envelope.gain.exponentialRampToValueAtTime(1, time + 0.001);
+                envelope.gain.exponentialRampToValueAtTime(0.001, time + 0.05); 
+    
+                osc.start(time);
+                osc.stop(time + 0.05);
+            }
+        }
+
+        // --- SUBDIVISIONS LOGIQUE ---
+        if (this.subdivision > 1) {
+            const secondsPerBeat = 60.0 / this.bpm;
+            const subTime = secondsPerBeat / this.subdivision;
+            for (let i = 1; i < this.subdivision; i++) {
+                const subAbsoluteTime = time + (i * subTime);
+                this.playSubdivisionNote(subAbsoluteTime);
+                
+                // --- ADDED FOR UI SYNC ---
+                if (this.onSubdivisionBeat) {
+                    const delay = (subAbsoluteTime - this.audioContext.currentTime) * 1000;
+                    setTimeout(() => {
+                        if (this.onSubdivisionBeat) this.onSubdivisionBeat();
+                    }, Math.max(0, delay));
+                }
+            }
+        }
+    }
+
+    playSubdivisionNote(time) {
         if (!this.isMetronomeSoundActive) return;
         
-        // --- SEPARATION ET FIX SON ---
-        // Si la grille de gammes est ouverte, on utilise son kit de sons dédié
         const activeSoundSet = (window.fretboardVisible && this.fretboardSoundSet) ? this.fretboardSoundSet : this.currentSoundSet;
-
-        // --- PLAY SAMPLE ---
-        const bufferKey = beatNumber === 0 ? `${activeSoundSet}_high` : `${activeSoundSet}_low`;
-        const buffer = this.soundBuffers[bufferKey] || this.soundBuffers[`${activeSoundSet}_high` /* fallback */];
+        const bufferKey = `${activeSoundSet}_div`;
+        const buffer = this.soundBuffers[bufferKey] || this.soundBuffers[`${activeSoundSet}_low` /* fallback */];
 
         if (buffer) {
             const source = this.audioContext.createBufferSource();
             source.buffer = buffer;
             const gainNode = this.audioContext.createGain();
-            gainNode.gain.value = 1.0; 
+            gainNode.gain.value = 0.6; // Un peu plus faible pour les subdivisions
             source.connect(gainNode);
             gainNode.connect(this.masterGainNode || this.audioContext.destination);
             source.start(time);
         } else {
-            // FALLBACK TO SYNTHESIZE CLICK
+            // Fallback Synthé
             const osc = this.audioContext.createOscillator();
             const envelope = this.audioContext.createGain();
 
             osc.connect(envelope);
             envelope.connect(this.masterGainNode || this.audioContext.destination);
 
-            if (beatNumber === 0) {
-                osc.frequency.value = 1000.0;
-            } else {
-                osc.frequency.value = 800.0;
-            }
+            osc.frequency.value = 700.0; // Pitch différent
 
-            envelope.gain.value = 1;
-            envelope.gain.exponentialRampToValueAtTime(1, time + 0.001);
-            envelope.gain.exponentialRampToValueAtTime(0.001, time + 0.05); 
+            envelope.gain.value = 0.5;
+            envelope.gain.exponentialRampToValueAtTime(0.5, time + 0.001);
+            envelope.gain.exponentialRampToValueAtTime(0.001, time + 0.03); 
 
             osc.start(time);
-            osc.stop(time + 0.05);
+            osc.stop(time + 0.03);
         }
     }
 

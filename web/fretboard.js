@@ -1468,6 +1468,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 highlightNextNote();
             }
         };
+
+        window.metronome.onSubdivisionBeat = () => {
+            if (fretboardTrainerActive) {
+                highlightNextNote();
+            }
+        };
     }
 });
 
@@ -1545,6 +1551,9 @@ function loadFretboardTrainerSettings() {
     document.getElementById("fret-train-start").value = localStorage.getItem('fretboard_train_start_bpm') || '60';
     document.getElementById("fret-train-inc").value = localStorage.getItem('fretboard_train_inc') || '5';
     document.getElementById("fret-train-target").value = localStorage.getItem('fretboard_train_target') || '160';
+    document.getElementById("fret-train-meas").value = localStorage.getItem('fretboard_train_meas') || '4';
+    document.getElementById("fret-train-trigger").value = localStorage.getItem('fretboard_train_trigger') || 'measures';
+    
     document.getElementById("fret-train-meas").value = localStorage.getItem('fretboard_train_meas') || '4';
     document.getElementById("fret-train-trigger").value = localStorage.getItem('fretboard_train_trigger') || 'measures';
     

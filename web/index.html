@@ -2063,6 +2063,17 @@
                         </div>
                     </div>
 
+                    <!-- Rythmes / Subdivisions (Fretboard) -->
+                    <div style="display:flex; align-items:center; gap:10px; font-size:0.75em; margin-top: 2px; padding-top: 3px; border-top: 1px dashed #333;">
+                        <label>Rythme:</label>
+                        <div style="display:flex; gap: 4px;">
+                            <button class="subdivision-btn active" data-value="1" onclick="setMetronomeSubdivision(1)" style="padding:2px 6px; font-size:0.75em; background:var(--accent); border:1px solid var(--accent); color:#000; border-radius:3px; cursor:pointer; font-weight:bold;" title="Noires">1</button>
+                            <button class="subdivision-btn" data-value="2" onclick="setMetronomeSubdivision(2)" style="padding:2px 6px; font-size:0.75em; background:#222; border:1px solid #444; color:#fff; border-radius:3px; cursor:pointer;" title="Croches">2</button>
+                            <button class="subdivision-btn" data-value="3" onclick="setMetronomeSubdivision(3)" style="padding:2px 6px; font-size:0.75em; background:#222; border:1px solid #444; color:#fff; border-radius:3px; cursor:pointer;" title="Triolets">3</button>
+                            <button class="subdivision-btn" data-value="4" onclick="setMetronomeSubdivision(4)" style="padding:2px 6px; font-size:0.75em; background:#222; border:1px solid #444; color:#fff; border-radius:3px; cursor:pointer;" title="Doubles">4</button>
+                        </div>
+                    </div>
+
                     <!-- Décompte (Fretboard) -->
                     <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:0.75em; border-top:1px dashed #333; padding-top:4px; margin-top:2px;">
                          <label class="modern-switch" style="display:flex; align-items:center;">
@@ -2142,6 +2153,17 @@
                 <span class="switch-slider"></span>
                 <span class="switch-label" style="margin-left:5px;" data-i18n="web.lbl_sync_media">Sync Média</span>
             </label>
+        </div>
+
+        <!-- Rythmes / Subdivisions -->
+        <div style="display:flex; align-items:center; gap:10px; font-size:0.8em; margin-top: 4px; padding-top: 4px; border-top: 1px solid #333;">
+            <label>Rythme:</label>
+            <div style="display:flex; gap: 4px;">
+                <button class="subdivision-btn active" data-value="1" onclick="setMetronomeSubdivision(1)" style="padding:2px 6px; font-size:0.75em; background:var(--accent); border:1px solid var(--accent); color:#000; border-radius:3px; cursor:pointer; font-weight:bold;" title="Noires">1</button>
+                <button class="subdivision-btn" data-value="2" onclick="setMetronomeSubdivision(2)" style="padding:1px 6px; font-size:0.75em; background:#222; border:1px solid #444; color:#fff; border-radius:3px; cursor:pointer;" title="Croches">2</button>
+                <button class="subdivision-btn" data-value="3" onclick="setMetronomeSubdivision(3)" style="padding:1px 6px; font-size:0.75em; background:#222; border:1px solid #444; color:#fff; border-radius:3px; cursor:pointer;" title="Triolets">3</button>
+                <button class="subdivision-btn" data-value="4" onclick="setMetronomeSubdivision(4)" style="padding:1px 6px; font-size:0.75em; background:#222; border:1px solid #444; color:#fff; border-radius:3px; cursor:pointer;" title="Doubles">4</button>
+            </div>
         </div>
 
         <!-- Count-In Control -->
