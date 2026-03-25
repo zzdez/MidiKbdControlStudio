@@ -56,7 +56,9 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     - **Persistance des Options de Lecture :** Vos préférences de lecture (Autoplay, Autoreplay) sont strictement enregistrées par média et garanties sans désynchronisation d'interface lors de vos éditions en arrière-plan.
 *   **Métronome Haute Précision (Nouveau !) :**
     - **Web Audio Context :** Remplacement des tickrate logiciels imprécis par une interface à oscillateurs dédiée, synchrone avec le débit du processeur.
+    - **Subdivisions Rythmiques :** Support natif des Croches, Triolets et Doubles Croches avec gestion fine de la polyrythmie visuelle et sonore (Clics secondaires différenciés).
     - **Sync Link :** Le métronome recalcule le BPM à la volée en cas de changement de vitesse (*Rate*) sur les lecteurs Web ou locaux.
+    - **Routing Indépendant :** Jouez vos exercices sur le Fretboard avec un kit de batterie, tout en conservant le bip classique pour la structure du clic principal.
     - **Interface Compacte :** Harmonisation des champs de configuration (Speed Trainer) pour un rendu moderne et sans débordement.
 *   **Repères & Décomptes Audio Cues (Nouveau !) :**
     - **Timeline Marker :** Posez des drapeaux pour programmer des avertisseurs visuels HUD avant les couplets.
