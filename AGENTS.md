@@ -286,3 +286,12 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     - La fonction `isNoteInPosition` n'utilise plus de logique modulo complexe pour l'appartenance à un bloc. Les positions sont validées par limites physiques absolues (`minFret`, `maxFret`) projetées aux différentes octaves, évitant les sauts de notes de bordure.
 * **Exercices Continus (All Positions) :**
     - Au lieu d'essayer de souder artificiellement les boîtes (qui se chevauchent naturellement dans l'apprentissage académique, ex: positions CAGED), l'exercice construit un chemin par boîte en respectant la direction `asc` ou `desc` demandée par l'utilisateur, et alterne parfaitement en cas de `Zig-Zag`. La limite basse des boîtes accepte désormais toutes les frettes jusqu'au sillet ($0$).
+
+### 30. Évolution V25 : Subdivisions Rythmiques & Fretboard Trainer HD
+*   **Audio Engine (Subdivisions) :** Le métronome (`metronome.js`) a été profondément étendu pour supporter les subdivisions rythmiques (Croches `[2]`, Triolets `[3]`, Doubles `[4]`). Il utilise un sous-cycle de scheduling pour générer des clics secondaires (`_div`) avec un volume réduit (60%), tout en maintenant un ancrage solide de la pulsation principale avec un Fix de dérive (Indépendance absolue entre le "Mute" audio et les boucles de calcul).
+*   **Routing des Kicks/Samples :** Possibilité de jouer sa gamme d'entraînement sans polluer l'écoute avec le clic de base du métronome. Le système route intelligemment la sélection du kit ("drum", "synth", "click") vers le métronome ou la gamme sans conflits.
+*   **The "100% Theory" Trainer :** Le défilement du Fretboard s'aligne rigoureusement sur les théories d'apprentissage des Gammes/Arpèges.
+    *   **Noire (1:1)** : 1 note jouée par Temps / Pulsation.
+    *   **Croche (2:1)** : 2 notes défilent par Temps / Pulsation.
+    *   **Double (4:1)** : 4 notes défilent par Temps.
+    *   La surbrillance fluo s'active dynamiquement sur *chaque battement (fort ou faible)* grâce à la remontée d'un callback asynchrone `onSubdivisionBeat`, transformant le Fretboard en véritable outil d'Alternate Picking à ultra haute vitesse.
