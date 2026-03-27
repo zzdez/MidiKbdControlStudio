@@ -713,28 +713,69 @@
             </div>
         </div>
         <div class="modal-body">
-            <div class="edit-form">
-                <!-- SÉLECTION DU KIT -->
-                <label>Kit :</label>
-                <select id="drum-kit-select" onchange="changeDrumKit(this.value)">
-                    <option value="tr505">Roland TR-505</option>
-                    <option value="tr606">Roland TR-606</option>
-                    <option value="tr626">Roland TR-626</option>
-                    <option value="tr707">Roland TR-707</option>
-                    <option value="tr808">Roland TR-808</option>
-                    <option value="tr909">Roland TR-909</option>
-                </select>
+            <div class="edit-form" style="margin-bottom: 20px;">
+                <div class="row-inputs" style="justify-content: space-between; align-items: center; gap: 15px;">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span data-i18n="web.lbl_pattern" style="font-size: 0.85em; color: #888;">Pattern :</span>
+                        <select id="drum-pattern-select" onchange="changeDrumPattern(this.value)" style="width: 110px; height: 24px; font-size: 11px;">
+                            <option value="rock_1">Rock 1</option>
+                            <option value="rock_2">Rock 2</option>
+                            <option value="disco">Disco</option>
+                            <option value="funk">Funk</option>
+                            <option value="shuffle" data-i18n="web.pattern_shuffle">Shuffle Blues</option>
+                            <option value="custom">Custom (User)</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span style="font-size: 0.85em; color: #888;">Swing :</span>
+                        <input type="range" id="drum-swing" min="0" max="100" value="0" oninput="updateDrumSwing(this.value)" style="width: 70px; height: 14px;">
+                        <span id="drum-swing-val" style="font-size: 0.8em; color: var(--accent); min-width: 30px;">0%</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span data-i18n="web.lbl_kit" style="font-size: 0.85em; color: #888;">Kit :</span>
+                        <select id="drum-kit-select" onchange="changeDrumKit(this.value)" style="width: 90px; height: 24px; font-size: 11px;">
+                            <option value="tr808">TR-808</option>
+                            <option value="tr909">TR-909</option>
+                            <option value="tr606">TR-606</option>
+                            <option value="tr505">TR-505</option>
+                            <option value="tr707">TR-707</option>
+                        </select>
+                    </div>
+                </div>
 
-                <!-- SÉLECTION DU RYTHME -->
-                <label data-i18n="web.lbl_drum_pattern">Rythme :</label>
-                <select id="drum-pattern-select" onchange="changeDrumPattern(this.value)" style="margin-bottom: 5px;">
-                    <option value="rock_1" data-i18n="web.pattern_rock_1">Rock 1</option>
-                    <option value="rock_2" data-i18n="web.pattern_rock_2">Rock 2</option>
-                    <option value="disco" data-i18n="web.pattern_disco">Disco / Pop</option>
-                    <option value="funk" data-i18n="web.pattern_funk">Funk</option>
-                    <option value="shuffle" data-i18n="web.pattern_shuffle">Shuffle Blues</option>
-                </select>
-                
+                <!-- SEQUENCER GRID -->
+                <div id="sequencer-container" style="margin-top: 15px; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid #333;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span id="sequencer-inst-label" style="font-weight: bold; color: var(--accent); text-transform: uppercase; font-size: 0.9em; letter-spacing: 1px; min-width: 50px;">KICK</span>
+                            
+                            <!-- CONTROLES DETAILLES (Tune/Decay) -->
+                            <div style="display: flex; gap: 12px; align-items: center; background: rgba(255,255,255,0.05); padding: 2px 10px; border-radius: 4px; border: 1px solid #444;">
+                                <div style="display: flex; align-items: center; gap: 5px;">
+                                    <span style="font-size: 0.7em; color: #888;">TUNE</span>
+                                    <input type="range" id="seq-tune" min="-12" max="12" value="0" oninput="updateInstParam('tune', this.value)" style="width: 50px; height: 10px;">
+                                    <span id="seq-tune-val" style="font-size: 0.7em; color: var(--accent); min-width: 20px;">0</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 5px;">
+                                    <span style="font-size: 0.7em; color: #888;">DECAY</span>
+                                    <input type="range" id="seq-decay" min="0" max="2" step="0.05" value="0.5" oninput="updateInstParam('decay', this.value)" style="width: 50px; height: 10px;">
+                                    <span id="seq-decay-val" style="font-size: 0.7em; color: var(--accent); min-width: 25px;">0.5s</span>
+                                </div>
+                            </div>
+
+                            <button id="btn-seq-view" onclick="toggleSequencerView()" style="font-size: 0.7em; background: #333; border: 1px solid #444; padding: 2px 8px; border-radius: 4px; color: #aaa; cursor: pointer; transition: all 0.2s;">
+                                <i class="ph ph-list"></i> <span id="sequencer-mode-label">SINGLE TRACK</span>
+                            </button>
+                        </div>
+                        <div style="display: flex; gap: 6px;">
+                            <button id="btn-seq-clear" onclick="clearCurrentTrack()" class="btn-text" style="padding: 2px 8px; font-size: 10px; height: 20px;">Effacer</button>
+                            <button id="btn-seq-rec" onclick="toggleInstRec()" class="btn-text" style="padding: 2px 8px; font-size: 10px; height: 20px; border-color: #555;"><i class="ph ph-record" style="color:#ff4444;"></i> REC</button>
+                        </div>
+                    </div>
+                    <div id="sequencer-grid" class="sequencer-step-grid">
+                        <!-- Les 16 steps seront injectés ici par drums.js -->
+                    </div>
+                </div>
             </div>
 
             <!-- MIXER SECTION AVEC SCROLL HORIZONTAL (Généré en dynamique par renderDrumMixer) -->

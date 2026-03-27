@@ -404,6 +404,9 @@
         "pattern_rock_2": "Rock 2 (Contretemps)",
         "pattern_disco": "Disco / Pop",
         "pattern_funk": "Funk",
-        "pattern_shuffle": "Shuffle Blues"
+        "pattern_shuffle": "Shuffle Blues",
+        "pattern_custom": "Personnalisé (User)",
+        "lbl_pattern": "Rythme :",
+        "lbl_kit": "Batterie :"
     }
 }

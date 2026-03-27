@@ -404,6 +404,9 @@
         "pattern_rock_2": "Rock 2 (Upbeat)",
         "pattern_disco": "Disco / Pop",
         "pattern_funk": "Funk",
-        "pattern_shuffle": "Shuffle Blues"
+        "pattern_shuffle": "Shuffle Blues",
+        "pattern_custom": "Custom (User)",
+        "lbl_pattern": "Pattern:",
+        "lbl_kit": "Kit:"
     }
 }
