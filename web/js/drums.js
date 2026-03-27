@@ -121,6 +121,13 @@ window.DrumMachine = {
                 source.connect(gainNode);
                 gainNode.connect(masterGainNode);
                 source.start(time);
+
+                // Visual Feedback (VU Meter)
+                const delay = (time - audioContext.currentTime) * 1000;
+                setTimeout(() => {
+                    flashVUMeter(inst);
+                    flashVUMeter('master');
+                }, Math.max(0, delay));
             }
         });
     }
@@ -128,9 +135,33 @@ window.DrumMachine = {
 
 // --- UI FUNCTIONS ---
 
+function flashVUMeter(instId) {
+    const bar = document.getElementById(`vu-${instId}`);
+    if (bar) {
+        bar.classList.remove('peak');
+        void bar.offsetWidth; // Force reflow
+        bar.classList.add('peak');
+        setTimeout(() => bar.classList.remove('peak'), 150);
+    }
+}
+
 function openDrumModal() {
     const modal = document.getElementById("modal-drum-machine");
     if (modal) {
+        // Synchroniser l'icône de lecture avec l'état actuel du métronome
+        const drumBtn = document.getElementById("btn-drum-play");
+        if (window.metronome && window.metronome.isPlaying) {
+             if (drumBtn) drumBtn.innerHTML = '<i class="ph ph-stop-circle ph-fill" style="color:#cf6679;"></i>';
+        } else {
+             if (drumBtn) drumBtn.innerHTML = '<i class="ph ph-play-circle ph-fill"></i>';
+        }
+
+        // Activer automatiquement la boîte à rythmes et couper le son du métronome classique
+        if (window.metronome) {
+            window.metronome.isMetronomeSoundActive = false;
+        }
+        window.DrumMachine.isActive = true;
+
         if (window.metronome && window.metronome.audioContext) {
             window.DrumMachine.loadAssets(window.metronome.audioContext);
         } else if (window.metronome) {
@@ -144,27 +175,21 @@ function openDrumModal() {
 
 function closeDrumModal() {
     const modal = document.getElementById("modal-drum-machine");
-    if (modal) modal.close();
-}
-
-function toggleDrumMachine(isChecked) {
-    window.DrumMachine.isActive = isChecked;
-    const btn = document.getElementById("btn-toggle-drum-machine");
-    
-    if (isChecked) {
-        if (btn) btn.style.color = "var(--accent)";
-        // Couper le tic-tac du métronome original si la boîte à rythme est active
+    if (modal) {
+        // Stopper le son complètement à la fermeture définitive
         if (window.metronome) {
-            window.metronome.isMetronomeSoundActive = false;
-            // Démarrer auto le métronome si inactif
-            if (!window.metronome.isPlaying) window.metronome.start();
-        }
-    } else {
-        if (btn) btn.style.color = "";
-        // Restaurer le son original
-        if (window.metronome) {
+            window.metronome.stop();
             window.metronome.isMetronomeSoundActive = true;
         }
+        modal.close();
+    }
+}
+
+function minimizeDrumModal() {
+    const modal = document.getElementById("modal-drum-machine");
+    if (modal) {
+        // On ferme juste la modale, mais on laisse le son (DrumMachine.isActive est déjà true)
+        modal.close();
     }
 }
 
@@ -195,6 +220,9 @@ function renderDrumMixer() {
     const container = document.getElementById("drum-mixer-container");
     if (!container) return;
     
+    // Check if translation function exists
+    const translate = (typeof t === 'function') ? t : (k) => k;
+
     const uiInstruments = [
         { id: 'master', label: 'Master', default: 100 },
         { id: 'kick', label: 'Kick', default: 100 },
@@ -211,12 +239,20 @@ function renderDrumMixer() {
     ];
     
     container.innerHTML = ""; // Clear existing
+    const translate_func = (typeof t === 'function') ? t : (k) => k;
+    
     uiInstruments.forEach(inst => {
+        const translatedLabel = translate_func('web.lbl_' + inst.id);
         container.innerHTML += `
-            <div class="vertical-slider-container" style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; margin: 0 2px;">
-                <span class="slider-label" style="font-size: 0.65em; margin-bottom: 5px;">${inst.label}</span>
-                <input type="range" id="drum-vol-${inst.id}" min="0" max="100" value="${inst.default}" orient="vertical" oninput="updateDrumVolume('${inst.id}', this.value)" style="height: 100px; width: 24px; -webkit-appearance: slider-vertical; appearance: slider-vertical; writing-mode: vertical-lr; direction: rtl; margin: 0;">
-                <span id="drum-vol-${inst.id}-pct" class="slider-percent" style="font-size: 0.65em; margin-top: 5px;">${inst.default}%</span>
+            <div class="drum-track" id="track-${inst.id}">
+                <span class="slider-label" style="font-size: 0.65em; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; color: #aaa;">${translatedLabel}</span>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 4px; position: relative; width: 100%;">
+                    <input type="range" id="drum-vol-${inst.id}" min="0" max="100" value="${inst.default}" orient="vertical" oninput="updateDrumVolume('${inst.id}', this.value)" style="height: 100px; width: 22px; -webkit-appearance: slider-vertical; appearance: slider-vertical; writing-mode: vertical-lr; direction: rtl; margin: 0; cursor: pointer;">
+                    <div class="vu-meter-container">
+                        <div id="vu-${inst.id}" class="vu-meter-bar"></div>
+                    </div>
+                </div>
+                <span id="drum-vol-${inst.id}-pct" class="slider-percent" style="font-size: 0.65em; margin-top: 8px; font-family: monospace; color: var(--accent);">${inst.default}%</span>
             </div>
         `;
     });
