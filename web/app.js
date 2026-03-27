@@ -252,6 +252,23 @@ function connectVideoWebSocket() {
             renderPedalboard(currentProfile);
             const name = currentProfile ? currentProfile.name : "Global / Aucun";
             document.getElementById("active-profile").innerText = "Profil : " + name;
+        } else if (msg.type === "dl_progress") {
+            const bar = document.getElementById("dl-progress-bar");
+            const status = document.getElementById("dl-status");
+            if (bar && status) {
+                bar.style.width = msg.percent + "%";
+                status.innerText = msg.status === "processing" ? "Finalisation..." : Math.round(msg.percent) + "%";
+            }
+        } else if (msg.type === "dl_complete") {
+            alert("Téléchargement terminé avec succès !");
+            document.getElementById("dl-status").innerText = "Terminé ✅";
+            document.getElementById("dl-progress-bar").style.width = "100%";
+            // Refresh local view if visible
+            loadLocalFiles();
+        } else if (msg.type === "dl_error") {
+            alert("Erreur de téléchargement : " + msg.error);
+            document.getElementById("dl-status").innerText = "Erreur ❌";
+            document.getElementById("dl-progress-bar").style.background = "#cf6679";
         }
     };
 
@@ -671,10 +688,18 @@ async function launchApp(path) {
 }
 
 // --- SETTINGS LOGIC ---
-let currentSettings = {
-    YOUTUBE_API_KEY: "",
-    media_folders: []
-};
+let currentSettings = null;
+
+async function loadSettings() {
+    try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+            currentSettings = await res.json();
+        }
+    } catch (e) {
+        console.error("Settings Load Error", e);
+    }
+}
 
 async function openSettings() {
     // Deprecated Name, redirected to Modal
@@ -682,21 +707,16 @@ async function openSettings() {
 }
 
 async function openSettingsModal() {
-    try {
-        const res = await fetch("/api/settings");
-        if (res.ok) {
-            currentSettings = await res.json();
+    if (!currentSettings) await loadSettings();
 
-            // Populate Fields
-            document.getElementById("setting-youtube-key").value = currentSettings.YOUTUBE_API_KEY || "";
-            renderSettingsFolders();
+    if (currentSettings) {
+        // Populate Fields
+        document.getElementById("setting-youtube-key").value = currentSettings.YOUTUBE_API_KEY || "";
+        renderSettingsFolders();
 
-            // Show Modal
-            document.getElementById("settings-modal").showModal();
-            switchSettingsTab('general'); // Reset to first tab
-        }
-    } catch (e) {
-        console.error("Settings Load Error", e);
+        // Show Modal
+        document.getElementById("settings-modal").showModal();
+        switchSettingsTab('general'); // Reset to first tab
     }
 }
 
@@ -822,6 +842,13 @@ function openAddModal() {
 
     document.getElementById("preview-thumbnail").innerHTML = '<span style="font-size:30px;">🎵</span>';
 
+    // Reset Download UI
+    document.getElementById("btn-show-dl").style.display = "none";
+
+    // Reset Download Modal State
+    document.getElementById("dl-progress-bar").style.width = "0%";
+    document.getElementById("dl-status").innerText = "Prêt";
+
     document.getElementById("yt-search-input").focus();
 }
 
@@ -857,6 +884,13 @@ function openEditModal(index) {
     } else {
         document.getElementById("preview-thumbnail").innerHTML = '<span style="font-size:30px;">🎵</span>';
     }
+
+    // Reset Download UI
+    document.getElementById("dl-progress-bar").style.width = "0%";
+    document.getElementById("dl-status").innerText = "Prêt";
+
+    // Check if URL is valid for download
+    checkDownloadAvailability(track.url);
 }
 
 function closeModal() {
@@ -910,6 +944,9 @@ function selectResult(video) {
     const url = video.id ? `https://www.youtube.com/watch?v=${video.id}` : "";
     if (url) document.getElementById("edit-url").value = url;
 
+    // Show Download Button if URL
+    if (url) checkDownloadAvailability(url);
+
     // 2. Channel & Description
     document.getElementById("edit-channel").value = video.channel || "";
     document.getElementById("youtube-desc-input").value = video.description || "";
@@ -935,6 +972,240 @@ function selectResult(video) {
 
     // 5. Auto-set mode
     document.getElementById("edit-mode").value = "iframe";
+}
+
+// --- DOWNLOADER LOGIC ---
+
+let ffmpegAvailable = false;
+
+async function checkDLStatus() {
+    try {
+        const res = await fetch("/api/dl/status");
+        const data = await res.json();
+        ffmpegAvailable = data.ffmpeg;
+        console.log("FFmpeg Status:", ffmpegAvailable);
+    } catch (e) { console.error("DL Status Check Failed", e); }
+}
+
+function checkDownloadAvailability(url) {
+    const btn = document.getElementById("btn-show-dl");
+    if (url && (url.includes("youtube.com") || url.includes("youtu.be"))) {
+        btn.style.display = "inline-block";
+    } else {
+        btn.style.display = "none";
+    }
+}
+
+function openDownloadModal() {
+    document.getElementById("modal-download").showModal();
+    initDownloadOptions();
+}
+
+function closeDownloadModal() {
+    document.getElementById("modal-download").close();
+}
+
+async function initDownloadOptions() {
+    // 1. Populate Folders
+    const folderSelect = document.getElementById("dl-folder");
+    folderSelect.innerHTML = "";
+
+    // Ensure settings are loaded
+    if (!currentSettings) await loadSettings();
+
+    let folders = [];
+    if (currentSettings && currentSettings.media_folders) {
+        folders = currentSettings.media_folders;
+    }
+
+    if (folders.length === 0) {
+        const opt = document.createElement("option");
+        opt.innerText = "Aucun dossier configuré (Ajouter dans Paramètres)";
+        folderSelect.appendChild(opt);
+    } else {
+        folders.forEach(f => {
+            const opt = document.createElement("option");
+            opt.value = f;
+            opt.innerText = f;
+            folderSelect.appendChild(opt);
+        });
+    }
+
+    // 2. Populate Formats based on Capabilities
+    const formatSelect = document.getElementById("dl-format");
+    formatSelect.innerHTML = "";
+
+    const addOpt = (val, text, enabled = true) => {
+        const o = document.createElement("option");
+        o.value = val;
+        o.innerText = text;
+        if (!enabled) {
+            o.disabled = true;
+            o.innerText += " (FFmpeg requis)";
+        }
+        formatSelect.appendChild(o);
+    };
+
+    // Audio Options
+    addOpt("audio_original", "🎵 Audio (Original / Meilleure Qualité)");
+    addOpt("audio_mp3_320", "🎵 Audio MP3 320kbps", ffmpegAvailable);
+    addOpt("audio_mp3_192", "🎵 Audio MP3 192kbps", ffmpegAvailable);
+
+    // Video Options
+    addOpt("video_auto", "🎬 Vidéo Auto (Meilleur fichier unique)");
+    addOpt("video_2160", "🎬 Vidéo 4K (2160p) (MP4)", ffmpegAvailable);
+    addOpt("video_1440", "🎬 Vidéo 2K (1440p) (MP4)", ffmpegAvailable);
+    addOpt("video_1080", "🎬 Vidéo 1080p (MP4)", ffmpegAvailable);
+    addOpt("video_720", "🎬 Vidéo 720p (MP4)", ffmpegAvailable);
+    addOpt("video_480", "🎬 Vidéo 480p (MP4)", ffmpegAvailable);
+
+    // Select default smart option if ffmpeg missing
+    if (!ffmpegAvailable) {
+        formatSelect.value = "video_auto";
+    }
+
+    // Listener for format change to show/hide Container & Languages
+    formatSelect.onchange = () => updateDLUI(formatSelect.value);
+
+    // Initial UI State
+    updateDLUI(formatSelect.value);
+
+    // Fetch Languages for this URL
+    fetchDLLanguages();
+}
+
+function updateDLUI(format) {
+    const isVideo = format.startsWith("video_");
+    document.getElementById("dl-container-opt").style.display = isVideo ? "flex" : "none";
+    document.getElementById("dl-audio-langs").style.display = isVideo ? "block" : "none";
+}
+
+async function fetchDLLanguages() {
+    const url = document.getElementById("edit-url").value;
+    const list = document.getElementById("dl-langs-list");
+    list.innerHTML = "Chargement...";
+
+    try {
+        const res = await fetch("/api/dl/info", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({url})
+        });
+        const info = await res.json();
+
+        list.innerHTML = "";
+
+        if (info.languages && info.languages.length > 0) {
+            info.languages.forEach(item => {
+                const langCode = item.code;
+                const langName = item.name;
+
+                const div = document.createElement("div");
+                div.style.display = "flex";
+                div.style.alignItems = "center";
+                div.style.gap = "5px";
+
+                // Checkbox
+                const chk = document.createElement("input");
+                chk.type = "checkbox";
+                chk.value = langCode;
+                chk.name = "dl_lang";
+
+                // Auto-check logic: "Default" + "French"
+                // Assume 1st is default/original usually, or check "original" in name
+                const isDefault = item === info.languages[0] || (langName && langName.toLowerCase().includes("original"));
+                const isFrench = langCode.startsWith("fr") || (langName && langName.toLowerCase().includes("français"));
+
+                if (isDefault || isFrench) {
+                    chk.checked = true;
+                }
+
+                const lbl = document.createElement("label");
+
+                // Display: "French (fr)" or just "French" if name provided
+                let displayName = langName;
+                if (langName === langCode) {
+                    // Fallback mapping if name is just code
+                    const langNames = {
+                        'fr': 'Français', 'en': 'Anglais', 'es': 'Espagnol', 'de': 'Allemand',
+                        'it': 'Italien', 'pt': 'Portugais', 'ru': 'Russe', 'ja': 'Japonais',
+                        'ko': 'Coréen', 'zh': 'Chinois'
+                    };
+                    const clean = langCode.split('-')[0];
+                    if (langNames[clean]) displayName = langNames[clean] + ` (${langCode})`;
+                    else displayName = langCode.toUpperCase();
+                } else {
+                    // Name provided by backend (e.g. "French"), add code
+                    displayName = `${langName} (${langCode})`;
+                }
+
+                lbl.innerText = displayName;
+
+                div.appendChild(chk);
+                div.appendChild(lbl);
+                list.appendChild(div);
+            });
+        } else {
+            list.innerHTML = "<span style='color:#888'>Aucune piste audio alternative détectée (Langue par défaut uniquement).</span>";
+        }
+    } catch (e) {
+        list.innerHTML = "Erreur chargement langues.";
+    }
+}
+
+async function startDownload() {
+    const url = document.getElementById("edit-url").value;
+    const format = document.getElementById("dl-format").value;
+    const folder = document.getElementById("dl-folder").value;
+    const subs = document.getElementById("dl-subs").checked;
+
+    const container = document.getElementById("dl-container").value;
+
+    // Collect selected languages
+    const audio_langs = [];
+    document.querySelectorAll("input[name='dl_lang']:checked").forEach(c => audio_langs.push(c.value));
+
+    if (!url) return alert("URL manquante");
+    if (!folder || folder.includes("Aucun dossier")) return alert("Veuillez sélectionner un dossier valide.");
+
+    // Harvest Metadata
+    const metadata = {
+        title: document.getElementById("edit-title").value,
+        artist: document.getElementById("edit-artist").value,
+        album: "", // Not in setlist modal
+        category: document.getElementById("edit-category").value,
+        genre: document.getElementById("edit-genre").value,
+        cover_data: document.getElementById("preview-thumbnail").querySelector("img")?.src || ""
+    };
+
+    // UI Feedback
+    document.getElementById("dl-status").innerText = "Démarrage...";
+    document.getElementById("dl-progress-bar").style.width = "0%";
+    document.getElementById("dl-progress-bar").style.background = "var(--accent)";
+
+    try {
+        const payload = {
+            url: url,
+            format_id: format,
+            target_folder: folder,
+            subs: subs,
+            container: container,
+            audio_langs: audio_langs,
+            metadata: metadata
+        };
+
+        const res = await fetch("/api/dl/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Erreur serveur");
+
+    } catch (e) {
+        alert("Erreur: " + e.message);
+        document.getElementById("dl-status").innerText = "Erreur";
+    }
 }
 
 async function saveItem() {
@@ -2051,4 +2322,6 @@ const originalOnLoad = window.onload;
 window.onload = () => {
     if (originalOnLoad) originalOnLoad();
     loadProfiles();
+    loadSettings(); // Ensure settings are loaded on startup
+    checkDLStatus(); // Check FFmpeg status
 };
