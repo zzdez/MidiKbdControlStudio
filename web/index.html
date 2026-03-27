@@ -45,6 +45,9 @@
             <button id="btn-toggle-metronome" class="btn-icon" onclick="toggleMetronomeUI()" title="Métronome" style="margin-right: 5px;">
                 <i class="ph ph-metronome"></i>
             </button>
+            <button id="btn-toggle-drum-machine" class="btn-icon" onclick="openDrumModal()" data-i18n-title="web.tab_drum_machine" title="Boîte à Rythmes" style="margin-right: 5px;">
+                <i class="ph ph-speaker-hifi"></i>
+            </button>
             <button id="btn-toggle-fretboard" class="btn-icon" onclick="toggleFretboard()" data-i18n-title="web.title_fretboard" title="Grille de Gammes" style="margin-right: 5px;">
                 <i class="ph ph-grid-nine"></i>
             </button>
@@ -699,6 +702,58 @@
         </section>
 
     </main>
+
+    <!-- DRUM MACHINE MODAL -->
+    <dialog id="modal-drum-machine">
+        <div class="modal-header">
+            <h3 data-i18n="web.title_drum_machine">Boîte à Rythmes</h3>
+            <button onclick="closeDrumModal()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="edit-form">
+                <!-- SÉLECTION DU KIT -->
+                <label>Kit :</label>
+                <select id="drum-kit-select" onchange="changeDrumKit(this.value)">
+                    <option value="tr505">Roland TR-505</option>
+                    <option value="tr606">Roland TR-606</option>
+                    <option value="tr626">Roland TR-626</option>
+                    <option value="tr707">Roland TR-707</option>
+                    <option value="tr808">Roland TR-808</option>
+                    <option value="tr909">Roland TR-909</option>
+                </select>
+
+                <!-- SÉLECTION DU RYTHME -->
+                <label data-i18n="web.lbl_drum_pattern">Rythme :</label>
+                <select id="drum-pattern-select" onchange="changeDrumPattern(this.value)" style="margin-bottom: 5px;">
+                    <option value="rock_1" data-i18n="web.pattern_rock_1">Rock 1</option>
+                    <option value="rock_2" data-i18n="web.pattern_rock_2">Rock 2</option>
+                    <option value="disco" data-i18n="web.pattern_disco">Disco / Pop</option>
+                    <option value="funk" data-i18n="web.pattern_funk">Funk</option>
+                    <option value="shuffle" data-i18n="web.pattern_shuffle">Shuffle Blues</option>
+                </select>
+                
+                <!-- BOUTON D'ACTIVATION MASTER -->
+                <div style="margin-top: 15px; display: flex; align-items: center; justify-content: space-between; background: #222; padding: 10px; border-radius: 8px; border: 1px solid #333;">
+                    <span data-i18n="web.title_drum_machine" style="font-weight: bold;">Boîte à Rythmes</span>
+                    <label class="modern-switch">
+                        <input type="checkbox" id="drum-master-toggle" onchange="toggleDrumMachine(this.checked)">
+                        <span class="switch-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- MIXER SECTION AVEC SCROLL HORIZONTAL (Généré en dynamique par renderDrumMixer) -->
+            <div id="drum-mixer-container" class="modal-media-stack" style="margin-top: 15px; justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 10px; gap: 10px;">
+                <!-- Les sliders seront injectés ici par drums.js -->
+            </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <button class="control-btn" id="btn-drum-play" onclick="metronomeTogglePlay()" style="font-size:2em; color:#fff; background:transparent; border:none; cursor:pointer;" title="Lecture/Pause">
+                <i class="ph ph-play-circle ph-fill"></i>
+            </button>
+            <button class="btn-text" onclick="closeDrumModal()" data-i18n="web.btn_close">Fermer</button>
+        </div>
+    </dialog>
 
     <!-- APP MODAL -->
     <dialog id="app-modal">
@@ -1696,9 +1751,10 @@
 
     <script src="lib/pitch_shifter.js?v=2"></script>
     <script src="fretboard.js?v=1"></script>
-    <script src="js/metronome.js"></script>
-    <script src="js/ui_metronome.js"></script>
-    <script src="app.js?v=4"></script>
+    <script src="js/metronome.js?v=2"></script>
+    <script src="js/ui_metronome.js?v=2"></script>
+    <script src="js/drums.js?v=2"></script>
+    <script src="app.js?v=5"></script>
     <!-- SUBTITLE TRACKS MODAL -->
     <dialog id="modal-subtitle-tracks" class="preview-modal"
         style="width:300px; margin:auto; padding:15px; border-radius:8px; border:1px solid #444; background:#1e1e1e; text-align:center;">

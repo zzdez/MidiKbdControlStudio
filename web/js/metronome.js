@@ -209,6 +209,7 @@ class MetronomeEngine {
         }
 
         // --- SUBDIVISIONS LOGIQUE ---
+        // (La logique existante est maintenue, la DrumMachine supplante le son original globalement si active)
         if (this.subdivision > 1) {
             const secondsPerBeat = 60.0 / this.bpm;
             const subTime = secondsPerBeat / this.subdivision;
@@ -223,6 +224,19 @@ class MetronomeEngine {
                         if (this.onSubdivisionBeat) this.onSubdivisionBeat();
                     }, Math.max(0, delay));
                 }
+            }
+        }
+
+        // --- DRUM MACHINE INJECTION (16th notes scheduling) ---
+        if (window.DrumMachine && window.DrumMachine.isActive) {
+            const secondsPerBeat = 60.0 / this.bpm;
+            const stepDuration = secondsPerBeat / 4.0; // Une double croche
+            
+            for (let i = 0; i < 4; i++) {
+                const stepIndex16th = beatNumber * 4 + i;
+                const subAbsoluteTime = time + (i * stepDuration);
+                // Le DrumMachine se charge lui-même de ne pas jouer si sa grille est à 0 sur ce pas
+                window.DrumMachine.playStep(this.audioContext, this.masterGainNode || this.audioContext.destination, subAbsoluteTime, stepIndex16th);
             }
         }
     }

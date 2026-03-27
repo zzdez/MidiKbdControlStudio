@@ -385,6 +385,17 @@
         "lbl_target_bpm": "Target BPM",
         "lbl_bpm_increment": "+ BPM",
         "lbl_measures": "Measures",
-        "lbl_enable_trainer": "Enable Trainer"
+        "lbl_enable_trainer": "Enable Trainer",
+        "title_drum_machine": "Drum Machine",
+        "lbl_drum_pattern": "Pattern:",
+        "lbl_master": "Master",
+        "lbl_kick": "Kick",
+        "lbl_snare": "Snare",
+        "lbl_hihat": "Hi-Hat",
+        "pattern_rock_1": "Rock 1 (Basic)",
+        "pattern_rock_2": "Rock 2 (Upbeat)",
+        "pattern_disco": "Disco / Pop",
+        "pattern_funk": "Funk",
+        "pattern_shuffle": "Shuffle Blues"
     }
 }

@@ -57,9 +57,11 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
 *   **Métronome Haute Précision (Nouveau !) :**
     - **Web Audio Context :** Remplacement des tickrate logiciels imprécis par une interface à oscillateurs dédiée, synchrone avec le débit du processeur.
     - **Subdivisions Rythmiques :** Support natif des Croches, Triolets et Doubles Croches avec gestion fine de la polyrythmie visuelle et sonore (Clics secondaires différenciés).
-    - **Sync Link :** Le métronome recalcule le BPM à la volée en cas de changement de vitesse (*Rate*) sur les lecteurs Web ou locaux.
-    - **Routing Indépendant :** Jouez vos exercices sur le Fretboard avec un kit de batterie, tout en conservant le bip classique pour la structure du clic principal.
+    - **Synergie Métronome :** Le métronome recalcule le BPM à la volée en cas de changement de vitesse (*Rate*) sur les lecteurs Web ou locaux.
     - **Interface Compacte :** Harmonisation des champs de configuration (Speed Trainer) pour un rendu moderne et sans débordement.
+*   **Boîte à Rythmes (Drum Machine) :**
+    - **Moteur 11 Pistes :** Séquenceur complet embarquant des sons de légende (Roland TR-808, 909, 606, 505, 707, 626).
+    - **Mixeur Dédié :** Contrôlez indépendamment le volume de votre Kick, Snare, Toms, Cymbales et percussions de manière granulaire.
 *   **Repères & Décomptes Audio Cues (Nouveau !) :**
     - **Timeline Marker :** Posez des drapeaux pour programmer des avertisseurs visuels HUD avant les couplets.
     - **Global Override :** Mutez l'intégralité des bips d'un clic sur la Cloche sans perdre vos calibrations.
