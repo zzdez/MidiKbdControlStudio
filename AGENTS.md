@@ -301,3 +301,14 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 *   **Pipeline d'Assets (`assets/drums/`) :** Les banques de sons lourdes ont été optimisées via script Python. On est passé d'une collection brute de 473 variations à exactement 47 fichiers "canons" classés par modèle d'origine (`tr808`, `tr606`, etc.). Si un modèle ne possède pas un instrument physiquement (ex: pas de Cowbell sur la 606), le moteur gère le 404 gracieusement et reste muet uniquement sur cette piste.
 *   **Problème Actuel (UI Lifecycle) :** L'interface utilisateur de la table de mixage (12 sliders avec `writing-mode: vertical-lr`) devait être générée dynamiquement par `renderDrumMixer()`. Actuellement, sur la version compilée (ou en mode portable), l'application ne réussit pas à afficher ces nouveaux curseurs et reste bloquée sur l'ancien layout statique de 3 sliders. Les causes suspectées sont un cache persistant du dossier `web/` par PyInstaller, un éventuel problème de hook `DOMContentLoaded` exécuté trop tard, ou une désynchronisation des ports (port 8000 bloqué par l'exe fantôme). 
 *   **Objectif à long terme :** Dès le bug d'affichage résolu, l'objectif est d'implémenter un véritable Séquenceur Visuel (Grille de 16 pas, type x0x) au-dessus de la table de mixage, et de permettre la sauvegarde de Patterns personnalisés par l'utilisateur.
+
+### 32. Évolution V27 : MIDI Import Wizard & Full Song Mode
+*   **Moteur MIDI "Full Song" (`server.py` & `drums.js`) :**
+    *   **Parsing Longue Durée :** Le backend supporte désormais l'importation de fichiers MIDI complexes (jusqu'à 20 000 pas), convertissant les ticks MIDI en une grille de 16ème de notes précise.
+    *   **Song Mode Logic :** Implémentation d'un flag `isSongMode` qui désactive le bouclage automatique de 16 pas pour permettre au séquenceur de jouer l'intégralité d'un morceau sans interruption.
+*   **Assistant d'Importation (Wizard) :**
+    *   **Analyseur de Pistes :** Nouvel endpoint `/api/drums/analyze_midi` qui scanne le fichier pour lister les noms de pistes, les canaux (détection auto du canal 10) et les notes uniques.
+    *   **Mapping Dynamique :** Interface utilisateur permettant de mapper n'importe quelle note MIDI vers l'un des 11 instruments de la Drum Machine avec sauvegarde immédiate du pattern en mémoire vive.
+*   **Asset Hardening & Debugging :**
+    *   **Restauration des Samples :** Normalisation du dossier `assets/drums/` avec un jeu complet de 11 fichiers par kit (`kick`, `snare`, `hihat`, `openhat`, `tom1`, `tom2`, `tom3`, `clap`, `cymbal`, `cowbell`, `rim`).
+    *   **Traçabilité :** Ajout de logs verbeux (`[DRUM] Triggering...`) et de métadonnées de buffer pour garantir que chaque note est audible.

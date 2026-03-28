@@ -631,6 +631,42 @@ dialog::backdrop {
     justify-content: flex-end;
 }
 
+/* DRUM MACHINE MODAL OVERRIDES */
+#modal-drum-machine[open],
+#modal-midi-wizard[open] {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 920px !important;
+    max-width: 920px !important;
+    max-height: 900px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+
+#modal-drum-machine .modal-header {
+    flex-shrink: 0;
+    width: 100%;
+}
+
+#modal-drum-machine .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    width: 100% !important;
+    padding: 20px !important;
+    box-sizing: border-box;
+}
+
+#modal-drum-machine .modal-footer {
+    flex-shrink: 0;
+    width: 100% !important;
+    height: 50px !important;
+    padding: 0 20px !important;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
 .separator {
     border: 0;
     border-top: 1px solid #333;
@@ -1995,7 +2031,8 @@ dialog::backdrop {
 }
 
 .seq-step {
-    aspect-ratio: 1/1.2; /* Plus haut que large pour plus de style */
+    width: 25px;
+    height: 25px;
     background: #121212;
     border: 1px solid #333;
     border-radius: 4px;
@@ -2104,7 +2141,7 @@ dialog::backdrop {
 
 #sequencer-grid {
     display: grid;
-    max-height: 220px;
+    max-height: 450px;
     overflow-y: auto;
     scrollbar-width: thin;
 }

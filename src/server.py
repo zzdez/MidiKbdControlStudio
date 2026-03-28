@@ -1,11 +1,8 @@
 import os
 import sys
 import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Response
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
-from typing import List, Dict
+import io
+import mido
 import json
 import requests
 import re
@@ -14,14 +11,17 @@ import tkinter as tk
 from tkinter import filedialog
 import urllib.parse
 import shutil
-import mutagen
 import time
-import logging # Ensure logging is imported if not already, though it seems used elsewhere
+import logging
 import base64
 from concurrent.futures import ThreadPoolExecutor
+from typing import List, Dict
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Response
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
 from utils import get_app_dir, get_data_dir
 from i18n import _
-# Mutagen imports removed as they are now in metadata_service
 
 # Configure Logging
 logging.basicConfig(
@@ -781,7 +781,146 @@ async def get_library():
     """Returns the hierarchical library structure."""
     return library_manager.get_library()
 
+# --- DRUM MACHINE MIDI WIZARD ---
+
+@app.post("/api/drums/analyze_midi")
+async def analyze_drum_midi(data: Dict):
+    try:
+        content_b64 = data.get("file_b64")
+        if not content_b64:
+            raise HTTPException(status_code=400, detail="Missing file_b64")
+            
+        content = base64.b64decode(content_b64)
+        midi = mido.MidiFile(file=io.BytesIO(content))
+        
+        tracks_info = []
+        for i, track in enumerate(midi.tracks):
+            notes = set()
+            note_count = 0
+            channels = set()
+            track_name = f"Track {i}"
+            
+            for msg in track:
+                if msg.is_meta and msg.type == 'track_name':
+                    track_name = msg.name
+                if msg.type == 'note_on' and msg.velocity > 0:
+                    notes.add(msg.note)
+                    note_count += 1
+                    if hasattr(msg, 'channel'):
+                        channels.add(msg.channel + 1) # 1-indexed for user
+            
+            if note_count > 0:
+                tracks_info.append({
+                    "index": i,
+                    "name": track_name,
+                    "note_count": note_count,
+                    "channels": list(channels),
+                    "unique_notes": sorted(list(notes))
+                })
+                
+        return {
+            "status": "ok",
+            "tracks": tracks_info,
+            "ticks_per_beat": midi.ticks_per_beat
+        }
+    except Exception as e:
+        print(f"MIDI Analysis Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- LOCAL LIBRARY ---
+
+# --- DRUM MACHINE MIDI IMPORT ---
+
+@app.post("/api/drums/parse_midi")
+async def parse_drum_midi_endpoint(data: Dict):
+    try:
+        content_b64 = data.get("file_b64")
+        if not content_b64:
+            raise HTTPException(status_code=400, detail="Missing file_b64")
+            
+        mapping_override = data.get("mapping_override", {})
+        selected_tracks = data.get("selected_tracks", None)
+            
+        content = base64.b64decode(content_b64)
+        midi = mido.MidiFile(file=io.BytesIO(content))
+        
+        # Base GM Mapping
+        base_mapping = {
+            35: 'kick', 36: 'kick', 33: 'kick',
+            38: 'snare', 40: 'snare',
+            42: 'hihat', 44: 'hihat', 46: 'openhat',
+            39: 'clap',
+            41: 'tom3', 43: 'tom3', 45: 'tom2', 47: 'tom2', 48: 'tom1', 50: 'tom1',
+            49: 'cymbal', 51: 'cymbal', 52: 'cymbal', 53: 'cymbal', 
+            55: 'cymbal', 57: 'cymbal', 59: 'cymbal',
+            56: 'cowbell', 37: 'rim'
+        }
+        
+        # Merge with override (override takes precedence)
+        # Convert string keys to int if necessary
+        final_mapping = base_mapping.copy()
+        for k, v in mapping_override.items():
+            final_mapping[int(k)] = v
+        
+        ticks_per_beat = midi.ticks_per_beat
+        ticks_per_step = ticks_per_beat / 4 
+        
+        max_steps = 20000 
+        tracks_data = {}
+        abs_last_step = 15
+        
+        for i, track in enumerate(midi.tracks):
+            # Skip if track selection was provided and this track is not in it
+            if selected_tracks is not None and i not in selected_tracks:
+                continue
+                
+            current_tick = 0
+            for msg in track:
+                current_tick += msg.time
+                if msg.type == 'note_on' and msg.velocity > 0:
+                    step = round(current_tick / ticks_per_step)
+                    if 0 <= step < max_steps:
+                        inst = final_mapping.get(msg.note)
+                        if inst:
+                            if inst not in tracks_data:
+                                tracks_data[inst] = {} 
+                            
+                            if step > abs_last_step:
+                                abs_last_step = step
+                                
+                            val = 2 if msg.velocity > 100 else 1
+                            tracks_data[inst][step] = max(tracks_data[inst].get(step, 0), val)
+        
+        # Determine final steps (rounded to next bar)
+        final_steps = ((abs_last_step // 16) + 1) * 16
+        print(f"[MIDI PARSE] Total steps calculated: {final_steps}")
+        
+        # Convert sparse dicts to dense lists for the frontend
+        dense_tracks = {}
+        for inst in ['kick', 'snare', 'hihat', 'openhat', 'tom1', 'tom2', 'tom3', 'clap', 'cymbal', 'cowbell', 'rim']:
+            if inst in tracks_data:
+                count = len(tracks_data[inst])
+                print(f"[MIDI PARSE] Instrument '{inst}': {count} notes found.")
+                dense_list = [0] * final_steps
+                for s, v in tracks_data[inst].items():
+                    if s < final_steps:
+                        dense_list[s] = v
+                dense_tracks[inst] = dense_list
+            else:
+                dense_tracks[inst] = [0] * final_steps
+            
+        return {
+            "status": "ok",
+            "pattern": {
+                "steps": final_steps,
+                "isSongMode": (final_steps > 64),
+                "lastStep": final_steps,
+                "tracks": dense_tracks
+            }
+        }
+    except Exception as e:
+        print(f"MIDI Parse Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/local/files")
 async def get_local_files():

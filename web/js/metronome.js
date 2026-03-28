@@ -47,6 +47,9 @@ class MetronomeEngine {
         
         // --- ADDED FOR RHYTHM SUBDIVISIONS ---
         this.subdivision = 1; // 1 = Noires, 2 = Croches, 3 = Triolets, 4 = Doubles-croches
+        
+        // --- ADDED FOR FULL SONG SEQUENCING ---
+        this.currentTotalBeat = 0; 
     }
 
     init() {
@@ -146,6 +149,7 @@ class MetronomeEngine {
                 }
             }
         }
+        this.currentTotalBeat++;
     }
 
     incrementTempo() {
@@ -232,10 +236,14 @@ class MetronomeEngine {
             const secondsPerBeat = 60.0 / this.bpm;
             const stepDuration = secondsPerBeat / 4.0; // Une double croche
             
+            const currentPattern = window.DrumMachine.patterns[window.DrumMachine.currentPatternId];
+            const totalStepsInPattern = currentPattern ? (currentPattern.steps || 16) : 16;
+
             for (let i = 0; i < 4; i++) {
-                const stepIndex16th = beatNumber * 4 + i;
+                // Utilise le beat cumulé pour ne jamais "looper" prématurément sur 16 pas
+                const stepIndex16th = (this.currentTotalBeat * 4 + i) % totalStepsInPattern;
                 const subAbsoluteTime = time + (i * stepDuration);
-                // Le DrumMachine se charge lui-même de ne pas jouer si sa grille est à 0 sur ce pas
+                
                 window.DrumMachine.playStep(this.audioContext, this.masterGainNode || this.audioContext.destination, subAbsoluteTime, stepIndex16th);
             }
         }
@@ -359,6 +367,7 @@ class MetronomeEngine {
         }
 
         this.currentBeatInMeasure = 0; 
+        this.currentTotalBeat = 0; // Reset for Song Mode
         this.timerWorker.postMessage('start');
     }
 
