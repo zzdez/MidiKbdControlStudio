@@ -68,6 +68,10 @@ function applyTranslations() {
             if (phText !== placeholderKey) el.placeholder = phText;
         }
     });
+
+    if (typeof renderDrumMixer === 'function') {
+        renderDrumMixer();
+    }
 }
 
 // --- CONTEXT AWARE PROFILES ---

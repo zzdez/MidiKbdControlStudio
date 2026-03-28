@@ -45,6 +45,9 @@
             <button id="btn-toggle-metronome" class="btn-icon" onclick="toggleMetronomeUI()" title="Métronome" style="margin-right: 5px;">
                 <i class="ph ph-metronome"></i>
             </button>
+            <button id="btn-toggle-drum-machine" class="btn-icon" onclick="openDrumModal()" data-i18n-title="web.tab_drum_machine" title="Boîte à Rythmes" style="margin-right: 5px;">
+                <i class="ph ph-speaker-hifi"></i>
+            </button>
             <button id="btn-toggle-fretboard" class="btn-icon" onclick="toggleFretboard()" data-i18n-title="web.title_fretboard" title="Grille de Gammes" style="margin-right: 5px;">
                 <i class="ph ph-grid-nine"></i>
             </button>
@@ -699,6 +702,109 @@
         </section>
 
     </main>
+
+    <!-- DRUM MACHINE MODAL -->
+    <dialog id="modal-drum-machine">
+        <div class="modal-header">
+            <h3 data-i18n="web.title_drum_machine">Boîte à Rythmes</h3>
+            <div style="display:flex; gap:5px; align-items:center;">
+                <button onclick="minimizeDrumModal()" class="btn-icon" title="Réduire (Garder le son)" style="font-size: 1.2em; color: #888;"><i class="ph ph-minus"></i></button>
+                <button onclick="closeDrumModal()" class="btn-close">×</button>
+            </div>
+        </div>
+
+        <div class="modal-body">
+            <!-- TOP CONTROLS -->
+            <div class="edit-form" style="margin-bottom: 20px;">
+                <div class="row-inputs" style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span data-i18n="web.lbl_pattern" style="font-size: 0.85em; color: #888;">Pattern :</span>
+                        <select id="drum-pattern-select" onchange="changeDrumPattern(this.value)" style="width: 100px; height: 24px; font-size: 11px;">
+                            <option value="rock_1">Rock 1</option>
+                            <option value="rock_2">Rock 2</option>
+                            <option value="disco">Disco</option>
+                            <option value="funk">Funk</option>
+                            <option value="shuffle" data-i18n="web.pattern_shuffle">Shuffle Blues</option>
+                            <option value="custom">Custom (User)</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span style="font-size: 0.85em; color: #888;">Swing :</span>
+                        <input type="range" id="drum-swing" min="0" max="100" value="0" oninput="updateDrumSwing(this.value)" style="width: 60px; height: 14px;">
+                        <span id="drum-swing-val" style="font-size: 0.8em; color: var(--accent); min-width: 30px;">0%</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span style="font-size: 0.85em; color: #888;">Tempo :</span>
+                        <input type="number" id="drum-bpm" min="40" max="250" value="120" onchange="updateDrumBPM(this.value)" style="width: 50px; height: 24px; font-size: 11px; background: #222; color: var(--accent); border: 1px solid #444; border-radius: 4px; text-align: center;">
+                        <span style="font-size: 0.8em; color: #666;">BPM</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span data-i18n="web.lbl_kit" style="font-size: 0.85em; color: #888;">Kit :</span>
+                        <select id="drum-kit-select" onchange="changeDrumKit(this.value)" style="width: 110px; height: 24px; font-size: 11px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px;">
+                            <option value="tr505">Roland TR-505</option>
+                            <option value="tr626">Roland TR-626</option>
+                            <option value="tr707">Roland TR-707</option>
+                            <option value="tr808">Roland TR-808 Pro</option>
+                            <option value="tr909">Roland TR-909 Studio</option>
+                            <option value="linn">LinnDrum (Classic)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SEQUENCER GRID -->
+            <div id="sequencer-container" style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid #333; width: 100%; box-sizing: border-box;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span id="sequencer-inst-label" style="font-weight: bold; color: var(--accent); text-transform: uppercase; font-size: 0.9em; letter-spacing: 1px; min-width: 45px;">KICK</span>
+                        
+                        <div style="display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 4px; border: 1px solid #444;">
+                            <div style="display: flex; align-items: center; gap: 5px;">
+                                <span style="font-size: 0.65em; color: #888;">TUNE</span>
+                                <input type="range" id="seq-tune" min="-12" max="12" value="0" oninput="updateInstParam('tune', this.value)" style="width: 40px; height: 10px;">
+                                <span id="seq-tune-val" style="font-size: 0.65em; color: var(--accent); min-width: 20px;">0</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 5px;">
+                                <span style="font-size: 0.65em; color: #888;">DECAY</span>
+                                <input type="range" id="seq-decay" min="0" max="2" step="0.05" value="0.5" oninput="updateInstParam('decay', this.value)" style="width: 40px; height: 10px;">
+                                <span id="seq-decay-val" style="font-size: 0.65em; color: var(--accent); min-width: 25px;">0.5s</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 5px; align-items: center;">
+                        <button id="btn-seq-view" onclick="toggleSequencerView()" class="btn-text" title="Toggle Single/All Tracks" style="padding: 2px 6px; font-size: 9px; height: 20px;">
+                            <i class="ph ph-squares-four"></i> <span id="sequencer-mode-label">SINGLE</span>
+                        </button>
+                        <button onclick="importMidiPattern()" class="btn-text" title="Import MIDI" style="padding: 2px 6px; font-size: 9px; height: 20px;">
+                            <i class="ph ph-file-arrow-up"></i> MIDI
+                        </button>
+                        <input type="file" id="midi-import-input" accept=".mid,.midi" style="display: none;" onchange="handleMidiFileUpload(event)">
+                        
+                        <div style="width: 1px; height: 15px; background: #444; margin: 0 5px;"></div>
+                        
+                        <button id="btn-seq-clear" onclick="clearCurrentTrack()" class="btn-text" style="padding: 2px 6px; font-size: 9px; height: 20px;">CLR</button>
+                        <button id="btn-seq-rec" onclick="toggleInstRec()" class="btn-text" style="padding: 2px 6px; font-size: 9px; height: 20px; border-color: #555;"><i class="ph ph-record" style="color:#ff4444;"></i> REC</button>
+                    </div>
+                </div>
+                <div id="sequencer-grid" class="sequencer-step-grid">
+                    <!-- Les steps seront injectés ici -->
+                </div>
+            </div>
+
+            <!-- MIXER SECTION -->
+            <div id="drum-mixer-container" class="drum-mixer-layout" style="margin-top: 15px; width: 100%;">
+                <!-- Les sliders seront injectés ici -->
+            </div>
+        </div>
+        
+        <div class="modal-footer">
+            <button class="control-btn" id="btn-drum-play" onclick="metronomeTogglePlay()" style="font-size:2em; color:#fff; background:transparent; border:none; cursor:pointer;" title="Lecture/Pause">
+                <i class="ph ph-play-circle ph-fill"></i>
+            </button>
+            <button class="btn-text" onclick="closeDrumModal()" data-i18n="web.btn_close">Fermer</button>
+        </div>
+    </dialog>
 
     <!-- APP MODAL -->
     <dialog id="app-modal">
@@ -1694,11 +1800,6 @@
         </div>
     </dialog>
 
-    <script src="lib/pitch_shifter.js?v=2"></script>
-    <script src="fretboard.js?v=1"></script>
-    <script src="js/metronome.js"></script>
-    <script src="js/ui_metronome.js"></script>
-    <script src="app.js?v=4"></script>
     <!-- SUBTITLE TRACKS MODAL -->
     <dialog id="modal-subtitle-tracks" class="preview-modal"
         style="width:300px; margin:auto; padding:15px; border-radius:8px; border:1px solid #444; background:#1e1e1e; text-align:center;">
@@ -2236,6 +2337,57 @@
                 </label>
             </div>
             <!-- Fretboard Trainer removed -->
+        </div>
+    </div>
+
+    <!-- MIDI IMPORT WIZARD MODAL -->
+    <dialog id="modal-midi-wizard" class="preview-modal" style="width: 700px; max-height: 85vh; background: #1a1a1a; color: #eee; border: 1px solid #444; border-radius: 12px; padding: 0; overflow: hidden; flex-direction: column;">
+        <header class="modal-header" style="background: #252525; padding: 15px 20px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 1.1em; color: var(--accent);"><i class="ph ph-magic-wand"></i> Assistant d'Importation MIDI</h3>
+            <button onclick="document.getElementById('modal-midi-wizard').close()" class="btn-close">×</button>
+        </header>
+        
+        <div class="modal-body" style="padding: 20px; overflow-y: auto; flex: 1; display: flex; gap: 20px;">
+            <!-- Left: Tracks Selection -->
+            <div style="flex: 1; border-right: 1px solid #333; padding-right: 15px;">
+                <h4 style="margin-top: 0; font-size: 0.9em; color: #888; text-transform: uppercase;">1. Sélection des Pistes</h4>
+                <div id="midi-wizard-tracks" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                    <!-- Injected by JS -->
+                </div>
+            </div>
+            
+            <!-- Right: Note Mapping -->
+            <div style="flex: 1.5;">
+                <h4 style="margin-top: 0; font-size: 0.9em; color: #888; text-transform: uppercase;">2. Mapping des Notes</h4>
+                <div id="midi-wizard-mapping" style="margin-top: 10px; max-height: 400px; overflow-y: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.85em;">
+                        <thead style="position: sticky; top: 0; background: #1a1a1a; z-index: 5;">
+                            <tr>
+                                <th style="text-align: left; padding: 5px; border-bottom: 1px solid #444; color: #666;">Note MIDI</th>
+                                <th style="text-align: left; padding: 5px; border-bottom: 1px solid #444; color: #666;">Instrument</th>
+                            </tr>
+                        </thead>
+                        <tbody id="midi-wizard-mapping-body">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="modal-footer" style="padding: 15px 20px; background: #222; border-top: 1px solid #333; display: flex; justify-content: flex-end; gap: 10px; height: 60px !important;">
+            <button class="btn-text" onclick="document.getElementById('modal-midi-wizard').close()">Annuler</button>
+            <button class="btn-accent" onclick="confirmMidiImport()">Importer le morceau</button>
+        </footer>
+    </dialog>
+
+    <!-- SCRIPTS -->
+    <script src="lib/pitch_shifter.js?v=2"></script>
+    <script src="fretboard.js?v=1"></script>
+    <script src="js/metronome.js?v=2"></script>
+    <script src="js/ui_metronome.js?v=2"></script>
+    <script src="js/drums.js?v=4"></script>
+    <script src="app.js?v=5"></script>
 </body>
 
 </html>

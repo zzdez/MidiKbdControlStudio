@@ -33,8 +33,11 @@ function toggleMetronomeUI() {
 function metronomeTogglePlay() {
     const isPlaying = window.metronome.toggle();
     const btn = document.getElementById("btn-metro-play");
+    const drumBtn = document.getElementById("btn-drum-play");
+
     if (isPlaying) {
-        btn.innerHTML = '<i class="ph ph-stop-circle ph-fill" style="color:#cf6679;"></i>';
+        if (btn) btn.innerHTML = '<i class="ph ph-stop-circle ph-fill" style="color:#cf6679;"></i>';
+        if (drumBtn) drumBtn.innerHTML = '<i class="ph ph-stop-circle ph-fill" style="color:#cf6679;"></i>';
         
         // --- EXCLUSIVITE ---
         // Décocher et Stopper le Fretboard Trainer s'il est actif
@@ -46,7 +49,8 @@ function metronomeTogglePlay() {
             }
         }
     } else {
-        btn.innerHTML = '<i class="ph ph-play-circle ph-fill"></i>';
+        if (btn) btn.innerHTML = '<i class="ph ph-play-circle ph-fill"></i>';
+        if (drumBtn) drumBtn.innerHTML = '<i class="ph ph-play-circle ph-fill"></i>';
         resetBeatVisualizer();
     }
 }

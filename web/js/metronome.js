@@ -47,6 +47,9 @@ class MetronomeEngine {
         
         // --- ADDED FOR RHYTHM SUBDIVISIONS ---
         this.subdivision = 1; // 1 = Noires, 2 = Croches, 3 = Triolets, 4 = Doubles-croches
+        
+        // --- ADDED FOR FULL SONG SEQUENCING ---
+        this.currentTotalBeat = 0; 
     }
 
     init() {
@@ -146,6 +149,7 @@ class MetronomeEngine {
                 }
             }
         }
+        this.currentTotalBeat++;
     }
 
     incrementTempo() {
@@ -209,6 +213,7 @@ class MetronomeEngine {
         }
 
         // --- SUBDIVISIONS LOGIQUE ---
+        // (La logique existante est maintenue, la DrumMachine supplante le son original globalement si active)
         if (this.subdivision > 1) {
             const secondsPerBeat = 60.0 / this.bpm;
             const subTime = secondsPerBeat / this.subdivision;
@@ -223,6 +228,23 @@ class MetronomeEngine {
                         if (this.onSubdivisionBeat) this.onSubdivisionBeat();
                     }, Math.max(0, delay));
                 }
+            }
+        }
+
+        // --- DRUM MACHINE INJECTION (16th notes scheduling) ---
+        if (window.DrumMachine && window.DrumMachine.isActive) {
+            const secondsPerBeat = 60.0 / this.bpm;
+            const stepDuration = secondsPerBeat / 4.0; // Une double croche
+            
+            const currentPattern = window.DrumMachine.patterns[window.DrumMachine.currentPatternId];
+            const totalStepsInPattern = currentPattern ? (currentPattern.steps || 16) : 16;
+
+            for (let i = 0; i < 4; i++) {
+                // Utilise le beat cumulé pour ne jamais "looper" prématurément sur 16 pas
+                const stepIndex16th = (this.currentTotalBeat * 4 + i) % totalStepsInPattern;
+                const subAbsoluteTime = time + (i * stepDuration);
+                
+                window.DrumMachine.playStep(this.audioContext, this.masterGainNode || this.audioContext.destination, subAbsoluteTime, stepIndex16th);
             }
         }
     }
@@ -345,6 +367,7 @@ class MetronomeEngine {
         }
 
         this.currentBeatInMeasure = 0; 
+        this.currentTotalBeat = 0; // Reset for Song Mode
         this.timerWorker.postMessage('start');
     }
 
