@@ -779,6 +779,9 @@
                         <button onclick="importMidiPattern()" class="btn-text" title="Import MIDI" style="padding: 2px 6px; font-size: 9px; height: 20px;">
                             <i class="ph ph-file-arrow-up"></i> MIDI
                         </button>
+                        <button id="btn-seq-edit-midi" onclick="editCurrentMidiMapping()" class="btn-text" title="Éditer le Mappage" style="padding: 2px 6px; font-size: 9px; height: 20px; color: #aaa; display: none;">
+                            <i class="ph ph-pencil-simple"></i>
+                        </button>
                         <input type="file" id="midi-import-input" accept=".mid,.midi" style="display: none;" onchange="handleMidiFileUpload(event)">
                         
                         <div style="width: 1px; height: 15px; background: #444; margin: 0 5px;"></div>
@@ -790,6 +793,7 @@
                 <div id="sequencer-grid" class="sequencer-step-grid">
                     <!-- Les steps seront injectés ici -->
                 </div>
+                <div id="drum-debug-log" style="text-align: right; font-size: 8px; color: #444; height: 10px; margin-top: 2px; font-family: monospace; letter-spacing: 0.5px;"></div>
             </div>
 
             <!-- MIXER SECTION -->
@@ -798,11 +802,42 @@
             </div>
         </div>
         
-        <div class="modal-footer">
-            <button class="control-btn" id="btn-drum-play" onclick="metronomeTogglePlay()" style="font-size:2em; color:#fff; background:transparent; border:none; cursor:pointer;" title="Lecture/Pause">
-                <i class="ph ph-play-circle ph-fill"></i>
-            </button>
-            <button class="btn-text" onclick="closeDrumModal()" data-i18n="web.btn_close">Fermer</button>
+        <div class="modal-footer media-controls-bar" style="height: 65px !important;">
+            <!-- Left: BPM Pill -->
+            <div class="time-display-integrated" style="display:flex; align-items:center; gap:8px; min-width:150px;">
+                <div class="speed-pill">
+                    <button onclick="DrumMachine.drumControl('tempo_down')" title="Ralentir"><i class="ph ph-minus"></i></button>
+                    <span id="drum-bpm-display" class="speed-display">120</span>
+                    <button onclick="DrumMachine.drumControl('tempo_up')" title="Accélérer"><i class="ph ph-plus"></i></button>
+                </div>
+                <small style="color:#666; font-size:10px; font-weight:bold;">BPM</small>
+            </div>
+
+            <!-- Center: Transport -->
+            <div class="controls-center-group" style="gap:15px;">
+                <button class="control-btn" onclick="DrumMachine.drumControl('restart')" title="Recommencer">
+                    <i class="ph ph-skip-back"></i>
+                </button>
+                <button class="control-btn" onclick="DrumMachine.drumControl('seek_back')" title="-1 Mesure">
+                    <i class="ph ph-rewind"></i>
+                </button>
+                
+                <button class="control-btn control-btn-large" id="btn-drum-play-main" onclick="metronomeTogglePlay()" title="Lecture/Pause">
+                    <i class="ph ph-play-circle ph-fill"></i>
+                </button>
+
+                <button class="control-btn" onclick="DrumMachine.drumControl('seek_next')" title="+1 Mesure">
+                    <i class="ph ph-fast-forward"></i>
+                </button>
+                <button class="control-btn" onclick="DrumMachine.drumControl('stop')" title="Stop" style="color:#ff4444;">
+                    <i class="ph ph-stop-circle"></i>
+                </button>
+            </div>
+
+            <!-- Right: Close -->
+            <div class="controls-right-spacer" style="display:flex; justify-content:flex-end;">
+                <button class="btn-text" onclick="closeDrumModal()" data-i18n="web.btn_close">Fermer</button>
+            </div>
         </div>
     </dialog>
 
@@ -2375,9 +2410,23 @@
             </div>
         </div>
         
-        <footer class="modal-footer" style="padding: 15px 20px; background: #222; border-top: 1px solid #333; display: flex; justify-content: flex-end; gap: 10px; height: 60px !important;">
-            <button class="btn-text" onclick="document.getElementById('modal-midi-wizard').close()">Annuler</button>
-            <button class="btn-accent" onclick="confirmMidiImport()">Importer le morceau</button>
+        <footer class="modal-footer" style="padding: 15px 20px; background: #222; border-top: 1px solid #333; display: flex; justify-content: space-between; align-items: center; height: 60px !important;">
+            <!-- Left: Transpose -->
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <span style="font-size: 0.85em; color: #888;">Trans :</span>
+                <select id="midi-wizard-transpose" style="width: 60px; height: 24px; font-size: 11px; background: #111; color: #fff; border: 1px solid #444; border-radius: 4px;">
+                    <option value="-24">-2 Oct</option>
+                    <option value="-12">-1 Oct</option>
+                    <option value="0" selected>0</option>
+                    <option value="12">+1 Oct</option>
+                    <option value="24">+2 Oct</option>
+                </select>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-text" onclick="document.getElementById('modal-midi-wizard').close()">Annuler</button>
+                <button class="btn-accent" onclick="confirmMidiImport()">Importer le morceau</button>
+            </div>
         </footer>
     </dialog>
 
