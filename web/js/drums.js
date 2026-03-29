@@ -5,6 +5,9 @@
 let currentWizardB64 = null;
 let isEditingMidiMapping = false;
 
+window.DrumMachineLoadedAt = new Date().getTime();
+console.log("DRUMS.JS V7 LOADED - Production Mode (Object-based)");
+
 window.DrumMachine = {
     isActive: false,
     isLoaded: false,
@@ -28,6 +31,116 @@ window.DrumMachine = {
         cowbell: { volume: 0.7, tune: 0, decay: 0.3, pan: 0.1, mute: false, solo: false },
         rim:     { volume: 0.8, tune: 0, decay: 0.1, pan: -0.1, mute: false, solo: false },
         bass:    { volume: 1.0, tune: 0, decay: 4.0, pan: 0.0, mute: false, solo: false }
+    },
+
+    // Méthodes de Mixage
+    toggleMute(instId) {
+        const config = this.settings[instId];
+        if (config) {
+            config.mute = !config.mute;
+            if (config.mute) config.solo = false;
+            this.renderMixer();
+        }
+    },
+
+    toggleSolo(instId) {
+        const config = this.settings[instId];
+        if (config) {
+            config.solo = !config.solo;
+            if (config.solo) config.mute = false;
+            this.renderMixer();
+        }
+    },
+
+    renderMixer() {
+        const container = document.getElementById('drum-mixer-container');
+        if (!container) return;
+        
+        const uiInstruments = [
+            { id: 'master', label: 'Master', default: 100 },
+            { id: 'kick', label: 'Kick', default: 100 },
+            { id: 'snare', label: 'Snare', default: 100 },
+            { id: 'hihat', label: 'Hi-Hat', default: 100 },
+            { id: 'openhat', label: 'O.Hat', default: 80 },
+            { id: 'clap', label: 'Clap', default: 100 },
+            { id: 'tom1', label: 'Hi Tom', default: 90 },
+            { id: 'tom2', label: 'Mid Tom', default: 90 },
+            { id: 'tom3', label: 'Low Tom', default: 90 },
+            { id: 'cymbal', label: 'Crash', default: 70 },
+            { id: 'cowbell', label: 'Cowbell', default: 80 },
+            { id: 'rim', label: 'Rim', default: 80 },
+            { id: 'bass', label: 'Bass', default: 100 }
+        ];
+
+        const settings = this.settings;
+        const soloActive = Object.keys(settings).some(k => k !== 'master' && settings[k].solo);
+
+        container.innerHTML = '';
+        
+        uiInstruments.forEach(inst => {
+            // Ensure track exists in settings
+            if (!settings[inst.id]) {
+                settings[inst.id] = { volume: inst.default/100, mute: false, solo: false, tune: 0, decay: 0.5, pan: 0 };
+            }
+            
+            const config = settings[inst.id];
+            const isSelected = (this.selectedInstrument === inst.id);
+            
+            let labelText = inst.label;
+            if (typeof window._ === 'function') {
+                labelText = window._('web.lbl_' + inst.id);
+            }
+
+            const isMuted = config.mute === true;
+            const isDimmed = (soloActive && !config.solo && inst.id !== 'master') || isMuted;
+
+            container.innerHTML += `
+                <div class="drum-track ${isSelected ? 'selected' : ''} ${isMuted ? 'muted' : ''}" id="track-${inst.id}" style="opacity: ${isDimmed ? 0.3 : 1}">
+                    <span class="slider-label" style="font-size: 0.65em; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; color: ${isMuted ? '#f44336' : '#aaa'};">
+                        ${labelText} ${isMuted ? '<b>(M)</b>' : ''}
+                    </span>
+                    <div class="drum-slider-area">
+                        <input type="range" id="drum-vol-${inst.id}" min="0" max="100" value="${Math.round(config.volume * 100)}" orient="vertical" oninput="window.DrumMachine.updateVolume('${inst.id}', this.value)" style="height: 100px; width: 22px; -webkit-appearance: slider-vertical; appearance: slider-vertical; writing-mode: vertical-lr; direction: rtl; margin: 0; cursor: pointer;">
+                        <div class="vu-meter-container">
+                            <div id="vu-${inst.id}" class="vu-meter-bar"></div>
+                        </div>
+                    </div>
+                    <span id="drum-vol-${inst.id}-pct" class="slider-percent" style="font-size: 0.65em; margin-top: 8px; font-family: monospace; color: var(--accent);">${Math.round(config.volume * 100)}%</span>
+                    
+                    <div class="drum-track-controls" style="display: flex; gap: 4px; margin-top: 5px;">
+                        <button id="btn-mute-${inst.id}" class="btn-mini-toggle ${config.mute ? 'active' : ''}">M</button>
+                        ${inst.id !== 'master' ? `<button id="btn-solo-${inst.id}" class="btn-mini-toggle solo ${config.solo ? 'active' : ''}">S</button>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+    },
+
+    updateVolume(instId, value) {
+        const vol = parseFloat(value) / 100;
+        this.settings[instId].volume = vol;
+        const pctLabel = document.getElementById(`drum-vol-${instId}-pct`);
+        if (pctLabel) pctLabel.innerText = Math.round(vol * 100) + '%';
+    },
+
+    flashVUMeter(instId, gain = 1.0) {
+        const bar = document.getElementById(`vu-${instId}`);
+        if (!bar) return;
+        
+        let displayGain = gain;
+        const config = this.settings[instId];
+        if (config) {
+            if (config.mute) displayGain = 0;
+            displayGain *= config.volume;
+        }
+        
+        const height = Math.min(100, displayGain * 150);
+        bar.style.height = height + "%";
+        bar.style.background = height > 80 ? "#f44336" : (height > 50 ? "#ffeb3b" : "#4caf50");
+        
+        setTimeout(() => {
+            bar.style.height = "0%";
+        }, 100);
     },
 
     buffers: {},
@@ -143,7 +256,7 @@ window.DrumMachine = {
             const stepValue = pattern.tracks[inst][step];
             const config = this.settings[inst];
             
-            if (stepValue > 0 && config && !config.mute) {
+            if (stepValue > 0 && config && config.mute !== true) {
                 if (soloActive && !config.solo) return;
 
                 anyTrackPlayed = true;
@@ -586,19 +699,42 @@ function updateDrumSwing(val) {
     if (label) label.innerText = `${val}%`;
 }
 
+function addMixerLog(msg) {
+    console.log("[MIXER]", msg);
+    const logArea = document.getElementById('mixer-debug-log');
+    if (logArea) {
+        const time = new Date().toLocaleTimeString();
+        logArea.innerHTML = `<div style="border-bottom:1px solid #333; padding:2px;">${time}: ${msg}</div>` + logArea.innerHTML;
+        // Garder les 10 derniers
+        if (logArea.children.length > 10) logArea.removeChild(logArea.lastChild);
+    }
+}
+
 function toggleMute(instId) {
-    const config = window.DrumMachine.settings[instId];
+    addMixerLog(`Toggle Mute requested for: "${instId}"`);
+    const settings = window.DrumMachine.settings;
+    const config = settings[instId];
     if (config) {
         config.mute = !config.mute;
+        addMixerLog(`-> ${instId} Mute is now: ${config.mute}`);
+        if (config.mute) config.solo = false;
         renderDrumMixer();
+    } else {
+        addMixerLog(`!! Config not found for ${instId} in settings keys: ${Object.keys(settings).join(',')}`);
     }
 }
 
 function toggleSolo(instId) {
-    const config = window.DrumMachine.settings[instId];
+    addMixerLog(`Toggle Solo requested for: "${instId}"`);
+    const settings = window.DrumMachine.settings;
+    const config = settings[instId];
     if (config) {
         config.solo = !config.solo;
+        addMixerLog(`-> ${instId} Solo is now: ${config.solo}`);
+        if (config.solo) config.mute = false;
         renderDrumMixer();
+    } else {
+        addMixerLog(`!! Config not found for ${instId}`);
     }
 }
 
@@ -1138,69 +1274,47 @@ function playInstrumentTest(instId) {
         recordHit(instId);
     }
 }
+// Alias pour compatibilité descendante (facultatif mais plus sûr)
+window.renderDrumMixer = () => window.DrumMachine.renderMixer();
+window.updateDrumVolume = (id, val) => window.DrumMachine.updateVolume(id, val);
+window.flashVUMeter = (id, g) => window.DrumMachine.flashVUMeter(id, g);
+window.toggleMute = (id) => window.DrumMachine.toggleMute(id);
+window.toggleSolo = (id) => window.DrumMachine.toggleSolo(id);
 
-// Global hook for metronome sync
-window.DrumMachine.lastStepPlayed = 0;
+// --- UNIFIED CLICK LISTENER (Capture Phase) ---
+window.addEventListener('click', (e) => {
+    // 1. Bouton Mute
+    const btnMute = e.target.closest('[id^="btn-mute-"]');
+    if (btnMute) {
+        e.preventDefault(); e.stopPropagation();
+        const instId = btnMute.id.replace('btn-mute-', '');
+        window.DrumMachine.toggleMute(instId);
+        return;
+    }
 
-function handleTrackClick(instId) {
-    selectInstrument(instId);
-    playInstrumentTest(instId);
-}
+    // 2. Bouton Solo
+    const btnSolo = e.target.closest('[id^="btn-solo-"]');
+    if (btnSolo) {
+        e.preventDefault(); e.stopPropagation();
+        const instId = btnSolo.id.replace('btn-solo-', '');
+        window.DrumMachine.toggleSolo(instId);
+        return;
+    }
 
-// --- AUTO GENERATE MIXER ---
-function renderDrumMixer() {
-    const container = document.getElementById("drum-mixer-container");
-    if (!container) return;
-    
-    const translate_func = (typeof t === 'function') ? t : (k) => k;
+    // 3. Sélection de Piste (Drum Track)
+    const track = e.target.closest('.drum-track');
+    if (track && !e.target.closest('.drum-slider-area') && !e.target.closest('.drum-track-controls')) {
+        const instId = track.id.replace('track-', '');
+        window.DrumMachine.selectedInstrument = instId;
+        window.DrumMachine.renderMixer();
+        if (typeof renderDrumSequencer === 'function') renderDrumSequencer();
+    }
+}, true);
 
-    const uiInstruments = [
-        { id: 'master', label: 'Master', default: 100 },
-        { id: 'kick', label: 'Kick', default: 100 },
-        { id: 'snare', label: 'Snare', default: 100 },
-        { id: 'hihat', label: 'Hi-Hat', default: 100 },
-        { id: 'openhat', label: 'O.Hat', default: 80 },
-        { id: 'clap', label: 'Clap', default: 100 },
-        { id: 'tom1', label: 'Hi Tom', default: 90 },
-        { id: 'tom2', label: 'Mid Tom', default: 90 },
-        { id: 'tom3', label: 'Low Tom', default: 90 },
-        { id: 'cymbal', label: 'Crash', default: 70 },
-        { id: 'cowbell', label: 'Cowbell', default: 80 },
-        { id: 'rim', label: 'Rim', default: 80 },
-        { id: 'bass', label: 'Bass', default: 100 }
-    ];
-    
-    container.innerHTML = ""; 
-    const soloActive = Object.keys(window.DrumMachine.settings).some(k => k !== 'master' && window.DrumMachine.settings[k].solo);
-    
-    uiInstruments.forEach(inst => {
-        const translatedLabel = translate_func('web.lbl_' + inst.id);
-        const config = window.DrumMachine.settings[inst.id] || { volume: inst.default/100, mute: false, solo: false };
-        const isSelected = window.DrumMachine.selectedInstrument === inst.id;
-
-        // Si quelqu'un est en solo et que ce n'est pas nous, on grise visuellement (comme un mute forcé)
-        // OU si NOUS sommes mutés
-        const isMuted = config.mute === true;
-        const isDimmed = (soloActive && !config.solo && inst.id !== 'master') || isMuted;
-
-        container.innerHTML += `
-            <div class="drum-track ${isSelected ? 'selected' : ''} ${isMuted ? 'muted' : ''}" id="track-${inst.id}" onclick="handleTrackClick('${inst.id}')" style="opacity: ${isDimmed ? 0.3 : 1}">
-                <span class="slider-label" style="font-size: 0.65em; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; color: #aaa;">${translatedLabel}</span>
-                <div class="drum-slider-area" onclick="event.stopPropagation()">
-                    <input type="range" id="drum-vol-${inst.id}" min="0" max="100" value="${Math.round(config.volume * 100)}" orient="vertical" oninput="updateDrumVolume('${inst.id}', this.value)" style="height: 100px; width: 22px; -webkit-appearance: slider-vertical; appearance: slider-vertical; writing-mode: vertical-lr; direction: rtl; margin: 0; cursor: pointer;">
-                    <div class="vu-meter-container">
-                        <div id="vu-${inst.id}" class="vu-meter-bar"></div>
-                    </div>
-                </div>
-                <span id="drum-vol-${inst.id}-pct" class="slider-percent" style="font-size: 0.65em; margin-top: 8px; font-family: monospace; color: var(--accent);">${Math.round(config.volume * 100)}%</span>
-                
-                <div class="drum-track-controls" style="display: flex; gap: 4px; margin-top: 5px;">
-                    <button id="btn-mute-${inst.id}" onclick="event.stopPropagation(); toggleMute('${inst.id}')" class="btn-mini-toggle ${config.mute ? 'active' : ''}">M</button>
-                    ${inst.id !== 'master' ? `<button id="btn-solo-${inst.id}" onclick="event.stopPropagation(); toggleSolo('${inst.id}')" class="btn-mini-toggle solo ${config.solo ? 'active' : ''}">S</button>` : ''}
-                </div>
-            </div>
-        `;
-    });
-}
-
-document.addEventListener("DOMContentLoaded", renderDrumMixer);
+// Initialisation au chargement du DOM
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("DOM Loaded - Initializing Drum Mixer Methods");
+    if (window.DrumMachine && window.DrumMachine.renderMixer) {
+        window.DrumMachine.renderMixer();
+    }
+});

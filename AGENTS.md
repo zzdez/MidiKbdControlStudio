@@ -319,3 +319,8 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 *   **Compatibilité Haute Fidélité :**
     *   **Support WAV :** Le moteur de chargement d'assets tente désormais de charger des fichiers `.wav` si les `.mp3` sont absents, permettant l'utilisation de banques de sons professionnelles non compressées.
     *   **Mapping UI :** Le séquenceur affiche dynamiquement le nom de la note (ex: "Am2") pour les pas de basse, et le Wizard d'import permet désormais de mapper n'importe quelle piste MIDI à l'instrument virtuel `bass`.
+
+### 34. Évolution V29 : Architecture Objet Unifiée (Drum Machine)
+*   **Refonte Structurelle (`drums.js`) :** Migration de toutes les fonctions globales (`toggleMute`, `renderMixer`, etc.) dans l'objet `window.DrumMachine`. Cette approche garantit l'isolation du code, facilite le débogage et élimine les conflits de portée (scope).
+*   **Unification Événementielle :** Centralisation de la gestion des clics (Mute, Solo, Sélection) via un unique écouteur global en phase de capture. Suppression systématique des attributs `onclick` HTML pour une séparation stricte des responsabilités (Content vs Logic).
+*   **Hardening du Mixer :** Implémentation d'une logique de rafraîchissement d'UI (`renderMixer`) capable de gérer dynamiquement les états Solo/Mute croisés, avec un feedback visuel immédiat (indicateurs textuels et VU-mètres synchronisés).
