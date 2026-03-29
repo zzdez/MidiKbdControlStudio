@@ -1,68 +1,90 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 
-echo --- 1. ACTIVATION VENV ---
+echo ========================================================
+echo   COMPILATION AIRSTEP STUDIO (MODE HYBRIDE)
+echo ========================================================
+
+:: 1. TUER L'APPLICATION
+taskkill /F /IM "AirstepStudio.exe" >nul 2>&1
+timeout /t 1 /nobreak >nul
+
+:: 2. VERIFICATION ENV
 if exist venv\Scripts\activate.bat (
     call venv\Scripts\activate.bat
 ) else (
-    echo ERREUR : 'venv' introuvable.
+    echo [ERREUR] venv introuvable.
     pause
     exit /b
 )
 
-echo.
-echo --- 2. NETTOYAGE ---
-:: On nettoie le nouvel EXE
-if exist "AirstepStudio.exe" del /F /Q "AirstepStudio.exe"
+:: 3. PREPARATION FICHIERS
+if exist _BUILD_TEMP rmdir /s /q _BUILD_TEMP
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 if exist *.spec del *.spec
-if exist src\build rmdir /s /q src\build
-if exist src\dist rmdir /s /q src\dist
-if exist src\*.spec del src\*.spec
+if exist AirstepStudio.exe del AirstepStudio.exe
 
-echo.
-echo --- 3. COMPILATION (MODE WEB) ---
-cd src
+mkdir _BUILD_TEMP
+copy src\*.py _BUILD_TEMP\ >nul
+copy config.json _BUILD_TEMP\ >nul
 
-:: COMMANDE PYINSTALLER POUR FASTAPI/WEB :
-:: --add-data "../web;web" : Indispensable pour embarquer le site
-:: --hidden-import : On ajoute uvicorn et fastapi pour eviter les erreurs
-:: On retire Tkinter/PIL qui ne servent plus
-pyinstaller --noconfirm --onefile --windowed ^
- --name "AirstepStudio" ^
- --add-data "../config.json;." ^
- --add-data "../web;web" ^
- --hidden-import "uvicorn" ^
- --hidden-import "fastapi" ^
- --hidden-import "websockets" ^
- --hidden-import "mido.backends.rtmidi" ^
- --hidden-import "bleak" ^
- --paths "." ^
- main.py
-
-cd ..
-
-echo.
-echo --- 4. RECUPERATION ---
-if exist "src\dist\AirstepStudio.exe" (
-    move /Y "src\dist\AirstepStudio.exe" "AirstepStudio.exe"
-    echo.
-    echo ====================================================
-    echo  SUCCES : AirstepStudio.exe est pret a la racine !
-    echo ====================================================
-) else (
-    echo.
-    echo ====================================================
-    echo  ECHEC : Compilation ratee.
-    echo ====================================================
-    pause
+if exist web (
+    mkdir _BUILD_TEMP\web
+    xcopy web _BUILD_TEMP\web /s /e /y >nul
+)
+if exist assets (
+    mkdir _BUILD_TEMP\assets
+    xcopy assets _BUILD_TEMP\assets /s /e /y >nul
 )
 
-:: Nettoyage final
-if exist src\build rmdir /s /q src\build
-if exist src\dist rmdir /s /q src\dist
-if exist src\*.spec del src\*.spec
+:: 4. COMPILATION
+cd _BUILD_TEMP
+
+:: AJOUT DE PYSTRAY ET PIL ICI :
+pyinstaller --noconfirm --onefile --windowed ^
+ --name "AirstepStudio" ^
+ --add-data "config.json;." ^
+ --add-data "web;web" ^
+ --add-data "assets;assets" ^
+ --hidden-import "uvicorn" ^
+ --hidden-import "uvicorn.logging" ^
+ --hidden-import "uvicorn.loops" ^
+ --hidden-import "uvicorn.loops.auto" ^
+ --hidden-import "uvicorn.protocols" ^
+ --hidden-import "uvicorn.protocols.http" ^
+ --hidden-import "uvicorn.protocols.http.auto" ^
+ --hidden-import "uvicorn.protocols.websockets" ^
+ --hidden-import "uvicorn.protocols.websockets.auto" ^
+ --hidden-import "uvicorn.lifespan" ^
+ --hidden-import "uvicorn.lifespan.on" ^
+ --hidden-import "fastapi" ^
+ --hidden-import "websockets" ^
+ --hidden-import "requests" ^
+ --hidden-import "customtkinter" ^
+ --hidden-import "pystray" ^
+ --hidden-import "PIL" ^
+ --hidden-import "mido.backends.rtmidi" ^
+ --hidden-import "bleak" ^
+ --collect-all "pygame" ^
+ main.py
+
+:: 5. FINALISATION
+cd ..
+if exist "_BUILD_TEMP\dist\AirstepStudio.exe" (
+    move /Y "_BUILD_TEMP\dist\AirstepStudio.exe" "AirstepStudio.exe" >nul
+    echo.
+    echo [SUCCES] AirstepStudio.exe est pret !
+) else (
+    echo [ECHEC] L'executable n'a pas ete cree.
+    pause
+    exit /b
+)
+
+rmdir /s /q _BUILD_TEMP
+rmdir /s /q build
+rmdir /s /q dist
+del *.spec
 
 echo Termine.
 pause

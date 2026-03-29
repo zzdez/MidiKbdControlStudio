@@ -164,20 +164,25 @@ class CompactPedalboardFrame(ctk.CTkFrame):
 
 
 class RemoteControl(ctk.CTkToplevel):
-    def __init__(self, parent, device_def, profile, callback_press, callback_close):
+    def __init__(self, parent, device_def, profile, callback_press, callback_close, library_manager=None, callback_open_conf=None, callback_open_web=None):
         super().__init__(parent)
         self.callback_press = callback_press
         self.callback_close = callback_close
+        self.callback_open_conf = callback_open_conf
+        self.callback_open_web = callback_open_web
         self.device_def = device_def
         self.profile = profile
+        self.library_manager = library_manager
 
         self.is_minimized = False
+        self.drawer_open = False
         self.saved_geometry = "400x300+100+100"
 
         # Style
         self.bg_color = "#2b2b2b"
         self.header_color = "#1f1f1f"
         self.hover_color = "#3a3a3a"
+        self.drawer_width = 200
 
         # Window Setup
         self.title("Airstep Remote")
@@ -216,7 +221,7 @@ class RemoteControl(ctk.CTkToplevel):
         title_text = f"Remote - {self.profile.get('name', 'Profile')}" if self.profile else "Airstep Remote"
         if len(title_text) > 25: title_text = title_text[:25] + "..."
 
-        self.lbl_title = ctk.CTkLabel(self.header, text=title_text, text_color="gray", width=150, anchor="w", font=ctk.CTkFont(size=11))
+        self.lbl_title = ctk.CTkLabel(self.header, text=title_text, text_color="gray", width=120, anchor="w", font=ctk.CTkFont(size=11))
         self.lbl_title.pack(side="left", padx=10, fill="x", expand=True)
         self.lbl_title.bind("<ButtonPress-1>", self.start_move)
         self.lbl_title.bind("<B1-Motion>", self.do_move)
@@ -233,80 +238,142 @@ class RemoteControl(ctk.CTkToplevel):
                                      command=self.toggle_minimize)
         self.btn_min.pack(side="right", padx=2, pady=2)
 
+        # Config Button (Left)
+        if self.callback_open_conf:
+            self.btn_conf = ctk.CTkButton(self.header, text="⚙️", width=30, height=24,
+                                          fg_color="transparent", hover_color="#444",
+                                          command=self.callback_open_conf)
+            self.btn_conf.pack(side="left", padx=2, pady=2)
+
+        # Web Button (Left)
+        if self.callback_open_web:
+            self.btn_web = ctk.CTkButton(self.header, text="🌐", width=30, height=24,
+                                         fg_color="transparent", hover_color="#444",
+                                         command=self.callback_open_web)
+            self.btn_web.pack(side="left", padx=2, pady=2)
+
+        # Library Drawer Button
+        if self.library_manager:
+            self.btn_lib = ctk.CTkButton(self.header, text="📚", width=30, height=24,
+                                         fg_color="transparent", hover_color="#444",
+                                         command=self.toggle_drawer)
+            self.btn_lib.pack(side="right", padx=2, pady=2)
+
+        # --- Main Container (Holds Content + Drawer) ---
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.main_container.pack(fill="both", expand=True)
+
         # --- Content (Grid of Buttons) ---
-        self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.content_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.content_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        self.content_frame.pack(side="top", fill="both", expand=True, padx=5, pady=5)
 
         # Instantiate Component
         self.pedalboard_frame = CompactPedalboardFrame(self.content_frame, self.device_def, self.profile, self.on_btn_click)
         self.pedalboard_frame.pack(fill="both", expand=True)
 
-        # --- Pill Widget (Hidden by default) ---
-        self.pill_frame = ctk.CTkFrame(self, fg_color=self.header_color, corner_radius=15)
-        # We don't pack it yet
+        # --- Drawer (Hidden by default) ---
+        self.drawer_frame = ctk.CTkFrame(self.main_container, width=0, fg_color="#222")
+        # Not packed initially
 
-        self.btn_restore = ctk.CTkButton(self.pill_frame, text="⤢", width=30, height=30,
-                                         fg_color="transparent", font=ctk.CTkFont(size=16),
-                                         command=self.toggle_minimize)
-        self.btn_restore.pack(fill="both", expand=True)
-        # Bind dragging on pill
-        self.btn_restore.bind("<ButtonPress-1>", self.start_move)
-        self.btn_restore.bind("<B1-Motion>", self.do_move)
+    def toggle_drawer(self):
+        if not self.library_manager: return
+
+        if self.drawer_open:
+            # Close (Bottom Drawer)
+            self.drawer_frame.pack_forget()
+            self.drawer_open = False
+            # Shrink height
+            curr_h = self.winfo_height()
+            new_h = max(100, curr_h - 300) # Remove fixed height
+            # Keep Width
+            self.geometry(f"{self.winfo_width()}x{new_h}")
+        else:
+            # Open (Bottom Drawer)
+            self.drawer_frame.pack(side="bottom", fill="both", expand=True, padx=0, pady=0)
+            self.build_drawer_content()
+            self.drawer_open = True
+            # Expand Height
+            curr_h = self.winfo_height()
+            new_h = curr_h + 300
+            self.geometry(f"{self.winfo_width()}x{new_h}")
+
+    def build_drawer_content(self):
+        # Clear existing
+        for w in self.drawer_frame.winfo_children(): w.destroy()
+
+        lbl = ctk.CTkLabel(self.drawer_frame, text="Bibliothèque (Médias & Applis)", font=ctk.CTkFont(weight="bold"))
+        lbl.pack(pady=2, fill="x")
+
+        # Scrollable Frame taking full width/height
+        scroll = ctk.CTkScrollableFrame(self.drawer_frame)
+        scroll.pack(fill="both", expand=True, padx=5, pady=5)
+
+        data = self.library_manager.get_library()
+        self.populate_tree(scroll, data)
+
+    def populate_tree(self, parent_widget, items, indent=0):
+        for item in items:
+            itype = item.get("type", "unknown")
+            name = item.get("name", "Item")
+
+            if itype == "folder":
+                lbl_folder = ctk.CTkLabel(parent_widget, text=f"{'  '*indent}📁 {name}", anchor="w")
+                lbl_folder.pack(fill="x", pady=2)
+                # Recursion
+                children = item.get("children", [])
+                self.populate_tree(parent_widget, children, indent + 1)
+            else:
+                # Leaf (Action)
+                icon = "🌐" if itype == "url" else "🚀" if itype == "app" else "📄"
+                btn = ctk.CTkButton(parent_widget, text=f"{'  '*indent}{icon} {name}",
+                                    anchor="w", fg_color="transparent", hover_color="#444",
+                                    height=24,
+                                    command=lambda i=item: self.library_manager.launch_item(i))
+                btn.pack(fill="x", pady=1)
 
     def update_layout(self):
         # Just resize window logic, frame handles buttons
         self.update_idletasks()
-        w = self.content_frame.winfo_reqwidth() + 20
-        h = self.content_frame.winfo_reqheight() + 40 # + header
-
-        # Clamp min size
-        w = max(200, w)
-        h = max(100, h)
-
-        # Center on screen if first launch, else keep position
-        if "+" not in self.geometry():
-            screen_w = self.winfo_screenwidth()
-            screen_h = self.winfo_screenheight()
-            x = (screen_w // 2) - (w // 2)
-            y = (screen_h // 2) - (h // 2)
-            self.geometry(f"{w}x{h}+{x}+{y}")
+        if self.drawer_open:
+             # Keep size if drawer is open, maybe just adjust height
+             pass
         else:
-            # Just resize, keep x/y
-            curr_x = self.winfo_x()
-            curr_y = self.winfo_y()
-            self.geometry(f"{w}x{h}+{curr_x}+{curr_y}")
+            w = self.content_frame.winfo_reqwidth() + 20
+            h = self.content_frame.winfo_reqheight() + 40 # + header
+
+            # Clamp min size
+            w = max(200, w)
+            h = max(100, h)
+
+            # Center on screen if first launch, else keep position
+            if "+" not in self.geometry():
+                screen_w = self.winfo_screenwidth()
+                screen_h = self.winfo_screenheight()
+                x = (screen_w // 2) - (w // 2)
+                y = (screen_h // 2) - (h // 2)
+                self.geometry(f"{w}x{h}+{x}+{y}")
+            else:
+                # Just resize, keep x/y
+                curr_x = self.winfo_x()
+                curr_y = self.winfo_y()
+                self.geometry(f"{w}x{h}+{curr_x}+{curr_y}")
 
     def on_btn_click(self, cc):
         # Flash visual effect could be added here
         self.callback_press(cc)
 
     def toggle_minimize(self):
-        if self.is_minimized:
-            # RESTORE
-            self.pill_frame.pack_forget()
-            self.header.pack(fill="x", side="top")
-            self.content_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        """Minimizes to Taskbar (Standard Behavior)"""
+        # To minimize a frameless window (overrideredirect), we must temporarily enable the frame
+        self.overrideredirect(False)
+        self.iconify()
+        self.bind("<Map>", self.on_restore)
 
-            # Restore size
-            self.geometry(self.saved_geometry)
-            self.is_minimized = False
-        else:
-            # MINIMIZE
-            self.saved_geometry = self.geometry() # Save full pos/size
-
-            self.header.pack_forget()
-            self.content_frame.pack_forget()
-
-            # Show pill
-            self.pill_frame.pack(fill="both", expand=True)
-
-            # Resize to small square
-            # Keep current X/Y but change W/H
-            curr_x = self.winfo_x()
-            curr_y = self.winfo_y()
-            self.geometry(f"50x50+{curr_x}+{curr_y}")
-
-            self.is_minimized = True
+    def on_restore(self, event):
+        """Restores frameless state when opened from Taskbar"""
+        if self.state() == "normal":
+            self.overrideredirect(True)
+            self.unbind("<Map>")
 
     def set_profile(self, new_profile):
         if not new_profile: return

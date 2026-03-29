@@ -12,10 +12,13 @@ import subprocess
 
 try:
     from config_manager import ConfigManager
+    from library_manager import LibraryManager
 except ImportError:
     from src.config_manager import ConfigManager
+    from src.library_manager import LibraryManager
 
 app = FastAPI()
+library_manager = LibraryManager()
 SETLIST_FILE = "setlist.json"
 APPS_FILE = "apps.json"
 
@@ -91,7 +94,20 @@ async def get_setlist():
     if os.path.exists(SETLIST_FILE):
         try:
             with open(SETLIST_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                items = json.load(f)
+
+            # Migration: Ensure category exists
+            migrated = False
+            for item in items:
+                if "category" not in item:
+                    item["category"] = "Général"
+                    migrated = True
+
+            if migrated:
+                with open(SETLIST_FILE, "w", encoding="utf-8") as f:
+                    json.dump(items, f, indent=4)
+
+            return items
         except:
             return []
     return []
@@ -106,6 +122,7 @@ async def add_to_setlist(item: Dict):
     try:
         url = item.get("url", "")
         manual_mode = item.get("manual_mode", "auto")
+        category = item.get("category", "Général")
 
         if not url:
             raise HTTPException(status_code=400, detail="URL is required")
@@ -153,7 +170,8 @@ async def add_to_setlist(item: Dict):
             "url": url,
             "id": video_id,
             "open_mode": open_mode,
-            "profile_name": profile_name
+            "profile_name": profile_name,
+            "category": category
         }
 
         items = []
@@ -229,6 +247,11 @@ async def launch_app(request: Request):
         return {"status": "launched", "path": path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/library")
+async def get_library():
+    """Returns the hierarchical library structure."""
+    return library_manager.get_library()
 
 # --- CONFIG MANAGER (Profiles/Devices) ---
 @app.get("/api/profiles")
@@ -338,6 +361,19 @@ async def trigger_action(request: Request):
         return {"status": "triggered", "cc": cc}
     except Exception as e:
         print(f"Trigger Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/open_settings")
+async def api_open_settings(request: Request):
+    try:
+        if hasattr(request.app.state, "open_settings_callback"):
+            callback = request.app.state.open_settings_callback
+            if callback:
+                callback()
+                return {"status": "ok"}
+        return {"status": "error", "message": "Callback not connected"}
+    except Exception as e:
+        print(f"OpenSettings Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.websocket("/ws")
