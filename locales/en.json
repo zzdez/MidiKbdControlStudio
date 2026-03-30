@@ -408,6 +408,26 @@
         "pattern_shuffle": "Shuffle Blues",
         "pattern_custom": "Custom (User)",
         "lbl_pattern": "Pattern:",
-        "lbl_kit": "Kit:"
+        "lbl_kit": "Kit:",
+        "modal_midi_wizard_title": "MIDI Import Assistant",
+        "lbl_wizard_step1": "1. Track Selection",
+        "lbl_wizard_step2": "2. Note Mapping",
+        "lbl_midi_note": "MIDI Note",
+        "lbl_instrument": "Instrument",
+        "lbl_transpose_short": "Trans:",
+        "btn_import_song": "Import Song",
+        "btn_all": "All",
+        "btn_drums": "Drums",
+        "btn_reset": "Reset",
+        "msg_no_midi_loaded": "No MIDI file currently loaded",
+        "msg_select_one_track": "Please select at least one track",
+        "msg_midi_imported": "MIDI Song Imported!",
+        "lbl_midi_wiz_prefix": "MIDI Wiz",
+        "lbl_hihat_c": "HH Closed",
+        "lbl_hihat_o": "HH Open",
+        "lbl_tom_h": "High Tom",
+        "lbl_tom_m": "Mid Tom",
+        "lbl_tom_l": "Low Tom",
+        "lbl_ignore": "Ignore"
     }
 }

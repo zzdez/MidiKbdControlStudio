@@ -70,9 +70,13 @@ window.DrumMachine = {
             { id: 'tom3', label: 'Low Tom', default: 90 },
             { id: 'cymbal', label: 'Crash', default: 70 },
             { id: 'cowbell', label: 'Cowbell', default: 80 },
-            { id: 'rim', label: 'Rim', default: 80 },
-            { id: 'bass', label: 'Bass', default: 100 }
+            { id: 'rim', label: 'Rim', default: 80 }
         ];
+        
+        // Add bass track only for imported MIDI songs
+        if (this.currentPatternId && this.currentPatternId.startsWith('imported_')) {
+            uiInstruments.push({ id: 'bass', label: 'Bass', default: 100 });
+        }
 
         const settings = this.settings;
         const soloActive = Object.keys(settings).some(k => k !== 'master' && settings[k].solo);
@@ -282,12 +286,15 @@ window.DrumMachine = {
                 }
                 if (adjustedTime < audioContext.currentTime) adjustedTime = audioContext.currentTime;
 
-                // --- BRANCH A: BASS (SYNTH EXCLUSIVE) ---
+                // Bass is only active for imported MIDI patterns
                 if (inst === 'bass') {
+                    if (!this.currentPatternId.startsWith('imported_')) return;
+                    
                     const targetNote = Math.floor(stepValue / 128);
                     const midiVelocity = stepValue % 128;
                     velocity = (midiVelocity / 127) * 1.05;
                     
+                    // NOTE: Frequency is based on A4 = 440Hz reference
                     const freq = 440 * Math.pow(2, (targetNote - 69) / 12);
                     
                     // Osc 1: Sub Sine
@@ -307,18 +314,17 @@ window.DrumMachine = {
                     filter.frequency.setValueAtTime(freq * 8, adjustedTime);
                     filter.frequency.exponentialRampToValueAtTime(freq * 2, adjustedTime + 0.15); 
                     
-                    // Gain Envelope (VCA is handled by gainNode below)
+                    // Gain Envelope
                     const settingsMaster = window.DrumMachine.settings;
                     const masterVol = settingsMaster.master ? settingsMaster.master.volume : 1.0;
                     const decay = (config.decay || 0.15);
                     
                     gainNode.gain.setValueAtTime(0, adjustedTime);
-                    gainNode.gain.linearRampToValueAtTime((config.volume !== undefined ? config.volume : 1.0) * velocity * masterVol, adjustedTime + 0.002); // Faster attack
+                    gainNode.gain.linearRampToValueAtTime((config.volume !== undefined ? config.volume : 1.0) * velocity * masterVol, adjustedTime + 0.002);
                     gainNode.gain.exponentialRampToValueAtTime(0.001, adjustedTime + decay);
 
                     oscSub.connect(filter);
                     oscTri.connect(filter);
-                    // Filter is already connected to gainNode in general logic below
                     
                     oscSub.start(adjustedTime);
                     oscSub.stop(adjustedTime + decay);
@@ -336,7 +342,6 @@ window.DrumMachine = {
                         debugLog.style.color = '#e040fb';
                     }
                 } 
-                // --- BRANCH B: DRUMS (SAMPLES) ---
                 else {
                     const buffer = this.buffers[inst];
                     if (!buffer) return;
@@ -445,7 +450,7 @@ window.DrumMachine = {
             if (trackId === 'kick') color = '#ff5252';
             else if (trackId === 'snare') color = '#448aff';
             else if (trackId === 'hihat' || trackId === 'openhat') color = '#ffd740';
-            else if (trackId === 'bass') color = '#e040fb';
+            else if (trackId === 'bass' && this.currentPatternId.startsWith('imported_')) color = '#e040fb';
             else if (trackId === 'cymbal' || trackId === 'clap') color = '#69f0ae';
 
             ctx.fillStyle = color;
@@ -742,6 +747,13 @@ function closeDrumModal() {
             window.metronome.isMetronomeSoundActive = true;
         }
         modal.close();
+        
+        // Fermer aussi le wizard MIDI si ouvert
+        const wizard = document.getElementById('modal-midi-wizard');
+        if (wizard && wizard.open) {
+            wizard.close();
+            wizard.style.display = 'none';
+        }
     }
 }
 
@@ -764,6 +776,9 @@ function changeDrumPattern(patternId) {
         }
 
         renderDrumSequencer();
+        if (this.renderMixer) this.renderMixer();
+        else if (window.DrumMachine && window.DrumMachine.renderMixer) window.DrumMachine.renderMixer();
+
         if (window.DrumMachine.saveSettingsDebounced) {
             window.DrumMachine.saveSettingsDebounced();
         }
@@ -955,8 +970,13 @@ function renderDrumSequencer() {
     
     const isMulti = window.DrumMachine.isMultiTrack;
     const instIds = isMulti 
-        ? ['kick', 'snare', 'hihat', 'openhat', 'clap', 'tom1', 'tom2', 'tom3', 'cymbal', 'cowbell', 'rim', 'bass']
+        ? ['kick', 'snare', 'hihat', 'openhat', 'clap', 'tom1', 'tom2', 'tom3', 'cymbal', 'cowbell', 'rim']
         : [window.DrumMachine.selectedInstrument];
+
+    // Restreindre la basse aux imports
+    if (isMulti && window.DrumMachine.currentPatternId && window.DrumMachine.currentPatternId.startsWith('imported_')) {
+        instIds.push('bass');
+    }
 
     // Layout adjustment
     if (isMulti) {
@@ -992,10 +1012,10 @@ function renderDrumSequencer() {
             stepDiv.dataset.step = i;
             
             if (stepVal > 0) stepDiv.classList.add("active");
-            if (stepVal === 2 && id !== 'bass') stepDiv.classList.add("accent");
+            if (stepVal === 2) stepDiv.classList.add("accent");
             
-            // Affichage spécial pour la basse (Note MIDI décodée)
-            if (id === 'bass' && stepVal > 0) {
+            // Affichage spécial pour la basse (Note MIDI décodée) dans les imports
+            if (id === 'bass' && stepVal > 0 && window.DrumMachine.currentPatternId.startsWith('imported_')) {
                 const noteNames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
                 const noteNum = Math.floor(stepVal / 128);
                 const octave = Math.floor(noteNum / 12) - 1;
@@ -1004,7 +1024,7 @@ function renderDrumSequencer() {
                 stepDiv.style.fontSize = '8px';
                 stepDiv.style.color = '#fff';
             }
-
+            
             stepDiv.onclick = () => {
                 pattern.tracks[id][i] = (pattern.tracks[id][i] + 1) % 3;
                 if (pattern.tracks[id][i] > 0) playInstrumentTest(id);
@@ -1039,7 +1059,7 @@ async function handleMidiFileUpload(event) {
 
 function editCurrentMidiMapping() {
     if (!currentWizardB64) {
-        if (typeof showToast === 'function') showToast("Aucun fichier MIDI n'est actuellement chargé", "warning");
+        if (typeof showToast === 'function') showToast(window._('web.msg_no_midi_loaded'), "warning");
         return;
     }
     isEditingMidiMapping = true;
@@ -1073,9 +1093,9 @@ async function openMidiWizard(b64) {
         btnContainer.style.gap = "10px";
         btnContainer.style.marginBottom = "10px";
         btnContainer.innerHTML = `
-            <button onclick="document.querySelectorAll('.wizard-track-cb').forEach(cb => cb.checked = true)" class="btn-wizard-small">Tous</button>
-            <button onclick="document.querySelectorAll('.wizard-track-cb').forEach(cb => cb.checked = cb.dataset.isdrum === 'true')" class="btn-wizard-small">Drums</button>
-            <button onclick="document.querySelectorAll('.wizard-track-cb').forEach(cb => cb.checked = false); document.querySelectorAll('.wizard-track-inst').forEach(s => s.value = 'none')" class="btn-wizard-small">Reset</button>
+            <button onclick="document.querySelectorAll('.wizard-track-cb').forEach(cb => cb.checked = true)" class="btn-wizard-small">${window._('web.btn_all')}</button>
+            <button onclick="document.querySelectorAll('.wizard-track-cb').forEach(cb => cb.checked = cb.dataset.isdrum === 'true')" class="btn-wizard-small">${window._('web.btn_drums')}</button>
+            <button onclick="document.querySelectorAll('.wizard-track-cb').forEach(cb => cb.checked = false); document.querySelectorAll('.wizard-track-inst').forEach(s => s.value = 'none')" class="btn-wizard-small">${window._('web.btn_reset')}</button>
         `;
         tracksContainer.innerHTML = "";
         tracksContainer.appendChild(btnContainer);
@@ -1107,11 +1127,11 @@ async function openMidiWizard(b64) {
                     </div>
                 </div>
                 <select class="wizard-track-inst" data-track-index="${t.index}" style="background:#111; color:#aaa; border:1px solid #444; font-size:10px; padding:1px; width:75px; height:18px; border-radius:3px;">
-                    <option value="none">Auto</option>
-                    <option value="kick">Kick</option>
-                    <option value="snare">Snare</option>
-                    <option value="hihat">Hi-Hat</option>
-                    <option value="bass" ${isBassTrack ? 'selected' : ''}>Bass</option>
+                    <option value="none">${window._('web.opt_auto')}</option>
+                    <option value="kick">${window._('web.lbl_kick')}</option>
+                    <option value="snare">${window._('web.lbl_snare')}</option>
+                    <option value="hihat">${window._('web.lbl_hihat')}</option>
+                    <option value="bass" ${isBassTrack ? 'selected' : ''}>${window._('web.lbl_bass')}</option>
                 </select>
             `;
             tracksContainer.appendChild(row);
@@ -1123,8 +1143,8 @@ async function openMidiWizard(b64) {
         mappingBody.innerHTML = "";
         
         const gmNames = {
-            35: 'Kick', 36: 'Kick', 38: 'Snare', 40: 'Snare', 42: 'H-Hat (C)', 44: 'H-Hat (P)', 46: 'H-Hat (O)',
-            49: 'Crash', 51: 'Ride', 37: 'Rim', 39: 'Clap', 56: 'Cowbell'
+            35: window._('web.lbl_kick'), 36: window._('web.lbl_kick'), 38: window._('web.lbl_snare'), 40: window._('web.lbl_snare'), 42: window._('web.lbl_hihat_c'), 44: window._('web.lbl_hihat_p'), 46: window._('web.lbl_hihat_o'),
+            49: window._('web.lbl_cymbal'), 51: window._('web.lbl_cymbal'), 37: window._('web.lbl_rim'), 39: window._('web.lbl_clap'), 56: window._('web.lbl_cowbell')
         };
         
         const allNotes = new Set();
@@ -1141,7 +1161,7 @@ async function openMidiWizard(b64) {
         
         sortedNotes.forEach(note => {
             const tr = document.createElement('tr');
-            const gmHint = gmNames[note] || `Note ${note}`;
+            const gmHint = gmNames[note] || `${window._('web.lbl_note')} ${note}`;
             
             let bestInst = "ignore";
             if (note === 35 || note === 36) bestInst = "kick";
@@ -1166,19 +1186,19 @@ async function openMidiWizard(b64) {
                 </td>
                 <td style="padding: 3px 5px; border-bottom: 1px solid #333;">
                     <select class="wizard-note-map" data-note="${note}" style="background:#111; color:#aaa; border:1px solid #444; font-size:10px; padding:1px; width:100%; height:18px; border-radius:3px;">
-                        <option value="ignore">ignore</option>
-                        <option value="kick" ${bestInst === 'kick' ? 'selected' : ''}>kick</option>
-                        <option value="snare" ${bestInst === 'snare' ? 'selected' : ''}>snare</option>
-                        <option value="hihat" ${bestInst === 'hihat' ? 'selected' : ''}>hi-hat C</option>
-                        <option value="openhat" ${bestInst === 'openhat' ? 'selected' : ''}>hi-hat O</option>
-                        <option value="tom1" ${bestInst === 'tom1' ? 'selected' : ''}>tom H</option>
-                        <option value="tom2" ${bestInst === 'tom2' ? 'selected' : ''}>tom M</option>
-                        <option value="tom3" ${bestInst === 'tom3' ? 'selected' : ''}>tom L</option>
-                        <option value="clap" ${bestInst === 'clap' ? 'selected' : ''}>clap</option>
-                        <option value="cymbal" ${bestInst === 'cymbal' ? 'selected' : ''}>cymbal</option>
-                        <option value="cowbell" ${bestInst === 'cowbell' ? 'selected' : ''}>cowbell</option>
-                        <option value="rim" ${bestInst === 'rim' ? 'selected' : ''}>rim</option>
-                        <option value="bass">bass</option>
+                        <option value="ignore">${window._('web.lbl_ignore')}</option>
+                        <option value="kick" ${bestInst === 'kick' ? 'selected' : ''}>${window._('web.lbl_kick')}</option>
+                        <option value="snare" ${bestInst === 'snare' ? 'selected' : ''}>${window._('web.lbl_snare')}</option>
+                        <option value="hihat" ${bestInst === 'hihat' ? 'selected' : ''}>${window._('web.lbl_hihat_c')}</option>
+                        <option value="openhat" ${bestInst === 'openhat' ? 'selected' : ''}>${window._('web.lbl_hihat_o')}</option>
+                        <option value="tom1" ${bestInst === 'tom1' ? 'selected' : ''}>${window._('web.lbl_tom_h')}</option>
+                        <option value="tom2" ${bestInst === 'tom2' ? 'selected' : ''}>${window._('web.lbl_tom_m')}</option>
+                        <option value="tom3" ${bestInst === 'tom3' ? 'selected' : ''}>${window._('web.lbl_tom_l')}</option>
+                        <option value="clap" ${bestInst === 'clap' ? 'selected' : ''}>${window._('web.lbl_clap')}</option>
+                        <option value="cymbal" ${bestInst === 'cymbal' ? 'selected' : ''}>${window._('web.lbl_cymbal')}</option>
+                        <option value="cowbell" ${bestInst === 'cowbell' ? 'selected' : ''}>${window._('web.lbl_cowbell')}</option>
+                        <option value="rim" ${bestInst === 'rim' ? 'selected' : ''}>${window._('web.lbl_rim')}</option>
+                        <option value="bass">${window._('web.lbl_bass')}</option>
                     </select>
                 </td>
             `;
@@ -1206,7 +1226,7 @@ async function confirmMidiImport() {
     const selectedTracks = Array.from(document.querySelectorAll('.wizard-track-cb:checked')).map(cb => parseInt(cb.value));
     console.log("[WIZARD] Selected tracks:", selectedTracks);
     if (selectedTracks.length === 0) {
-        if (typeof showToast === 'function') showToast("Veuillez sélectionner au moins une piste", "warning");
+        if (typeof showToast === 'function') showToast(window._('web.msg_select_one_track'), "warning");
         return;
     }
     
@@ -1265,7 +1285,7 @@ async function confirmMidiImport() {
             if (select) {
                 const opt = document.createElement('option');
                 opt.value = patternName;
-                opt.textContent = "MIDI Wiz (" + new Date().toLocaleTimeString() + ")";
+                opt.textContent = window._('web.lbl_midi_wiz_prefix') + " (" + new Date().toLocaleTimeString() + ")";
                 select.appendChild(opt);
                 select.value = patternName;
                 console.log("[WIZARD] Dropdown updated.");
@@ -1281,7 +1301,7 @@ async function confirmMidiImport() {
                 modal.style.display = 'none';
             }
             
-            if (typeof showToast === 'function') showToast("MIDI Song Imported!", "success");
+            if (typeof showToast === 'function') showToast(window._('web.msg_midi_imported'), "success");
         } else {
             console.error("[WIZARD] Backend returned error status:", data);
             if (typeof showToast === 'function') showToast("Import failed: " + (data.detail || "Unknown error"), "error");

@@ -408,6 +408,26 @@
         "pattern_shuffle": "Shuffle Blues",
         "pattern_custom": "Personnalisé (User)",
         "lbl_pattern": "Rythme :",
-        "lbl_kit": "Batterie :"
+        "lbl_kit": "Batterie :",
+        "modal_midi_wizard_title": "Assistant d'Importation MIDI",
+        "lbl_wizard_step1": "1. Sélection des Pistes",
+        "lbl_wizard_step2": "2. Mapping des Notes",
+        "lbl_midi_note": "Note MIDI",
+        "lbl_instrument": "Instrument",
+        "lbl_transpose_short": "Trans :",
+        "btn_import_song": "Importer le morceau",
+        "btn_all": "Tous",
+        "btn_drums": "Drums",
+        "btn_reset": "Réinitialiser",
+        "msg_no_midi_loaded": "Aucun fichier MIDI n'est actuellement chargé",
+        "msg_select_one_track": "Veuillez sélectionner au moins une piste",
+        "msg_midi_imported": "Morceau MIDI importé !",
+        "lbl_midi_wiz_prefix": "MIDI Wiz",
+        "lbl_hihat_c": "HH Fermé",
+        "lbl_hihat_o": "HH Ouvert",
+        "lbl_tom_h": "Tom Aigu",
+        "lbl_tom_m": "Tom Médium",
+        "lbl_tom_l": "Tom Grave",
+        "lbl_ignore": "Ignorer"
     }
 }

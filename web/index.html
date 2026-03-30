@@ -2380,14 +2380,14 @@
     <!-- MIDI IMPORT WIZARD MODAL -->
     <dialog id="modal-midi-wizard" class="preview-modal" style="width: 700px; max-height: 85vh; background: #1a1a1a; color: #eee; border: 1px solid #444; border-radius: 12px; padding: 0; overflow: hidden; flex-direction: column;">
         <header class="modal-header" style="background: #252525; padding: 15px 20px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0; font-size: 1.1em; color: var(--accent);"><i class="ph ph-magic-wand"></i> Assistant d'Importation MIDI</h3>
+            <h3 style="margin: 0; font-size: 1.1em; color: var(--accent);" data-i18n="web.modal_midi_wizard_title"><i class="ph ph-magic-wand"></i> Assistant d'Importation MIDI</h3>
             <button onclick="document.getElementById('modal-midi-wizard').close()" class="btn-close">×</button>
         </header>
         
         <div class="modal-body" style="padding: 20px; overflow-y: auto; flex: 1; display: flex; gap: 20px;">
             <!-- Left: Tracks Selection -->
             <div style="flex: 1; border-right: 1px solid #333; padding-right: 15px;">
-                <h4 style="margin-top: 0; font-size: 0.9em; color: #888; text-transform: uppercase;">1. Sélection des Pistes</h4>
+                <h4 style="margin-top: 0; font-size: 0.9em; color: #888; text-transform: uppercase;" data-i18n="web.lbl_wizard_step1">1. Sélection des Pistes</h4>
                 <div id="midi-wizard-tracks" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
                     <!-- Injected by JS -->
                 </div>
@@ -2395,13 +2395,13 @@
             
             <!-- Right: Note Mapping -->
             <div style="flex: 1.5;">
-                <h4 style="margin-top: 0; font-size: 0.9em; color: #888; text-transform: uppercase;">2. Mapping des Notes</h4>
+                <h4 style="margin-top: 0; font-size: 0.9em; color: #888; text-transform: uppercase;" data-i18n="web.lbl_wizard_step2">2. Mapping des Notes</h4>
                 <div id="midi-wizard-mapping" style="margin-top: 10px; max-height: 400px; overflow-y: auto;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.85em;">
                         <thead style="position: sticky; top: 0; background: #1a1a1a; z-index: 5;">
                             <tr>
-                                <th style="text-align: left; padding: 5px; border-bottom: 1px solid #444; color: #666;">Note MIDI</th>
-                                <th style="text-align: left; padding: 5px; border-bottom: 1px solid #444; color: #666;">Instrument</th>
+                                <th style="text-align: left; padding: 5px; border-bottom: 1px solid #444; color: #666;" data-i18n="web.lbl_midi_note">Note MIDI</th>
+                                <th style="text-align: left; padding: 5px; border-bottom: 1px solid #444; color: #666;" data-i18n="web.lbl_instrument">Instrument</th>
                             </tr>
                         </thead>
                         <tbody id="midi-wizard-mapping-body">
@@ -2415,8 +2415,8 @@
         <footer class="modal-footer" style="padding: 15px 20px; background: #222; border-top: 1px solid #333; display: flex; justify-content: space-between; align-items: center; height: 60px !important;">
             <!-- Left: Transpose -->
             <div style="display: flex; gap: 8px; align-items: center;">
-                <span style="font-size: 0.85em; color: #888;">Trans :</span>
-                <select id="midi-wizard-transpose" style="width: 60px; height: 24px; font-size: 11px; background: #111; color: #fff; border: 1px solid #444; border-radius: 4px;">
+                <span style="font-size: 0.85em; color: #888;" data-i18n="web.lbl_transpose_short">Trans :</span>
+                <select id="midi-wizard-transpose" style="width: 80px; height: 28px; font-size: 11px; background: #111; color: #fff; border: 1px solid #444; border-radius: 4px; padding-left: 5px;">
                     <option value="-24">-2 Oct</option>
                     <option value="-12">-1 Oct</option>
                     <option value="0" selected>0</option>
@@ -2426,8 +2426,8 @@
             </div>
             
             <div style="display: flex; gap: 10px;">
-                <button class="btn-text" onclick="document.getElementById('modal-midi-wizard').close()">Annuler</button>
-                <button class="btn-accent" onclick="confirmMidiImport()">Importer le morceau</button>
+                <button class="btn-text" onclick="document.getElementById('modal-midi-wizard').close()" data-i18n="web.btn_cancel">Annuler</button>
+                <button class="btn-accent" onclick="confirmMidiImport()" data-i18n="web.btn_import_song">Importer le morceau</button>
             </div>
         </footer>
     </dialog>
