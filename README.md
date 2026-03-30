@@ -60,10 +60,9 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     - **Synergie Métronome :** Le métronome recalcule le BPM à la volée en cas de changement de vitesse (*Rate*) sur les lecteurs Web ou locaux.
     - **Interface Compacte :** Harmonisation des champs de configuration (Speed Trainer) pour un rendu moderne et sans débordement.
 *   **Boîte à Rythmes & MIDI Wizard (Nouveau !) :**
-    - **Moteur 11 Pistes Haute Fidélité :** Séquenceur complet embarquant des sons de légende (Roland TR-808, 909, 505, etc.).
-    - **Mixeur Studio Robuste :** Gestion granulaire du volume, du mute et du solo par piste via une architecture objet stable (V7).
-    - **MIDI Import Wizard :** Importez n'importe quel fichier MIDI et mappez intelligemment les notes.
-    - **Full Song Mode :** Support des morceaux longs avec synchronisation visuelle.
+    - **Moteur 11 Pistes Haute Fidélité :** Séquenceur complet embarquant des sons de légende (TR-808, 909, etc.). Gestion dynamique de la basse (invisible en mode 808, active en mode MIDI Import).
+    - **Mixeur Studio Intelligent :** Rafraîchissement automatique des pistes selon le morceau chargé (0.05x precision).
+    - **Assistant MIDI (Wizard) :** Support bilingue intégral (FR/EN) pour l'importation et le mapping intelligent des morceaux complexes.
 *   **Repères & Décomptes Audio Cues (Nouveau !) :**
     - **Timeline Marker :** Posez des drapeaux pour programmer des avertisseurs visuels HUD avant les couplets.
     - **Global Override :** Mutez l'intégralité des bips d'un clic sur la Cloche sans perdre vos calibrations.
