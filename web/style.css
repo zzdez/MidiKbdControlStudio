@@ -639,6 +639,24 @@ dialog::backdrop {
     justify-content: flex-end;
 }
 
+/* LOOP MODAL ITEMS */
+.loop-modal-item {
+    transition: all 0.2s ease;
+    border: 1px solid transparent !important;
+    margin-bottom: 4px;
+}
+
+.loop-modal-item:hover {
+    background: #333 !important;
+    border-color: #555 !important;
+}
+
+.loop-modal-item.selected {
+    background: rgba(187, 134, 252, 0.2) !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 10px rgba(187, 134, 252, 0.1);
+}
+
 /* DRUM MACHINE MODAL OVERRIDES */
 #modal-drum-machine[open],
 #modal-midi-wizard[open] {

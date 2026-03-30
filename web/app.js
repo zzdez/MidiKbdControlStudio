@@ -5947,7 +5947,9 @@ function openLoopModal() {
         existingContainer.style.display = "block";
         currentLoops.forEach(l => {
             const div = document.createElement("div");
-            div.style.cssText = "display:flex; justify-content:space-between; align-items:center; font-size:0.85em; background:#222; padding:4px 8px; border-radius:4px;";
+            div.className = "loop-modal-item " + (activeSavedLoopId === l.id ? "selected" : "");
+            div.style.cssText = "display:flex; justify-content:space-between; align-items:center; font-size:0.85em; background:#222; padding:4px 8px; border-radius:4px; cursor:pointer;";
+            div.onclick = () => selectLoopForUpdate(l.id);
             div.innerHTML = `
                 <span id="loop-name-display-${l.id}" style="color:#fff; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${l.name}</span>
                 <input type="text" id="loop-name-input-${l.id}" value="${l.name}" style="display:none; flex:1; margin-right:5px; font-size:1em; padding:2px; box-sizing:border-box;">
@@ -5955,9 +5957,9 @@ function openLoopModal() {
                 <span style="color:#888; font-family:monospace; margin:0 10px;">[${formatTimeCustom(l.start)}-${formatTimeCustom(l.end)}]</span>
                 
                 <div style="display:flex; gap:5px;">
-                    <button id="btn-edit-${l.id}" class="btn-icon" onclick="toggleEditLoop(${l.id})" style="padding:2px; font-size:1.2em; color:#fff;" title="Renommer"><i class="ph ph-pencil-simple"></i></button>
-                    <button id="btn-save-${l.id}" class="btn-icon" onclick="saveLoopName(${l.id})" style="display:none; padding:2px; font-size:1.2em; color:var(--accent);" title="Valider"><i class="ph ph-check"></i></button>
-                    <button class="btn-icon" onclick="deleteLoop(${l.id})" style="padding:2px; font-size:1.2em; color:#cf6679;" title="Supprimer"><i class="ph ph-trash"></i></button>
+                    <button id="btn-edit-${l.id}" class="btn-icon" onclick="event.stopPropagation(); toggleEditLoop(${l.id})" style="padding:2px; font-size:1.2em; color:#fff;" title="Renommer"><i class="ph ph-pencil-simple"></i></button>
+                    <button id="btn-save-${l.id}" class="btn-icon" onclick="event.stopPropagation(); saveLoopName(${l.id})" style="display:none; padding:2px; font-size:1.2em; color:var(--accent);" title="Valider"><i class="ph ph-check"></i></button>
+                    <button class="btn-icon" onclick="event.stopPropagation(); deleteLoop(${l.id})" style="padding:2px; font-size:1.2em; color:#cf6679;" title="Supprimer"><i class="ph ph-trash"></i></button>
                 </div>
             `;
             existingList.appendChild(div);
@@ -5997,6 +5999,33 @@ function saveLoopName(id) {
 
         // Save to Backend immediately
         saveLoopsToBackend();
+    }
+}
+
+function selectLoopForUpdate(id) {
+    activeSavedLoopId = id;
+    const loop = currentLoops.find(l => l.id === id);
+    if (loop) {
+        document.getElementById("loop-modal-name").value = loop.name;
+        
+        // Refresh UI of the modal (especially button text and selection highlight)
+        const modal = document.getElementById("loop-modal");
+        const saveBtn = modal.querySelector(".btn-primary");
+        if (saveBtn) saveBtn.innerText = t("web.btn_update", "Mettre à jour");
+        
+        // Update highlight
+        document.querySelectorAll('.loop-modal-item').forEach(el => el.classList.remove('selected'));
+        // Find the div by examining children or just re-render (re-render is safer but more heavy)
+        // Since we already set activeSavedLoopId, let's just refresh the list part!
+        const existingList = document.getElementById("loop-modal-existing-list");
+        Array.from(existingList.children).forEach(child => {
+            // Find if this is the right one (using the id in child but it's not straightforward)
+            // Actually, we can just re-render the list only
+            const btnEdit = child.querySelector(`[id^='btn-edit-']`);
+            if (btnEdit && btnEdit.id === `btn-edit-${id}`) {
+                child.classList.add('selected');
+            }
+        });
     }
 }
 
@@ -6629,6 +6658,7 @@ function toggleLoopState() {
             // We are inside a loop, but no manual points set. Snap to this loop's boundaries!
             loopA = activeLoop.start;
             loopB = activeLoop.end;
+            activeSavedLoopId = activeLoop.id; // Corrected: store the ID of the matched loop
             isLoopActive = true;
             isSequentialLoop = false;
         } else if (!activeLoop && currentLoops.length > 0 && loopA === null) {
