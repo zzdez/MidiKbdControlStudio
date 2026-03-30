@@ -19,7 +19,6 @@
     <header>
         <div class="logo" style="display: flex; align-items: center; gap: 15px;">
             <img src="/assets/logo.png" alt="MidiKbd Control Studio" id="main-logo">
-            <span style="background: #f39c12; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px;">DEBUG: DRUM MIXER v5</span>
             <span id="header-device-status" data-i18n="web.status_waiting"
                 style="font-size: 0.85em; color: #888; font-weight: normal; margin-right: 15px;">○ En
                 attente...</span>
@@ -710,7 +709,7 @@
             <h3 data-i18n="web.title_drum_machine">Boîte à Rythmes</h3>
             <div style="display:flex; gap:5px; align-items:center;">
                 <button onclick="minimizeDrumModal()" class="btn-icon" title="Réduire (Garder le son)" style="font-size: 1.2em; color: #888;"><i class="ph ph-minus"></i></button>
-                <button onclick="closeDrumModal()" class="btn-close">×</button>
+                <button onclick="closeDrumModal()" class="btn-close" title="Fermer"><i class="ph ph-x"></i></button>
             </div>
         </div>
 
@@ -718,36 +717,45 @@
             <!-- TOP CONTROLS -->
             <div class="edit-form" style="margin-bottom: 20px;">
                 <div class="row-inputs" style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <span data-i18n="web.lbl_pattern" style="font-size: 0.85em; color: #888;">Pattern :</span>
-                        <select id="drum-pattern-select" onchange="changeDrumPattern(this.value)" style="width: 100px; height: 24px; font-size: 11px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button id="btn-seq-rec" onclick="window.toggleInstRec()" class="btn-text" title="Record Realtime" style="padding: 2px 6px; font-size: 9px; height: 20px; color: #888;">
+                            <i class="ph ph-record"></i> REC
+                        </button>
+                        <button onclick="window.clearCurrentTrack()" class="btn-text" title="Effacer la piste" style="padding: 2px 6px; font-size: 9px; height: 20px; color: #ff4444;">
+                            <i class="ph ph-trash"></i>
+                        </button>
+                        <select id="drum-pattern-select" class="speed-select" onchange="window.changeDrumPattern(this.value)" style="font-size: 10px; height: 20px; width: 120px;">
                             <option value="rock_1">Rock 1</option>
                             <option value="rock_2">Rock 2</option>
                             <option value="disco">Disco</option>
                             <option value="funk">Funk</option>
-                            <option value="shuffle" data-i18n="web.pattern_shuffle">Shuffle Blues</option>
-                            <option value="custom">Custom (User)</option>
+                            <option value="shuffle">Shuffle</option>
+                            <option value="custom">Custom</option>
                         </select>
+                    </div>
+
+                    <!-- BPM Pill moved back to top -->
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <div class="speed-pill">
+                            <button onclick="window.DrumMachine.drumControl('tempo_down')" title="Ralentir"><i class="ph ph-minus"></i></button>
+                            <input type="number" id="drum-bpm-display" class="speed-display" min="30" max="300" value="120" oninput="window.updateDrumBPM(this.value)" style="width: 45px; background: transparent; border: none; color: var(--accent); text-align: center; font-weight: bold; font-family: inherit; font-size: 13px; outline: none;">
+                            <button onclick="window.DrumMachine.drumControl('tempo_up')" title="Accélérer"><i class="ph ph-plus"></i></button>
+                        </div>
+                        <small style="color:#666; font-size:9px; font-weight:bold;">BPM</small>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
                         <span style="font-size: 0.85em; color: #888;">Swing :</span>
-                        <input type="range" id="drum-swing" min="0" max="100" value="0" oninput="updateDrumSwing(this.value)" style="width: 60px; height: 14px;">
+                        <input type="range" id="drum-swing" min="0" max="100" value="0" oninput="window.updateDrumSwing(this.value)" style="width: 60px; height: 14px;">
                         <span id="drum-swing-val" style="font-size: 0.8em; color: var(--accent); min-width: 30px;">0%</span>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
-                        <span style="font-size: 0.85em; color: #888;">Tempo :</span>
-                        <input type="number" id="drum-bpm" min="40" max="250" value="120" onchange="updateDrumBPM(this.value)" style="width: 50px; height: 24px; font-size: 11px; background: #222; color: var(--accent); border: 1px solid #444; border-radius: 4px; text-align: center;">
-                        <span style="font-size: 0.8em; color: #666;">BPM</span>
-                    </div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
                         <span data-i18n="web.lbl_kit" style="font-size: 0.85em; color: #888;">Kit :</span>
-                        <select id="drum-kit-select" onchange="changeDrumKit(this.value)" style="width: 110px; height: 24px; font-size: 11px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px;">
+                        <select id="drum-kit-select" onchange="window.DrumMachine.changeKit(window.metronome.audioContext, this.value)" style="width: 110px; height: 24px; font-size: 11px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px;">
                             <option value="tr505">Roland TR-505</option>
-                            <option value="tr626">Roland TR-626</option>
+                            <option value="tr606">Roland TR-606</option>
                             <option value="tr707">Roland TR-707</option>
-                            <option value="tr808">Roland TR-808 Pro</option>
-                            <option value="tr909">Roland TR-909 Studio</option>
-                            <option value="linn">LinnDrum (Classic)</option>
+                            <option value="tr808" selected>Roland TR-808</option>
+                            <option value="tr909">Roland TR-909</option>
                         </select>
                     </div>
                 </div>
@@ -762,25 +770,25 @@
                         <div style="display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 4px; border: 1px solid #444;">
                             <div style="display: flex; align-items: center; gap: 5px;">
                                 <span style="font-size: 0.65em; color: #888;">TUNE</span>
-                                <input type="range" id="seq-tune" min="-12" max="12" value="0" oninput="updateInstParam('tune', this.value)" style="width: 40px; height: 10px;">
+                                <input type="range" id="seq-tune" min="-12" max="12" value="0" oninput="window.updateInstParam('tune', this.value)" style="width: 40px; height: 10px;">
                                 <span id="seq-tune-val" style="font-size: 0.65em; color: var(--accent); min-width: 20px;">0</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 5px;">
                                 <span style="font-size: 0.65em; color: #888;">DECAY</span>
-                                <input type="range" id="seq-decay" min="0" max="2" step="0.05" value="0.5" oninput="updateInstParam('decay', this.value)" style="width: 40px; height: 10px;">
+                                <input type="range" id="seq-decay" min="0" max="2" step="0.05" value="0.5" oninput="window.updateInstParam('decay', this.value)" style="width: 40px; height: 10px;">
                                 <span id="seq-decay-val" style="font-size: 0.65em; color: var(--accent); min-width: 25px;">0.5s</span>
                             </div>
                         </div>
                     </div>
 
                     <div style="display: flex; gap: 5px; align-items: center;">
-                        <button id="btn-seq-view" onclick="toggleSequencerView()" class="btn-text" title="Toggle Single/All Tracks" style="padding: 2px 6px; font-size: 9px; height: 20px;">
+                        <button id="btn-seq-view" onclick="window.toggleSequencerView()" class="btn-text" title="Toggle Single/All Tracks" style="padding: 2px 6px; font-size: 9px; height: 20px;">
                             <i class="ph ph-squares-four"></i> <span id="sequencer-mode-label">SINGLE</span>
                         </button>
-                        <button onclick="importMidiPattern()" class="btn-text" title="Import MIDI" style="padding: 2px 6px; font-size: 9px; height: 20px;">
+                        <button onclick="window.importMidiPattern()" class="btn-text" title="Import MIDI" style="padding: 2px 6px; font-size: 9px; height: 20px;">
                             <i class="ph ph-file-arrow-up"></i> MIDI
                         </button>
-                        <button id="btn-seq-edit-midi" onclick="editCurrentMidiMapping()" class="btn-text" title="Éditer le Mappage" style="padding: 2px 6px; font-size: 9px; height: 20px; color: #aaa; display: none;">
+                        <button id="btn-seq-edit-midi" onclick="window.editCurrentMidiMapping()" class="btn-text" title="Éditer le Mappage" style="padding: 2px 6px; font-size: 9px; height: 20px; color: #aaa; display: none;">
                             <i class="ph ph-pencil-simple"></i>
                         </button>
                         <input type="file" id="midi-import-input" accept=".mid,.midi" style="display: none;" onchange="handleMidiFileUpload(event)">
@@ -804,22 +812,15 @@
         </div>
         
         <div class="modal-footer media-controls-bar" style="height: 65px !important;">
-            <!-- Left: BPM Pill -->
-            <div class="time-display-integrated" style="display:flex; align-items:center; gap:8px; min-width:150px;">
-                <div class="speed-pill">
-                    <button onclick="DrumMachine.drumControl('tempo_down')" title="Ralentir"><i class="ph ph-minus"></i></button>
-                    <span id="drum-bpm-display" class="speed-display">120</span>
-                    <button onclick="DrumMachine.drumControl('tempo_up')" title="Accélérer"><i class="ph ph-plus"></i></button>
-                </div>
-                <small style="color:#666; font-size:10px; font-weight:bold;">BPM</small>
-            </div>
+            <!-- Left: Stats Placeholder (Removed as requested) -->
+            <div style="min-width:150px;"></div>
 
             <!-- Center: Transport -->
             <div class="controls-center-group" style="gap:15px;">
-                <button class="control-btn" onclick="DrumMachine.drumControl('restart')" title="Recommencer">
+                <button class="control-btn" onclick="window.DrumMachine.drumControl('restart')" title="Recommencer">
                     <i class="ph ph-skip-back"></i>
                 </button>
-                <button class="control-btn" onclick="DrumMachine.drumControl('seek_back')" title="-1 Mesure">
+                <button class="control-btn" onclick="window.DrumMachine.drumControl('seek_back')" title="-1 Mesure">
                     <i class="ph ph-rewind"></i>
                 </button>
                 
@@ -827,10 +828,10 @@
                     <i class="ph ph-play-circle ph-fill"></i>
                 </button>
 
-                <button class="control-btn" onclick="DrumMachine.drumControl('seek_next')" title="+1 Mesure">
+                <button class="control-btn" onclick="window.DrumMachine.drumControl('seek_next')" title="+1 Mesure">
                     <i class="ph ph-fast-forward"></i>
                 </button>
-                <button class="control-btn" onclick="DrumMachine.drumControl('stop')" title="Stop" style="color:#ff4444;">
+                <button class="control-btn" onclick="window.DrumMachine.drumControl('stop')" title="Stop" style="color:#ff4444;">
                     <i class="ph ph-stop-circle"></i>
                 </button>
             </div>

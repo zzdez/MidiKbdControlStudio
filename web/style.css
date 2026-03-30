@@ -588,8 +588,7 @@ dialog::backdrop {
 
 .modal-header {
     background: #252525;
-    padding: 10px 15px;
-    /* Reduced vertical padding */
+    padding: 10px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -606,12 +605,21 @@ dialog::backdrop {
 .btn-close {
     background: transparent;
     border: none;
-    color: #888;
-    font-size: 1.5em;
+    color: #eee; /* Light gray for good visibility */
+    font-size: 1.4em;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
 }
 
 .btn-close:hover {
+    background: rgba(255, 255, 255, 0.1);
     color: white;
 }
 
@@ -636,8 +644,8 @@ dialog::backdrop {
 #modal-midi-wizard[open] {
     display: flex !important;
     flex-direction: column !important;
-    width: 920px !important;
-    max-width: 920px !important;
+    width: 950px !important;
+    max-width: 950px !important;
     max-height: 900px !important;
     padding: 0 !important;
     overflow: hidden !important;
@@ -646,6 +654,8 @@ dialog::backdrop {
 #modal-drum-machine .modal-header {
     flex-shrink: 0;
     width: 100%;
+    box-sizing: border-box;
+    padding-right: 40px !important; /* Force space for the close button from the edge */
 }
 
 #modal-drum-machine .modal-body {
@@ -2454,4 +2464,16 @@ input[type="color"].stem-color-input::-webkit-color-swatch {
 input[type="color"].stem-color-input::-moz-color-swatch {
     border: 1px solid #555;
     border-radius: 4px;
+}
+
+/* Hide spin buttons for BPM input */
+#drum-bpm-display::-webkit-outer-spin-button,
+#drum-bpm-display::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+#drum-bpm-display {
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+    appearance: none;
 }

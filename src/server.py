@@ -43,6 +43,7 @@ download_service = DownloadService()
 SETLIST_FILE = os.path.join(get_data_dir(), "setlist.json")
 APPS_FILE = os.path.join(get_data_dir(), "apps.json")
 LOCAL_LIB_FILE = os.path.join(get_data_dir(), "local_lib.json")
+DRUM_SETTINGS_FILE = os.path.join(get_data_dir(), "drum_settings.json")
 
 app.add_middleware(
     CORSMiddleware,
@@ -780,6 +781,32 @@ async def launch_app(request: Request):
 async def get_library():
     """Returns the hierarchical library structure."""
     return library_manager.get_library()
+
+# --- DRUM MACHINE SETTINGS ---
+DRUM_SETTINGS_FILE = os.path.join(get_data_dir(), "drum_settings.json")
+
+@app.get("/api/drums/settings")
+async def get_drum_settings():
+    """Returns persistent drum machine settings (volumes, kit, bpm)."""
+    if os.path.exists(DRUM_SETTINGS_FILE):
+        try:
+            with open(DRUM_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"Error loading drum settings: {e}")
+            return {}
+    return {}
+
+@app.post("/api/drums/settings")
+async def save_drum_settings(settings: Dict):
+    """Saves drum machine settings to disk."""
+    try:
+        with open(DRUM_SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=4)
+        return {"status": "ok"}
+    except Exception as e:
+        logging.error(f"Error saving drum settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- DRUM MACHINE MIDI WIZARD ---
 
@@ -1700,6 +1727,25 @@ async def api_open_settings(request: Request):
         return {"status": "error", "message": "Callback not connected"}
     except Exception as e:
         print(f"OpenSettings Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/drums/settings")
+async def get_drum_settings():
+    if os.path.exists(DRUM_SETTINGS_FILE):
+        try:
+            with open(DRUM_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+@app.post("/api/drums/settings")
+async def save_drum_settings(settings: Dict):
+    try:
+        with open(DRUM_SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=4)
+        return {"status": "ok"}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.websocket("/ws")

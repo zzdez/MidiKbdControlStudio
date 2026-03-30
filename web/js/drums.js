@@ -30,7 +30,7 @@ window.DrumMachine = {
         cymbal:  { volume: 0.6, tune: 0, decay: 1.5, pan: -0.4, mute: false, solo: false },
         cowbell: { volume: 0.7, tune: 0, decay: 0.3, pan: 0.1, mute: false, solo: false },
         rim:     { volume: 0.8, tune: 0, decay: 0.1, pan: -0.1, mute: false, solo: false },
-        bass:    { volume: 1.0, tune: 0, decay: 4.0, pan: 0.0, mute: false, solo: false }
+        bass:    { volume: 1.0, tune: 0, decay: 0.15, pan: 0.0, mute: false, solo: false }
     },
 
     // Méthodes de Mixage
@@ -40,6 +40,7 @@ window.DrumMachine = {
             config.mute = !config.mute;
             if (config.mute) config.solo = false;
             this.renderMixer();
+            this.saveSettingsDebounced();
         }
     },
 
@@ -49,6 +50,7 @@ window.DrumMachine = {
             config.solo = !config.solo;
             if (config.solo) config.mute = false;
             this.renderMixer();
+            this.saveSettingsDebounced();
         }
     },
 
@@ -121,6 +123,7 @@ window.DrumMachine = {
         this.settings[instId].volume = vol;
         const pctLabel = document.getElementById(`drum-vol-${instId}-pct`);
         if (pctLabel) pctLabel.innerText = Math.round(vol * 100) + '%';
+        this.saveSettingsDebounced();
     },
 
     flashVUMeter(instId, gain = 1.0) {
@@ -232,6 +235,7 @@ window.DrumMachine = {
         this.currentKit = kitId;
         this.isLoaded = false;
         await this.loadAssets(audioContext);
+        this.saveSettingsDebounced();
     },
 
     playStep(audioContext, masterGainNode, time, stepIndex16th) {
@@ -286,34 +290,39 @@ window.DrumMachine = {
                     
                     const freq = 440 * Math.pow(2, (targetNote - 69) / 12);
                     
+                    // Osc 1: Sub Sine
                     const oscSub = audioContext.createOscillator();
                     oscSub.type = 'sine';
-                    oscSub.frequency.value = freq;
+                    oscSub.frequency.setValueAtTime(freq, adjustedTime);
+                    oscSub.frequency.exponentialRampToValueAtTime(freq * 0.98, adjustedTime + 0.1); 
                     
+                    // Osc 2: Triangle for character
                     const oscTri = audioContext.createOscillator();
                     oscTri.type = 'triangle';
-                    oscTri.frequency.value = freq;
+                    oscTri.frequency.setValueAtTime(freq, adjustedTime);
                     
-                    const mixSub = audioContext.createGain();
-                    const mixTri = audioContext.createGain();
-                    mixSub.gain.value = 0.7;
-                    mixTri.gain.value = 0.3;
-                    
-                    oscSub.connect(mixSub);
-                    oscTri.connect(mixTri);
-                    
+                    // Filter: Resonant Low Pass
                     filter.type = 'lowpass';
-                    filter.frequency.value = 400 + (velocity * 3000);
-                    filter.Q.value = 1.0;
+                    filter.Q.value = 5;
+                    filter.frequency.setValueAtTime(freq * 8, adjustedTime);
+                    filter.frequency.exponentialRampToValueAtTime(freq * 2, adjustedTime + 0.15); 
                     
-                    mixSub.connect(filter);
-                    mixTri.connect(filter);
+                    // Gain Envelope (VCA is handled by gainNode below)
+                    const settingsMaster = window.DrumMachine.settings;
+                    const masterVol = settingsMaster.master ? settingsMaster.master.volume : 1.0;
+                    const decay = (config.decay || 0.15);
+                    
+                    gainNode.gain.setValueAtTime(0, adjustedTime);
+                    gainNode.gain.linearRampToValueAtTime((config.volume !== undefined ? config.volume : 1.0) * velocity * masterVol, adjustedTime + 0.002); // Faster attack
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, adjustedTime + decay);
+
+                    oscSub.connect(filter);
+                    oscTri.connect(filter);
+                    // Filter is already connected to gainNode in general logic below
                     
                     oscSub.start(adjustedTime);
-                    oscTri.start(adjustedTime);
-                    
-                    const decay = (config.decay || 1.5);
                     oscSub.stop(adjustedTime + decay);
+                    oscTri.start(adjustedTime);
                     oscTri.stop(adjustedTime + decay);
                     
                     source = { 
@@ -326,13 +335,6 @@ window.DrumMachine = {
                         debugLog.innerText = `SYNTH: Note ${targetNote} (${freq.toFixed(1)}Hz)`;
                         debugLog.style.color = '#e040fb';
                     }
-
-                    // Enveloppe
-                    const settings = window.DrumMachine.settings;
-                    const masterVol = settings.master ? settings.master.volume : 1.0;
-                    gainNode.gain.setValueAtTime(0, adjustedTime);
-                    gainNode.gain.linearRampToValueAtTime((config.volume !== undefined ? config.volume : 1.0) * velocity * masterVol, adjustedTime + 0.01);
-                    gainNode.gain.exponentialRampToValueAtTime(0.001, adjustedTime + decay);
                 } 
                 // --- BRANCH B: DRUMS (SAMPLES) ---
                 else {
@@ -397,9 +399,7 @@ window.DrumMachine = {
             }
             updateSequencerPlayhead(step);
             if (this.updateSongTimeline) this.updateSongTimeline(stepIndex16th);
-            
-            const bpmDisp = document.getElementById('drum-bpm-display');
-            if (bpmDisp) bpmDisp.innerText = Math.round(window.metronome?.bpm || 120);
+            // BPM display is updated by updateBpmUI() called by various events, no need to update here every step
         }, Math.max(0, delay));
     },
 
@@ -557,13 +557,114 @@ window.DrumMachine = {
     },
 
     updateBpmUI() {
+        if (!window.metronome) return;
+        const bpm = Math.round(window.metronome.bpm || 120);
+        
+        // Modal Footer BPM (Input or Display)
         const bpmDisp = document.getElementById('drum-bpm-display');
-        if (bpmDisp) bpmDisp.innerText = Math.round(window.metronome?.bpm || 120);
-        // Sync main metronome inputs if they exist
+        if (bpmDisp) {
+            if (bpmDisp.tagName === 'INPUT') {
+                bpmDisp.value = bpm;
+            } else {
+                bpmDisp.innerText = bpm;
+            }
+        }
+        
+        // Main Metronome Sync
         const mainInput = document.getElementById('metro-bpm-input');
         const mainSlider = document.getElementById('metro-bpm-slider');
-        if (mainInput) mainInput.value = window.metronome.bpm;
-        if (mainSlider) mainSlider.value = window.metronome.bpm;
+        if (mainInput) mainInput.value = bpm;
+        if (mainSlider) mainSlider.value = bpm;
+        
+        // Persist if needed (debounce handled by saveSettingsDebounced)
+        if (this.saveSettingsDebounced) this.saveSettingsDebounced();
+    },
+
+    // --- SETTINGS PERSISTENCE ---
+    // --- SETTINGS PERSISTENCE (JSON BACKEND) ---
+    async saveSettings() {
+        if (!window.metronome) return;
+        
+        const settingsPayload = {
+            bpm: window.metronome.bpm || 120,
+            kit_id: this.currentKit || 'tr505',
+            pattern_id: this.currentPatternId || 'rock_1',
+            swing: this.swing || 0,
+            mixer: this.settings // Save the entire internal state object (reliable)
+        };
+        
+        try {
+            const response = await fetch('/api/drums/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settingsPayload)
+            });
+            if (response.ok) {
+                console.log("[DRUM] Settings saved to JSON successfully.");
+            }
+        } catch(e) { 
+            console.error("[DRUM] Failed to save settings to backend", e); 
+        }
+    },
+
+    saveSettingsDebounced() {
+        if (this.saveTimeout) clearTimeout(this.saveTimeout);
+        this.saveTimeout = setTimeout(() => this.saveSettings(), 2000);
+    },
+
+    async loadSettings() {
+        try {
+            const response = await fetch('/api/drums/settings');
+            if (!response.ok) return;
+            const settings = await response.json();
+            if (!settings || Object.keys(settings).length === 0) return;
+            
+            console.log("[DRUM] Loading settings from JSON...", settings);
+
+            if (settings.bpm && window.metronome) {
+                window.metronome.setBpm(settings.bpm);
+            }
+            
+            if (settings.kit_id) {
+                this.currentKit = settings.kit_id;
+                const kitSelect = document.getElementById('drum-kit-select');
+                if (kitSelect) kitSelect.value = settings.kit_id;
+                
+                if (window.metronome && window.metronome.audioContext) {
+                    await this.changeKit(window.metronome.audioContext, settings.kit_id);
+                }
+            }
+            
+            if (settings.pattern_id) {
+                this.currentPatternId = settings.pattern_id;
+                const patternSelect = document.getElementById('drum-pattern-select');
+                if (patternSelect) patternSelect.value = settings.pattern_id;
+            }
+            
+            if (settings.swing !== undefined) {
+                this.swing = settings.swing;
+                const swingInput = document.getElementById('drum-swing');
+                if (swingInput) swingInput.value = settings.swing;
+                const swingVal = document.getElementById('drum-swing-val');
+                if (swingVal) swingVal.innerText = settings.swing + '%';
+            }
+            
+            if (settings.mixer) {
+                // Merge loaded settings into internal state
+                for (const inst in settings.mixer) {
+                    if (this.settings[inst]) {
+                        this.settings[inst] = { ...this.settings[inst], ...settings.mixer[inst] };
+                    }
+                }
+                // Refresh Mix UI (sliders, labels)
+                this.renderMixer();
+            }
+            
+            if (this.updateBpmUI) this.updateBpmUI();
+            
+        } catch(e) { 
+            console.error("[DRUM] Failed to load settings from JSON backend", e); 
+        }
     }
 };
 
@@ -614,10 +715,14 @@ function openDrumModal() {
              window.DrumMachine.loadAssets(window.metronome.audioContext);
         }
         
-        // Sync BPM
-        const bpmInput = document.getElementById("drum-bpm");
-        if (bpmInput && window.metronome) {
-            bpmInput.value = window.metronome.bpm;
+        // Load Settings
+        if (window.DrumMachine && window.DrumMachine.loadSettings) {
+            window.DrumMachine.loadSettings();
+        }
+        
+        // Sync BPM UI
+        if (window.DrumMachine && window.DrumMachine.updateBpmUI) {
+            window.DrumMachine.updateBpmUI();
         }
 
         renderDrumSequencer();
@@ -659,6 +764,9 @@ function changeDrumPattern(patternId) {
         }
 
         renderDrumSequencer();
+        if (window.DrumMachine.saveSettingsDebounced) {
+            window.DrumMachine.saveSettingsDebounced();
+        }
     }
 }
 
@@ -677,18 +785,21 @@ function updateDrumVolume(track, val) {
     
     const label = document.getElementById(`drum-vol-${track}-pct`);
     if (label) label.innerText = `${percent}%`;
+
+    // Persist changes
+    if (window.DrumMachine && window.DrumMachine.saveSettingsDebounced) {
+        window.DrumMachine.saveSettingsDebounced();
+    }
 }
 
 function updateDrumBPM(val) {
     const bpm = parseInt(val);
-    if (!isNaN(bpm) && bpm >= 40 && bpm <= 250) {
+    if (!isNaN(bpm) && bpm >= 30 && bpm <= 300) {
         if (window.metronome) {
-            window.metronome.bpm = bpm;
-            // Update main metronome UI if exists
-            const mainBpm = document.getElementById('metronome-bpm');
-            if (mainBpm) mainBpm.value = bpm;
-            const mainBpmVal = document.getElementById('metronome-bpm-val');
-            if (mainBpmVal) mainBpmVal.textContent = bpm;
+            window.metronome.setBpm(bpm);
+            if (window.DrumMachine && window.DrumMachine.updateBpmUI) {
+                window.DrumMachine.updateBpmUI();
+            }
         }
     }
 }
@@ -697,6 +808,11 @@ function updateDrumSwing(val) {
     window.DrumMachine.swing = parseInt(val);
     const label = document.getElementById("drum-swing-val");
     if (label) label.innerText = `${val}%`;
+
+    // Persist changes
+    if (window.DrumMachine && window.DrumMachine.saveSettingsDebounced) {
+        window.DrumMachine.saveSettingsDebounced();
+    }
 }
 
 function addMixerLog(msg) {
@@ -788,6 +904,7 @@ function updateInstParam(param, val) {
         if (param === 'tune') label.innerText = numVal > 0 ? `+${numVal}` : numVal;
         if (param === 'decay') label.innerText = `${numVal}s`;
     }
+    window.DrumMachine.saveSettingsDebounced();
 }
 
 // --- SEQUENCER GRID ---
@@ -1280,6 +1397,17 @@ window.updateDrumVolume = (id, val) => window.DrumMachine.updateVolume(id, val);
 window.flashVUMeter = (id, g) => window.DrumMachine.flashVUMeter(id, g);
 window.toggleMute = (id) => window.DrumMachine.toggleMute(id);
 window.toggleSolo = (id) => window.DrumMachine.toggleSolo(id);
+window.updateDrumBPM = (val) => {
+    const bpm = parseInt(val);
+    if (!isNaN(bpm) && bpm >= 30 && bpm <= 300) {
+        if (window.metronome) {
+            window.metronome.setBpm(bpm);
+            if (window.DrumMachine && window.DrumMachine.updateBpmUI) {
+                window.DrumMachine.updateBpmUI();
+            }
+        }
+    }
+};
 
 // --- UNIFIED CLICK LISTENER (Capture Phase) ---
 window.addEventListener('click', (e) => {
@@ -1310,6 +1438,42 @@ window.addEventListener('click', (e) => {
         if (typeof renderDrumSequencer === 'function') renderDrumSequencer();
     }
 }, true);
+
+// --- GLOBAL EXPORTS ---
+window.renderDrumMixer = () => window.DrumMachine && window.DrumMachine.renderMixer ? window.DrumMachine.renderMixer() : null;
+window.updateDrumVolume = (id, val) => window.DrumMachine && window.DrumMachine.updateVolume ? window.DrumMachine.updateVolume(id, val) : null;
+window.toggleMute = (id) => window.DrumMachine && window.DrumMachine.toggleMute ? window.DrumMachine.toggleMute(id) : null;
+window.toggleSolo = (id) => window.DrumMachine && window.DrumMachine.toggleSolo ? window.DrumMachine.toggleSolo(id) : null;
+window.flashVUMeter = (id, g) => window.DrumMachine && window.DrumMachine.flashVUMeter ? window.DrumMachine.flashVUMeter(id, g) : null;
+
+window.updateDrumSwing = (val) => {
+    if (window.DrumMachine) {
+        window.DrumMachine.swing = parseInt(val);
+        const valDisp = document.getElementById('drum-swing-val');
+        if (valDisp) valDisp.innerText = val + '%';
+        if (window.DrumMachine.saveSettingsDebounced) window.DrumMachine.saveSettingsDebounced();
+    }
+};
+
+window.changeDrumKit = (kitId) => {
+    if (window.DrumMachine && window.metronome && window.metronome.audioContext) {
+        window.DrumMachine.changeKit(window.metronome.audioContext, kitId);
+        if (window.DrumMachine.saveSettingsDebounced) window.DrumMachine.saveSettingsDebounced();
+    }
+};
+
+window.updateDrumBPM = (val) => {
+    const bpm = parseInt(val);
+    if (!isNaN(bpm) && bpm >= 30 && bpm <= 300) {
+        if (window.metronome) {
+            window.metronome.setBpm(bpm);
+            if (window.DrumMachine && window.DrumMachine.updateBpmUI) {
+                window.DrumMachine.updateBpmUI();
+            }
+            console.log(`[DRUM] Global BPM set to ${bpm}`);
+        }
+    }
+};
 
 // Initialisation au chargement du DOM
 document.addEventListener("DOMContentLoaded", () => {

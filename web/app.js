@@ -27,6 +27,7 @@ function t(keyPath, defaultText = null) {
     }
     return val;
 }
+window._ = t; // Alias for other components (Drum Machine, etc.)
 
 function applyTranslations() {
     document.querySelectorAll('[data-i18n], [data-i18n-title], [data-i18n-placeholder]').forEach(el => {
