@@ -4811,12 +4811,8 @@ function openEditLocalModal(index) {
             .catch(e => { console.error("Error fetching sub list", e); window.currentAvailableSubs = []; });
 
     } else {
-        // If it's audio but has a thumbnail, use wide-art to allow the 16:9 proportion
-        if (item.thumbnail) {
-            artContainer.classList.add("wide-art");
-        } else {
-            artContainer.classList.add("square-art");
-        }
+        // Use wide-art by default to allow 16:9 proportions if art is present
+        artContainer.classList.add("wide-art");
         subSettings.style.display = "none";
         window.currentAvailableSubs = [];
         window.tempModalSelectedTrack = "";
@@ -4882,11 +4878,7 @@ function openMultitrackModal(index) {
     // ASPECT RATIO
     const artContainer = document.getElementById("mt-art-container");
     artContainer.classList.remove("wide-art", "square-art");
-    if (item.thumbnail) {
-        artContainer.classList.add("wide-art");
-    } else {
-        artContainer.classList.add("square-art");
-    }
+    artContainer.classList.add("wide-art"); // Use wide-art to allow 16:9 even for audio-based folders
 
     document.getElementById("mt-path-display").innerText = item.path;
     document.getElementById("mt-title").value = item.title;
