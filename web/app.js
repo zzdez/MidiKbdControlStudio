@@ -2081,7 +2081,11 @@ function playTrack(track) {
         updateHeaderScaleDisplay(track);
 
         const globalCover = document.getElementById("global-video-cover");
-        if (globalCover) globalCover.style.display = "none";
+        if (globalCover) {
+            globalCover.style.display = "block";
+            globalCover.src = track.thumbnail || `https://i.ytimg.com/vi/${track.id}/mqdefault.jpg`;
+            globalCover.onerror = () => { globalCover.style.display = "none"; };
+        }
 
         // Display Custom Timeline for YouTube
         const timeline = document.getElementById("video-timeline-container");
@@ -4807,7 +4811,12 @@ function openEditLocalModal(index) {
             .catch(e => { console.error("Error fetching sub list", e); window.currentAvailableSubs = []; });
 
     } else {
-        artContainer.classList.add("square-art");
+        // If it's audio but has a thumbnail, use wide-art to allow the 16:9 proportion
+        if (item.thumbnail) {
+            artContainer.classList.add("wide-art");
+        } else {
+            artContainer.classList.add("square-art");
+        }
         subSettings.style.display = "none";
         window.currentAvailableSubs = [];
         window.tempModalSelectedTrack = "";
@@ -4873,7 +4882,11 @@ function openMultitrackModal(index) {
     // ASPECT RATIO
     const artContainer = document.getElementById("mt-art-container");
     artContainer.classList.remove("wide-art", "square-art");
-    artContainer.classList.add("square-art"); // Multitrack is audio-based (1:1)
+    if (item.thumbnail) {
+        artContainer.classList.add("wide-art");
+    } else {
+        artContainer.classList.add("square-art");
+    }
 
     document.getElementById("mt-path-display").innerText = item.path;
     document.getElementById("mt-title").value = item.title;
