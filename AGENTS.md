@@ -331,6 +331,18 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     *   **Affichage Conditionnel de la Basse :** La piste de basse et le synthétiseur interne sont désormais **masqués** par défaut pour les rythmes standards (mode TR-808) afin de préserver une expérience "pure percussion". Ils s'activent **automatiquement** uniquement lors du chargement d'un fichier MIDI importé (`imported_`).
     *   **Synchronisation du Mixeur :** Correction du bug de rafraîchissement ; le mixeur recalcule désormais dynamiquement ses pistes lors de chaque changement de pattern.
     *   **Nettoyage UI :** Suppression des labels de debug ("Drum mixer v5", "MIDI TR-808 Engine") et élargissement de la modale principale à 950px pour un meilleur confort visuel.
-*   **Correction Modale & Ergonomie :**
-    *   **Fix Troncature :** Ajustement des dimensions (80x28px) du sélecteur de transposition dans l'assistant MIDI pour éviter toute coupure de texte.
-    *   **Gestion des Orphelins :** La fermeture de la boîte à rythmes entraîne désormais la fermeture forcée de l'assistant MIDI si celui-ci était encore ouvert, évitant ainsi le blocage de l'interface utilisateur.
+### 36. Évolution V31 : Expérience Utilisateur & Harmonisation Visuelle
+*   **Gestion des Boucles & Navigation (`app.js`) :**
+    *   **Annulation Express :** Ajout du raccourci clavier `Echap` pour réinitialiser instantanément les points A/B d'une boucle en cours de sélection.
+    *   **Auto-Restart Universel :** Harmonisation du comportement de fin de lecture pour tous les moteurs (YouTube, Audio, Vidéo, Multipiste). Le curseur revient automatiquement à `00:00` en fin de morceau (hors mode boucle active).
+    *   **Fiabilisation Multipiste :** Implémentation d'un "heartbeat" à 50ms pour pallier l'instabilité des événements `onfinish` de WaveSurfer et correction du bug de réactivation des stems en fin de lecture.
+*   **Refonte du Header & Métadonnées (`index.html` & `app.js`) :**
+    *   **Smart Badge "Scale" :** Consolidation de la Tonalité et de la Gamme dans une "Pill" interactive unique dans le header. Ce badge est cliquable et ouvre directement le manche (Fretboard).
+    *   **Feedback Visuel :** Les boutons d'accès au manche changent de couleur (violet) lorsqu'une gamme est prédéfinie dans les métadonnées du morceau.
+    *   **Nettoyage UI :** Suppression des textes redondants (`mt-scale-display`) dans les barres de transport.
+*   **Harmonisation des Dimensions (Pixel-Perfect UI) :**
+    *   **Standardisation Transport :** Réduction de la hauteur des barres de contrôle Vidéo et Multipiste de 76px à **55px** pour une cohérence parfaite avec le lecteur audio.
+    *   **Header Premium :** Augmentation de la hauteur du Header à **76px** (Zone info à 74px) pour une meilleure mise en valeur du titre et de la pochette.
+*   **Support "Wide Art" (16:9) :**
+    *   **Architecture Flexible (`style.css`) :** Remplacement des contraintes carrées par un système `width: fit-content` avec `max-width: 320px`.
+    *   **Détection Automatique (`app.js`) :** Les pochettes issues de vidéos pour des fichiers audio standards sont désormais détectées et affichées dans leur format large (16:9) réel, éliminiant les bandes noires ou les déformations dans les modales et le header.

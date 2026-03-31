@@ -26,7 +26,7 @@
 
         <!-- GLOBAL VIDEO INFO (Center Header) -->
         <div id="global-video-info" style="display: none; height: 74px; flex: 1; justify-content: center; align-items: center; text-align: center; overflow: hidden; white-space: nowrap; gap: 15px;">
-             <img id="global-video-cover" src="" style="width: 74px; height: 74px; border-radius: 4px; object-fit: cover; display: none; border: 1px solid #333; margin-right: 5px;">
+             <img id="global-video-cover" src="" style="height: 74px; width: auto; max-width: 150px; border-radius: 4px; object-fit: cover; display: none; border: 1px solid #333; margin-right: 5px;">
              <span id="global-video-title" style="font-weight: bold; font-size: 1.1em; color: white; text-overflow: ellipsis; overflow: hidden; max-width: 40vw;">Titre de la vidéo</span>
              <div style="display: flex; gap: 10px; font-size: 0.85em; color: var(--accent); align-items: center;">
                  <span id="global-video-bpm" class="metadata-badge" style="display: none;">🎵 <span class="val"></span> BPM</span>
@@ -883,7 +883,7 @@
                 </div>
 
                 <!-- Poster (Center) -->
-                <div id="local-art-container" class="art-container square-art"
+                <div id="local-art-container" class="art-container wide-art"
                     onclick="document.getElementById('cover-upload').click()">
                     <img id="local-art-img" src="" style="display:none;">
                     <div id="local-art-placeholder"
@@ -1065,7 +1065,7 @@
                 </div>
 
                 <!-- Poster (Center) -->
-                <div id="mt-art-container" class="art-container square-art"
+                <div id="mt-art-container" class="art-container wide-art"
                     onclick="document.getElementById('mt-cover-upload').click()">
                     <img id="mt-art-img" src="" style="display:none;">
                     <div id="mt-art-placeholder"
@@ -1266,7 +1266,7 @@
                 </div>
 
                 <!-- Poster (Center) -->
-                <div id="preview-thumbnail" class="art-container square-art" title="Aperçu Thumbnail">
+                <div id="preview-thumbnail" class="art-container wide-art" title="Aperçu Thumbnail">
                     <span style="font-size:40px;">🎵</span>
                     <div id="btn-edit-delete-cover" class="btn-delete-cover" style="display:none;"
                         onclick="event.stopPropagation(); removeEditCover();">×</div>

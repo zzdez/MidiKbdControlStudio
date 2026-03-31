@@ -39,12 +39,12 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
 - **Lecteur Audio Local (Simple & Multipistes)**
     - Support MP3, WAV, FLAC, M4A, OGG.
     - **Support Multipistes (Stems) :** Jouez vos morceaux décomposés (basse, batterie, guitare, etc.) en parfaite synchronisation.
-    - **UI Harmonisée & Professionnelle :** Unification visuelle totale (codes couleurs, bordures, alignement pixel-perfect) entre les graphiques et les commandes.
-    - **Mini-DAW Intégré :** Contrôles ultra-réactifs de Volume, Panoramique, Mute et Solo par piste avec sauvegarde automatique.
+    - **UI Harmonisée & Professionnelle :** Unification visuelle totale (codes couleurs, bordures, alignement pixel-perfect) entre les graphiques et les commandes. Hauteur des barres de transport standardisée à **55px**.
     - **Waveform Interactive :** WaveSurfer.js synchronisé avec menu contextuel de colorisation dynamique des pistes.
     - Option de Pitch Shifting et contrôle de vitesse (pour les pistes simples).
-*   **Fretboard Interactif & Gammes (Nouveau !) :**
+*   **Fretboard Interactif & Gammes :**
     - **Manche Virtuel & CAGED System :** Affichez un manche (15, 22 ou 24 cases) superposé et déplaçable au-dessus de vos vidéos YouTube, MP3 ou Multipistes pour improviser instantanément en suivant la tonalité de l'œuvre.
+    - **Smart Badge Header :** Visualisation immédiate de la Tonalité et de la Gamme dans le header. Cliquez sur le badge pour ouvrir instantanément le manche !
     - **Rigueur Pédagogique (Sillet Virtuel) :** Le métronome et l'affichage comprennent la guitare. Les octaves sont scindées avec une rigueur absolue à la frette 12 (Virtual Nut), et rejettent intelligemment toute position mathématiquement "injouable" qui dépasserait les limites du corps de l'instrument.
     - **Générateur d'Exercices en Zig-Zag :** Apprenez les gammes (Pentatonique, Blues, Majeure, Modes) en balayant le manche de manière fluide ("Ascending", "Descending", "Zig-Zag", "Random"). Le métronome dynamique s'adapte à la vitesse de votre média !
     - **Instruments Étendus & Tuning :** Support parfait des Guitares 7 Cordes, Basses 4 & 5 Cordes, et des accordages alternatifs (Drop D, Eb, D Standard). Les boîtes ne dérivent jamais !
@@ -88,8 +88,13 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
 *   **Éditeur de Médias Harmonisé :**
     *   Interface ultra-compacte et professionnelle, identique pour tous les types de médias (YouTube, Local, Multipiste).
     *   **Ligne Technique Unifiée** : BPM, Tonalité Originale, Tonalité Média, Pitch Original et Pitch Média sont désormais regroupés sur une seule ligne pour une visibilité instantanée sans défilement.
+    *   **Support Wide Art (16:9)** : Les pochettes d'albums et miniatures YouTube s'affichent désormais dans leur format d'origine (panoramique) sans déformation ni recadrage carré forcé.
     *   **Modale de notes dédiée** fusionnant la description YouTube et vos propres mémos techniques.
     *   **Optimisation Vision :** Plus de barre de défilement parasite dans les modales, tout est accessible en un coup d'œil.
+*   **Navigation & Ergonomie :**
+    *   **Auto-Restart** : Tous les lecteurs reviennent automatiquement à 00:00 une fois le morceau terminé.
+    *   **Annulation Boucle** : Touche `Echap` pour annuler la sélection d'un point A ou B instantanément.
+
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)
 
@@ -132,6 +137,7 @@ Pour contrôler votre DAW depuis AirstepStudio, vous **DEVEZ** utiliser un câbl
 | **Recommencer Position** | `Alt` + `Home` ou `0` |
 | **Position Précédente** | `Alt` + `Flèche Gauche` |
 | **Position Suivante** | `Alt` + `Flèche Droite` |
+| **Annuler Boucle (A/B)** | `Echap` |
 
 ## 🛠️ Installation (Développeurs)
 

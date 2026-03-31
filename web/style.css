@@ -771,20 +771,7 @@ dialog::backdrop {
 }
 
 /* Make Youtube Description fill height of image approx */
-/* LOCAL ART CONTAINER */
-.art-container {
-    width: 150px;
-    aspect-ratio: 1 / 1;
-    cursor: pointer;
-    position: relative;
-    border-radius: 8px;
-    /* transition: all 0.2s ease; */
-}
-
-.art-container.video-mode {
-    width: 270px;
-    aspect-ratio: 16 / 9;
-}
+/* LOCAL ART CONTAINER (DELETED - Unified below at line 2239) */
 
 .split-right textarea {
     flex: 1;
@@ -2235,7 +2222,7 @@ dialog::backdrop {
     color: var(--accent);
 }
 
-/* SMART ART CONTAINER */
+/* SMART ART CONTAINER (Unified) */
 .art-container {
     height: 180px;
     background: #000;
@@ -2248,7 +2235,6 @@ dialog::backdrop {
     border: 1px solid #444;
     width: 100%;
     max-width: 320px;
-    /* Max 16/9 for 180h */
     margin: 0 auto !important;
 }
 
@@ -2256,12 +2242,16 @@ dialog::backdrop {
     max-width: 180px;
 }
 
+.art-container.wide-art {
+    max-width: 320px;
+}
+
 .art-container img {
-    max-width: 100%;
-    max-height: 100%;
     width: auto;
-    height: auto;
-    object-fit: contain;
+    height: 100%;
+    max-width: 100%;
+    object-fit: contain; 
+    display: block;
 }
 
 /* MODERN SWITCHES */
