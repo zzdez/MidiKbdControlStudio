@@ -2495,3 +2495,61 @@ input[type="color"].stem-color-input::-moz-color-swatch {
     -moz-appearance: textfield;
     appearance: none;
 }
+
+/* ==========================================
+   SMART METADATA PILLS (Header)
+   ========================================== */
+#header-smart-scale-pill {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: rgba(187, 134, 252, 0.1);
+    border: 1px solid rgba(187, 134, 252, 0.3);
+    padding: 3px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+    margin-left: 5px;
+}
+
+#header-smart-scale-pill:hover {
+    background: rgba(187, 134, 252, 0.2);
+    border-color: var(--accent);
+    box-shadow: 0 0 10px rgba(187, 134, 252, 0.2);
+    transform: translateY(-1px);
+}
+
+#header-smart-scale-pill i {
+    color: var(--accent);
+    font-size: 1.1em;
+}
+
+#header-smart-scale-pill span {
+    font-weight: 600;
+    font-size: 0.9em;
+    color: #fff;
+}
+
+/* Metadata simple badges (BPM, Tuning) */
+.metadata-badge {
+    background: #222;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid #333;
+    font-size: 0.8em;
+    color: #bbb;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Fretboard Button Activation Highlight */
+.btn-active-scale {
+    color: var(--accent) !important;
+    text-shadow: 0 0 5px rgba(187, 134, 252, 0.3);
+}
+
+.btn-active-scale:hover {
+    filter: brightness(1.2);
+}

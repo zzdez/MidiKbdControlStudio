@@ -420,6 +420,10 @@ function onPlayerStateChange(event) {
         if (event.data === YT.PlayerState.ENDED) {
             if (window.currentAutoreplay === true) {
                 player.playVideo();
+            } else {
+                player.seekTo(0);
+                player.pauseVideo();
+                updatePlayPauseIcon('video', false);
             }
         } else if (event.data === YT.PlayerState.PLAYING) {
             updatePlayPauseIcon('video', true);
@@ -1999,8 +2003,7 @@ function playTrack(track) {
 
     const globalTitle = document.getElementById("global-video-title");
     const globalBpm = document.getElementById("global-video-bpm");
-    const globalKey = document.getElementById("global-video-key");
-    const globalScale = document.getElementById("global-video-scale");
+    updateHeaderScaleDisplay(track);
 
     // Determine Autoplay/Autoreplay
     // Important: if not defined in track, we use global settings, but we assign it to memory
@@ -2075,11 +2078,7 @@ function playTrack(track) {
         document.getElementById("global-video-info").style.display = "flex";
         globalTitle.innerText = track.title || track.url;
         if (track.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = track.bpm; } else { globalBpm.style.display = "none"; }
-        if (track.key) { globalKey.style.display = "inline"; globalKey.querySelector(".val").innerText = track.key; } else { globalKey.style.display = "none"; }
-        if (track.scale) {
-            globalScale.style.display = "inline";
-            globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${track.scale}"]`)?.text || track.scale;
-        } else { globalScale.style.display = "none"; }
+        updateHeaderScaleDisplay(track);
 
         const globalCover = document.getElementById("global-video-cover");
         if (globalCover) globalCover.style.display = "none";
@@ -2355,6 +2354,11 @@ window.addEventListener('keydown', (e) => {
             }
             command = 'media_restart';
             break;
+        case 'Escape':
+            clearLoop();
+            updateLoopUI();
+            e.preventDefault();
+            return;
         // Optional: Pitch access via Keyboard if needed later
         // case 'PageUp': command = 'media_pitch_up'; break;
         // case 'PageDown': command = 'media_pitch_down'; break;
@@ -2988,8 +2992,7 @@ async function playLocal(index) {
 
     const globalTitle = document.getElementById("global-video-title");
     const globalBpm = document.getElementById("global-video-bpm");
-    const globalKey = document.getElementById("global-video-key");
-    const globalScale = document.getElementById("global-video-scale");
+    updateHeaderScaleDisplay(file);
 
     // AUTO-RESET PITCH
     updatePitch(0);
@@ -3093,11 +3096,7 @@ async function playLocal(index) {
         document.getElementById("global-video-info").style.display = "flex";
         globalTitle.innerText = file.title || "Multitrack";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
-        if (file.key) { globalKey.style.display = "inline"; globalKey.querySelector(".val").innerText = file.key; } else { globalKey.style.display = "none"; }
-        if (file.scale) {
-            globalScale.style.display = "inline";
-            globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${file.scale}"]`)?.text || file.scale;
-        } else { globalScale.style.display = "none"; }
+        updateHeaderScaleDisplay(file);
 
         videoContainer.style.display = "none";
         audioContainer.style.display = "none";
@@ -3600,6 +3599,8 @@ async function playLocal(index) {
             saveMultitrackSettings(file); // Save exact stop time
         });
 
+        // Removed multitrack.on('finish'): Using fail-safe check in the main loop instead for reliability.
+
         // Removed mtInterval: loop monitoring handled by the global interval in app.js
         currentActivePlayer = 'multitrack';
         loadLoopsForTrack(file);
@@ -3613,11 +3614,7 @@ async function playLocal(index) {
         document.getElementById("global-video-info").style.display = "flex";
         globalTitle.innerText = file.title || "Audio";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
-        if (file.key) { globalKey.style.display = "inline"; globalKey.querySelector(".val").innerText = file.key; } else { globalKey.style.display = "none"; }
-        if (file.scale) {
-            globalScale.style.display = "inline";
-            globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${file.scale}"]`)?.text || file.scale;
-        } else { globalScale.style.display = "none"; }
+        updateHeaderScaleDisplay(file);
 
         const globalCover = document.getElementById("global-video-cover");
         if (globalCover) {
@@ -3706,11 +3703,7 @@ async function playLocal(index) {
         document.getElementById("global-video-info").style.display = "flex";
         globalTitle.innerText = file.title || "Video";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
-        if (file.key) { globalKey.style.display = "inline"; globalKey.querySelector(".val").innerText = file.key; } else { globalKey.style.display = "none"; }
-        if (file.scale) {
-            globalScale.style.display = "inline";
-            globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${file.scale}"]`)?.text || file.scale;
-        } else { globalScale.style.display = "none"; }
+        updateHeaderScaleDisplay(file);
 
         const globalCover = document.getElementById("global-video-cover");
         if (globalCover) {
@@ -4004,6 +3997,12 @@ function multitrackControl(action) {
             if (window.multitrack.isPlaying()) {
                 window.multitrack.pause();
             } else {
+                // Fail-safe : Si on est à la toute fin (0.1s de battement), revenir au début avant de jouer
+                const dur = getUniversalDuration();
+                const cur = getCurrentPlayerTime();
+                if (cur >= dur - 0.1 && cur > 0) {
+                    window.multitrack.setTime(0);
+                }
                 window.multitrack.play();
             }
             updatePlayPauseUI();
@@ -5642,8 +5641,8 @@ function getUniversalDuration() {
 
 function getCurrentPlayerTime() {
     if (currentActivePlayer === 'multitrack' && window.multitrack) {
-        return (window.multitrack.wavesurfers && window.multitrack.wavesurfers[0] && typeof window.multitrack.wavesurfers[0].getCurrentTime === 'function') 
-            ? window.multitrack.wavesurfers[0].getCurrentTime() : 0;
+        return (typeof window.multitrack.getCurrentTime === 'function') 
+            ? window.multitrack.getCurrentTime() : 0;
     } else if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
         return vid ? vid.currentTime : 0;
@@ -5653,6 +5652,31 @@ function getCurrentPlayerTime() {
         return player.getCurrentTime();
     }
     return 0;
+}
+
+/**
+ * Updates the modern grouped Scale/Key badge in the header
+ */
+function updateHeaderScaleDisplay(item) {
+    const pill = document.getElementById("header-smart-scale-pill");
+    const text = document.getElementById("header-smart-scale-text");
+    if (!pill || !text) return;
+
+    if (!item) {
+        pill.style.display = "none";
+        return;
+    }
+
+    const key = item.media_key || item.key;
+    const scale = item.scale;
+    const scaleName = scale ? (document.getElementById("fretboard-scale").querySelector(`option[value="${scale}"]`)?.text || scale) : "";
+
+    if (key) {
+        pill.style.display = "flex";
+        text.innerText = `${key} ${scaleName}`.trim();
+    } else {
+        pill.style.display = "none";
+    }
 }
 
 function seekPlayerTo(time) {
@@ -5793,12 +5817,21 @@ function updateLoopUI() {
     if (btnSave_v) btnSave_v.style.display = (loopA !== null && loopB !== null && isLoopActive) ? "inline-block" : "none";
     if (btnSave_m) btnSave_m.style.display = (loopA !== null && loopB !== null && isLoopActive) ? "inline-block" : "none";
 
-    if (btnPrev_a) btnPrev_a.style.display = hasSavedLoops ? "inline-block" : "none";
-    if (btnNext_a) btnNext_a.style.display = hasSavedLoops ? "inline-block" : "none";
-    if (btnPrev_v) btnPrev_v.style.display = hasSavedLoops ? "inline-block" : "none";
-    if (btnNext_v) btnNext_v.style.display = hasSavedLoops ? "inline-block" : "none";
     if (btnPrev_m) btnPrev_m.style.display = hasSavedLoops ? "inline-block" : "none";
     if (btnNext_m) btnNext_m.style.display = hasSavedLoops ? "inline-block" : "none";
+
+    // Update Fretboard Button Highlights
+    const fbBtnA = document.getElementById("btn-audio-scale");
+    const fbBtnV = document.getElementById("btn-video-scale");
+    const fbBtnM = document.getElementById("btn-mt-scale");
+    const currentItem = (currentActivePlayer === 'youtube') 
+        ? currentTrackList.find(t => t.originalIndex === window.currentPlayingIndex)
+        : localFiles[window.currentPlayingIndex];
+
+    const hasScale = currentItem && (currentItem.media_key || currentItem.key);
+    [fbBtnA, fbBtnV, fbBtnM].forEach(btn => {
+        if (btn) btn.classList.toggle("btn-active-scale", !!hasScale);
+    });
 
     // Visual Timeline Markers for Local Video / Audio / Multitrack
     const isAudio = (currentActivePlayer === 'waveform');
@@ -5901,6 +5934,20 @@ setInterval(() => {
     const time = getCurrentPlayerTime();
     if (isLoopActive) checkLoop(time);
     checkCues(time);
+
+    // Fail-safe pour le multipiste (si la détection par événement échoue)
+    if (currentActivePlayer === 'multitrack' && window.multitrack && !isLoopActive) {
+        const dur = getUniversalDuration();
+        if (dur > 0 && time >= dur - 0.1 && window.multitrack.isPlaying()) {
+            // Fin atteinte !
+            window.multitrack.pause();
+            window.multitrack.setTime(0);
+            if (window.currentAutoreplay === true) {
+                window.multitrack.play();
+            }
+            updatePlayPauseUI();
+        }
+    }
 
     if (currentActivePlayer === 'youtube') {
         updateTimelineUI(time);

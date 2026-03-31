@@ -29,9 +29,11 @@
              <img id="global-video-cover" src="" style="width: 30px; height: 30px; border-radius: 4px; object-fit: cover; display: none; border: 1px solid #333; margin-right: 5px;">
              <span id="global-video-title" style="font-weight: bold; font-size: 1.1em; color: white; text-overflow: ellipsis; overflow: hidden; max-width: 40vw;">Titre de la vidéo</span>
              <div style="display: flex; gap: 10px; font-size: 0.85em; color: var(--accent); align-items: center;">
-                 <span id="global-video-bpm" style="display: none; background: #222; padding: 2px 6px; border-radius: 4px; border: 1px solid #333;">🎵 <span class="val"></span> BPM</span>
-                 <span id="global-video-key" style="display: none; background: #222; padding: 2px 6px; border-radius: 4px; border: 1px solid #333;">🎹 <span class="val"></span></span>
-                 <span id="global-video-scale" style="display: none; background: #222; padding: 2px 6px; border-radius: 4px; border: 1px solid #333;">🎸 <span class="val"></span></span>
+                 <span id="global-video-bpm" class="metadata-badge" style="display: none;">🎵 <span class="val"></span> BPM</span>
+                 <div id="header-smart-scale-pill" onclick="toggleFretboard()" title="Ouvrir le Manche">
+                     <i class="ph ph-music-notes"></i>
+                     <span id="header-smart-scale-text"></span>
+                 </div>
              </div>
         </div>
 
@@ -252,8 +254,8 @@
                         </div>
 
                         <!-- Fretboard Scale Button -->
-                        <button class="control-btn" id="btn-audio-scale" onclick="toggleFretboard()" title="Afficher le Manche" style="font-size: 1.2rem; color: #888; margin-left:10px;">
-                            <i class="ph ph-line-segments"></i> <span id="audio-scale-display" style="font-size: 0.7em; margin-left:2px; font-weight:bold; color:var(--accent);"></span>
+                        <button class="control-btn" id="btn-audio-scale" onclick="toggleFretboard()" title="Afficher le Manche" style="font-size: 1.2rem; margin-left:10px;">
+                            <i class="ph ph-line-segments"></i>
                         </button>
 
                         <!-- Pitch Control (Compact) -->
@@ -362,8 +364,8 @@
                         </div>
 
                         <!-- Fretboard Scale Button -->
-                        <button class="control-btn" id="btn-mt-scale" onclick="toggleFretboard()" title="Afficher le Manche" style="font-size: 1.2rem; color: #888; margin-left:10px;">
-                            <i class="ph ph-line-segments"></i> <span id="mt-scale-display" style="font-size: 0.7em; margin-left:2px; font-weight:bold; color:var(--accent);"></span>
+                        <button class="control-btn" id="btn-mt-scale" onclick="toggleFretboard()" title="Afficher le Manche" style="font-size: 1.2rem; margin-left:10px;">
+                            <i class="ph ph-line-segments"></i>
                         </button>
 
                         <!-- Master Volume Control -->
@@ -502,8 +504,8 @@
                     </div>
 
                     <!-- Fretboard Scale Button -->
-                    <button class="control-btn" id="btn-video-scale" onclick="toggleFretboard()" title="Afficher le Manche" style="font-size: 1.2rem; color: #888; margin-left:10px;">
-                        <i class="ph ph-line-segments"></i> <span id="video-scale-display" style="font-size: 0.7em; margin-left:2px; font-weight:bold; color:var(--accent);"></span>
+                    <button class="control-btn" id="btn-video-scale" onclick="toggleFretboard()" title="Afficher le Manche" style="font-size: 1.2rem; margin-left:10px;">
+                        <i class="ph ph-line-segments"></i>
                     </button>
 
                     <!-- Subtitle Toggle Area -->
