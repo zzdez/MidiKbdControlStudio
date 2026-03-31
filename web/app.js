@@ -27,6 +27,7 @@ function t(keyPath, defaultText = null) {
     }
     return val;
 }
+window._ = t; // Alias for other components (Drum Machine, etc.)
 
 function applyTranslations() {
     document.querySelectorAll('[data-i18n], [data-i18n-title], [data-i18n-placeholder]').forEach(el => {
@@ -419,6 +420,10 @@ function onPlayerStateChange(event) {
         if (event.data === YT.PlayerState.ENDED) {
             if (window.currentAutoreplay === true) {
                 player.playVideo();
+            } else {
+                player.seekTo(0);
+                player.pauseVideo();
+                updatePlayPauseIcon('video', false);
             }
         } else if (event.data === YT.PlayerState.PLAYING) {
             updatePlayPauseIcon('video', true);
@@ -1998,8 +2003,7 @@ function playTrack(track) {
 
     const globalTitle = document.getElementById("global-video-title");
     const globalBpm = document.getElementById("global-video-bpm");
-    const globalKey = document.getElementById("global-video-key");
-    const globalScale = document.getElementById("global-video-scale");
+    updateHeaderScaleDisplay(track);
 
     // Determine Autoplay/Autoreplay
     // Important: if not defined in track, we use global settings, but we assign it to memory
@@ -2074,11 +2078,7 @@ function playTrack(track) {
         document.getElementById("global-video-info").style.display = "flex";
         globalTitle.innerText = track.title || track.url;
         if (track.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = track.bpm; } else { globalBpm.style.display = "none"; }
-        if (track.key) { globalKey.style.display = "inline"; globalKey.querySelector(".val").innerText = track.key; } else { globalKey.style.display = "none"; }
-        if (track.scale) {
-            globalScale.style.display = "inline";
-            globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${track.scale}"]`)?.text || track.scale;
-        } else { globalScale.style.display = "none"; }
+        updateHeaderScaleDisplay(track);
 
         const globalCover = document.getElementById("global-video-cover");
         if (globalCover) globalCover.style.display = "none";
@@ -2354,6 +2354,11 @@ window.addEventListener('keydown', (e) => {
             }
             command = 'media_restart';
             break;
+        case 'Escape':
+            clearLoop();
+            updateLoopUI();
+            e.preventDefault();
+            return;
         // Optional: Pitch access via Keyboard if needed later
         // case 'PageUp': command = 'media_pitch_up'; break;
         // case 'PageDown': command = 'media_pitch_down'; break;
@@ -2987,8 +2992,7 @@ async function playLocal(index) {
 
     const globalTitle = document.getElementById("global-video-title");
     const globalBpm = document.getElementById("global-video-bpm");
-    const globalKey = document.getElementById("global-video-key");
-    const globalScale = document.getElementById("global-video-scale");
+    updateHeaderScaleDisplay(file);
 
     // AUTO-RESET PITCH
     updatePitch(0);
@@ -3092,11 +3096,7 @@ async function playLocal(index) {
         document.getElementById("global-video-info").style.display = "flex";
         globalTitle.innerText = file.title || "Multitrack";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
-        if (file.key) { globalKey.style.display = "inline"; globalKey.querySelector(".val").innerText = file.key; } else { globalKey.style.display = "none"; }
-        if (file.scale) {
-            globalScale.style.display = "inline";
-            globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${file.scale}"]`)?.text || file.scale;
-        } else { globalScale.style.display = "none"; }
+        updateHeaderScaleDisplay(file);
 
         videoContainer.style.display = "none";
         audioContainer.style.display = "none";
@@ -3599,6 +3599,8 @@ async function playLocal(index) {
             saveMultitrackSettings(file); // Save exact stop time
         });
 
+        // Removed multitrack.on('finish'): Using fail-safe check in the main loop instead for reliability.
+
         // Removed mtInterval: loop monitoring handled by the global interval in app.js
         currentActivePlayer = 'multitrack';
         loadLoopsForTrack(file);
@@ -3612,11 +3614,7 @@ async function playLocal(index) {
         document.getElementById("global-video-info").style.display = "flex";
         globalTitle.innerText = file.title || "Audio";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
-        if (file.key) { globalKey.style.display = "inline"; globalKey.querySelector(".val").innerText = file.key; } else { globalKey.style.display = "none"; }
-        if (file.scale) {
-            globalScale.style.display = "inline";
-            globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${file.scale}"]`)?.text || file.scale;
-        } else { globalScale.style.display = "none"; }
+        updateHeaderScaleDisplay(file);
 
         const globalCover = document.getElementById("global-video-cover");
         if (globalCover) {
@@ -3705,11 +3703,7 @@ async function playLocal(index) {
         document.getElementById("global-video-info").style.display = "flex";
         globalTitle.innerText = file.title || "Video";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
-        if (file.key) { globalKey.style.display = "inline"; globalKey.querySelector(".val").innerText = file.key; } else { globalKey.style.display = "none"; }
-        if (file.scale) {
-            globalScale.style.display = "inline";
-            globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").querySelector(`option[value="${file.scale}"]`)?.text || file.scale;
-        } else { globalScale.style.display = "none"; }
+        updateHeaderScaleDisplay(file);
 
         const globalCover = document.getElementById("global-video-cover");
         if (globalCover) {
@@ -4003,6 +3997,12 @@ function multitrackControl(action) {
             if (window.multitrack.isPlaying()) {
                 window.multitrack.pause();
             } else {
+                // Fail-safe : Si on est à la toute fin (0.1s de battement), revenir au début avant de jouer
+                const dur = getUniversalDuration();
+                const cur = getCurrentPlayerTime();
+                if (cur >= dur - 0.1 && cur > 0) {
+                    window.multitrack.setTime(0);
+                }
                 window.multitrack.play();
             }
             updatePlayPauseUI();
@@ -5641,8 +5641,8 @@ function getUniversalDuration() {
 
 function getCurrentPlayerTime() {
     if (currentActivePlayer === 'multitrack' && window.multitrack) {
-        return (window.multitrack.wavesurfers && window.multitrack.wavesurfers[0] && typeof window.multitrack.wavesurfers[0].getCurrentTime === 'function') 
-            ? window.multitrack.wavesurfers[0].getCurrentTime() : 0;
+        return (typeof window.multitrack.getCurrentTime === 'function') 
+            ? window.multitrack.getCurrentTime() : 0;
     } else if (currentActivePlayer === 'local') {
         const vid = document.getElementById("html5-player");
         return vid ? vid.currentTime : 0;
@@ -5652,6 +5652,31 @@ function getCurrentPlayerTime() {
         return player.getCurrentTime();
     }
     return 0;
+}
+
+/**
+ * Updates the modern grouped Scale/Key badge in the header
+ */
+function updateHeaderScaleDisplay(item) {
+    const pill = document.getElementById("header-smart-scale-pill");
+    const text = document.getElementById("header-smart-scale-text");
+    if (!pill || !text) return;
+
+    if (!item) {
+        pill.style.display = "none";
+        return;
+    }
+
+    const key = item.media_key || item.key;
+    const scale = item.scale;
+    const scaleName = scale ? (document.getElementById("fretboard-scale").querySelector(`option[value="${scale}"]`)?.text || scale) : "";
+
+    if (key) {
+        pill.style.display = "flex";
+        text.innerText = `${key} ${scaleName}`.trim();
+    } else {
+        pill.style.display = "none";
+    }
 }
 
 function seekPlayerTo(time) {
@@ -5792,12 +5817,21 @@ function updateLoopUI() {
     if (btnSave_v) btnSave_v.style.display = (loopA !== null && loopB !== null && isLoopActive) ? "inline-block" : "none";
     if (btnSave_m) btnSave_m.style.display = (loopA !== null && loopB !== null && isLoopActive) ? "inline-block" : "none";
 
-    if (btnPrev_a) btnPrev_a.style.display = hasSavedLoops ? "inline-block" : "none";
-    if (btnNext_a) btnNext_a.style.display = hasSavedLoops ? "inline-block" : "none";
-    if (btnPrev_v) btnPrev_v.style.display = hasSavedLoops ? "inline-block" : "none";
-    if (btnNext_v) btnNext_v.style.display = hasSavedLoops ? "inline-block" : "none";
     if (btnPrev_m) btnPrev_m.style.display = hasSavedLoops ? "inline-block" : "none";
     if (btnNext_m) btnNext_m.style.display = hasSavedLoops ? "inline-block" : "none";
+
+    // Update Fretboard Button Highlights
+    const fbBtnA = document.getElementById("btn-audio-scale");
+    const fbBtnV = document.getElementById("btn-video-scale");
+    const fbBtnM = document.getElementById("btn-mt-scale");
+    const currentItem = (currentActivePlayer === 'youtube') 
+        ? currentTrackList.find(t => t.originalIndex === window.currentPlayingIndex)
+        : localFiles[window.currentPlayingIndex];
+
+    const hasScale = currentItem && (currentItem.media_key || currentItem.key);
+    [fbBtnA, fbBtnV, fbBtnM].forEach(btn => {
+        if (btn) btn.classList.toggle("btn-active-scale", !!hasScale);
+    });
 
     // Visual Timeline Markers for Local Video / Audio / Multitrack
     const isAudio = (currentActivePlayer === 'waveform');
@@ -5901,6 +5935,20 @@ setInterval(() => {
     if (isLoopActive) checkLoop(time);
     checkCues(time);
 
+    // Fail-safe pour le multipiste (si la détection par événement échoue)
+    if (currentActivePlayer === 'multitrack' && window.multitrack && !isLoopActive) {
+        const dur = getUniversalDuration();
+        if (dur > 0 && time >= dur - 0.1 && window.multitrack.isPlaying()) {
+            // Fin atteinte !
+            window.multitrack.pause();
+            window.multitrack.setTime(0);
+            if (window.currentAutoreplay === true) {
+                window.multitrack.play();
+            }
+            updatePlayPauseUI();
+        }
+    }
+
     if (currentActivePlayer === 'youtube') {
         updateTimelineUI(time);
     }
@@ -5946,7 +5994,9 @@ function openLoopModal() {
         existingContainer.style.display = "block";
         currentLoops.forEach(l => {
             const div = document.createElement("div");
-            div.style.cssText = "display:flex; justify-content:space-between; align-items:center; font-size:0.85em; background:#222; padding:4px 8px; border-radius:4px;";
+            div.className = "loop-modal-item " + (activeSavedLoopId === l.id ? "selected" : "");
+            div.style.cssText = "display:flex; justify-content:space-between; align-items:center; font-size:0.85em; background:#222; padding:4px 8px; border-radius:4px; cursor:pointer;";
+            div.onclick = () => selectLoopForUpdate(l.id);
             div.innerHTML = `
                 <span id="loop-name-display-${l.id}" style="color:#fff; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${l.name}</span>
                 <input type="text" id="loop-name-input-${l.id}" value="${l.name}" style="display:none; flex:1; margin-right:5px; font-size:1em; padding:2px; box-sizing:border-box;">
@@ -5954,9 +6004,9 @@ function openLoopModal() {
                 <span style="color:#888; font-family:monospace; margin:0 10px;">[${formatTimeCustom(l.start)}-${formatTimeCustom(l.end)}]</span>
                 
                 <div style="display:flex; gap:5px;">
-                    <button id="btn-edit-${l.id}" class="btn-icon" onclick="toggleEditLoop(${l.id})" style="padding:2px; font-size:1.2em; color:#fff;" title="Renommer"><i class="ph ph-pencil-simple"></i></button>
-                    <button id="btn-save-${l.id}" class="btn-icon" onclick="saveLoopName(${l.id})" style="display:none; padding:2px; font-size:1.2em; color:var(--accent);" title="Valider"><i class="ph ph-check"></i></button>
-                    <button class="btn-icon" onclick="deleteLoop(${l.id})" style="padding:2px; font-size:1.2em; color:#cf6679;" title="Supprimer"><i class="ph ph-trash"></i></button>
+                    <button id="btn-edit-${l.id}" class="btn-icon" onclick="event.stopPropagation(); toggleEditLoop(${l.id})" style="padding:2px; font-size:1.2em; color:#fff;" title="Renommer"><i class="ph ph-pencil-simple"></i></button>
+                    <button id="btn-save-${l.id}" class="btn-icon" onclick="event.stopPropagation(); saveLoopName(${l.id})" style="display:none; padding:2px; font-size:1.2em; color:var(--accent);" title="Valider"><i class="ph ph-check"></i></button>
+                    <button class="btn-icon" onclick="event.stopPropagation(); deleteLoop(${l.id})" style="padding:2px; font-size:1.2em; color:#cf6679;" title="Supprimer"><i class="ph ph-trash"></i></button>
                 </div>
             `;
             existingList.appendChild(div);
@@ -5996,6 +6046,33 @@ function saveLoopName(id) {
 
         // Save to Backend immediately
         saveLoopsToBackend();
+    }
+}
+
+function selectLoopForUpdate(id) {
+    activeSavedLoopId = id;
+    const loop = currentLoops.find(l => l.id === id);
+    if (loop) {
+        document.getElementById("loop-modal-name").value = loop.name;
+        
+        // Refresh UI of the modal (especially button text and selection highlight)
+        const modal = document.getElementById("loop-modal");
+        const saveBtn = modal.querySelector(".btn-primary");
+        if (saveBtn) saveBtn.innerText = t("web.btn_update", "Mettre à jour");
+        
+        // Update highlight
+        document.querySelectorAll('.loop-modal-item').forEach(el => el.classList.remove('selected'));
+        // Find the div by examining children or just re-render (re-render is safer but more heavy)
+        // Since we already set activeSavedLoopId, let's just refresh the list part!
+        const existingList = document.getElementById("loop-modal-existing-list");
+        Array.from(existingList.children).forEach(child => {
+            // Find if this is the right one (using the id in child but it's not straightforward)
+            // Actually, we can just re-render the list only
+            const btnEdit = child.querySelector(`[id^='btn-edit-']`);
+            if (btnEdit && btnEdit.id === `btn-edit-${id}`) {
+                child.classList.add('selected');
+            }
+        });
     }
 }
 
@@ -6628,6 +6705,7 @@ function toggleLoopState() {
             // We are inside a loop, but no manual points set. Snap to this loop's boundaries!
             loopA = activeLoop.start;
             loopB = activeLoop.end;
+            activeSavedLoopId = activeLoop.id; // Corrected: store the ID of the matched loop
             isLoopActive = true;
             isSequentialLoop = false;
         } else if (!activeLoop && currentLoops.length > 0 && loopA === null) {

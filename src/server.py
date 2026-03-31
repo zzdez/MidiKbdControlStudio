@@ -43,6 +43,7 @@ download_service = DownloadService()
 SETLIST_FILE = os.path.join(get_data_dir(), "setlist.json")
 APPS_FILE = os.path.join(get_data_dir(), "apps.json")
 LOCAL_LIB_FILE = os.path.join(get_data_dir(), "local_lib.json")
+DRUM_SETTINGS_FILE = os.path.join(get_data_dir(), "drum_settings.json")
 
 app.add_middleware(
     CORSMiddleware,
@@ -781,6 +782,32 @@ async def get_library():
     """Returns the hierarchical library structure."""
     return library_manager.get_library()
 
+# --- DRUM MACHINE SETTINGS ---
+DRUM_SETTINGS_FILE = os.path.join(get_data_dir(), "drum_settings.json")
+
+@app.get("/api/drums/settings")
+async def get_drum_settings():
+    """Returns persistent drum machine settings (volumes, kit, bpm)."""
+    if os.path.exists(DRUM_SETTINGS_FILE):
+        try:
+            with open(DRUM_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"Error loading drum settings: {e}")
+            return {}
+    return {}
+
+@app.post("/api/drums/settings")
+async def save_drum_settings(settings: Dict):
+    """Saves drum machine settings to disk."""
+    try:
+        with open(DRUM_SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=4)
+        return {"status": "ok"}
+    except Exception as e:
+        logging.error(f"Error saving drum settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- DRUM MACHINE MIDI WIZARD ---
 
 @app.post("/api/drums/analyze_midi")
@@ -810,12 +837,14 @@ async def analyze_drum_midi(data: Dict):
                         channels.add(msg.channel + 1) # 1-indexed for user
             
             if note_count > 0:
+                avg_note = sum(notes) / len(notes) if notes else 0
                 tracks_info.append({
                     "index": i,
                     "name": track_name,
                     "note_count": note_count,
                     "channels": list(channels),
-                    "unique_notes": sorted(list(notes))
+                    "unique_notes": sorted(list(notes)),
+                    "avg_note": avg_note
                 })
                 
         return {
@@ -840,6 +869,10 @@ async def parse_drum_midi_endpoint(data: Dict):
             
         mapping_override = data.get("mapping_override", {})
         selected_tracks = data.get("selected_tracks", None)
+        track_instruments = data.get("track_instruments", {})
+        transpose_val = int(data.get("transpose", 0))
+        
+        print(f"[MIDI PARSE] Transpose: {transpose_val}, Selected Tracks: {selected_tracks}")
             
         content = base64.b64decode(content_b64)
         midi = mido.MidiFile(file=io.BytesIO(content))
@@ -874,13 +907,22 @@ async def parse_drum_midi_endpoint(data: Dict):
             if selected_tracks is not None and i not in selected_tracks:
                 continue
                 
+            # Track-level instrument assignment (Priority 1)
+            # Keys in JSON come as strings
+            track_inst = track_instruments.get(str(i))
+            
             current_tick = 0
             for msg in track:
                 current_tick += msg.time
                 if msg.type == 'note_on' and msg.velocity > 0:
                     step = round(current_tick / ticks_per_step)
                     if 0 <= step < max_steps:
-                        inst = final_mapping.get(msg.note)
+                        # Instrument determination logic
+                        if track_inst:
+                            inst = track_inst
+                        else:
+                            inst = final_mapping.get(msg.note)
+                            
                         if inst:
                             if inst not in tracks_data:
                                 tracks_data[inst] = {} 
@@ -888,16 +930,25 @@ async def parse_drum_midi_endpoint(data: Dict):
                             if step > abs_last_step:
                                 abs_last_step = step
                                 
-                            val = 2 if msg.velocity > 100 else 1
-                            tracks_data[inst][step] = max(tracks_data[inst].get(step, 0), val)
+                            # Pour la basse, on stocke la NOTE MIDI (pitch) + la VELOCITY (dynamique)
+                            # Format: (note * 128) + velocity
+                            if inst == 'bass':
+                                vel = getattr(msg, 'velocity', 100)
+                                tracks_data[inst][step] = (msg.note + transpose_val) * 128 + vel
+                            else:
+                                val = 2 if msg.velocity > 100 else 1
+                                tracks_data[inst][step] = max(tracks_data[inst].get(step, 0), val)
         
         # Determine final steps (rounded to next bar)
         final_steps = ((abs_last_step // 16) + 1) * 16
+        print(f"[MIDI PARSE] Mapping used: {final_mapping}")
         print(f"[MIDI PARSE] Total steps calculated: {final_steps}")
         
         # Convert sparse dicts to dense lists for the frontend
         dense_tracks = {}
-        for inst in ['kick', 'snare', 'hihat', 'openhat', 'tom1', 'tom2', 'tom3', 'clap', 'cymbal', 'cowbell', 'rim']:
+        # Ajout de 'bass' à la liste des instruments gérés
+        all_insts = ['kick', 'snare', 'hihat', 'openhat', 'tom1', 'tom2', 'tom3', 'clap', 'cymbal', 'cowbell', 'rim', 'bass']
+        for inst in all_insts:
             if inst in tracks_data:
                 count = len(tracks_data[inst])
                 print(f"[MIDI PARSE] Instrument '{inst}': {count} notes found.")
@@ -1678,6 +1729,25 @@ async def api_open_settings(request: Request):
         print(f"OpenSettings Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/drums/settings")
+async def get_drum_settings():
+    if os.path.exists(DRUM_SETTINGS_FILE):
+        try:
+            with open(DRUM_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+@app.post("/api/drums/settings")
+async def save_drum_settings(settings: Dict):
+    try:
+        with open(DRUM_SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=4)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -1694,8 +1764,12 @@ else:
     base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 web_path = os.path.join(base_path, "web")
+assets_path = os.path.join(base_path, "assets")
 
 if os.path.exists(web_path):
-    app.mount("/", StaticFiles(directory=web_path, html=True), name="static")
+    app.mount("/", StaticFiles(directory=web_path, html=True), name="static_web")
+
+if os.path.exists(assets_path):
+    app.mount("/assets", StaticFiles(directory=assets_path), name="static_assets")
 else:
-    print(f"WARNING: Web directory not found at {web_path}")
+    print(f"WARNING: Assets directory not found at {assets_path}")

@@ -346,7 +346,7 @@ class MetronomeEngine {
         }
     }
 
-    start() {
+    start(forceReset = false) {
         if (this.isPlaying) return;
         this.init();
         
@@ -366,8 +366,11 @@ class MetronomeEngine {
             this.isCountingIn = false;
         }
 
-        this.currentBeatInMeasure = 0; 
-        this.currentTotalBeat = 0; // Reset for Song Mode
+        if (forceReset) {
+            this.currentBeatInMeasure = 0; 
+            this.currentTotalBeat = 0; // Reset for Song Mode
+        }
+        
         this.timerWorker.postMessage('start');
     }
 
@@ -399,7 +402,7 @@ class MetronomeEngine {
 
     toggle() {
         if (this.isPlaying) this.stop();
-        else this.start();
+        else this.start(false); // Resume by default (no reset)
         return this.isPlaying;
     }
     

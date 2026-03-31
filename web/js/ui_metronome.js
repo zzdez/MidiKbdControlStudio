@@ -33,7 +33,7 @@ function toggleMetronomeUI() {
 function metronomeTogglePlay() {
     const isPlaying = window.metronome.toggle();
     const btn = document.getElementById("btn-metro-play");
-    const drumBtn = document.getElementById("btn-drum-play");
+    const drumBtn = document.getElementById("btn-drum-play-main");
 
     if (isPlaying) {
         if (btn) btn.innerHTML = '<i class="ph ph-stop-circle ph-fill" style="color:#cf6679;"></i>';

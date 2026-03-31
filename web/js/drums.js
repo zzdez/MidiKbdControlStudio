@@ -1,38 +1,156 @@
 // DRUM MACHINE ENGINE
 // Moteur de boîte à rythmes basé sur des matrices en 16 pas (Doubles croches)
 
+// MIDI Wizard Session State
+let currentWizardB64 = null;
+let isEditingMidiMapping = false;
+
+window.DrumMachineLoadedAt = new Date().getTime();
+console.log("DRUMS.JS V7 LOADED - Production Mode (Object-based)");
+
 window.DrumMachine = {
     isActive: false,
     isLoaded: false,
-    currentPatternId: 'rock_1',
-    swing: 0, // 0-100%
-    selectedInstrument: 'kick',
-    
-    currentPatternId: 'rock_1',
     selectedInstrument: 'kick',
     isRecording: false,
-    isMultiTrack: false, // Nouveau mode de vue
+    isMultiTrack: false, 
     lastStepPlayed: 0,
-    
-    // Paramètres avancés par instrument
+    currentPatternId: 'rock_1',
+    swing: 0,
     settings: {
         master:  { volume: 1.0, mute: false, solo: false },
-        kick:    { volume: 1.0, tune: 0, decay: 0.5, pan: 0, mute: false, solo: false },
-        snare:   { volume: 1.0, tune: 0, decay: 0.5, pan: 0, mute: false, solo: false },
+        kick:    { volume: 1.0, tune: 0, decay: 0.5, pan: 0.0, mute: false, solo: false },
+        snare:   { volume: 1.0, tune: 0, decay: 0.5, pan: 0.0, mute: false, solo: false },
         hihat:   { volume: 0.8, tune: 0, decay: 0.2, pan: 0.2, mute: false, solo: false },
         openhat: { volume: 0.7, tune: 0, decay: 0.6, pan: 0.2, mute: false, solo: false },
         clap:    { volume: 0.9, tune: 0, decay: 0.4, pan: -0.2, mute: false, solo: false },
         tom1:    { volume: 0.9, tune: 0, decay: 0.6, pan: -0.3, mute: false, solo: false },
-        tom2:    { volume: 0.9, tune: -2, decay: 0.7, pan: 0, mute: false, solo: false },
+        tom2:    { volume: 0.9, tune: -2, decay: 0.7, pan: 0.0, mute: false, solo: false },
         tom3:    { volume: 0.9, tune: -4, decay: 0.8, pan: 0.3, mute: false, solo: false },
         cymbal:  { volume: 0.6, tune: 0, decay: 1.5, pan: -0.4, mute: false, solo: false },
         cowbell: { volume: 0.7, tune: 0, decay: 0.3, pan: 0.1, mute: false, solo: false },
-        rim:     { volume: 0.8, tune: 0, decay: 0.1, pan: -0.1, mute: false, solo: false }
+        rim:     { volume: 0.8, tune: 0, decay: 0.1, pan: -0.1, mute: false, solo: false },
+        bass:    { volume: 1.0, tune: 0, decay: 0.15, pan: 0.0, mute: false, solo: false }
+    },
+
+    // Méthodes de Mixage
+    toggleMute(instId) {
+        const config = this.settings[instId];
+        if (config) {
+            config.mute = !config.mute;
+            if (config.mute) config.solo = false;
+            this.renderMixer();
+            this.saveSettingsDebounced();
+        }
+    },
+
+    toggleSolo(instId) {
+        const config = this.settings[instId];
+        if (config) {
+            config.solo = !config.solo;
+            if (config.solo) config.mute = false;
+            this.renderMixer();
+            this.saveSettingsDebounced();
+        }
+    },
+
+    renderMixer() {
+        const container = document.getElementById('drum-mixer-container');
+        if (!container) return;
+        
+        const uiInstruments = [
+            { id: 'master', label: 'Master', default: 100 },
+            { id: 'kick', label: 'Kick', default: 100 },
+            { id: 'snare', label: 'Snare', default: 100 },
+            { id: 'hihat', label: 'Hi-Hat', default: 100 },
+            { id: 'openhat', label: 'O.Hat', default: 80 },
+            { id: 'clap', label: 'Clap', default: 100 },
+            { id: 'tom1', label: 'Hi Tom', default: 90 },
+            { id: 'tom2', label: 'Mid Tom', default: 90 },
+            { id: 'tom3', label: 'Low Tom', default: 90 },
+            { id: 'cymbal', label: 'Crash', default: 70 },
+            { id: 'cowbell', label: 'Cowbell', default: 80 },
+            { id: 'rim', label: 'Rim', default: 80 }
+        ];
+        
+        // Add bass track only for imported MIDI songs
+        if (this.currentPatternId && this.currentPatternId.startsWith('imported_')) {
+            uiInstruments.push({ id: 'bass', label: 'Bass', default: 100 });
+        }
+
+        const settings = this.settings;
+        const soloActive = Object.keys(settings).some(k => k !== 'master' && settings[k].solo);
+
+        container.innerHTML = '';
+        
+        uiInstruments.forEach(inst => {
+            // Ensure track exists in settings
+            if (!settings[inst.id]) {
+                settings[inst.id] = { volume: inst.default/100, mute: false, solo: false, tune: 0, decay: 0.5, pan: 0 };
+            }
+            
+            const config = settings[inst.id];
+            const isSelected = (this.selectedInstrument === inst.id);
+            
+            let labelText = inst.label;
+            if (typeof window._ === 'function') {
+                labelText = window._('web.lbl_' + inst.id);
+            }
+
+            const isMuted = config.mute === true;
+            const isDimmed = (soloActive && !config.solo && inst.id !== 'master') || isMuted;
+
+            container.innerHTML += `
+                <div class="drum-track ${isSelected ? 'selected' : ''} ${isMuted ? 'muted' : ''}" id="track-${inst.id}" style="opacity: ${isDimmed ? 0.3 : 1}">
+                    <span class="slider-label" style="font-size: 0.65em; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; color: ${isMuted ? '#f44336' : '#aaa'};">
+                        ${labelText} ${isMuted ? '<b>(M)</b>' : ''}
+                    </span>
+                    <div class="drum-slider-area">
+                        <input type="range" id="drum-vol-${inst.id}" min="0" max="100" value="${Math.round(config.volume * 100)}" orient="vertical" oninput="window.DrumMachine.updateVolume('${inst.id}', this.value)" style="height: 100px; width: 22px; -webkit-appearance: slider-vertical; appearance: slider-vertical; writing-mode: vertical-lr; direction: rtl; margin: 0; cursor: pointer;">
+                        <div class="vu-meter-container">
+                            <div id="vu-${inst.id}" class="vu-meter-bar"></div>
+                        </div>
+                    </div>
+                    <span id="drum-vol-${inst.id}-pct" class="slider-percent" style="font-size: 0.65em; margin-top: 8px; font-family: monospace; color: var(--accent);">${Math.round(config.volume * 100)}%</span>
+                    
+                    <div class="drum-track-controls" style="display: flex; gap: 4px; margin-top: 5px;">
+                        <button id="btn-mute-${inst.id}" class="btn-mini-toggle ${config.mute ? 'active' : ''}">M</button>
+                        ${inst.id !== 'master' ? `<button id="btn-solo-${inst.id}" class="btn-mini-toggle solo ${config.solo ? 'active' : ''}">S</button>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+    },
+
+    updateVolume(instId, value) {
+        const vol = parseFloat(value) / 100;
+        this.settings[instId].volume = vol;
+        const pctLabel = document.getElementById(`drum-vol-${instId}-pct`);
+        if (pctLabel) pctLabel.innerText = Math.round(vol * 100) + '%';
+        this.saveSettingsDebounced();
+    },
+
+    flashVUMeter(instId, gain = 1.0) {
+        const bar = document.getElementById(`vu-${instId}`);
+        if (!bar) return;
+        
+        let displayGain = gain;
+        const config = this.settings[instId];
+        if (config) {
+            if (config.mute) displayGain = 0;
+            displayGain *= config.volume;
+        }
+        
+        const height = Math.min(100, displayGain * 150);
+        bar.style.height = height + "%";
+        bar.style.background = height > 80 ? "#f44336" : (height > 50 ? "#ffeb3b" : "#4caf50");
+        
+        setTimeout(() => {
+            bar.style.height = "0%";
+        }, 100);
     },
 
     buffers: {},
-    isLoaded: false,
-    
     patterns: {
         rock_1: {
             steps: 16,
@@ -87,9 +205,6 @@ window.DrumMachine = {
     currentKit: 'tr505',
     
     async loadAssets(audioContext) {
-        // Optionnel : on empêche le rechargement du MÊME kit
-        // if (this.isLoaded) return; 
-        
         const instruments = ['kick', 'snare', 'hihat', 'openhat', 'tom1', 'tom2', 'tom3', 'clap', 'cymbal', 'cowbell', 'rim'];
         
         // Flush old buffers
@@ -97,16 +212,26 @@ window.DrumMachine = {
         
         for (const inst of instruments) {
             try {
-                // Modifié pour supporter le format .mp3 et les sous-dossiers par kit
                 const response = await fetch(`/assets/drums/${this.currentKit}/${inst}.mp3`);
                 if (response.ok) {
                     const arrayBuffer = await response.arrayBuffer();
                     this.buffers[inst] = await audioContext.decodeAudioData(arrayBuffer);
+                } else if (inst === 'hihat') {
+                    // Fallback to openhat if closed hihat is missing
+                    const fallbackResp = await fetch(`/assets/drums/${this.currentKit}/openhat.mp3`);
+                    if (fallbackResp.ok) {
+                        const arrayBuffer = await fallbackResp.arrayBuffer();
+                        this.buffers[inst] = await audioContext.decodeAudioData(arrayBuffer);
+                        console.log(`[DRUM] Fallback Hi-Hat (Open used for Closed) for ${this.currentKit}`);
+                    }
                 }
             } catch (e) {
                 console.warn(`Drum asset ${this.currentKit}/${inst}.mp3 not found yet.`, e);
             }
         }
+
+        this.isLoaded = true;
+
         this.isLoaded = true;
     },
 
@@ -114,10 +239,14 @@ window.DrumMachine = {
         this.currentKit = kitId;
         this.isLoaded = false;
         await this.loadAssets(audioContext);
+        this.saveSettingsDebounced();
     },
 
     playStep(audioContext, masterGainNode, time, stepIndex16th) {
         if (!this.isActive || !this.isLoaded) return;
+
+        // Global Mute check
+        if (this.settings.master && this.settings.master.mute) return;
 
         const pattern = this.patterns[this.currentPatternId];
         if (!pattern) return;
@@ -126,71 +255,443 @@ window.DrumMachine = {
         this.lastStepPlayed = step;
         
         // Détection du Solo (si un instrument est en solo, on ne joue que lui)
-        const soloActive = Object.values(this.settings).some(s => s.solo);
+        const soloActive = Object.keys(this.settings).some(k => k !== 'master' && this.settings[k].solo);
+
+        let anyTrackPlayed = false;
+        let maxStepGain = 0;
 
         Object.keys(pattern.tracks).forEach(inst => {
             const stepValue = pattern.tracks[inst][step];
             const config = this.settings[inst];
-            const buffer = this.buffers[inst];
             
-            if (stepValue > 0 && buffer && config && !config.mute) {
-                console.log(`[DRUM] Triggering ${inst} at step ${step} (Value: ${stepValue}, Buffer: ${!!buffer})`);
-                
+            if (stepValue > 0 && config && config.mute !== true) {
                 if (soloActive && !config.solo) return;
 
-                let adjustedTime = time;
-                if (step % 2 === 1 && this.swing > 0) {
-                    const swingOffset = (60.0 / window.metronome.bpm) / 4.0 * (this.swing / 100.0) * 0.5;
-                    adjustedTime += swingOffset;
-                }
+                anyTrackPlayed = true;
 
-                const source = audioContext.createBufferSource();
-                source.buffer = buffer;
-                
-                source.playbackRate.value = Math.pow(2, (config.tune || 0) / 12);
-
+                // 1. Audio Nodes Setup
                 const gainNode = audioContext.createGain();
                 const panner = audioContext.createStereoPanner();
+                const filter = audioContext.createBiquadFilter();
                 
-                const velocity = (stepValue === 2) ? 1.5 : 1.0; 
-                const masterVol = (this.settings.master ? this.settings.master.volume : 1.0);
-                gainNode.gain.value = (config.volume || 1.0) * velocity * masterVol;
+                let source = null;
+                let velocity = 1.0;
+                let finalPlaybackRate = Math.pow(2, (config.tune || 0) / 12);
+                let adjustedTime = time;
+
+                // --- Swing calculation ---
+                if (step % 2 === 1 && this.swing > 0) {
+                    const swingOffset = (60.0 / (window.metronome?.bpm || 120)) / 4.0 * (this.swing / 100.0) * 0.5;
+                    adjustedTime += swingOffset;
+                }
+                if (adjustedTime < audioContext.currentTime) adjustedTime = audioContext.currentTime;
+
+                // Bass is only active for imported MIDI patterns
+                if (inst === 'bass') {
+                    if (!this.currentPatternId.startsWith('imported_')) return;
+                    
+                    const targetNote = Math.floor(stepValue / 128);
+                    const midiVelocity = stepValue % 128;
+                    velocity = (midiVelocity / 127) * 1.05;
+                    
+                    // NOTE: Frequency is based on A4 = 440Hz reference
+                    const freq = 440 * Math.pow(2, (targetNote - 69) / 12);
+                    
+                    // Osc 1: Sub Sine
+                    const oscSub = audioContext.createOscillator();
+                    oscSub.type = 'sine';
+                    oscSub.frequency.setValueAtTime(freq, adjustedTime);
+                    oscSub.frequency.exponentialRampToValueAtTime(freq * 0.98, adjustedTime + 0.1); 
+                    
+                    // Osc 2: Triangle for character
+                    const oscTri = audioContext.createOscillator();
+                    oscTri.type = 'triangle';
+                    oscTri.frequency.setValueAtTime(freq, adjustedTime);
+                    
+                    // Filter: Resonant Low Pass
+                    filter.type = 'lowpass';
+                    filter.Q.value = 5;
+                    filter.frequency.setValueAtTime(freq * 8, adjustedTime);
+                    filter.frequency.exponentialRampToValueAtTime(freq * 2, adjustedTime + 0.15); 
+                    
+                    // Gain Envelope
+                    const settingsMaster = window.DrumMachine.settings;
+                    const masterVol = settingsMaster.master ? settingsMaster.master.volume : 1.0;
+                    const decay = (config.decay || 0.15);
+                    
+                    gainNode.gain.setValueAtTime(0, adjustedTime);
+                    gainNode.gain.linearRampToValueAtTime((config.volume !== undefined ? config.volume : 1.0) * velocity * masterVol, adjustedTime + 0.002);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, adjustedTime + decay);
+
+                    oscSub.connect(filter);
+                    oscTri.connect(filter);
+                    
+                    oscSub.start(adjustedTime);
+                    oscSub.stop(adjustedTime + decay);
+                    oscTri.start(adjustedTime);
+                    oscTri.stop(adjustedTime + decay);
+                    
+                    source = { 
+                        stop: (t) => { try { oscSub.stop(t); oscTri.stop(t); } catch(e){} },
+                        disconnect: () => { oscSub.disconnect(); oscTri.disconnect(); }
+                    };
+
+                    const debugLog = document.getElementById('drum-debug-log');
+                    if (debugLog) {
+                        debugLog.innerText = `SYNTH: Note ${targetNote} (${freq.toFixed(1)}Hz)`;
+                        debugLog.style.color = '#e040fb';
+                    }
+                } 
+                else {
+                    const buffer = this.buffers[inst];
+                    if (!buffer) return;
+                    
+                    const bufSource = audioContext.createBufferSource();
+                    bufSource.buffer = buffer;
+                    bufSource.playbackRate.value = finalPlaybackRate;
+                    
+                    // Utiliser la vélocité MIDI (0..127) si disponible, sinon défaut
+                    velocity = (stepValue > 2) ? (stepValue / 127) : (stepValue === 2 ? 1.5 : 1.0);
+                    filter.type = 'allpass';
+                    
+                    bufSource.connect(filter);
+                    bufSource.start(adjustedTime);
+                    source = bufSource;
+
+                    const debugLog = document.getElementById('drum-debug-log');
+                    if (debugLog && step % 4 === 0) {
+                        debugLog.innerText = `DRUM: ${inst.toUpperCase()}`;
+                        debugLog.style.color = '#666';
+                    }
+
+                    // Enveloppe
+                    const settings = window.DrumMachine.settings;
+                    const masterVol = settings.master ? settings.master.volume : 1.0;
+                    const decayTime = Math.max(0.01, config.decay || 0.5);
+                    gainNode.gain.setValueAtTime((config.volume !== undefined ? config.volume : 1.0) * velocity * masterVol, adjustedTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, adjustedTime + decayTime);
+                }
+
+                // Final Routing
+                const instGain = (config.volume !== undefined ? config.volume : 1.0) * velocity;
+                maxStepGain = Math.max(maxStepGain, instGain);
                 
-                const decayValue = (typeof config.decay === 'number' ? config.decay : 0.5);
-                const decayTime = Math.max(0.01, decayValue);
-                gainNode.gain.setValueAtTime(gainNode.gain.value, adjustedTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, adjustedTime + decayTime);
-
-                panner.pan.value = config.pan;
-
-                source.connect(gainNode);
+                filter.connect(gainNode);
                 gainNode.connect(panner);
-                panner.connect(masterGainNode);
+                panner.pan.value = config.pan !== undefined ? config.pan : 0;
                 
-                source.start(adjustedTime);
-                source.stop(adjustedTime + decayTime + 0.1);
+                // CONNECT TO MASTER GAIN NODE (Passed as argument)
+                if (masterGainNode) {
+                    panner.connect(masterGainNode);
+                } else {
+                    panner.connect(audioContext.destination);
+                }
 
-                // Visual Feedback
+                // Visual Feedback (Per instrument VU)
                 const delay = (adjustedTime - audioContext.currentTime) * 1000;
                 setTimeout(() => {
-                    flashVUMeter(inst);
-                    flashVUMeter('master');
-                    updateSequencerPlayhead(step);
+                    flashVUMeter(inst, instGain);
                 }, Math.max(0, delay));
             }
         });
+
+        // GLOBAL Visual Feedback (Once per step)
+        const delay = (time - audioContext.currentTime) * 1000;
+        setTimeout(() => {
+            if (anyTrackPlayed) {
+                const masterVol = (this.settings.master ? this.settings.master.volume : 1.0);
+                flashVUMeter('master', maxStepGain * masterVol);
+            }
+            updateSequencerPlayhead(step);
+            if (this.updateSongTimeline) this.updateSongTimeline(stepIndex16th);
+            // BPM display is updated by updateBpmUI() called by various events, no need to update here every step
+        }, Math.max(0, delay));
+    },
+
+    drawSongMiniMap() {
+        const canvas = document.getElementById('drum-mini-map');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const pattern = this.patterns[this.currentPatternId];
+        if (!pattern) return;
+
+        // Set internal resolution matching display
+        canvas.width = canvas.clientWidth * window.devicePixelRatio;
+        canvas.height = canvas.clientHeight * window.devicePixelRatio;
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        const totalSteps = pattern.steps;
+        
+        ctx.clearRect(0, 0, w, h);
+
+        // 1. Draw Measures (Grid)
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 1;
+        for (let s = 0; s < totalSteps; s += 16) {
+            const x = (s / totalSteps) * w;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, h);
+            ctx.stroke();
+        }
+
+        // 2. Draw Hits
+        const tracks = Object.keys(pattern.tracks);
+        const trackHeight = h / (tracks.length || 1);
+        
+        tracks.forEach((trackId, tIdx) => {
+            const track = pattern.tracks[trackId];
+            const y = (tIdx * trackHeight) + (trackHeight / 2);
+            
+            // Color based on instrument type
+            let color = '#555';
+            if (trackId === 'kick') color = '#ff5252';
+            else if (trackId === 'snare') color = '#448aff';
+            else if (trackId === 'hihat' || trackId === 'openhat') color = '#ffd740';
+            else if (trackId === 'bass' && this.currentPatternId.startsWith('imported_')) color = '#e040fb';
+            else if (trackId === 'cymbal' || trackId === 'clap') color = '#69f0ae';
+
+            ctx.fillStyle = color;
+            
+            track.forEach((val, step) => {
+                if (val > 0) {
+                    const x = (step / totalSteps) * w;
+                    // Accent vs Normal
+                    const radius = (val === 2) ? 2.5 : 1.5;
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        });
+    },
+
+    updateSongTimeline(step) {
+        const pattern = this.patterns[this.currentPatternId];
+        if (!pattern || pattern.steps <= 64) return;
+
+        const cursor = document.getElementById('drum-progress-cursor');
+        const slider = document.getElementById('drum-song-slider');
+        const stats = document.getElementById('drum-song-stats');
+        const measureDisp = document.getElementById('drum-measure-display');
+
+        if (cursor) {
+            const percent = (step / pattern.steps) * 100;
+            cursor.style.left = percent + '%';
+        }
+
+        if (slider) {
+            slider.value = step;
+        }
+
+        if (stats) {
+            stats.innerText = `Step ${step + 1} / ${pattern.steps}`;
+        }
+
+        if (measureDisp) {
+            const currentMeasure = Math.floor(step / 16) + 1;
+            const totalMeasures = Math.ceil(pattern.steps / 16);
+            measureDisp.innerText = `MEASURE ${currentMeasure} / ${totalMeasures}`;
+        }
+    },
+
+    seekFromTimeline(step) {
+        if (!window.metronome) return;
+        const stepNum = parseInt(step);
+        
+        // Synchronise le métronome sur le bon pas
+        // currentTotalBeat est en noires, donc 1 beat = 4 steps (16th notes)
+        window.metronome.currentTotalBeat = Math.floor(stepNum / 4);
+        window.metronome.currentBeatInMeasure = window.metronome.currentTotalBeat % window.metronome.beatsPerMeasure;
+        
+        // On force la mise à jour visuelle immédiate
+        this.updateSongTimeline(stepNum);
+        
+        console.log(`[DRUM] Seek to Step: ${stepNum} (Beat: ${window.metronome.currentTotalBeat})`);
+    },
+
+
+    drumControl(action) {
+        if (!window.metronome) return;
+        const m = window.metronome;
+        
+        switch(action) {
+            case 'restart':
+                m.currentTotalBeat = 0;
+                m.currentBeatInMeasure = 0;
+                m.nextNoteTime = m.audioContext.currentTime + 0.05;
+                this.updateSongTimeline(0);
+                console.log("[DRUM] Transport: Restart");
+                break;
+            case 'stop':
+                m.stop();
+                m.currentTotalBeat = 0;
+                m.currentBeatInMeasure = 0;
+                // Update UI icons via standard toggle logic
+                if (typeof metronomeTogglePlay === 'function') {
+                    const drumBtn = document.getElementById("btn-drum-play-main");
+                    const metroBtn = document.getElementById("btn-metro-play");
+                    if (drumBtn) drumBtn.innerHTML = '<i class="ph ph-play-circle ph-fill"></i>';
+                    if (metroBtn) metroBtn.innerHTML = '<i class="ph ph-play-circle ph-fill"></i>';
+                    if (typeof resetBeatVisualizer === 'function') resetBeatVisualizer();
+                }
+                this.updateSongTimeline(0);
+                console.log("[DRUM] Transport: Stop");
+                break;
+            case 'seek_back':
+                m.currentTotalBeat = Math.max(0, m.currentTotalBeat - m.beatsPerMeasure);
+                this.updateSongTimeline(m.currentTotalBeat * 4);
+                console.log("[DRUM] Transport: Seek Back (1 Bar)");
+                break;
+            case 'seek_next':
+                m.currentTotalBeat += m.beatsPerMeasure;
+                this.updateSongTimeline(m.currentTotalBeat * 4);
+                console.log("[DRUM] Transport: Seek Next (1 Bar)");
+                break;
+            case 'tempo_up':
+                m.setBpm(m.bpm + 1);
+                this.updateBpmUI();
+                break;
+            case 'tempo_down':
+                m.setBpm(Math.max(30, m.bpm - 1));
+                this.updateBpmUI();
+                break;
+        }
+    },
+
+    updateBpmUI() {
+        if (!window.metronome) return;
+        const bpm = Math.round(window.metronome.bpm || 120);
+        
+        // Modal Footer BPM (Input or Display)
+        const bpmDisp = document.getElementById('drum-bpm-display');
+        if (bpmDisp) {
+            if (bpmDisp.tagName === 'INPUT') {
+                bpmDisp.value = bpm;
+            } else {
+                bpmDisp.innerText = bpm;
+            }
+        }
+        
+        // Main Metronome Sync
+        const mainInput = document.getElementById('metro-bpm-input');
+        const mainSlider = document.getElementById('metro-bpm-slider');
+        if (mainInput) mainInput.value = bpm;
+        if (mainSlider) mainSlider.value = bpm;
+        
+        // Persist if needed (debounce handled by saveSettingsDebounced)
+        if (this.saveSettingsDebounced) this.saveSettingsDebounced();
+    },
+
+    // --- SETTINGS PERSISTENCE ---
+    // --- SETTINGS PERSISTENCE (JSON BACKEND) ---
+    async saveSettings() {
+        if (!window.metronome) return;
+        
+        const settingsPayload = {
+            bpm: window.metronome.bpm || 120,
+            kit_id: this.currentKit || 'tr505',
+            pattern_id: this.currentPatternId || 'rock_1',
+            swing: this.swing || 0,
+            mixer: this.settings // Save the entire internal state object (reliable)
+        };
+        
+        try {
+            const response = await fetch('/api/drums/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settingsPayload)
+            });
+            if (response.ok) {
+                console.log("[DRUM] Settings saved to JSON successfully.");
+            }
+        } catch(e) { 
+            console.error("[DRUM] Failed to save settings to backend", e); 
+        }
+    },
+
+    saveSettingsDebounced() {
+        if (this.saveTimeout) clearTimeout(this.saveTimeout);
+        this.saveTimeout = setTimeout(() => this.saveSettings(), 2000);
+    },
+
+    async loadSettings() {
+        try {
+            const response = await fetch('/api/drums/settings');
+            if (!response.ok) return;
+            const settings = await response.json();
+            if (!settings || Object.keys(settings).length === 0) return;
+            
+            console.log("[DRUM] Loading settings from JSON...", settings);
+
+            if (settings.bpm && window.metronome) {
+                window.metronome.setBpm(settings.bpm);
+            }
+            
+            if (settings.kit_id) {
+                this.currentKit = settings.kit_id;
+                const kitSelect = document.getElementById('drum-kit-select');
+                if (kitSelect) kitSelect.value = settings.kit_id;
+                
+                if (window.metronome && window.metronome.audioContext) {
+                    await this.changeKit(window.metronome.audioContext, settings.kit_id);
+                }
+            }
+            
+            if (settings.pattern_id) {
+                this.currentPatternId = settings.pattern_id;
+                const patternSelect = document.getElementById('drum-pattern-select');
+                if (patternSelect) patternSelect.value = settings.pattern_id;
+            }
+            
+            if (settings.swing !== undefined) {
+                this.swing = settings.swing;
+                const swingInput = document.getElementById('drum-swing');
+                if (swingInput) swingInput.value = settings.swing;
+                const swingVal = document.getElementById('drum-swing-val');
+                if (swingVal) swingVal.innerText = settings.swing + '%';
+            }
+            
+            if (settings.mixer) {
+                // Merge loaded settings into internal state
+                for (const inst in settings.mixer) {
+                    if (this.settings[inst]) {
+                        this.settings[inst] = { ...this.settings[inst], ...settings.mixer[inst] };
+                    }
+                }
+                // Refresh Mix UI (sliders, labels)
+                this.renderMixer();
+            }
+            
+            if (this.updateBpmUI) this.updateBpmUI();
+            
+        } catch(e) { 
+            console.error("[DRUM] Failed to load settings from JSON backend", e); 
+        }
     }
 };
 
 // --- UI FUNCTIONS ---
 
-function flashVUMeter(instId) {
+function flashVUMeter(instId, gain = 1.0) {
     const bar = document.getElementById(`vu-${instId}`);
     if (bar) {
-        bar.classList.remove('peak');
-        void bar.offsetWidth; // Force reflow
-        bar.classList.add('peak');
-        setTimeout(() => bar.classList.remove('peak'), 150);
+        // Gain normalisé pour l'affichage (0..100%)
+        const height = Math.min(100, gain * 100);
+        bar.style.height = height + "%";
+        
+        // Couleur dynamique selon le niveau
+        if (height > 90) bar.style.background = "#ff4081"; // Peak
+        else if (height > 70) bar.style.background = "#ffb74d"; // High
+        else bar.style.background = "var(--accent)"; // Normal
+
+        // Retrait progressif
+        if (bar._tm) clearTimeout(bar._tm);
+        bar._tm = setTimeout(() => {
+            bar.style.height = "0%";
+        }, 150);
     }
 }
 
@@ -219,10 +720,14 @@ function openDrumModal() {
              window.DrumMachine.loadAssets(window.metronome.audioContext);
         }
         
-        // Sync BPM
-        const bpmInput = document.getElementById("drum-bpm");
-        if (bpmInput && window.metronome) {
-            bpmInput.value = window.metronome.bpm;
+        // Load Settings
+        if (window.DrumMachine && window.DrumMachine.loadSettings) {
+            window.DrumMachine.loadSettings();
+        }
+        
+        // Sync BPM UI
+        if (window.DrumMachine && window.DrumMachine.updateBpmUI) {
+            window.DrumMachine.updateBpmUI();
         }
 
         renderDrumSequencer();
@@ -242,6 +747,13 @@ function closeDrumModal() {
             window.metronome.isMetronomeSoundActive = true;
         }
         modal.close();
+        
+        // Fermer aussi le wizard MIDI si ouvert
+        const wizard = document.getElementById('modal-midi-wizard');
+        if (wizard && wizard.open) {
+            wizard.close();
+            wizard.style.display = 'none';
+        }
     }
 }
 
@@ -256,7 +768,20 @@ function minimizeDrumModal() {
 function changeDrumPattern(patternId) {
     if (window.DrumMachine.patterns[patternId]) {
         window.DrumMachine.currentPatternId = patternId;
+        
+        // Show/Hide Edit button if it's an imported MIDI
+        const editBtn = document.getElementById('btn-seq-edit-midi');
+        if (editBtn) {
+            editBtn.style.display = (patternId.startsWith('imported_') && currentWizardB64) ? 'inline-block' : 'none';
+        }
+
         renderDrumSequencer();
+        if (this.renderMixer) this.renderMixer();
+        else if (window.DrumMachine && window.DrumMachine.renderMixer) window.DrumMachine.renderMixer();
+
+        if (window.DrumMachine.saveSettingsDebounced) {
+            window.DrumMachine.saveSettingsDebounced();
+        }
     }
 }
 
@@ -275,18 +800,21 @@ function updateDrumVolume(track, val) {
     
     const label = document.getElementById(`drum-vol-${track}-pct`);
     if (label) label.innerText = `${percent}%`;
+
+    // Persist changes
+    if (window.DrumMachine && window.DrumMachine.saveSettingsDebounced) {
+        window.DrumMachine.saveSettingsDebounced();
+    }
 }
 
 function updateDrumBPM(val) {
     const bpm = parseInt(val);
-    if (!isNaN(bpm) && bpm >= 40 && bpm <= 250) {
+    if (!isNaN(bpm) && bpm >= 30 && bpm <= 300) {
         if (window.metronome) {
-            window.metronome.bpm = bpm;
-            // Update main metronome UI if exists
-            const mainBpm = document.getElementById('metronome-bpm');
-            if (mainBpm) mainBpm.value = bpm;
-            const mainBpmVal = document.getElementById('metronome-bpm-val');
-            if (mainBpmVal) mainBpmVal.textContent = bpm;
+            window.metronome.setBpm(bpm);
+            if (window.DrumMachine && window.DrumMachine.updateBpmUI) {
+                window.DrumMachine.updateBpmUI();
+            }
         }
     }
 }
@@ -295,21 +823,49 @@ function updateDrumSwing(val) {
     window.DrumMachine.swing = parseInt(val);
     const label = document.getElementById("drum-swing-val");
     if (label) label.innerText = `${val}%`;
+
+    // Persist changes
+    if (window.DrumMachine && window.DrumMachine.saveSettingsDebounced) {
+        window.DrumMachine.saveSettingsDebounced();
+    }
+}
+
+function addMixerLog(msg) {
+    console.log("[MIXER]", msg);
+    const logArea = document.getElementById('mixer-debug-log');
+    if (logArea) {
+        const time = new Date().toLocaleTimeString();
+        logArea.innerHTML = `<div style="border-bottom:1px solid #333; padding:2px;">${time}: ${msg}</div>` + logArea.innerHTML;
+        // Garder les 10 derniers
+        if (logArea.children.length > 10) logArea.removeChild(logArea.lastChild);
+    }
 }
 
 function toggleMute(instId) {
-    const config = window.DrumMachine.settings[instId];
+    addMixerLog(`Toggle Mute requested for: "${instId}"`);
+    const settings = window.DrumMachine.settings;
+    const config = settings[instId];
     if (config) {
         config.mute = !config.mute;
+        addMixerLog(`-> ${instId} Mute is now: ${config.mute}`);
+        if (config.mute) config.solo = false;
         renderDrumMixer();
+    } else {
+        addMixerLog(`!! Config not found for ${instId} in settings keys: ${Object.keys(settings).join(',')}`);
     }
 }
 
 function toggleSolo(instId) {
-    const config = window.DrumMachine.settings[instId];
+    addMixerLog(`Toggle Solo requested for: "${instId}"`);
+    const settings = window.DrumMachine.settings;
+    const config = settings[instId];
     if (config) {
         config.solo = !config.solo;
+        addMixerLog(`-> ${instId} Solo is now: ${config.solo}`);
+        if (config.solo) config.mute = false;
         renderDrumMixer();
+    } else {
+        addMixerLog(`!! Config not found for ${instId}`);
     }
 }
 
@@ -363,6 +919,7 @@ function updateInstParam(param, val) {
         if (param === 'tune') label.innerText = numVal > 0 ? `+${numVal}` : numVal;
         if (param === 'decay') label.innerText = `${numVal}s`;
     }
+    window.DrumMachine.saveSettingsDebounced();
 }
 
 // --- SEQUENCER GRID ---
@@ -378,13 +935,34 @@ function renderDrumSequencer() {
     if (pattern.steps > 64) {
         const totalMeasures = Math.ceil(pattern.steps / 16);
         container.innerHTML = `
-            <div style="grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 180px; width: 100%; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px dashed #444; text-align: center; padding: 20px; box-sizing: border-box;">
-                <i class="ph ph-waveform" style="font-size: 3em; color: var(--accent); margin-bottom: 15px;"></i>
-                <h3 style="margin: 0; color: #fff; font-size: 1.2em;">MIDI Song Mode</h3>
-                <p style="color: #888; font-size: 0.9em; margin: 10px 0;">${pattern.steps} steps (${totalMeasures} measures) detected.</p>
-                <p style="color: #aaa; font-size: 0.8em; font-style: italic;">Manual editing disabled for long sequences.</p>
+            <div id="drum-song-visualizer" style="grid-column: 1 / -1; width: 100%; padding: 15px; background: rgba(0,0,0,0.4); border-radius: 8px; border: 1px solid #333; box-sizing: border-box;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <i class="ph ph-waveform" style="color: var(--accent); font-size: 1.4em;"></i>
+                        <span style="font-weight: bold; color: #fff; font-size: 0.9em;">MIDI Song Mode</span>
+                        <span id="drum-song-stats" style="color: #666; font-size: 0.8em; margin-left: 5px;">Step 0 / ${pattern.steps}</span>
+                    </div>
+                    <span id="drum-measure-display" style="font-family: monospace; color: var(--accent); font-weight: bold; font-size: 1.1em; background: rgba(187,134,252,0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(187,134,252,0.2);">MEASURE 1 / ${totalMeasures}</span>
+                </div>
+                
+                <div style="position: relative; width: 100%; height: 100px; background: #111; border: 1px solid #222; border-radius: 4px; overflow: hidden; margin-bottom: 10px;">
+                    <canvas id="drum-mini-map" style="width: 100%; height: 100%; display: block;"></canvas>
+                    <div id="drum-progress-cursor" style="position: absolute; top: 0; left: 0; width: 2px; height: 100%; background: var(--accent); box-shadow: 0 0 8px var(--accent); pointer-events: none; transition: left 0.1s linear;"></div>
+                </div>
+
+                <input type="range" id="drum-song-slider" min="0" max="${pattern.steps - 1}" value="0" 
+                    style="width: 100%; height: 6px; -webkit-appearance: none; background: #333; border-radius: 3px; outline: none; cursor: pointer;"
+                    oninput="window.DrumMachine.seekFromTimeline(this.value)">
+                
+                <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+                    <small style="color: #444; font-size: 9px;">START</small>
+                    <small style="color: #444; font-size: 9px;">FINISH</small>
+                </div>
             </div>
         `;
+        
+        // Render the map immediately
+        setTimeout(() => window.DrumMachine.drawSongMiniMap(), 50);
         return;
     }
 
@@ -394,6 +972,11 @@ function renderDrumSequencer() {
     const instIds = isMulti 
         ? ['kick', 'snare', 'hihat', 'openhat', 'clap', 'tom1', 'tom2', 'tom3', 'cymbal', 'cowbell', 'rim']
         : [window.DrumMachine.selectedInstrument];
+
+    // Restreindre la basse aux imports
+    if (isMulti && window.DrumMachine.currentPatternId && window.DrumMachine.currentPatternId.startsWith('imported_')) {
+        instIds.push('bass');
+    }
 
     // Layout adjustment
     if (isMulti) {
@@ -428,13 +1011,20 @@ function renderDrumSequencer() {
             stepDiv.dataset.inst = id;
             stepDiv.dataset.step = i;
             
-            if (stepVal === 1) stepDiv.classList.add("active");
+            if (stepVal > 0) stepDiv.classList.add("active");
             if (stepVal === 2) stepDiv.classList.add("accent");
             
-            if (window.metronome.isPlaying && window.DrumMachine.lastStepPlayed === i) {
-                stepDiv.classList.add("current-playhead");
+            // Affichage spécial pour la basse (Note MIDI décodée) dans les imports
+            if (id === 'bass' && stepVal > 0 && window.DrumMachine.currentPatternId.startsWith('imported_')) {
+                const noteNames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+                const noteNum = Math.floor(stepVal / 128);
+                const octave = Math.floor(noteNum / 12) - 1;
+                const name = noteNames[noteNum % 12];
+                stepDiv.innerText = name + octave;
+                stepDiv.style.fontSize = '8px';
+                stepDiv.style.color = '#fff';
             }
-
+            
             stepDiv.onclick = () => {
                 pattern.tracks[id][i] = (pattern.tracks[id][i] + 1) % 3;
                 if (pattern.tracks[id][i] > 0) playInstrumentTest(id);
@@ -451,8 +1041,6 @@ function importMidiPattern() {
     if (input) input.click();
 }
 
-let currentWizardB64 = null;
-
 async function handleMidiFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -461,11 +1049,21 @@ async function handleMidiFileUpload(event) {
     reader.onload = async (e) => {
         const b64 = e.target.result.split(',')[1];
         currentWizardB64 = b64;
+        isEditingMidiMapping = false; // Fresh upload
         openMidiWizard(b64);
     };
     reader.readAsDataURL(file);
     // Reset input for next time
     event.target.value = "";
+}
+
+function editCurrentMidiMapping() {
+    if (!currentWizardB64) {
+        if (typeof showToast === 'function') showToast(window._('web.msg_no_midi_loaded'), "warning");
+        return;
+    }
+    isEditingMidiMapping = true;
+    openMidiWizard(currentWizardB64);
 }
 
 async function openMidiWizard(b64) {
@@ -480,10 +1078,14 @@ async function openMidiWizard(b64) {
         const data = await response.json();
         console.log("[WIZARD] Analysis data received:", data);
         if (data.status !== 'ok') throw new Error(data.detail);
+        window._lastMidiAnalysis = data; // Cache for confirMidiImport
         
         // Fill tracks
         const tracksContainer = document.getElementById('midi-wizard-tracks');
         if (!tracksContainer) { console.error("[WIZARD] Critical: tracksContainer not found!"); return; }
+        tracksContainer.style.maxHeight = "400px";
+        tracksContainer.style.overflowY = "auto";
+        tracksContainer.style.paddingRight = "5px";
         
         // Buttons for quick selection
         const btnContainer = document.createElement('div');
@@ -491,31 +1093,48 @@ async function openMidiWizard(b64) {
         btnContainer.style.gap = "10px";
         btnContainer.style.marginBottom = "10px";
         btnContainer.innerHTML = `
-            <button onclick="document.querySelectorAll('.wizard-track-cb').forEach(cb => cb.checked = true)" class="btn-wizard-small">Tous</button>
-            <button onclick="document.querySelectorAll('.wizard-track-cb').forEach(cb => cb.checked = cb.dataset.isdrum === 'true')" class="btn-wizard-small">Drums Uniquement</button>
-            <button onclick="document.querySelectorAll('.wizard-track-cb').forEach(cb => cb.checked = false)" class="btn-wizard-small">Aucun</button>
+            <button onclick="document.querySelectorAll('.wizard-track-cb').forEach(cb => cb.checked = true)" class="btn-wizard-small">${window._('web.btn_all')}</button>
+            <button onclick="document.querySelectorAll('.wizard-track-cb').forEach(cb => cb.checked = cb.dataset.isdrum === 'true')" class="btn-wizard-small">${window._('web.btn_drums')}</button>
+            <button onclick="document.querySelectorAll('.wizard-track-cb').forEach(cb => cb.checked = false); document.querySelectorAll('.wizard-track-inst').forEach(s => s.value = 'none')" class="btn-wizard-small">${window._('web.btn_reset')}</button>
         `;
         tracksContainer.innerHTML = "";
         tracksContainer.appendChild(btnContainer);
 
         data.tracks.forEach(t => {
-            const label = document.createElement('label');
-            label.className = 'modern-switch';
-            label.style.display = 'flex';
-            label.style.alignItems = 'center';
-            label.style.fontSize = '0.85em';
-            
             const isDrumChannel = t.channels.includes(10);
+            const lowerName = t.name.toLowerCase();
+            const isBassTrack = lowerName.includes('bass') || lowerName.includes('basse') || (t.avg_note > 0 && t.avg_note < 55 && !isDrumChannel);
+
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.justifyContent = 'space-between';
+            row.style.marginBottom = '2px';
+            row.style.background = isBassTrack ? '#2a1a2a' : '#222'; 
+            row.style.padding = '3px 8px';
+            row.style.borderRadius = '4px';
+            row.style.border = isBassTrack ? '1px solid #6a1a6a' : '1px solid #333';
             
-            label.innerHTML = `
-                <input type="checkbox" class="wizard-track-cb" value="${t.index}" data-isdrum="${isDrumChannel}" ${isDrumChannel ? 'checked' : ''}>
-                <span class="switch-slider"></span>
-                <span style="margin-left:8px; line-height:1.2;">
-                    <span style="font-weight:bold;">${t.name}</span><br>
-                    <small style="color:#666;">Ch: ${t.channels.join(',')} | ${t.note_count} notes</small>
-                </span>
+            row.innerHTML = `
+                <div style="display:flex; align-items:center; flex:1; min-width:0;">
+                    <label class="modern-switch" style="margin-bottom:0; transform: scale(0.8); transform-origin: left center;">
+                        <input type="checkbox" class="wizard-track-cb" value="${t.index}" data-isdrum="${isDrumChannel}" ${(isDrumChannel || isBassTrack) ? 'checked' : ''}>
+                        <span class="switch-slider"></span>
+                    </label>
+                    <div style="margin-left:5px; line-height:1.1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        <span style="font-weight:bold; font-size:11px;">${t.name}</span><br>
+                        <small style="color:#666; font-size:9px;">Ch: ${t.channels.join(',')} | ${t.note_count} n.</small>
+                    </div>
+                </div>
+                <select class="wizard-track-inst" data-track-index="${t.index}" style="background:#111; color:#aaa; border:1px solid #444; font-size:10px; padding:1px; width:75px; height:18px; border-radius:3px;">
+                    <option value="none">${window._('web.opt_auto')}</option>
+                    <option value="kick">${window._('web.lbl_kick')}</option>
+                    <option value="snare">${window._('web.lbl_snare')}</option>
+                    <option value="hihat">${window._('web.lbl_hihat')}</option>
+                    <option value="bass" ${isBassTrack ? 'selected' : ''}>${window._('web.lbl_bass')}</option>
+                </select>
             `;
-            tracksContainer.appendChild(label);
+            tracksContainer.appendChild(row);
         });
         
         // Fill mapping
@@ -524,18 +1143,25 @@ async function openMidiWizard(b64) {
         mappingBody.innerHTML = "";
         
         const gmNames = {
-            35: 'Kick', 36: 'Kick', 38: 'Snare', 40: 'Snare', 42: 'H-Hat (C)', 44: 'H-Hat (P)', 46: 'H-Hat (O)',
-            49: 'Crash', 51: 'Ride', 37: 'Rim', 39: 'Clap', 56: 'Cowbell'
+            35: window._('web.lbl_kick'), 36: window._('web.lbl_kick'), 38: window._('web.lbl_snare'), 40: window._('web.lbl_snare'), 42: window._('web.lbl_hihat_c'), 44: window._('web.lbl_hihat_p'), 46: window._('web.lbl_hihat_o'),
+            49: window._('web.lbl_cymbal'), 51: window._('web.lbl_cymbal'), 37: window._('web.lbl_rim'), 39: window._('web.lbl_clap'), 56: window._('web.lbl_cowbell')
         };
         
         const allNotes = new Set();
-        data.tracks.forEach(track => track.unique_notes.forEach(n => allNotes.add(n)));
+        data.tracks.forEach(track => {
+            const lowerName = track.name.toLowerCase();
+            const isBassTrack = lowerName.includes('bass') || lowerName.includes('basse');
+            // Si c'est une piste de basse, on ne pollue pas le mapping des percussions à droite
+            if (!isBassTrack) {
+                track.unique_notes.forEach(n => allNotes.add(n));
+            }
+        });
         const sortedNotes = Array.from(allNotes).sort((a, b) => a - b);
-        console.log("[WIZARD] Unique notes found:", sortedNotes);
+        console.log("[WIZARD] Unique drum notes found:", sortedNotes);
         
         sortedNotes.forEach(note => {
             const tr = document.createElement('tr');
-            const gmHint = gmNames[note] || `Note ${note}`;
+            const gmHint = gmNames[note] || `${window._('web.lbl_note')} ${note}`;
             
             let bestInst = "ignore";
             if (note === 35 || note === 36) bestInst = "kick";
@@ -548,25 +1174,31 @@ async function openMidiWizard(b64) {
             else if (note === 56) bestInst = "cowbell";
             else if (note === 37) bestInst = "rim";
             
+            const noteNames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+            const octave = Math.floor(note / 12) - 1;
+            const musicalName = noteNames[note % 12] + octave;
+            
             tr.innerHTML = `
-                <td style="padding: 5px; border-bottom: 1px solid #333;">
-                    <span style="color:var(--accent); font-weight:bold;">${note}</span> 
-                    <small style="color:#666; margin-left:5px;">(${gmHint})</small>
+                <td style="padding: 3px 5px; border-bottom: 1px solid #333;">
+                    <span style="color:var(--accent); font-weight:bold; font-size:11px;">${musicalName}</span> 
+                    <small style="color:#666; margin-left:3px; font-size:9px;">(${note})</small>
+                    <small style="color:#444; margin-left:3px; font-size:9px;">${gmHint}</small>
                 </td>
-                <td style="padding: 5px; border-bottom: 1px solid #333;">
-                    <select class="wizard-note-map" data-note="${note}" style="background:#222; color:#eee; border:1px solid #444; font-size:11px; padding:2px; width:100%;">
-                        <option value="ignore">Ignorer</option>
-                        <option value="kick" ${bestInst === 'kick' ? 'selected' : ''}>Kick</option>
-                        <option value="snare" ${bestInst === 'snare' ? 'selected' : ''}>Snare</option>
-                        <option value="hihat" ${bestInst === 'hihat' ? 'selected' : ''}>Hi-Hat (Closed)</option>
-                        <option value="openhat" ${bestInst === 'openhat' ? 'selected' : ''}>Hi-Hat (Open)</option>
-                        <option value="tom1" ${bestInst === 'tom1' ? 'selected' : ''}>Tom High</option>
-                        <option value="tom2" ${bestInst === 'tom2' ? 'selected' : ''}>Tom Mid</option>
-                        <option value="tom3" ${bestInst === 'tom3' ? 'selected' : ''}>Tom Low</option>
-                        <option value="clap" ${bestInst === 'clap' ? 'selected' : ''}>Clap</option>
-                        <option value="cymbal" ${bestInst === 'cymbal' ? 'selected' : ''}>Cymbal/Crash</option>
-                        <option value="cowbell" ${bestInst === 'cowbell' ? 'selected' : ''}>Cowbell</option>
-                        <option value="rim" ${bestInst === 'rim' ? 'selected' : ''}>Rimshot/Stick</option>
+                <td style="padding: 3px 5px; border-bottom: 1px solid #333;">
+                    <select class="wizard-note-map" data-note="${note}" style="background:#111; color:#aaa; border:1px solid #444; font-size:10px; padding:1px; width:100%; height:18px; border-radius:3px;">
+                        <option value="ignore">${window._('web.lbl_ignore')}</option>
+                        <option value="kick" ${bestInst === 'kick' ? 'selected' : ''}>${window._('web.lbl_kick')}</option>
+                        <option value="snare" ${bestInst === 'snare' ? 'selected' : ''}>${window._('web.lbl_snare')}</option>
+                        <option value="hihat" ${bestInst === 'hihat' ? 'selected' : ''}>${window._('web.lbl_hihat_c')}</option>
+                        <option value="openhat" ${bestInst === 'openhat' ? 'selected' : ''}>${window._('web.lbl_hihat_o')}</option>
+                        <option value="tom1" ${bestInst === 'tom1' ? 'selected' : ''}>${window._('web.lbl_tom_h')}</option>
+                        <option value="tom2" ${bestInst === 'tom2' ? 'selected' : ''}>${window._('web.lbl_tom_m')}</option>
+                        <option value="tom3" ${bestInst === 'tom3' ? 'selected' : ''}>${window._('web.lbl_tom_l')}</option>
+                        <option value="clap" ${bestInst === 'clap' ? 'selected' : ''}>${window._('web.lbl_clap')}</option>
+                        <option value="cymbal" ${bestInst === 'cymbal' ? 'selected' : ''}>${window._('web.lbl_cymbal')}</option>
+                        <option value="cowbell" ${bestInst === 'cowbell' ? 'selected' : ''}>${window._('web.lbl_cowbell')}</option>
+                        <option value="rim" ${bestInst === 'rim' ? 'selected' : ''}>${window._('web.lbl_rim')}</option>
+                        <option value="bass">${window._('web.lbl_bass')}</option>
                     </select>
                 </td>
             `;
@@ -594,18 +1226,34 @@ async function confirmMidiImport() {
     const selectedTracks = Array.from(document.querySelectorAll('.wizard-track-cb:checked')).map(cb => parseInt(cb.value));
     console.log("[WIZARD] Selected tracks:", selectedTracks);
     if (selectedTracks.length === 0) {
-        if (typeof showToast === 'function') showToast("Veuillez sélectionner au moins une piste", "warning");
+        if (typeof showToast === 'function') showToast(window._('web.msg_select_one_track'), "warning");
         return;
     }
     
     // 2. Mapping
     const mapping = {};
+    
+    // Note-level mapping (base)
     document.querySelectorAll('.wizard-note-map').forEach(sel => {
         if (sel.value !== 'ignore') {
             mapping[sel.dataset.note] = sel.value;
         }
     });
-    console.log("[WIZARD] Final Mapping:", mapping);
+
+    // Track-level assignments
+    const track_instruments = {};
+    document.querySelectorAll('.wizard-track-inst').forEach(sel => {
+        if (sel.value !== 'none') {
+            track_instruments[sel.dataset.trackIndex] = sel.value;
+        }
+    });
+
+    console.log("[WIZARD] Selected tracks:", selectedTracks);
+    console.log("[WIZARD] Track assignments:", track_instruments);
+    console.log("[WIZARD] Note mapping overrides:", mapping);
+
+    const transpose = parseInt(document.getElementById('midi-wizard-transpose')?.value || 0);
+    console.log("[WIZARD] Sending transpose value:", transpose);
 
     try {
         console.log("[WIZARD] Sending parse request to backend...");
@@ -615,7 +1263,9 @@ async function confirmMidiImport() {
             body: JSON.stringify({ 
                 file_b64: currentWizardB64,
                 selected_tracks: selectedTracks,
-                mapping_override: mapping
+                track_instruments: track_instruments,
+                mapping_override: mapping,
+                transpose: transpose
             })
         });
         
@@ -623,15 +1273,19 @@ async function confirmMidiImport() {
         console.log("[WIZARD] Parse result from backend:", data);
         
         if (data.status === 'ok') {
-            const patternName = 'imported_' + Date.now();
+            const patternName = isEditingMidiMapping ? window.DrumMachine.currentPatternId : ('imported_' + Date.now());
             window.DrumMachine.patterns[patternName] = data.pattern;
-            console.log("[WIZARD] New pattern cached:", patternName);
+            console.log("[WIZARD] Pattern updated/cached:", patternName);
+            
+            // Show edit button
+            const editBtn = document.getElementById('btn-seq-edit-midi');
+            if (editBtn) editBtn.style.display = 'inline-block';
             
             const select = document.getElementById('drum-pattern-select');
             if (select) {
                 const opt = document.createElement('option');
                 opt.value = patternName;
-                opt.textContent = "MIDI Wiz (" + new Date().toLocaleTimeString() + ")";
+                opt.textContent = window._('web.lbl_midi_wiz_prefix') + " (" + new Date().toLocaleTimeString() + ")";
                 select.appendChild(opt);
                 select.value = patternName;
                 console.log("[WIZARD] Dropdown updated.");
@@ -647,7 +1301,7 @@ async function confirmMidiImport() {
                 modal.style.display = 'none';
             }
             
-            if (typeof showToast === 'function') showToast("MIDI Song Imported!", "success");
+            if (typeof showToast === 'function') showToast(window._('web.msg_midi_imported'), "success");
         } else {
             console.error("[WIZARD] Backend returned error status:", data);
             if (typeof showToast === 'function') showToast("Import failed: " + (data.detail || "Unknown error"), "error");
@@ -731,80 +1385,120 @@ function playInstrumentTest(instId) {
     source.playbackRate.value = Math.pow(2, config.tune / 12);
 
     const gainNode = ctx.createGain();
-    gainNode.gain.value = config.volume;
+    const masterVol = window.DrumMachine.settings.master ? window.DrumMachine.settings.master.volume : 1.0;
+    const instGain = (config.volume !== undefined ? config.volume : 1.0);
+    gainNode.gain.value = instGain * masterVol;
     
     source.connect(gainNode);
-    gainNode.connect(ctx.destination);
+    
+    // Connect to master gain node if available
+    if (window.metronome.masterGainNode) {
+        gainNode.connect(window.metronome.masterGainNode);
+    } else {
+        gainNode.connect(ctx.destination);
+    }
+    
     source.start(0);
 
     // Visual feedback
-    flashVUMeter(instId);
+    flashVUMeter(instId, instGain);
+    
+    // Master VU feedback
+    flashVUMeter('master', instGain * masterVol);
     
     // Record if enabled
     if (window.DrumMachine.isRecording) {
         recordHit(instId);
     }
 }
+// Alias pour compatibilité descendante (facultatif mais plus sûr)
+window.renderDrumMixer = () => window.DrumMachine.renderMixer();
+window.updateDrumVolume = (id, val) => window.DrumMachine.updateVolume(id, val);
+window.flashVUMeter = (id, g) => window.DrumMachine.flashVUMeter(id, g);
+window.toggleMute = (id) => window.DrumMachine.toggleMute(id);
+window.toggleSolo = (id) => window.DrumMachine.toggleSolo(id);
+window.updateDrumBPM = (val) => {
+    const bpm = parseInt(val);
+    if (!isNaN(bpm) && bpm >= 30 && bpm <= 300) {
+        if (window.metronome) {
+            window.metronome.setBpm(bpm);
+            if (window.DrumMachine && window.DrumMachine.updateBpmUI) {
+                window.DrumMachine.updateBpmUI();
+            }
+        }
+    }
+};
 
-// Global hook for metronome sync
-window.DrumMachine.lastStepPlayed = 0;
+// --- UNIFIED CLICK LISTENER (Capture Phase) ---
+window.addEventListener('click', (e) => {
+    // 1. Bouton Mute
+    const btnMute = e.target.closest('[id^="btn-mute-"]');
+    if (btnMute) {
+        e.preventDefault(); e.stopPropagation();
+        const instId = btnMute.id.replace('btn-mute-', '');
+        window.DrumMachine.toggleMute(instId);
+        return;
+    }
 
-function handleTrackClick(instId) {
-    selectInstrument(instId);
-    playInstrumentTest(instId);
-}
+    // 2. Bouton Solo
+    const btnSolo = e.target.closest('[id^="btn-solo-"]');
+    if (btnSolo) {
+        e.preventDefault(); e.stopPropagation();
+        const instId = btnSolo.id.replace('btn-solo-', '');
+        window.DrumMachine.toggleSolo(instId);
+        return;
+    }
 
-// --- AUTO GENERATE MIXER ---
-function renderDrumMixer() {
-    const container = document.getElementById("drum-mixer-container");
-    if (!container) return;
-    
-    const translate_func = (typeof t === 'function') ? t : (k) => k;
+    // 3. Sélection de Piste (Drum Track)
+    const track = e.target.closest('.drum-track');
+    if (track && !e.target.closest('.drum-slider-area') && !e.target.closest('.drum-track-controls')) {
+        const instId = track.id.replace('track-', '');
+        window.DrumMachine.selectedInstrument = instId;
+        window.DrumMachine.renderMixer();
+        if (typeof renderDrumSequencer === 'function') renderDrumSequencer();
+    }
+}, true);
 
-    const uiInstruments = [
-        { id: 'master', label: 'Master', default: 100 },
-        { id: 'kick', label: 'Kick', default: 100 },
-        { id: 'snare', label: 'Snare', default: 100 },
-        { id: 'hihat', label: 'Hi-Hat', default: 100 },
-        { id: 'openhat', label: 'O.Hat', default: 80 },
-        { id: 'clap', label: 'Clap', default: 100 },
-        { id: 'tom1', label: 'Hi Tom', default: 90 },
-        { id: 'tom2', label: 'Mid Tom', default: 90 },
-        { id: 'tom3', label: 'Low Tom', default: 90 },
-        { id: 'cymbal', label: 'Crash', default: 70 },
-        { id: 'cowbell', label: 'Cowbell', default: 80 },
-        { id: 'rim', label: 'Rim', default: 80 }
-    ];
-    
-    container.innerHTML = ""; 
-    const soloActive = Object.values(window.DrumMachine.settings).some(s => s.solo);
-    
-    uiInstruments.forEach(inst => {
-        const translatedLabel = translate_func('web.lbl_' + inst.id);
-        const config = window.DrumMachine.settings[inst.id] || { volume: inst.default/100, mute: false, solo: false };
-        const isSelected = window.DrumMachine.selectedInstrument === inst.id;
+// --- GLOBAL EXPORTS ---
+window.renderDrumMixer = () => window.DrumMachine && window.DrumMachine.renderMixer ? window.DrumMachine.renderMixer() : null;
+window.updateDrumVolume = (id, val) => window.DrumMachine && window.DrumMachine.updateVolume ? window.DrumMachine.updateVolume(id, val) : null;
+window.toggleMute = (id) => window.DrumMachine && window.DrumMachine.toggleMute ? window.DrumMachine.toggleMute(id) : null;
+window.toggleSolo = (id) => window.DrumMachine && window.DrumMachine.toggleSolo ? window.DrumMachine.toggleSolo(id) : null;
+window.flashVUMeter = (id, g) => window.DrumMachine && window.DrumMachine.flashVUMeter ? window.DrumMachine.flashVUMeter(id, g) : null;
 
-        // Si quelqu'un est en solo et que ce n'est pas nous, on grise visuellement (comme un mute forcé)
-        const isDimmed = soloActive && !config.solo && inst.id !== 'master';
+window.updateDrumSwing = (val) => {
+    if (window.DrumMachine) {
+        window.DrumMachine.swing = parseInt(val);
+        const valDisp = document.getElementById('drum-swing-val');
+        if (valDisp) valDisp.innerText = val + '%';
+        if (window.DrumMachine.saveSettingsDebounced) window.DrumMachine.saveSettingsDebounced();
+    }
+};
 
-        container.innerHTML += `
-            <div class="drum-track ${isSelected ? 'selected' : ''}" id="track-${inst.id}" onclick="handleTrackClick('${inst.id}')" style="opacity: ${isDimmed ? 0.4 : 1}">
-                <span class="slider-label" style="font-size: 0.65em; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; color: #aaa;">${translatedLabel}</span>
-                <div class="drum-slider-area" onclick="event.stopPropagation()">
-                    <input type="range" id="drum-vol-${inst.id}" min="0" max="100" value="${Math.round(config.volume * 100)}" orient="vertical" oninput="updateDrumVolume('${inst.id}', this.value)" style="height: 100px; width: 22px; -webkit-appearance: slider-vertical; appearance: slider-vertical; writing-mode: vertical-lr; direction: rtl; margin: 0; cursor: pointer;">
-                    <div class="vu-meter-container">
-                        <div id="vu-${inst.id}" class="vu-meter-bar"></div>
-                    </div>
-                </div>
-                <span id="drum-vol-${inst.id}-pct" class="slider-percent" style="font-size: 0.65em; margin-top: 8px; font-family: monospace; color: var(--accent);">${Math.round(config.volume * 100)}%</span>
-                
-                <div class="drum-track-controls" style="display: flex; gap: 4px; margin-top: 5px;">
-                    <button id="btn-mute-${inst.id}" onclick="event.stopPropagation(); toggleMute('${inst.id}')" class="btn-mini-toggle ${config.mute ? 'active' : ''}">M</button>
-                    <button id="btn-solo-${inst.id}" onclick="event.stopPropagation(); toggleSolo('${inst.id}')" class="btn-mini-toggle solo ${config.solo ? 'active' : ''}">S</button>
-                </div>
-            </div>
-        `;
-    });
-}
+window.changeDrumKit = (kitId) => {
+    if (window.DrumMachine && window.metronome && window.metronome.audioContext) {
+        window.DrumMachine.changeKit(window.metronome.audioContext, kitId);
+        if (window.DrumMachine.saveSettingsDebounced) window.DrumMachine.saveSettingsDebounced();
+    }
+};
 
-document.addEventListener("DOMContentLoaded", renderDrumMixer);
+window.updateDrumBPM = (val) => {
+    const bpm = parseInt(val);
+    if (!isNaN(bpm) && bpm >= 30 && bpm <= 300) {
+        if (window.metronome) {
+            window.metronome.setBpm(bpm);
+            if (window.DrumMachine && window.DrumMachine.updateBpmUI) {
+                window.DrumMachine.updateBpmUI();
+            }
+            console.log(`[DRUM] Global BPM set to ${bpm}`);
+        }
+    }
+};
+
+// Initialisation au chargement du DOM
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("DOM Loaded - Initializing Drum Mixer Methods");
+    if (window.DrumMachine && window.DrumMachine.renderMixer) {
+        window.DrumMachine.renderMixer();
+    }
+});

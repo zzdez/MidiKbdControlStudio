@@ -295,14 +295,8 @@ function detectCurrentScale() {
 }
 
 function updateFretboardButtonDisplays() {
-    // Updates the tiny text next to the guitar icon on the playbars
-    const ids = ["mt-scale-display", "audio-scale-display", "video-scale-display"];
-    const text = `${fretboardState.key} ${document.getElementById("fretboard-scale").options[document.getElementById("fretboard-scale").selectedIndex].text}`;
-
-    ids.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.innerText = text;
-    });
+    // Buttons are now updated via updateLoopUI() using .btn-active-scale
+    if (typeof updateLoopUI === "function") updateLoopUI();
 }
 
 function toggleFretboardHand() {
@@ -512,15 +506,11 @@ function renderFretboard(silentSave = false) {
             item.instrument = fretboardState.instrument;
 
             // Sync with Global UI if currently playing track
-            const globalKey = document.getElementById("global-video-key");
-            const globalScale = document.getElementById("global-video-scale");
-            if (globalKey) {
-                globalKey.style.display = "inline";
-                globalKey.querySelector(".val").innerText = item.key;
+            if (typeof updateHeaderScaleDisplay === "function") {
+                updateHeaderScaleDisplay(item);
             }
-            if (globalScale) {
-                globalScale.style.display = "inline";
-                globalScale.querySelector(".val").innerText = document.getElementById("fretboard-scale").options[document.getElementById("fretboard-scale").selectedIndex].text;
+            if (typeof updateLoopUI === "function") {
+                updateLoopUI(); // Refresh buttons color
             }
 
             // Save to backend

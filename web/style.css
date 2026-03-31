@@ -588,8 +588,7 @@ dialog::backdrop {
 
 .modal-header {
     background: #252525;
-    padding: 10px 15px;
-    /* Reduced vertical padding */
+    padding: 10px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -606,12 +605,21 @@ dialog::backdrop {
 .btn-close {
     background: transparent;
     border: none;
-    color: #888;
-    font-size: 1.5em;
+    color: #eee; /* Light gray for good visibility */
+    font-size: 1.4em;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
 }
 
 .btn-close:hover {
+    background: rgba(255, 255, 255, 0.1);
     color: white;
 }
 
@@ -631,13 +639,31 @@ dialog::backdrop {
     justify-content: flex-end;
 }
 
+/* LOOP MODAL ITEMS */
+.loop-modal-item {
+    transition: all 0.2s ease;
+    border: 1px solid transparent !important;
+    margin-bottom: 4px;
+}
+
+.loop-modal-item:hover {
+    background: #333 !important;
+    border-color: #555 !important;
+}
+
+.loop-modal-item.selected {
+    background: rgba(187, 134, 252, 0.2) !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 10px rgba(187, 134, 252, 0.1);
+}
+
 /* DRUM MACHINE MODAL OVERRIDES */
 #modal-drum-machine[open],
 #modal-midi-wizard[open] {
     display: flex !important;
     flex-direction: column !important;
-    width: 920px !important;
-    max-width: 920px !important;
+    width: 950px !important;
+    max-width: 950px !important;
     max-height: 900px !important;
     padding: 0 !important;
     overflow: hidden !important;
@@ -646,6 +672,8 @@ dialog::backdrop {
 #modal-drum-machine .modal-header {
     flex-shrink: 0;
     width: 100%;
+    box-sizing: border-box;
+    padding-right: 40px !important; /* Force space for the close button from the edge */
 }
 
 #modal-drum-machine .modal-body {
@@ -1013,6 +1041,27 @@ dialog::backdrop {
     min-width: 40px;
     text-align: center;
     user-select: none;
+}
+
+/* DRUM SONG SLIDER PREMIUM */
+#drum-song-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 14px;
+    width: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 5px var(--accent);
+    margin-top: -4px;
+}
+
+#drum-song-slider::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 6px;
+    cursor: pointer;
+    background: #2a2a2a;
+    border-radius: 3px;
+    border: 1px solid #333;
 }
 
 /* SEARCH FILTERS */
@@ -2433,4 +2482,74 @@ input[type="color"].stem-color-input::-webkit-color-swatch {
 input[type="color"].stem-color-input::-moz-color-swatch {
     border: 1px solid #555;
     border-radius: 4px;
+}
+
+/* Hide spin buttons for BPM input */
+#drum-bpm-display::-webkit-outer-spin-button,
+#drum-bpm-display::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+#drum-bpm-display {
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+    appearance: none;
+}
+
+/* ==========================================
+   SMART METADATA PILLS (Header)
+   ========================================== */
+#header-smart-scale-pill {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: rgba(187, 134, 252, 0.1);
+    border: 1px solid rgba(187, 134, 252, 0.3);
+    padding: 3px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+    margin-left: 5px;
+}
+
+#header-smart-scale-pill:hover {
+    background: rgba(187, 134, 252, 0.2);
+    border-color: var(--accent);
+    box-shadow: 0 0 10px rgba(187, 134, 252, 0.2);
+    transform: translateY(-1px);
+}
+
+#header-smart-scale-pill i {
+    color: var(--accent);
+    font-size: 1.1em;
+}
+
+#header-smart-scale-pill span {
+    font-weight: 600;
+    font-size: 0.9em;
+    color: #fff;
+}
+
+/* Metadata simple badges (BPM, Tuning) */
+.metadata-badge {
+    background: #222;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid #333;
+    font-size: 0.8em;
+    color: #bbb;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Fretboard Button Activation Highlight */
+.btn-active-scale {
+    color: var(--accent) !important;
+    text-shadow: 0 0 5px rgba(187, 134, 252, 0.3);
+}
+
+.btn-active-scale:hover {
+    filter: brightness(1.2);
 }

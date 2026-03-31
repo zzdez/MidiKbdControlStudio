@@ -312,3 +312,25 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 *   **Asset Hardening & Debugging :**
     *   **Restauration des Samples :** Normalisation du dossier `assets/drums/` avec un jeu complet de 11 fichiers par kit (`kick`, `snare`, `hihat`, `openhat`, `tom1`, `tom2`, `tom3`, `clap`, `cymbal`, `cowbell`, `rim`).
     *   **Traçabilité :** Ajout de logs verbeux (`[DRUM] Triggering...`) et de métadonnées de buffer pour garantir que chaque note est audible.
+### 33. Évolution V28 : Studio Bass Engine (Multi-Zone)
+*   **Moteur de Basse Mélodique (`drums.js` & `server.py`) :**
+    *   **Parsing Pitché :** Le backend a été étendu pour traiter l'instrument `bass` de manière mélodique. Contrairement aux percussions (0/1/2), la ligne de basse stocke la valeur brute de la note MIDI (0-127).
+    *   **Algorithme de Pitch-Shifting Dynamique :** Le frontend utilise une stratégie de "Multi-Zones". Il charge plusieurs échantillons (ex: E1, G2, C4) et calcule en temps réel le `playbackRate` le plus proche pour minimiser la distorsion. 
+*   **Compatibilité Haute Fidélité :**
+    *   **Support WAV :** Le moteur de chargement d'assets tente désormais de charger des fichiers `.wav` si les `.mp3` sont absents, permettant l'utilisation de banques de sons professionnelles non compressées.
+    *   **Mapping UI :** Le séquenceur affiche dynamiquement le nom de la note (ex: "Am2") pour les pas de basse, et le Wizard d'import permet désormais de mapper n'importe quelle piste MIDI à l'instrument virtuel `bass`.
+
+### 34. Évolution V29 : Architecture Objet Unifiée (Drum Machine)
+*   **Refonte Structurelle (`drums.js`) :** Migration de toutes les fonctions globales (`toggleMute`, `renderMixer`, etc.) dans l'objet `window.DrumMachine`. Cette approche garantit l'isolation du code, facilite le débogage et élimine les conflits de portée (scope).
+*   **Unification Événementielle :** Centralisation de la gestion des clics (Mute, Solo, Sélection) via un unique écouteur global en phase de capture. Suppression systématique des attributs `onclick` HTML pour une séparation stricte des responsabilités (Content vs Logic).
+*   **Hardening du Mixer :** Implémentation d'une logique de rafraîchissement d'UI (`renderMixer`) capable de gérer dynamiquement les états Solo/Mute croisés, avec un feedback visuel immédiat (indicateurs textuels et VU-mètres synchronisés).
+### 35. Évolution V30 : Internationalisation & Raffinement Drum Machine
+*   **Internationalisation Complète (i18n) :**
+    *   **Midi Import Wizard :** Migration de toutes les chaînes de caractères (titres, étapes, labels d'instruments) vers le système de locales JSON (`fr.json`, `en.json`). Support bilingue intégral.
+*   **Raffinement de la Boîte à Rythmes (`drums.js`) :**
+    *   **Affichage Conditionnel de la Basse :** La piste de basse et le synthétiseur interne sont désormais **masqués** par défaut pour les rythmes standards (mode TR-808) afin de préserver une expérience "pure percussion". Ils s'activent **automatiquement** uniquement lors du chargement d'un fichier MIDI importé (`imported_`).
+    *   **Synchronisation du Mixeur :** Correction du bug de rafraîchissement ; le mixeur recalcule désormais dynamiquement ses pistes lors de chaque changement de pattern.
+    *   **Nettoyage UI :** Suppression des labels de debug ("Drum mixer v5", "MIDI TR-808 Engine") et élargissement de la modale principale à 950px pour un meilleur confort visuel.
+*   **Correction Modale & Ergonomie :**
+    *   **Fix Troncature :** Ajustement des dimensions (80x28px) du sélecteur de transposition dans l'assistant MIDI pour éviter toute coupure de texte.
+    *   **Gestion des Orphelins :** La fermeture de la boîte à rythmes entraîne désormais la fermeture forcée de l'assistant MIDI si celui-ci était encore ouvert, évitant ainsi le blocage de l'interface utilisateur.
