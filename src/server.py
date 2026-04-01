@@ -26,7 +26,7 @@ from i18n import _
 # Configure Logging
 logging.basicConfig(
     filename=os.path.join(get_app_dir(), 'midikbd_debug.log'),
-    level=logging.DEBUG,
+    level=logging.WARNING,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
@@ -685,7 +685,10 @@ async def get_settings():
         "midi_output_name": config_manager.get("midi_output_name", ""), # Legacy fallback
         "language": config_manager.get("language", "fr"),
         "autoplay": config_manager.get("autoplay", False),
-        "autoreplay": config_manager.get("autoreplay", False)
+        "autoreplay": config_manager.get("autoreplay", False),
+        "sidebar_autohide": config_manager.get("sidebar_autohide", False),
+        "sidebar_default_hidden": config_manager.get("sidebar_default_hidden", False),
+        "sidebar_hover_trigger": config_manager.get("sidebar_hover_trigger", False)
     }
 
 @app.get("/api/locales/{lang}")

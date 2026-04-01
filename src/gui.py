@@ -220,9 +220,10 @@ class SettingsDialog(ctk.CTkToplevel):
             ctk.CTkLabel(tab_midi, text=_("gui.lbl_midi_multi_hint"), text_color="gray", font=("Arial", 10)).pack()
 
         except Exception as e:
-            with open("debug.log", "a") as f:
-                import traceback
-                f.write(f"SETTINGS ERROR: {e}\n{traceback.format_exc()}\n")
+            # log_debug handles the error silently or we just pass
+            # with open("debug.log", "a") as f:
+            #     import traceback
+            #     f.write(f"SETTINGS ERROR: {e}\n{traceback.format_exc()}\n")
             CTkMessageBox.show_error(_("gui.msg_error"), f"{_('gui.msg_settings_error')}\n{e}")
 
     def save_midi_out(self):
@@ -674,9 +675,9 @@ class MappingDialog(ctk.CTkToplevel):
                          if e.scan_code in pressed_scancodes:
                              pressed_scancodes.discard(e.scan_code)
             except Exception as e:
-                with open("debug.log", "a") as f:
-                    import traceback
-                    f.write(f"REC ERROR: {e}\n{traceback.format_exc()}\n")
+                # with open("debug.log", "a") as f:
+                #     import traceback
+                #     f.write(f"REC ERROR: {e}\n{traceback.format_exc()}\n")
                 self.after(0, lambda: self.finish_recording(None))
 
         threading.Thread(target=_rec_thread, daemon=True).start()
@@ -926,12 +927,8 @@ class MidiKbdApp(ctk.CTk):
         self.after(0, _update)
 
     def log_debug(self, message):
-        try:
-            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            with open("debug.log", "a", encoding="utf-8") as f:
-                f.write(f"[GUI] [{timestamp}] {message}\n")
-                f.flush()
-        except: pass
+        # logging is now disabled to save disk space
+        pass
 
     def create_sidebar(self):
         self.sidebar_frame = ctk.CTkFrame(self, width=220, corner_radius=0)

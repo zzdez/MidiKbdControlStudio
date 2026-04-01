@@ -29,12 +29,8 @@ class MidiProvider(abc.ABC):
         self._stop_event = threading.Event()
 
     def log(self, message):
-        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-        try:
-            log_path = os.path.join(get_app_dir(), "debug.log")
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(f"[{timestamp}] [{self.__class__.__name__}] {message}\n")
-        except: pass
+        # logging disabled to save disk space
+        pass
 
     @abc.abstractmethod
     def start(self): pass
@@ -399,12 +395,8 @@ class MidiManager:
         self._target_output_names = []
     
     def log(self, msg):
-        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-        try:
-            log_path = os.path.join(get_app_dir(), "debug.log")
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(f"[{timestamp}] [MidiManager] {msg}\n")
-        except: pass
+        # logging disabled to save disk space
+        pass
 
     def switch_mode(self, mode, device_name):
         """

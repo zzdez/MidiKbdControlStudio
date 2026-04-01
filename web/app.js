@@ -941,6 +941,17 @@ async function loadSettings() {
             if (typeof fretboardState !== 'undefined') {
                 fretboardState.skin = currentSettings.fretboard_skin || "flat";
             }
+
+            // Sync Header Buttons
+            updateSidebarButtonsUI();
+
+            // Apply sidebar default state
+            if (currentSettings.sidebar_default_hidden === true) {
+                // We use setTimeout to ensure the DOM is ready and the toggle doesn't conflict with initial layout
+                setTimeout(() => {
+                    toggleTheaterMode(true);
+                }, 100);
+            }
         }
     } catch (e) {
         console.error("Settings Load Error", e);
@@ -983,6 +994,16 @@ async function openSettingsModal() {
 
         const fbAutoClose = document.getElementById("setting-fretboard-autoclose");
         if (fbAutoClose) fbAutoClose.checked = currentSettings.fretboard_autoclose || false;
+
+        // Interface Settings
+        const saCb = document.getElementById("setting-sidebar-autohide");
+        if (saCb) saCb.checked = currentSettings.sidebar_autohide === true;
+
+        const sdhCb = document.getElementById("setting-sidebar-default-hidden");
+        if (sdhCb) sdhCb.checked = currentSettings.sidebar_default_hidden === true;
+
+        const shtCb = document.getElementById("setting-sidebar-hover-trigger");
+        if (shtCb) shtCb.checked = currentSettings.sidebar_hover_trigger === true;
 
         renderSettingsFolders();
 
@@ -1154,6 +1175,9 @@ async function saveSettings() {
     if (fbAutoClose) {
         currentSettings.fretboard_autoclose = fbAutoClose.checked;
     }
+
+    // Sidebar Settings (Now handled via toggleSidebarOption in header)
+    // - Deleted from here to avoid overwriting on-the-fly choices -
 
     try {
         await fetch("/api/settings", {
@@ -2001,6 +2025,11 @@ function playTrack(track) {
         }
     }
 
+    // Auto-hide sidebar if setting is enabled (Only if NOT already in theater mode)
+    if (currentSettings && currentSettings.sidebar_autohide && !isTheaterMode) {
+        toggleTheaterMode(true);
+    }
+
     const globalTitle = document.getElementById("global-video-title");
     const globalBpm = document.getElementById("global-video-bpm");
     updateHeaderScaleDisplay(track);
@@ -2055,6 +2084,10 @@ function playTrack(track) {
     subtitleEnabled = false;
     currentSubtitles = [];
     if (typeof updateCCIconState === "function") updateCCIconState(false, 'both');
+    // If sidebar autohide is enabled, hide it now
+    if (currentSettings && currentSettings.sidebar_autohide && !isTheaterMode) {
+        toggleTheaterMode(true);
+    }
     const overlay = document.getElementById("subtitle-overlay");
     if (overlay) overlay.style.display = "none";
     const subBtn = document.getElementById("btn-toggle-subs");
@@ -2182,9 +2215,18 @@ async function toggleNativeRemote() {
 }
 
 let isTheaterMode = false;
+let isTheaterTransitioning = false;
 
-function toggleTheaterMode() {
-    isTheaterMode = !isTheaterMode;
+function toggleTheaterMode(forceState = null) {
+    if (isTheaterTransitioning) return;
+    
+    const targetState = (forceState !== null) ? forceState : !isTheaterMode;
+    
+    // Avoid redundant calls (especially from auto-hide logic)
+    if (forceState !== null && isTheaterMode === forceState) return;
+
+    isTheaterMode = targetState;
+    isTheaterTransitioning = true;
 
     // Elements to toggle
     const sidebar = document.querySelector(".sidebar-zone");
@@ -2196,10 +2238,17 @@ function toggleTheaterMode() {
         if (pedalboard) pedalboard.style.display = "none";
         if (mediaZone) mediaZone.style.borderRight = "none";
     } else {
-        if (sidebar) sidebar.style.display = "flex"; // style.css uses flex for sidebar-zone
+        if (sidebar) {
+            sidebar.classList.remove('hover-active'); // On nettoie le mode survol si on repasse en mode normal
+            sidebar.style.display = "flex"; 
+        }
         if (pedalboard) pedalboard.style.display = "block";
         if (mediaZone) mediaZone.style.borderRight = "1px solid #333";
     }
+
+    // Update Header Button UI
+    const btnTheater = document.getElementById("btn-toggle-theater");
+    if (btnTheater) btnTheater.classList.toggle('active', isTheaterMode);
 
     // Force wavesurfer redraw for multitrack expansion
     console.log("[DEBUG MT] Theater Mode Toggled:", isTheaterMode);
@@ -2248,7 +2297,14 @@ function toggleTheaterMode() {
                 }
             }
         }
-    }, 150); // slight delay to let CSS flex layout settle
+        
+        // Finalize transition
+        isTheaterTransitioning = false;
+        
+        // Sync header buttons UI
+        if (typeof updateSidebarButtonsUI === 'function') updateSidebarButtonsUI();
+
+    }, 300); // 300ms is enough for the sidebar CSS transition to complete
 }
 
 function renderPedalboard(profile) {
@@ -3000,6 +3056,11 @@ async function playLocal(index) {
 
     // AUTO-RESET PITCH
     updatePitch(0);
+
+    // Auto-hide sidebar if setting is enabled (Only if NOT already in theater mode)
+    if (currentSettings && currentSettings.sidebar_autohide && !isTheaterMode) {
+        toggleTheaterMode(true);
+    }
 
     // Volume Default logic
     const trackVolume = (file.volume !== undefined) ? parseInt(file.volume, 10) : 100;
@@ -5092,12 +5153,27 @@ document.addEventListener("DOMContentLoaded", () => {
     // Initialize Universal Loop Selection (One time)
     setupUniversalLoopSelection();
 
-    setupSliderReset(document.getElementById("audio-volume"), "volume");
-    setupSliderReset(document.getElementById("video-volume"), "volume");
-    setupSliderReset(document.getElementById("multitrack-master-volume"), "volume");
-    setupSliderReset(document.getElementById("local-volume"), "volume");
-    setupSliderReset(document.getElementById("edit-volume"), "volume");
     setupSliderReset(document.getElementById("mt-modal-volume"), "volume");
+
+    // Sidebar Hover Logic
+    const hoverTrigger = document.getElementById('sidebar-hover-trigger');
+    const sidebar = document.querySelector('.sidebar-zone');
+    if (hoverTrigger && sidebar) {
+        hoverTrigger.addEventListener('mouseenter', () => {
+            // Uniquement si le mode survol est actif ET que la sidebar est officiellement masquée (Theater Mode)
+            if (currentSettings && currentSettings.sidebar_hover_trigger && isTheaterMode) {
+                console.log("[DEBUG] Sidebar Hover Triggered");
+                sidebar.classList.add('hover-active');
+            }
+        });
+        sidebar.addEventListener('mouseleave', () => {
+            // Toujours retirer le mode hover quand on quitte la zone
+            if (sidebar.classList.contains('hover-active')) {
+                console.log("[DEBUG] Sidebar Hover Left");
+                sidebar.classList.remove('hover-active');
+            }
+        });
+    }
 
     // Initial Loads
     setTimeout(() => {
@@ -6495,6 +6571,11 @@ function checkCues(time) {
                       (currentActivePlayer === 'youtube' && player && typeof player.getPlayerState === 'function' && player.getPlayerState() === 1) ||
                       (currentActivePlayer === 'multitrack' && window.multitrack && window.multitrack.wavesurfers && window.multitrack.wavesurfers[0] && typeof window.multitrack.wavesurfers[0].isPlaying === 'function' && window.multitrack.wavesurfers[0].isPlaying());
     
+    // If sidebar autohide is enabled, hide it now
+    if (currentSettings && currentSettings.sidebar_autohide && !isTheaterMode) {
+        toggleTheaterMode(true);
+    }
+    
     if (!isPlaying) return;
 
     currentCues.forEach(cue => {
@@ -7310,4 +7391,45 @@ function updateHiddenTracksList(file) {
 
         container.appendChild(btn);
     }
+}
+
+// --- SIDEBAR ERGONOMICS (HEADER) ---
+async function toggleSidebarOption(optName) {
+    if (!currentSettings) return;
+
+    // Toggle value
+    currentSettings[optName] = !currentSettings[optName];
+
+    // Handle side effects
+    if (optName === 'sidebar_hover_trigger' && !currentSettings[optName]) {
+        const sidebar = document.querySelector('.sidebar-zone');
+        if (sidebar) sidebar.classList.remove('hover-active');
+    }
+
+    // Refresh UI
+    updateSidebarButtonsUI();
+
+    // Save Immediately
+    console.log(`[SETTINGS] Toggling ${optName} to ${currentSettings[optName]}`);
+    try {
+        await fetch("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(currentSettings)
+        });
+    } catch (e) { console.error("Error saving sidebar choice:", e); }
+}
+
+function updateSidebarButtonsUI() {
+    if (!currentSettings) return;
+
+    const btnAh = document.getElementById("btn-sidebar-autohide");
+    const btnDh = document.getElementById("btn-sidebar-default-hidden");
+    const btnHt = document.getElementById("btn-sidebar-hover-trigger");
+    const btnTh = document.getElementById("btn-toggle-theater");
+
+    if (btnAh) btnAh.classList.toggle('active', currentSettings.sidebar_autohide === true);
+    if (btnDh) btnDh.classList.toggle('active', currentSettings.sidebar_default_hidden === true);
+    if (btnHt) btnHt.classList.toggle('active', currentSettings.sidebar_hover_trigger === true);
+    if (btnTh) btnTh.classList.toggle('active', isTheaterMode === true);
 }

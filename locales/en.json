@@ -194,6 +194,10 @@
         "lbl_autoplay": "Auto-play on selection",
         "lbl_autoreplay": "Auto-replay at the end",
         "hint_youtube_api": "<strong>Optional:</strong> This free key allows automatic retrieval of titles, descriptions, and thumbnails when adding a YouTube link. If no key is provided, <strong>video playback and MIDI pedalboard will work perfectly</strong>, but you will have to type titles manually.",
+        "lbl_interface_ergonomics": "Interface & Ergonomics",
+        "lbl_sidebar_autohide": "Auto-hide (Media)",
+        "lbl_sidebar_default_hidden": "Hide by default",
+        "lbl_sidebar_hover_trigger": "Show on hover",
         "link_get_api_key": "Get a free API key ↗",
         "btn_restart": "Restart",
         "btn_prev": "-5s",
@@ -427,7 +431,7 @@
         "lbl_hihat_o": "HH Open",
         "lbl_tom_h": "High Tom",
         "lbl_tom_m": "Mid Tom",
-        "lbl_tom_l": "Low Tom",
+        "lbl_tom_l": "Floor Tom",
         "lbl_ignore": "Ignore"
     }
 }

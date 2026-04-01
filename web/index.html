@@ -62,10 +62,27 @@
             <button id="btn-toggle-global-visual-cues" class="btn-icon" onclick="toggleGlobalCueVisual()" title="Activer/Désactiver l'affichage géant HUD (Global)" style="margin-right: 5px; color: #444;">
                 <i class="ph ph-eye"></i>
             </button>
-            <button id="btn-toggle-theater" class="btn-icon" onclick="toggleTheaterMode()"
-                data-i18n-title="web.btn_theater" title="Mode Plein Écran (Théâtre)" style="margin-right: 5px;">
-                <i class="ph ph-corners-out"></i>
-            </button>
+            <!-- SIDEBAR ERGONOMICS GROUP -->
+            <div class="header-separator" style="width:1px; height:20px; background:#444; margin:0 10px;"></div>
+            
+            <div id="sidebar-opt-group" style="display:flex; gap:5px; align-items:center;">
+                <button id="btn-toggle-theater" class="btn-icon btn-sidebar-opt" onclick="toggleTheaterMode()"
+                    data-i18n-title="web.btn_theater" title="Mode Plein Écran (Théâtre)" style="margin-right: 5px;">
+                    <i class="ph ph-corners-out"></i>
+                </button>
+                <button id="btn-sidebar-autohide" class="btn-icon btn-sidebar-opt" onclick="toggleSidebarOption('sidebar_autohide')"
+                    data-i18n-title="web.lbl_sidebar_autohide" title="Masquage auto au lancement">
+                    <i class="ph ph-monitor-play"></i>
+                </button>
+                <button id="btn-sidebar-default-hidden" class="btn-icon btn-sidebar-opt" onclick="toggleSidebarOption('sidebar_default_hidden')"
+                    data-i18n-title="web.lbl_sidebar_default_hidden" title="Masquer par défaut au démarrage">
+                    <i class="ph ph-sidebar-simple"></i>
+                </button>
+                <button id="btn-sidebar-hover-trigger" class="btn-icon btn-sidebar-opt" onclick="toggleSidebarOption('sidebar_hover_trigger')"
+                    data-i18n-title="web.lbl_sidebar_hover_trigger" title="Affichage au survol (Bord droit)">
+                    <i class="ph ph-hand-pointing"></i>
+                </button>
+            </div>
             <span id="active-profile" style="white-space: nowrap; font-size: 0.9em; color: #ccc;">Profil : Global</span>
             <button id="btn-settings" class="btn-icon" onclick="openSettingsModal()" data-i18n-title="web.btn_settings"
                 title="Paramètres" style="margin-left: 5px;">
@@ -700,6 +717,7 @@
                     </div>
                 </div>
             </div>
+
 
         </section>
 
@@ -1678,6 +1696,10 @@
                         </label>
                     </div>
 
+                    <h4 data-i18n="web.lbl_interface_ergonomics" style="display:none;">Interface & Ergonomie</h4>
+                    <div style="display:none;">
+                    </div>
+
                     <h4 data-i18n="web.lbl_fretboard_style">Style du Fretboard</h4>
                     <select id="setting-fretboard-skin" onchange="changeFretboardSkin()"
                         style="padding:10px; border-radius:10px; border:1px solid #333; background:#222; color:white; width:100%; margin-bottom: 10px;">
@@ -2441,6 +2463,7 @@
     <script src="js/ui_metronome.js?v=2"></script>
     <script src="js/drums.js?v=7"></script>
     <script src="app.js?v=5"></script>
+    <div id="sidebar-hover-trigger"></div>
 </body>
 
 </html>
