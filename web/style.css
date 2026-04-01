@@ -576,7 +576,7 @@ dialog {
     border-radius: 8px;
     padding: 0;
     width: 95%;
-    max-width: 900px;
+    max-width: 920px;
     /* Wider modal */
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
