@@ -6571,10 +6571,6 @@ function checkCues(time) {
                       (currentActivePlayer === 'youtube' && player && typeof player.getPlayerState === 'function' && player.getPlayerState() === 1) ||
                       (currentActivePlayer === 'multitrack' && window.multitrack && window.multitrack.wavesurfers && window.multitrack.wavesurfers[0] && typeof window.multitrack.wavesurfers[0].isPlaying === 'function' && window.multitrack.wavesurfers[0].isPlaying());
     
-    // If sidebar autohide is enabled, hide it now
-    if (currentSettings && currentSettings.sidebar_autohide && !isTheaterMode) {
-        toggleTheaterMode(true);
-    }
     
     if (!isPlaying) return;
 
