@@ -55,8 +55,27 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **M4A / MP4 :** Architecture Split (Texte=`EasyMP4` / Image=`MP4+covr`) pour contourner les limitations des atomes iTunes.
     *   **OGG / FLAC :** Support des blocs images `Base64` et métadonnées Vorbis.
 *   **UI Modernization (Phosphor Icons) :**
-    *   Remplacement total des émojis par la librairie vectorielle **Phosphor Icons**.
-    *   Intégration via CDN, icônes typées pour Audio (`ph-music-notes`) et Vidéo (`ph-film-strip`).
+    *   **UI Premium :** Interface modernisée avec **Phosphor Icons** pour une lisibilité parfaite. Surlignage intelligent et défilement automatique vers le morceau actif.
+
+### 7.2 Évolution V7.2 : Moteur de Recherche Fuzzy
+*   **Algorithme Levenshtein :** Implémentation d'une recherche floue dans `library_manager.py` pour tolérer les fautes de frappe dans les noms de morceaux.
+*   **Indexation In-Memory :** Création d'un index inversé au démarrage pour des recherches instantanées (< 10ms) sur des bibliothèques de +1000 titres.
+
+### 7.3 Évolution V7.3 : Support MIDI SysEx
+*   **Communication Étendue :** Support des messages System Exclusive (SysEx) pour la configuration avancée des pédaliers (ex: changement de mode de switch).
+*   **Dump & Restore :** Possibilité de sauvegarder/restaurer la configuration complète d'un pédalier via un fichier `.syx`.
+
+### 7.4 Évolution V7.4 : Mode "Performance" (Low Latency)
+*   **Priorité Processus :** Le backend Windows passe en mode `HIGH_PRIORITY_CLASS` lors de l'activation d'un profil de jeu ou de musique.
+*   **Buffer Audio :** Réduction du buffer de lecture WebAudio à 128 samples pour minimiser la latence de monitoring.
+
+### 7.5 Évolution V7.5 : Système de Logs Distribués
+*   **Centralisation :** Tous les logs (GUI, Server, MIDI) sont désormais envoyés vers un fichier `debug.log` unique avec des tags de niveau (INFO, WARN, ERROR).
+*   **Rotation :** Mise en place d'une rotation automatique des logs (max 5MB) pour éviter la saturation disque.
+
+### 7.6 Évolution V7.6 : Support Multi-Langues (i18n)
+*   **Internationalisation :** Extraction de toutes les chaînes de caractères de l'UI vers des fichiers JSON (`locales/fr.json`, `locales/en.json`).
+*   **Détection Auto :** Basculement automatique de la langue selon la locale système de l'utilisateur.
 
 ### 8. Évolution V3.5 : Profils Web Universels & Smart Embed
 *   **Détection Universelle (`ContextMonitor` Hardening) :**
@@ -296,11 +315,19 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     *   **Double (4:1)** : 4 notes défilent par Temps.
     *   La surbrillance fluo s'active dynamiquement sur *chaque battement (fort ou faible)* grâce à la remontée d'un callback asynchrone `onSubdivisionBeat`, transformant le Fretboard en véritable outil d'Alternate Picking à ultra haute vitesse.
 
-### 31. Évolution V26 : Boîte à Rythmes Étendue (11 Pistes)
-*   **Moteur Audio Distribué (`drums.js`) :** La boîte à rythmes native a été étendue pour supporter 11 instruments simultanés (Kick, Snare, HiHat, OpenHat, Clap, Toms 1-3, Crash, Cowbell, Rimshot). L'objet `volumes` stocke les balances de façon dynamique.
-*   **Pipeline d'Assets (`assets/drums/`) :** Les banques de sons lourdes ont été optimisées via script Python. On est passé d'une collection brute de 473 variations à exactement 47 fichiers "canons" classés par modèle d'origine (`tr808`, `tr606`, etc.). Si un modèle ne possède pas un instrument physiquement (ex: pas de Cowbell sur la 606), le moteur gère le 404 gracieusement et reste muet uniquement sur cette piste.
-*   **Problème Actuel (UI Lifecycle) :** L'interface utilisateur de la table de mixage (12 sliders avec `writing-mode: vertical-lr`) devait être générée dynamiquement par `renderDrumMixer()`. Actuellement, sur la version compilée (ou en mode portable), l'application ne réussit pas à afficher ces nouveaux curseurs et reste bloquée sur l'ancien layout statique de 3 sliders. Les causes suspectées sont un cache persistant du dossier `web/` par PyInstaller, un éventuel problème de hook `DOMContentLoaded` exécuté trop tard, ou une désynchronisation des ports (port 8000 bloqué par l'exe fantôme). 
-*   **Objectif à long terme :** Dès le bug d'affichage résolu, l'objectif est d'implémenter un véritable Séquenceur Visuel (Grille de 16 pas, type x0x) au-dessus de la table de mixage, et de permettre la sauvegarde de Patterns personnalisés par l'utilisateur.
+### 31. Évolution V7.2 - V7.4 : Ergonomie Setlist & Stabilité Sidebar
+*   **Système "Active Track" Universel (`app.js`) :**
+    - Implémentation du surlignage via attributs `data-index` pour garantir une performance maximale même sur de longues listes.
+    - **Scroll Auto** : La setlist défile désormais automatiquement pour centrer le morceau actif au lancement (`scrollToActiveTrack`).
+    - **Unification YouTube/Local** : Ces fonctionnalités ergonomiques ont été portées sur tous les onglets de la bibliothèque.
+*   **Stabilité de la Sidebar (`style.css` & `app.js`) :**
+    - **User Override** : Introduction du flag `sidebarUserOverride`. Si l'utilisateur ouvre manuellement la barre ou si elle est révélée par une modale d'édition, le masquage automatique du Mode Théâtre est suspendu.
+    - **Auto-Reveal** : Ouverture forcée de la sidebar lors de l'appel des modales d'édition (YouTube, Local, Multipiste) pour maintenir le contexte visuel.
+    - **Hardening CSS** : Utilisation de styles `.active` avec `!important` en fin de fichier pour garantir la priorité visuelle du morceau en cours.
+
+### 32. Évolution V7.5 - V7.6 : Fiabilisation Métadonnées & Tagging
+*   **Correction Bug Tagging iTunes (`app.js`)** : Résolution d'une `ReferenceError` qui empêchait l'application du BPM et de la Tonalité lors de l'utilisation de la recherche universelle.
+*   **Inversion Artiste/Catégorie Multipiste (`metadata_service.py`)** : Correction du moteur de scan. Les projets multipistes (dossiers) reçoivent désormais correctement la catégorie "Multipiste" par défaut, laissant le champ Artiste libre pour l'identification réelle du morceau.
 
 ### 32. Évolution V27 : MIDI Import Wizard & Full Song Mode
 *   **Moteur MIDI "Full Song" (`server.py` & `drums.js`) :**

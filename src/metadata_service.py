@@ -141,7 +141,7 @@ class MetadataService:
 
             return {
                 "title": sidecar_data.get("title", title),
-                "artist": sidecar_data.get("artist", "Multipistes"),
+                "artist": sidecar_data.get("artist", ""),
                 "album": sidecar_data.get("album", "Stems"),
                 "genre": sidecar_data.get("genre", ""),
                 "year": sidecar_data.get("year", ""),
@@ -150,7 +150,7 @@ class MetadataService:
                 "media_key": sidecar_data.get("media_key", ""),
                 "original_pitch": sidecar_data.get("original_pitch", ""),
                 "target_pitch": sidecar_data.get("target_pitch", ""),
-                "category": sidecar_data.get("category", ""),
+                "category": sidecar_data.get("category", "Multipistes"),
                 "user_notes": sidecar_data.get("user_notes", ""),
                 "loops": sidecar_data.get("loops", []),
                 "audio_cues": sidecar_data.get("audio_cues", []),
