@@ -2,6 +2,8 @@ let currentMode = "WIN";
 let websocket;
 let currentProfile = null;
 let currentActivePlayer = 'youtube';
+let isInitialSettingsLoad = true;
+let sidebarUserOverride = false;
 
 // --- i18n (Internationalization) ---
 let currentLang = "fr";
@@ -746,8 +748,11 @@ function renderSetlist(list) {
     filtered.forEach((track) => {
         // Use originalIndex for safe actions
         const realIndex = track.originalIndex;
-
         const tr = document.createElement("tr");
+        tr.setAttribute('data-index', realIndex); // Attribut technique pour robustesse V7.2
+        if (realIndex === window.currentPlayingIndex) {
+            tr.classList.add('active');
+        }
 
         const iconUrl = getIcon(track.url);
         const iconImg = iconUrl ? `<img src="${iconUrl}" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">` : '';
@@ -766,6 +771,12 @@ function renderSetlist(list) {
     });
 
     updateDatalists(currentTrackList);
+    
+    // Auto-highlight active track in the newly rendered list
+    if (typeof refreshSetlistHighlights === "function") refreshSetlistHighlights();
+    
+    // Auto-scroll to active item after a short delay to let browser render
+    setTimeout(scrollToActiveTrack, 100);
 }
 
 
@@ -945,8 +956,9 @@ async function loadSettings() {
             // Sync Header Buttons
             updateSidebarButtonsUI();
 
-            // Apply sidebar default state
-            if (currentSettings.sidebar_default_hidden === true) {
+            // Apply sidebar default state (ONLY on first application load)
+            if (isInitialSettingsLoad && currentSettings.sidebar_default_hidden === true) {
+                isInitialSettingsLoad = false; // Consumption of the initial flag
                 // We use setTimeout to ensure the DOM is ready and the toggle doesn't conflict with initial layout
                 setTimeout(() => {
                     toggleTheaterMode(true);
@@ -1272,7 +1284,15 @@ function openEditModal(index) {
     const track = currentTrackList.find(t => t.originalIndex === index);
     if (!track) return;
 
+    // Reveal sidebar if in theater mode to give context to editing
+    if (isTheaterMode && typeof toggleTheaterMode === 'function') {
+        toggleTheaterMode(false);
+    }
+
     document.getElementById("media-modal").showModal();
+    
+    // Auto-scroll in background
+    setTimeout(scrollToActiveTrack, 200);
 
     // Fill Form
     document.getElementById("yt-search-input").value = "";
@@ -2006,6 +2026,10 @@ function playTrackAt(index) {
 
 function playTrack(track) {
     window.currentPlayingIndex = track.originalIndex;
+    
+    // Sync UI Highlight immediately
+    if (typeof refreshSetlistHighlights === "function") refreshSetlistHighlights();
+
     const ytDiv = document.getElementById("player");
     const genFrame = document.getElementById("generic-player");
     const html5 = document.getElementById("html5-player");
@@ -2025,9 +2049,12 @@ function playTrack(track) {
         }
     }
 
-    // Auto-hide sidebar if setting is enabled (Only if NOT already in theater mode)
-    if (currentSettings && currentSettings.sidebar_autohide && !isTheaterMode) {
+    // Auto-hide sidebar if setting is enabled (ONLY IF user hasn't manually opened it)
+    if (currentSettings && currentSettings.sidebar_autohide && !isTheaterMode && !sidebarUserOverride) {
         toggleTheaterMode(true);
+    } else {
+        // Ensure scroll even if sidebar stays open
+        setTimeout(scrollToActiveTrack, 500);
     }
 
     const globalTitle = document.getElementById("global-video-title");
@@ -2220,12 +2247,19 @@ let isTheaterTransitioning = false;
 function toggleTheaterMode(forceState = null) {
     if (isTheaterTransitioning) return;
     
-    const targetState = (forceState !== null) ? forceState : !isTheaterMode;
+    const newState = (forceState !== null) ? forceState : !isTheaterMode;
+    if (newState === isTheaterMode) return;
     
-    // Avoid redundant calls (especially from auto-hide logic)
-    if (forceState !== null && isTheaterMode === forceState) return;
+    // If we are SHOWING the sidebar (newState = false), consider it a user override 
+    // to prevent Auto-Hide from stealing it back during this session.
+    if (newState === false) {
+        sidebarUserOverride = true;
+    } else {
+        // If user manually HIDES, we reset override so Auto-Hide can work again if they want.
+        sidebarUserOverride = false;
+    }
 
-    isTheaterMode = targetState;
+    isTheaterMode = newState;
     isTheaterTransitioning = true;
 
     // Elements to toggle
@@ -2709,6 +2743,7 @@ function renderLocalFiles() {
         }
 
         const tr = document.createElement("tr");
+        tr.setAttribute('data-index', realIndex); // Attribut technique pour robustesse V7.4
         tr.innerHTML = `
             <td>${file.artist || ""}</td>
             <td style="cursor:pointer;" onclick="playLocal(${realIndex})">
@@ -2723,6 +2758,9 @@ function renderLocalFiles() {
         `;
         tbody.appendChild(tr);
     });
+
+    // Auto-highlight local media
+    if (typeof refreshSetlistHighlights === "function") refreshSetlistHighlights();
 }
 
 function resetFilters(mode) {
@@ -3026,11 +3064,30 @@ async function loadMultitrackSettings(file) {
     }
 }
 
+function openEditLocalModal(index) {
+    editingIndex = index;
+    const file = localFiles[index];
+    if (!file) return;
+
+    // Reveal sidebar if in theater mode to give context to editing
+    if (isTheaterMode && typeof toggleTheaterMode === 'function') {
+        toggleTheaterMode(false);
+    }
+
+    document.getElementById("media-modal").showModal();
+    
+    // Auto-scroll in background
+    setTimeout(scrollToActiveTrack, 200);
+}
+
 async function playLocal(index) {
     const file = localFiles[index];
     if (!file) return;
 
     window.currentPlayingIndex = index; // Important : Stocker l'index actif pour TOUS les types de médias
+    
+    // Sync UI Highlight immediately
+    if (typeof refreshSetlistHighlights === "function") refreshSetlistHighlights();
 
     // Helper
     const getProfile = (item, def) => (item.target_profile && item.target_profile !== "Auto") ? item.target_profile : def;
@@ -3057,9 +3114,12 @@ async function playLocal(index) {
     // AUTO-RESET PITCH
     updatePitch(0);
 
-    // Auto-hide sidebar if setting is enabled (Only if NOT already in theater mode)
-    if (currentSettings && currentSettings.sidebar_autohide && !isTheaterMode) {
+    // Auto-hide sidebar if setting is enabled
+    if (currentSettings && currentSettings.sidebar_autohide && !isTheaterMode && !sidebarUserOverride) {
         toggleTheaterMode(true);
+    } else {
+        // If sidebar is visible, scroll to active
+        setTimeout(scrollToActiveTrack, 500);
     }
 
     // Volume Default logic
@@ -4934,7 +4994,17 @@ function closeLocalModal() {
 function openMultitrackModal(index) {
     editingLocalIndex = index;
     const item = localFiles[index];
+    if (!item) return;
+
+    // Reveal sidebar if in theater mode to give context to editing
+    if (isTheaterMode && typeof toggleTheaterMode === 'function') {
+        toggleTheaterMode(false);
+    }
+
     document.getElementById("modal-multitrack").showModal();
+    
+    // Auto-scroll in background
+    setTimeout(scrollToActiveTrack, 200);
 
     // ASPECT RATIO
     const artContainer = document.getElementById("mt-art-container");
@@ -7428,4 +7498,36 @@ function updateSidebarButtonsUI() {
     if (btnDh) btnDh.classList.toggle('active', currentSettings.sidebar_default_hidden === true);
     if (btnHt) btnHt.classList.toggle('active', currentSettings.sidebar_hover_trigger === true);
     if (btnTh) btnTh.classList.toggle('active', isTheaterMode === true);
+}
+
+/**
+ * Centrer le morceau actif dans la liste déroulante (Setlist)
+ */
+function scrollToActiveTrack() {
+    const activeRow = document.querySelector('#setlist-body tr.active');
+    if (activeRow) {
+        activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+/**
+ * Mise à jour rapide des highlights de la setlist sans re-rendu complet
+ */
+function refreshSetlistHighlights() {
+    // Scan ALL rows with data-index attribute (YouTube AND Local)
+    const rows = document.querySelectorAll("tr[data-index]");
+    
+    rows.forEach(row => {
+        const idx = parseInt(row.getAttribute("data-index"));
+        if (!isNaN(idx)) {
+            if (idx === window.currentPlayingIndex) {
+                row.classList.add("active");
+            } else {
+                row.classList.remove("active");
+            }
+        }
+    });
+
+    // Optionnel : Scroll immédiat si besoin
+    scrollToActiveTrack();
 }

@@ -2610,3 +2610,18 @@ input[type="color"].stem-color-input::-moz-color-swatch {
 .sidebar-zone.theater-hidden {
     display: none !important;
 }
+
+/* ==========================================================================
+   V7.3 FINAL OVERRIDES - DO NOT MOVE
+   ========================================================================== */
+
+/* Marquage du morceau actif dans la setlist - Priorité maximale */
+.styled-table tbody tr.active {
+    background-color: rgba(187, 134, 252, 0.25) !important;
+    border-left: 4px solid var(--accent) !important;
+}
+
+.styled-table tbody tr.active td {
+    color: var(--accent) !important;
+    font-weight: 600 !important;
+}
