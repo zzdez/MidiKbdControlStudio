@@ -194,6 +194,10 @@
         "lbl_autoplay": "Lecture auto à la sélection",
         "lbl_autoreplay": "Rejouer en boucle à la fin",
         "msg_api_info": "<strong>Optionnel :</strong> Cette clé gratuite permet de récupérer automatiquement les titres, descriptions et miniatures lors de l'ajout d'un lien YouTube. Si aucune clé n'est fournie, <strong>la lecture vidéo et le pédalier MIDI fonctionneront parfaitement</strong>, mais vous devrez taper les titres manuellement.",
+        "lbl_interface_ergonomics": "Interface & Ergonomie",
+        "lbl_sidebar_autohide": "Masquage auto (Lecture)",
+        "lbl_sidebar_default_hidden": "Masquer par défaut",
+        "lbl_sidebar_hover_trigger": "Affichage au survol",
         "link_get_api_key": "Obtenir une clé API gratuite ↗",
         "btn_restart": "Redémarrer",
         "btn_prev": "Retour 5s",
@@ -428,6 +432,6 @@
         "lbl_tom_h": "Tom Aigu",
         "lbl_tom_m": "Tom Médium",
         "lbl_tom_l": "Tom Grave",
-        "lbl_ignore": "Ignorer"
+        "lbl_ignore": "Ignore"
     }
 }

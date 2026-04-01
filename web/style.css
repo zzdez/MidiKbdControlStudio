@@ -2546,3 +2546,67 @@ input[type="color"].stem-color-input::-moz-color-swatch {
 .btn-active-scale:hover {
     filter: brightness(1.2);
 }
+
+/* ==========================================
+   SIDEBAR ERGONOMICS & HOVER REVEAL
+   ========================================== */
+
+/* The invisible detection zone on the right edge */
+#sidebar-hover-trigger {
+    position: fixed;
+    top: 76px; /* Below header */
+    right: 0;
+    width: 15px; /* Détection un peu plus large pour plus de confort */
+    height: calc(100vh - 76px);
+    z-index: 1000;
+    cursor: e-resize;
+    background: transparent;
+    transition: background 0.2s;
+}
+
+#sidebar-hover-trigger:hover {
+    background: rgba(187, 134, 252, 0.05); /* Very subtle purple hint */
+}
+
+/* Sidebar in Overlay mode (when hovering while hidden) */
+.sidebar-zone.hover-active {
+    position: fixed !important;
+    top: 76px !important;
+    right: 0 !important;
+    width: 33vw !important; /* Largeur augmentée pour correspondre au mode normal (flex: 3) */
+    min-width: 400px !important; /* Sécurité pour petits écrans */
+    height: calc(100vh - 76px) !important;
+    z-index: 1001 !important;
+    box-shadow: -10px 0 30px rgba(0,0,0,0.8) !important;
+    border-left: 1px solid var(--accent) !important;
+    display: flex !important;
+    flex: none !important;
+    animation: slideInRight 0.25s ease-out;
+    background: #181818 !important;
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0.8; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* Style for header ergonomics buttons */
+.btn-sidebar-opt {
+    opacity: 0.6;
+    transition: all 0.2s ease;
+}
+
+.btn-sidebar-opt:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-sidebar-opt.active {
+    opacity: 1;
+    color: var(--accent) !important;
+}
+
+/* Hide the sidebar properly when theater mode is ON */
+.sidebar-zone.theater-hidden {
+    display: none !important;
+}
