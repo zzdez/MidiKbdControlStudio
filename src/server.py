@@ -20,7 +20,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPExcept
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
-from utils import get_app_dir, get_data_dir
+from utils import get_app_dir, get_data_dir, to_portable_path, resolve_portable_path
 from i18n import _
 
 # Configure Logging
@@ -311,6 +311,7 @@ async def api_media_metadata(artist: str = "", title: str = ""):
 @app.get("/api/stream")
 async def stream_file(request: Request, path: str):
     decoded_path = urllib.parse.unquote(path)
+    decoded_path = resolve_portable_path(decoded_path)
     logging.info(f"STREAM API HIT: {decoded_path}") 
     if not os.path.exists(decoded_path):
         logging.error(f"STREAM MISSING: {decoded_path}")
@@ -419,6 +420,15 @@ async def get_setlist():
 
             # Ensure autoplay/autoreplay are strictly boolean or not outputted if undefined to avoid JS type issues
             for item in items:
+                if item.get("url") and not item["url"].startswith("http"):
+                    try:
+                        resolved = resolve_portable_path(item["url"])
+                        item["is_missing"] = not os.path.exists(resolved)
+                    except:
+                        item["is_missing"] = True
+                else:
+                    item["is_missing"] = False
+
                 if "autoplay" in item and item["autoplay"] is not None:
                     item["autoplay"] = bool(item["autoplay"])
                 if "autoreplay" in item and item["autoreplay"] is not None:
@@ -488,9 +498,10 @@ async def add_to_setlist(item: Dict):
                 title = url
 
         # 4. Save
+        final_url = to_portable_path(url) if open_mode == "local" else url
         new_item = {
             "title": title,
-            "url": url,
+            "url": final_url,
             "id": video_id,
             "open_mode": open_mode,
             "profile_name": profile_name,
@@ -586,9 +597,10 @@ async def update_setlist_item(index: int, item: Dict):
             video_id = extract_youtube_id(url)
 
             # 4. Construct Full Item
+            final_url = to_portable_path(url) if open_mode == "local" else url
             updated_item = {
                 "title": title,
-                "url": url,
+                "url": final_url,
                 "id": video_id,
                 "open_mode": open_mode,
                 "profile_name": profile_name,
@@ -627,6 +639,59 @@ async def update_setlist_item(index: int, item: Dict):
 
     except Exception as e:
         print(f"Update Setlist Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/setlist/edit/{index}")
+async def edit_setlist_item(index: int, item: Dict):
+    try:
+        items = []
+        if os.path.exists(SETLIST_FILE):
+             with open(SETLIST_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+
+        if 0 <= index < len(items):
+            current = items[index]
+            # Update fields
+            current["title"] = item.get("title", current["title"])
+            current["artist"] = item.get("artist", current.get("artist", ""))
+            current["category"] = item.get("category", current.get("category", "Général"))
+            current["user_notes"] = item.get("user_notes", current.get("user_notes", ""))
+            current["volume"] = item.get("volume", current.get("volume", 100))
+            current["loops"] = item.get("loops", current.get("loops", []))
+            current["audio_cues"] = item.get("audio_cues", current.get("audio_cues", []))
+            current["bpm"] = item.get("bpm", current.get("bpm", ""))
+            current["key"] = item.get("key", current.get("key", ""))
+            current["scale"] = item.get("scale", current.get("scale", ""))
+            current["instrument"] = item.get("instrument", current.get("instrument", ""))
+            current["tuning"] = item.get("tuning", current.get("tuning", "standard"))
+            current["autoplay"] = item.get("autoplay", current.get("autoplay", False))
+            current["autoreplay"] = item.get("autoreplay", current.get("autoreplay", False))
+
+            # --- RELOCATION / URL UPDATE LOGIC ---
+            new_url = item.get("url")
+            if new_url and new_url != current.get("url") and not new_url.startswith("http"):
+                from utils import to_portable_path
+                current["url"] = to_portable_path(new_url)
+                # Force re-scan stems if it's a multitrack
+                if current.get("is_multitrack"):
+                    try:
+                        abs_new_url = resolve_portable_path(new_url)
+                        new_meta = metadata_service.scan_file_metadata(abs_new_url)
+                        if new_meta.get("stems"):
+                            current["stems"] = [to_portable_path(s) for s in new_meta["stems"]]
+                        current["is_missing"] = False
+                    except Exception as ex:
+                        logging.error(f"Error re-scanning setlist stems after manual relocate: {ex}")
+                else:
+                    current["is_missing"] = False
+
+            with open(SETLIST_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+            return {"status": "ok", "items": items}
+        else:
+             raise HTTPException(status_code=404, detail="Index not found")
+    except Exception as e:
+        print(f"Edit Setlist Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- APPS LAUNCHER ---
@@ -984,6 +1049,15 @@ async def get_local_files():
                 items = json.load(f)
 
             for item in items:
+                if "path" in item:
+                    try:
+                        resolved = resolve_portable_path(item["path"])
+                        item["is_missing"] = not os.path.exists(resolved)
+                    except Exception:
+                        item["is_missing"] = True
+                else:
+                    item["is_missing"] = True
+
                 if "autoplay" in item and item["autoplay"] is not None:
                     item["autoplay"] = bool(item["autoplay"])
                 if "autoreplay" in item and item["autoreplay"] is not None:
@@ -1003,6 +1077,7 @@ async def get_local_art(index: int):
                 items = json.load(f)
                 if 0 <= index < len(items):
                     path = items[index].get("path")
+                    if path: path = resolve_portable_path(path)
         except: pass
 
     if not path or not os.path.exists(path):
@@ -1039,18 +1114,22 @@ async def add_local_file():
                         break
                 
                 if not is_managed:
+                    # Resolve to show real paths in UI
+                    resolved_folders = [resolve_portable_path(f) for f in folders]
                     return {
                         "status": "import_needed",
                         "source_path": path,
                         "filename": os.path.basename(path),
-                        "target_folders": folders
+                        "target_folders": resolved_folders
                     }
                 
                 # If already managed, proceed normally
                 try:
                     # Update to use metadata_service
                     file_data = metadata_service.scan_file_metadata(path)
-                    file_data["path"] = path
+                    file_data["path"] = to_portable_path(path)
+                    if file_data.get("stems"):
+                        file_data["stems"] = [to_portable_path(s) for s in file_data["stems"]]
                     file_data["added_at"] = time.time()
                     
                     items = []
@@ -1094,17 +1173,21 @@ async def add_multitrack_folder():
                         break
                 
                 if not is_managed:
+                    # Resolve to show real paths in UI
+                    resolved_folders = [resolve_portable_path(f) for f in folders]
                     return {
                         "status": "import_needed",
                         "source_path": path,
                         "filename": os.path.basename(path.rstrip('/\\')),
-                        "target_folders": folders
+                        "target_folders": resolved_folders
                     }
                 
                 # If already managed, proceed normally
                 try:
                     file_data = metadata_service.scan_file_metadata(path)
-                    file_data["path"] = path
+                    file_data["path"] = to_portable_path(path)
+                    if file_data.get("stems"):
+                        file_data["stems"] = [to_portable_path(s) for s in file_data["stems"]]
                     file_data["added_at"] = time.time()
                     
                     items = []
@@ -1129,6 +1212,25 @@ async def add_multitrack_folder():
         print(f"Add Multitrack Folder Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/local/pick_path")
+async def pick_path(type: str = "file"):
+    """
+    Opens a system dialog to pick a file or folder and returns the path.
+    type: 'file' or 'folder'
+    """
+    try:
+        if type == "folder":
+            if hasattr(app.state, "select_folder_callback"):
+                path = app.state.select_folder_callback()
+                return {"status": "ok", "path": path}
+        else:
+            if hasattr(app.state, "select_file_callback"):
+                path = app.state.select_file_callback()
+                return {"status": "ok", "path": path}
+        return {"status": "error", "message": "Picker callback not available"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.post("/api/local/confirm_import")
 async def confirm_import(data: Dict):
     source_path = data.get("source_path", "").strip()
@@ -1146,8 +1248,9 @@ async def confirm_import(data: Dict):
     
     try:
         if action in ["copy", "move"]:
-            # Normalize target folder
+            # Normalize and RESOLVE target folder (might be ${APP_DIR}...)
             if target_folder:
+                target_folder = resolve_portable_path(target_folder)
                 target_folder = os.path.normpath(target_folder)
             
             # Check availability
@@ -1197,7 +1300,9 @@ async def confirm_import(data: Dict):
         # Add to Library
         # Update to use metadata_service
         file_data = metadata_service.scan_file_metadata(final_path)
-        file_data["path"] = final_path
+        file_data["path"] = to_portable_path(final_path)
+        if file_data.get("stems"):
+            file_data["stems"] = [to_portable_path(s) for s in file_data["stems"]]
         file_data["added_at"] = time.time()
         
         items = []
@@ -1252,20 +1357,37 @@ async def update_local_file(index: int, item: Dict):
             current["autoplay"] = item.get("autoplay", current.get("autoplay", False))
             current["autoreplay"] = item.get("autoreplay", current.get("autoreplay", False))
             
+            # --- RELOCATION / PATH UPDATE LOGIC ---
+            new_path = item.get("path")
+            if new_path and new_path != current.get("path"):
+                from utils import to_portable_path
+                current["path"] = to_portable_path(new_path)
+                # Force re-scan stems if it's a multitrack
+                if current.get("is_multitrack"):
+                    try:
+                        abs_new_path = resolve_portable_path(new_path)
+                        new_meta = metadata_service.scan_file_metadata(abs_new_path)
+                        if new_meta.get("stems"):
+                            current["stems"] = [to_portable_path(s) for s in new_meta["stems"]]
+                        current["is_missing"] = False
+                    except Exception as ex:
+                        logging.error(f"Error re-scanning stems after manual relocate: {ex}")
+
             # 1. Save JSON (Database Priority)
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=4)
 
             # 2. Write to disk tags (Physical)
             warning_msg = None
-            ext = os.path.splitext(current["path"])[1].lower()
+            resolved_path = resolve_portable_path(current["path"])
+            ext = os.path.splitext(resolved_path)[1].lower()
             
             if ext in ['.webm', '.mkv']:
                 warning_msg = "Métadonnées sauvegardées dans la base locale uniquement (Format vidéo non éditable)."
             else:
                 try:
                     # Update to use metadata_service
-                    metadata_service.write_file_metadata(current["path"], item)
+                    metadata_service.write_file_metadata(resolved_path, item)
                 except PermissionError:
                     warning_msg = "Attention : Le fichier est en cours d'utilisation. Les tags internes n'ont pas été modifiés, mais la bibliothèque est à jour."
                 except Exception as e:
@@ -1293,6 +1415,7 @@ async def stream_local_file_by_index(request: Request, index: int):
                  
         if 0 <= index < len(items):
             path = items[index]["path"]
+            path = resolve_portable_path(path)
             if os.path.exists(path):
                 import mimetypes
                 mime_type, _ = mimetypes.guess_type(path)
@@ -1319,6 +1442,7 @@ async def get_local_stem_peaks(index: int, stem_index: int):
                 stems = item["stems"]
                 if 0 <= stem_index < len(stems):
                     path = stems[stem_index]
+                    path = resolve_portable_path(path)
                     if os.path.exists(path):
                         peaks = metadata_service.generate_peaks(path)
                         return peaks
@@ -1326,6 +1450,138 @@ async def get_local_stem_peaks(index: int, stem_index: int):
     except Exception as e:
         logging.error(f"Peaks Endpoint Error: {e}")
         return []
+
+@app.post("/api/local/smart_relocate/{type}/{index}")
+async def smart_relocate(type: str, index: int):
+    """
+    Tries to find a missing file by scanning internal Media folders.
+    If found, updates ALL occurrences of this file in both Setlist and Library.
+    """
+    try:
+        from utils import get_internal_media_dirs, to_portable_path, resolve_portable_path
+        
+        file_db = SETLIST_FILE if type == "setlist" else LOCAL_LIB_FILE
+        if not os.path.exists(file_db):
+            raise HTTPException(status_code=404, detail="Database not found")
+        
+        with open(file_db, "r", encoding="utf-8") as f:
+            items = json.load(f)
+            
+        if index < 0 or index >= len(items):
+            raise HTTPException(status_code=404, detail="Item not found")
+            
+        target_item = items[index]
+        path_key = "url" if type == "setlist" else "path"
+        old_path = target_item.get(path_key)
+        
+        if not old_path or old_path.startswith("http"):
+            return {"status": "error", "message": "Not a local file"}
+            
+        filename = os.path.basename(old_path.rstrip('/\\'))
+        if not filename:
+             return {"status": "error", "message": "Invalid filename"}
+
+        # 1. Scan Internal Dirs first (Fast)
+        internal_parents = get_internal_media_dirs()
+        new_found_path = None
+        
+        print(f"[SmartRelocate] Level 1: Searching for '{filename}' in internal folders...")
+        
+        # Phase 1: Internal, Phase 2: All Drives
+        found = False
+        import string
+        from ctypes import windll
+
+        def get_drives():
+            drives = []
+            bitmask = windll.kernel32.GetLogicalDrives()
+            for letter in string.ascii_uppercase:
+                if bitmask & 1:
+                    drives.append(letter + ":\\")
+                bitmask >>= 1
+            return drives
+
+        for phase, parents in enumerate([internal_parents, get_drives()]):
+            if found: break
+            print(f"[SmartRelocate] Phase {phase+1} search...")
+            for parent in parents:
+                if found: break
+                if not os.path.exists(parent): continue
+                # Search recursively
+                for root, dirs, files in os.walk(parent):
+                    # Check case-insensitively
+                    if filename.lower() in [f.lower() for f in files] or filename.lower() in [d.lower() for d in dirs]:
+                        found_name = next((f for f in files if f.lower() == filename.lower()), None)
+                        if not found_name:
+                             found_name = next((d for d in dirs if d.lower() == filename.lower()), filename)
+                        
+                        new_found_path = os.path.join(root, found_name)
+                        print(f"[SmartRelocate] Found at: {new_found_path}")
+                        found = True
+                        break
+
+        if not new_found_path:
+             return {"status": "error", "message": f"Fichier '{filename}' non trouvé dans l'application ni sur les lecteurs système."}
+                
+        if new_found_path:
+            portable_new_path = to_portable_path(new_found_path)
+            updated_count = 0
+            
+            # Pre-scan stems for the multitrack logic to apply it everywhere
+            new_stems = []
+            if target_item.get("is_multitrack"):
+                try:
+                    new_meta = metadata_service.scan_file_metadata(new_found_path)
+                    if new_meta.get("stems"):
+                        new_stems = [to_portable_path(s) for s in new_meta["stems"]]
+                except:
+                    pass
+
+            # --- UNIVERSAL UPDATE (Library + Setlist) ---
+            for db_path in [LOCAL_LIB_FILE, SETLIST_FILE]:
+                if not os.path.exists(db_path): continue
+                
+                changed = False
+                with open(db_path, "r", encoding="utf-8") as f:
+                    db_items = json.load(f)
+                
+                curr_path_key = "url" if db_path == SETLIST_FILE else "path"
+                
+                for item in db_items:
+                    item_path = item.get(curr_path_key, "")
+                    if item_path and not item_path.startswith("http"):
+                        item_fn = os.path.basename(item_path.rstrip('/\\'))
+                        if item_fn.lower() == filename.lower():
+                            item[curr_path_key] = portable_new_path
+                            item["is_missing"] = False
+                            if item.get("is_multitrack"):
+                                item["stems"] = new_stems
+                            changed = True
+                            updated_count += 1
+                
+                if changed:
+                    with open(db_path, "w", encoding="utf-8") as f:
+                        json.dump(db_items, f, indent=4)
+            
+            # CRITICAL: Update the specific item we're returning to frontend
+            target_item[path_key] = portable_new_path
+            target_item["is_missing"] = False
+            if target_item.get("is_multitrack"):
+                target_item["stems"] = new_stems
+
+            return {
+                "status": "ok", 
+                "new_path": portable_new_path, 
+                "updated_count": updated_count,
+                "item": target_item,
+                "message": f"Fichier relocalisé et mis à jour {updated_count} fois."
+            }
+        else:
+            return {"status": "not_found", "message": f"Fichier '{filename}' non trouvé dans l'application."}
+
+    except Exception as e:
+        print(f"[SmartRelocate] Error: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.get("/api/local/subs_list/{index}")
 async def get_local_subs_list(index: int):
@@ -1337,6 +1593,7 @@ async def get_local_subs_list(index: int):
                  
         if 0 <= index < len(items):
             video_path = items[index]["path"]
+            video_path = resolve_portable_path(video_path)
             if os.path.exists(video_path):
                 import glob
                 base, _ = os.path.splitext(video_path)
@@ -1368,6 +1625,7 @@ async def get_local_subs(index: int, track: str = None):
                  
         if 0 <= index < len(items):
             video_path = items[index]["path"]
+            video_path = resolve_portable_path(video_path)
             if os.path.exists(video_path):
                 import glob
                 base, _ = os.path.splitext(video_path)
@@ -1426,11 +1684,12 @@ async def delete_local_stem(index: int, stem_index: int):
                 stems = item["stems"]
                 if 0 <= stem_index < len(stems):
                     stem_path = stems[stem_index]
+                    stem_path_resolved = resolve_portable_path(stem_path)
                     
                     # 1. Delete physical file
-                    if os.path.exists(stem_path):
+                    if os.path.exists(stem_path_resolved):
                         try:
-                            os.remove(stem_path)
+                            os.remove(stem_path_resolved)
                             logging.info(f"[BACKEND] Stem deleted: {stem_path}")
                         except Exception as e:
                             logging.error(f"[BACKEND] Failed to delete file {stem_path}: {e}")
@@ -1464,6 +1723,7 @@ async def get_multitrack_settings(index: int):
                  
         if 0 <= index < len(items):
             path = items[index]["path"]
+            path = resolve_portable_path(path)
             item_data = items[index]
             result = {}
 
@@ -1497,6 +1757,7 @@ async def save_multitrack_settings(index: int, request: Request):
                  
         if 0 <= index < len(items):
             path = items[index]["path"]
+            path_resolved = resolve_portable_path(path)
 
             # Sync autoplay/autoreplay properties back to the main items DB too
             if "autoplay" in settings:
@@ -1507,8 +1768,8 @@ async def save_multitrack_settings(index: int, request: Request):
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=4)
 
-            if os.path.isdir(path):
-                settings_file = os.path.join(path, "airstep_meta.json")
+            if os.path.isdir(path_resolved):
+                settings_file = os.path.join(path_resolved, "airstep_meta.json")
                 with open(settings_file, "w", encoding="utf-8") as f:
                     json.dump(settings, f, indent=4)
                 return {"status": "ok"}
@@ -1529,6 +1790,7 @@ async def get_local_art(index: int):
                  
         if 0 <= index < len(items):
             path = items[index]["path"]
+            path = resolve_portable_path(path)
             # Use Service
             data, mime = metadata_service.get_file_cover(path)
             
@@ -1543,6 +1805,238 @@ async def get_local_art(index: int):
         print(f"Art Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/api/local/edit/{index}")
+async def edit_local_file(index: int, item: Dict):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+
+        if 0 <= index < len(items):
+            current = items[index]
+            # --- RELOCATION LOGIC ---
+            new_path = item.get("path")
+            if new_path and new_path != current.get("path"):
+                from utils import to_portable_path
+                current["path"] = to_portable_path(new_path)
+                # Re-scan stems if it's a multitrack
+                if current.get("is_multitrack"):
+                    try:
+                        abs_new_path = resolve_portable_path(new_path)
+                        new_meta = metadata_service.scan_file_metadata(abs_new_path)
+                        if new_meta.get("stems"):
+                            current["stems"] = [to_portable_path(s) for s in new_meta["stems"]]
+                        current["is_missing"] = False
+                    except Exception as ex:
+                        logging.error(f"Error re-scanning stems after manual relocate: {ex}")
+                else:
+                    current["is_missing"] = False
+
+            # Update other fields...
+            for key in ["title", "artist", "genre", "category", "bpm", "key", "scale", "instrument", "tuning", "user_notes"]:
+                if key in item: current[key] = item[key]
+            
+            with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+            return {"status": "ok", "items": items}
+        return {"status": "error", "message": "Index missing"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/setlist/edit/{index}")
+async def edit_setlist_item(index: int, item: Dict):
+    try:
+        items = []
+        if os.path.exists(SETLIST_FILE):
+             with open(SETLIST_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+
+        if 0 <= index < len(items):
+            current = items[index]
+            # --- RELOCATION LOGIC ---
+            new_url = item.get("url")
+            if new_url and new_url != current.get("url") and not new_url.startswith("http"):
+                from utils import to_portable_path
+                current["url"] = to_portable_path(new_url)
+                # Re-scan stems if it's a multitrack
+                if current.get("is_multitrack"):
+                    try:
+                        abs_new_url = resolve_portable_path(new_url)
+                        new_meta = metadata_service.scan_file_metadata(abs_new_url)
+                        if new_meta.get("stems"):
+                            current["stems"] = [to_portable_path(s) for s in new_meta["stems"]]
+                        current["is_missing"] = False
+                    except Exception as ex:
+                        logging.error(f"Error re-scanning setlist stems after manual relocate: {ex}")
+                else:
+                    current["is_missing"] = False
+            
+            # Update others...
+            for key in ["title", "artist", "category", "user_notes", "bpm", "key"]:
+                if key in item: current[key] = item[key]
+
+            with open(SETLIST_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+            return {"status": "ok", "items": items}
+        return {"status": "error", "message": "Index missing"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/local/relocate/{index}")
+async def relocate_media(index: int):
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+                 
+        if 0 <= index < len(items):
+            if hasattr(app.state, "select_folder_callback"):
+                new_folder = app.state.select_folder_callback()
+                if not new_folder:
+                    return {"status": "cancelled"}
+                    
+                target_item = items[index]
+                old_path_resolved = resolve_portable_path(target_item["path"])
+                filename = os.path.basename(old_path_resolved.rstrip('/\\'))
+                
+                new_path = os.path.join(new_folder, filename)
+                if not os.path.exists(new_path):
+                     return {"status": "error", "message": f"Fichier/Dossier '{filename}' introuvable dans le dossier sélectionné."}
+                     
+                target_item["path"] = to_portable_path(new_path)
+                
+                fixed_count = 1
+                for i, item in enumerate(items):
+                    if i != index:
+                        p = resolve_portable_path(item["path"])
+                        if not os.path.exists(p):
+                            f_name = os.path.basename(p.rstrip('/\\'))
+                            guess = os.path.join(new_folder, f_name)
+                            if os.path.exists(guess):
+                                item["path"] = to_portable_path(guess)
+                                if item.get("stems"):
+                                    new_stems = []
+                                    for stem in item["stems"]:
+                                        s_name = os.path.basename(resolve_portable_path(stem))
+                                        s_guess = os.path.join(new_folder, s_name)
+                                        if os.path.exists(s_guess):
+                                            new_stems.append(to_portable_path(s_guess))
+                                        else:
+                                            new_stems.append(stem)
+                                    item["stems"] = new_stems
+                                fixed_count += 1
+                                
+                if target_item.get("stems"):
+                    new_stems = []
+                    for stem in target_item["stems"]:
+                        s_name = os.path.basename(resolve_portable_path(stem))
+                        s_guess = os.path.join(new_folder, s_name)
+                        if os.path.exists(s_guess):
+                            new_stems.append(to_portable_path(s_guess))
+                        else:
+                            new_stems.append(stem)
+                    target_item["stems"] = new_stems
+                
+                with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                    json.dump(items, f, indent=4)
+                    
+                return {"status": "ok", "fixed_count": fixed_count}
+            else:
+                return {"status": "error", "message": "Callback not linked"}
+        else:
+             raise HTTPException(status_code=404, detail="Index not found")
+    except Exception as e:
+        print(f"Relocate Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/local/consolidate")
+async def consolidate_library():
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+                 
+        if not items:
+            return {"status": "ok", "consolidated_count": 0}
+            
+        from utils import get_internal_media_dirs
+        internal_dirs = get_internal_media_dirs() 
+        # internal_dirs: [Audios, Videos, Midi]
+        
+        audio_exts = ['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg']
+        video_exts = ['.mp4', '.mkv', '.avi', '.mov', '.webm']
+        
+        consolidated_count = 0
+        
+        for item in items:
+            original_path = item["path"]
+            resolved_path = resolve_portable_path(original_path)
+            
+            if not str(original_path).startswith("${APP_DIR}") and os.path.exists(resolved_path):
+                filename = os.path.basename(resolved_path.rstrip('/\\'))
+                ext = os.path.splitext(filename)[1].lower()
+                
+                # Determine subfolder
+                target_root = internal_dirs[0] # Default Audios
+                if item.get("is_multitrack"):
+                    target_root = internal_dirs[3] # Multipistes
+                elif ext in video_exts:
+                    target_root = internal_dirs[1] # Videos
+                elif ext in ['.mid', '.midi']:
+                    target_root = internal_dirs[2] # Midi
+                
+                dest = os.path.join(target_root, filename)
+                
+                base, fext = os.path.splitext(dest)
+                counter = 1
+                while os.path.exists(dest) and os.path.abspath(dest) != os.path.abspath(resolved_path):
+                    dest = f"{base}_{counter}{fext}"
+                    counter += 1
+                
+                if os.path.abspath(dest) != os.path.abspath(resolved_path):
+                    if os.path.isdir(resolved_path):
+                        shutil.copytree(resolved_path, dest)
+                    else:
+                        shutil.copy2(resolved_path, dest)
+                    
+                    item["path"] = to_portable_path(dest)
+                    consolidated_count += 1
+                    
+            # Handle stems
+            if item.get("stems"):
+                new_stems = []
+                for stem in item["stems"]:
+                    res_stem = resolve_portable_path(stem)
+                    if not str(stem).startswith("${APP_DIR}") and os.path.exists(res_stem):
+                        stem_filename = os.path.basename(res_stem)
+                        # Stems always go to Audios
+                        stem_dest = os.path.join(internal_dirs[0], stem_filename)
+                        base, fext = os.path.splitext(stem_dest)
+                        counter = 1
+                        while os.path.exists(stem_dest) and os.path.abspath(stem_dest) != os.path.abspath(res_stem):
+                            stem_dest = f"{base}_{counter}{fext}"
+                            counter += 1
+                        if os.path.abspath(stem_dest) != os.path.abspath(res_stem):
+                            shutil.copy2(res_stem, stem_dest)
+                            new_stems.append(to_portable_path(stem_dest))
+                            consolidated_count += 1
+                        else:
+                            new_stems.append(to_portable_path(stem_dest))
+                    else:
+                        new_stems.append(stem)
+                item["stems"] = new_stems
+                
+        with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=4)
+            
+        return {"status": "ok", "consolidated_count": consolidated_count}
+    except Exception as e:
+        print(f"Consolidate Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- CONFIG MANAGER (Profiles/Devices) ---
 @app.get("/api/profiles")

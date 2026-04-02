@@ -754,13 +754,22 @@ function renderSetlist(list) {
             tr.classList.add('active');
         }
 
+        const isMissing = track.is_missing === true;
+        if (isMissing) tr.classList.add('track-missing');
+
         const iconUrl = getIcon(track.url);
-        const iconImg = iconUrl ? `<img src="${iconUrl}" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">` : '';
+        let iconImg = iconUrl ? `<img src="${iconUrl}" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">` : '';
+        
+        if (isMissing) {
+            iconImg = `<i class="ph ph-warning-circle" style="margin-right:8px; vertical-align:middle;" title="Fichier introuvable"></i>`;
+        }
 
         // Swapped Columns: Artist | Title (with icon) | Category
         tr.innerHTML = `
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.artist || ""}</td>
-            <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${iconImg}${track.title || track.url}</td>
+            <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">
+                ${iconImg}${track.title || track.url}
+            </td>
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.category || ""}</td>
             <td style="text-align:right;">
                 <button class="btn-action" onclick="openEditModal(${realIndex})" title="${t("web.btn_edit")}">✎</button>
@@ -1061,6 +1070,7 @@ function switchSettingsTab(tabName) {
     // Hide all
     document.getElementById("tab-settings-general").style.display = "none";
     document.getElementById("tab-settings-library").style.display = "none";
+    document.getElementById("tab-settings-storage").style.display = "none";
     document.getElementById("tab-settings-controller").style.display = "none";
 
     // Deactivate Buttons
@@ -1068,10 +1078,11 @@ function switchSettingsTab(tabName) {
     btns.forEach(b => b.classList.remove("active"));
 
     // Show Target
-    document.getElementById(`tab-settings-${tabName}`).style.display = "block";
+    const target = document.getElementById(`tab-settings-${tabName}`);
+    if (target) target.style.display = "block";
 
-    // Activate Button (Simple Index Logic or Search)
-    const map = { 'general': 0, 'library': 1, 'controller': 2 };
+    // Activate Button (Mapping correct avec l'ordre de l'index.html)
+    const map = { 'general': 0, 'library': 1, 'storage': 2, 'controller': 3 };
     if (btns[map[tabName]]) btns[map[tabName]].classList.add("active");
 }
 
@@ -2025,6 +2036,11 @@ function playTrackAt(index) {
 }
 
 function playTrack(track) {
+    if (track.is_missing === true) {
+        openMissingFileModal(track, 'setlist');
+        return;
+    }
+    window.currentSource = 'setlist';
     window.currentPlayingIndex = track.originalIndex;
     
     // Sync UI Highlight immediately
@@ -2625,6 +2641,18 @@ function initWaveSurfer() {
 
         wavesurfer.on('interaction', () => { wavesurfer.play(); });
 
+        wavesurfer.on('error', (err) => {
+            console.error("WaveSurfer Error:", err);
+            // If it's a 404 or load error, try to flag as missing
+            if (window.currentPlayingIndex !== null) {
+                const track = findTrackInLibraryOrSetlist(window.currentPlayingIndex);
+                if (track && !track.url?.startsWith('http')) {
+                    track.is_missing = true;
+                    openMissingFileModal(track);
+                }
+            }
+        });
+
         wavesurfer.on('ready', () => {
             // Retrieve strictly from the wavesurfer object state so we don't accidentally play
             // a previous song's state if loaded quickly from cache.
@@ -2692,7 +2720,9 @@ async function loadLocalFiles() {
         await loadBlockedTags(); // Load blocked list first
 
         const res = await fetch("/api/local/files");
-        localFiles = await res.json();
+        const rawLocal = await res.json();
+        // Assign originalIndex for safe referencing during relocation/edit
+        localFiles = rawLocal.map((f, idx) => ({ ...f, originalIndex: idx }));
     } catch (e) { localFiles = []; }
 
     // Initialize Custom Autocompletes
@@ -2734,8 +2764,11 @@ function renderLocalFiles() {
         const isAudio = ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg'].includes(ext);
 
         // Phosphor Icons
+        const isMissing = file.is_missing === true;
         let iconHtml = '';
-        if (isAudio) {
+        if (isMissing) {
+            iconHtml = `<i class="ph ph-warning-circle" style="color:#ff4444; font-size:1.2em; vertical-align:middle; margin-right:5px;" title="Fichier introuvable"></i>`;
+        } else if (isAudio) {
             iconHtml = `<i class="ph ph-music-notes" style="color:#bb86fc; font-size:1.2em; vertical-align:middle; margin-right:5px;"></i>`;
         } else {
             // Video / Film Strip
@@ -2744,6 +2777,9 @@ function renderLocalFiles() {
 
         const tr = document.createElement("tr");
         tr.setAttribute('data-index', realIndex); // Attribut technique pour robustesse V7.4
+
+        if (isMissing) tr.classList.add('track-missing');
+
         tr.innerHTML = `
             <td>${file.artist || ""}</td>
             <td style="cursor:pointer;" onclick="playLocal(${realIndex})">
@@ -3084,6 +3120,12 @@ async function playLocal(index) {
     const file = localFiles[index];
     if (!file) return;
 
+    if (file.is_missing === true) {
+        openMissingFileModal(file, 'library');
+        return;
+    }
+
+    window.currentSource = 'library';
     window.currentPlayingIndex = index; // Important : Stocker l'index actif pour TOUS les types de médias
     
     // Sync UI Highlight immediately
@@ -7530,4 +7572,189 @@ function refreshSetlistHighlights() {
 
     // Optionnel : Scroll immédiat si besoin
     scrollToActiveTrack();
+}
+
+function handlePlayerError(el) {
+    // Si on est en train de charger un multipiste, on ignore les erreurs du joueur vidéo résiduel
+    if (window.currentActivePlayer === 'multitrack' && el.id === 'html5-player') {
+        return; 
+    }
+
+    console.warn("Player Error detected on:", el.id);
+    if (!el.src || el.src === "" || el.src.includes('undefined')) return;
+    
+    if (window.currentPlayingIndex !== null) {
+        const track = findTrackInLibraryOrSetlist(window.currentPlayingIndex, window.currentSource);
+        if (track && !track.url?.startsWith('http') && !track.path?.startsWith('http')) {
+            // Empêcher le marquage si on vient juste de réparer le fichier (debounce)
+            if (track._just_relocated) return;
+
+            // Marquer comme manquant pour l'affichage (grisé), 
+            // MAIS ne pas ouvrir la modale automatiquement pour éviter de "tourner en rond"
+            track.is_missing = true;
+            console.error("Fichier marqué comme manquant suite à une erreur de lecture.");
+            
+            // On rafraîchit les indicateurs visuels sans forcer la modale
+            loadSetlist();
+            loadLocalFiles();
+        }
+    }
+}
+
+function findTrackInLibraryOrSetlist(index, forceSource = null) {
+    // 1. Force Source if known
+    if (forceSource === 'setlist') {
+        const t = currentTrackList.find(t => t.originalIndex === index);
+        if (t) return t;
+    } else if (forceSource === 'library') {
+        const t = localFiles[index];
+        if (t) { t.originalIndex = index; return t; }
+    }
+
+    // 2. Fallback detection if source unknown
+    let track = currentTrackList.find(t => t.originalIndex === index);
+    if (track) return track;
+    
+    track = localFiles[index];
+    if (track) {
+        track.originalIndex = index;
+        return track;
+    }
+    return null;
+}
+
+window.currentRelocateInfo = null;
+
+function openMissingFileModal(track, type = null) {
+    const dialog = document.getElementById('modal-missing-file');
+    if (!dialog) return;
+    
+    // Explicit type or detection
+    let finalType = type;
+    if (!finalType) {
+        const isSetlistItem = currentTrackList.some(t => t.originalIndex === track.originalIndex && t.title === track.title);
+        finalType = isSetlistItem ? 'setlist' : 'library';
+    }
+
+    window.currentRelocateInfo = {
+        type: finalType,
+        index: track.originalIndex,
+        track: track
+    };
+    
+    const path = track.url || track.path || "Fichier inconnu";
+    const filename = path.split(/[/\\]/).pop();
+    document.getElementById('missing-file-name').innerText = filename;
+    
+    dialog.showModal();
+}
+
+async function executeSmartRelocate() {
+    if (!window.currentRelocateInfo) return;
+    
+    const btn = document.getElementById('btn-smart-relocate');
+    const oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> Recherche...`;
+    
+    try {
+        const { type, index } = window.currentRelocateInfo;
+        console.log(`[SmartRelocate] Attempting fetch for ${type} index ${index}`);
+        const res = await fetch(`/api/local/smart_relocate/${type}/${index}`, { method: 'POST' });
+        const data = await res.json();
+        console.log("[SmartRelocate] API Response:", data);
+        
+        if (data.status === 'ok') {
+            document.getElementById('modal-missing-file').close();
+            
+            // Update local state
+            const track = window.currentRelocateInfo.track;
+            if (data.item) {
+                // Sync ALL properties including updated stems
+                Object.assign(track, data.item);
+            }
+            track.is_missing = false;
+            
+            // Reload UI
+            loadSetlist();
+            loadLocalFiles();
+            
+            // Marquer comme "fraîchement réparé" pour éviter que handlePlayerError ne le bloque immédiatement
+            track._just_relocated = true;
+            setTimeout(() => { track._just_relocated = false; }, 2000);
+
+            // Play immediately!
+            setTimeout(() => {
+                if (type === 'setlist') playTrackAt(index);
+                else playLocal(index);
+            }, 300);
+        } else {
+            console.warn("[SmartRelocate] Not found or error:", data.message);
+            alert(data.message || "Fichier non trouvé dans les dossiers Medias de l'application.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Erreur lors de la recherche.");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+    }
+}
+
+async function executeManualRelocate() {
+    if (!window.currentRelocateInfo) return;
+    const { type, index, track } = window.currentRelocateInfo;
+    
+    try {
+        // 1. Pick Path (Universal Picker)
+        const isMultitrack = track.is_multitrack;
+        const pickerType = isMultitrack ? "folder" : "file";
+        const pickerRes = await fetch(`/api/local/pick_path?type=${pickerType}`);
+        const pickerData = await pickerRes.json();
+        
+        if (pickerData.status === "ok" && pickerData.path) {
+            const newPath = pickerData.path;
+            
+            // 2. Prepare edit payload
+            const payload = (type === 'setlist') ? { url: newPath } : { path: newPath };
+            
+            // 3. Send update to correct backend edit route (Library: /api/local/edit, Setlist: /api/setlist/edit)
+            const endpoint = (type === 'setlist') ? `/api/setlist/edit/${index}` : `/api/local/edit/${index}`;
+            
+            const updateRes = await fetch(endpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await updateRes.json();
+            
+            if (updateRes.ok) {
+                document.getElementById('modal-missing-file').close();
+                
+                // Update local state (Sync new path and stems)
+                if (data.items && data.items[index]) {
+                    Object.assign(track, data.items[index]);
+                } else if (data.status === "ok") {
+                    // Fallback manual sync if items not returned
+                    if (type === 'setlist') track.url = newPath;
+                    else track.path = newPath;
+                }
+                track.is_missing = false;
+
+                loadSetlist();
+                loadLocalFiles();
+                
+                // Play immediately!
+                setTimeout(() => {
+                    if (type === 'setlist') playTrackAt(index);
+                    else playLocal(index);
+                }, 300);
+            } else {
+                alert("Erreur lors de la mise à jour : " + (data.detail || data.message));
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Erreur lors de la relocalisation manuelle.");
+    }
 }

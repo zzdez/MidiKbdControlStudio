@@ -432,6 +432,14 @@
         "lbl_tom_h": "High Tom",
         "lbl_tom_m": "Mid Tom",
         "lbl_tom_l": "Floor Tom",
-        "lbl_ignore": "Ignore"
+        "lbl_ignore": "Ignore",
+        "tab_storage": "Storage",
+        "lbl_portability": "Portability & Migration",
+        "hint_portability": "Manage your media for transfer between computers. Paths in this app are stored relatively.",
+        "lbl_consolidate": "Consolidate Library",
+        "hint_consolidate": "Copies all external media (Audio, Videos, Multitracks) inside the app's portable folder.",
+        "btn_consolidate_run": "Consolidate",
+        "lbl_missing_media": "Disconnected Media",
+        "hint_missing_media": "If you changed computers or moved folders, use the relocate tool from the broken file's row (red magnifying glass icon) in the Local Files view."
     }
 }

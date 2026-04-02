@@ -432,6 +432,14 @@
         "lbl_tom_h": "Tom Aigu",
         "lbl_tom_m": "Tom Médium",
         "lbl_tom_l": "Tom Grave",
-        "lbl_ignore": "Ignore"
+        "lbl_ignore": "Ignore",
+        "tab_storage": "Stockage",
+        "lbl_portability": "Portabilité & Migration",
+        "hint_portability": "Gérez vos médias pour le transfert entre ordinateurs. Les chemins de cette application sont stockés en relatif.",
+        "lbl_consolidate": "Consolider la Bibliothèque",
+        "hint_consolidate": "Copie tous les médias externes (Audio, Vidéos, Multitracks) à l'intérieur du dossier portable de l'application.",
+        "btn_consolidate_run": "Consolider",
+        "lbl_missing_media": "Médias Déconnectés",
+        "hint_missing_media": "Si vous avez changé d'ordinateur ou déplacé des dossiers, utilisez l'outil de relocalisation depuis la ligne du fichier brisé (icône loupe rouge) dans la vue Fichiers Locaux."
     }
 }

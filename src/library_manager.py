@@ -4,7 +4,7 @@ import subprocess
 import webbrowser
 import sys
 import shutil
-from utils import get_app_dir, get_data_dir
+from utils import get_app_dir, get_data_dir, to_portable_path, resolve_portable_path
 
 class LibraryManager:
     def __init__(self, library_file="library.json"):
@@ -57,7 +57,7 @@ class LibraryManager:
                 apps_folder["children"].append({
                     "type": "app",
                     "name": name,
-                    "path": app_ctx,
+                    "path": to_portable_path(app_ctx),
                     "profile": name # Store profile link
                 })
                 added = True
@@ -89,7 +89,7 @@ class LibraryManager:
                             folder["children"].append({
                                 "type": "url", # Usually setlist items are web
                                 "name": item.get("title", "Sans titre"),
-                                "path": item.get("url", ""),
+                                "path": to_portable_path(item.get("url", "")),
                                 "profile": item.get("profile_name", "") # Optional context
                             })
                         self.data.append(folder)
@@ -112,7 +112,7 @@ class LibraryManager:
                             folder["children"].append({
                                 "type": "app",
                                 "name": app.get("name", "App"),
-                                "path": app.get("path", "")
+                                "path": to_portable_path(app.get("path", ""))
                             })
                         self.data.append(folder)
                         migrated = True
@@ -125,6 +125,8 @@ class LibraryManager:
     def launch_item(self, item):
         itype = item.get("type")
         path = item.get("path")
+        if path:
+            path = resolve_portable_path(path)
         linked_profile = item.get("profile") # Get linked profile
 
         print(f"[Library] Launching: {item.get('name')} ({itype})")

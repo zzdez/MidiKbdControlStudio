@@ -11,6 +11,10 @@ class ConfigManager:
         self.config_file = os.path.join(get_app_dir(), config_file)
         self.config_data = {}
         self._load_config()
+        
+        # Ensure internal Media directories exist at startup
+        from utils import get_internal_media_dirs
+        get_internal_media_dirs()
 
     def _load_config(self):
         """Loads config.json into memory if it exists. Creates it if missing."""
@@ -32,27 +36,36 @@ class ConfigManager:
         2. config.json (exact key)
         3. Default value
         """
-        # 1. Environment Variable
+        # Environment Variable (Highest Priority)
         env_key = key.upper()
         if os.environ.get(env_key) is not None:
             return os.environ.get(env_key)
 
-        # 2. config.json
-        # Handle nested keys if needed, but for now assuming flat or known structure
-        # If the key is inside "settings" (based on previous config.json structure)
+        # SPECIFIC LOGIC: Internal Media folders (Prioritized & Merged)
+        if key == "media_folders":
+            from utils import get_internal_media_dirs, to_portable_path
+            internal_dirs = get_internal_media_dirs() 
+            
+            # Get existing from config
+            saved_dirs = []
+            if "settings" in self.config_data and "media_folders" in self.config_data["settings"]:
+                saved_dirs = self.config_data["settings"]["media_folders"]
+            elif "media_folders" in self.config_data:
+                saved_dirs = self.config_data["media_folders"]
+            
+            # Merge and prioritize internal (as portable paths)
+            final_dirs = [to_portable_path(d) for d in internal_dirs]
+            for d in saved_dirs:
+                if d not in final_dirs:
+                    final_dirs.append(d)
+            return final_dirs
+
+        # JSON config backup
         if "settings" in self.config_data and key in self.config_data["settings"]:
             return self.config_data["settings"][key]
 
         if key in self.config_data:
             return self.config_data[key]
-            
-        # Specific Default for media_folders
-        # Specific Default for media_folders
-        if key == "media_folders":
-            default_path = os.path.join(os.path.expanduser("~"), "Music")
-            if os.path.exists(default_path):
-                return [default_path]
-            return []
             
         # Specific Default for language
         if key == "language":

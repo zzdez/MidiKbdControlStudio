@@ -569,6 +569,60 @@ button:hover {
 }
 
 /* MODAL STYLES */
+.modern-modal {
+    padding: 0;
+    border: none;
+    border-radius: 12px;
+    background: #1a1a1a;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+    overflow: hidden;
+    color: white;
+}
+
+.modern-modal::backdrop {
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(4px);
+}
+
+.modern-modal .modal-header {
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modern-modal .modal-body {
+    padding: 20px;
+}
+
+.modern-modal .modal-footer {
+    padding: 15px 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* --- MISSING FILES STYLES --- */
+.track-missing {
+    opacity: 0.6;
+    background-color: rgba(207, 102, 121, 0.05) !important;
+}
+
+.track-missing td {
+    color: #888 !important;
+}
+
+.track-missing .ph-warning-circle {
+    color: #ff4444;
+    animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
 dialog {
     background-color: #1e1e1e;
     /* Hardcoded fallback or var not resolving in dialog sometimes */
