@@ -373,3 +373,13 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 *   **Support "Wide Art" (16:9) :**
     *   **Architecture Flexible (`style.css`) :** Remplacement des contraintes carrées par un système `width: fit-content` avec `max-width: 320px`.
     *   **Détection Automatique (`app.js`) :** Les pochettes issues de vidéos pour des fichiers audio standards sont désormais détectées et affichées dans leur format large (16:9) réel, éliminiant les bandes noires ou les déformations dans les modales et le header.
+### 37. Évolution V32 : Relocalisation Universelle & Smart Drive Scan
+*   **Moteur de Recherche Multicouches (Backend - `server.py`) :**
+    *   **Phase 1 (Interne) :** Recherche ultra-rapide dans les dossiers `Medias/` de l'application.
+    *   **Phase 2 (Globale) :** En cas d'échec, le serveur utilise `GetLogicalDrives` (Win32 API) pour scanner la racine de tous les lecteurs physiques (`C:\`, `D:\`, etc.) à une profondeur contrôlée de 3 niveaux.
+    *   **Auto-Correction Stems :** Toute relocalisation (manuelle ou intelligente) d'un dossier multipiste déclenche un re-scan immédiat via `metadata_service` pour reconstruire les liens des pistes individuelles.
+*   **Protocole de Communication Robuste :**
+    *   **Migration POST Universelle :** Abandon des méthodes `PUT` pour l'édition de la bibliothèque et de la setlist au profit de routes `POST` dédiées (`/api/local/edit/` et `/api/setlist/edit/`). 
+    *   **Cache-Busting Frontend :** Incrémentation forcée de la version du script (`app.js?v=6`) dans `index.html` pour garantir l'utilisation de la nouvelle logique de synchronisation.
+*   **Résolution de Chemins (Case-Insensitive) :**
+    *   Refonte de `resolve_portable_path` dans `utils.py` pour accepter indifféremment `${app_dir}` ou `${APP_DIR}`, éliminant les erreurs 404 sur les stems causées par des incohérences de casse dans les métadonnées.

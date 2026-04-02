@@ -94,6 +94,11 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
 *   **Navigation & Ergonomie :**
     *   **Auto-Restart** : Tous les lecteurs reviennent automatiquement à 00:00 une fois le morceau terminé.
     *   **Annulation Boucle** : Touche `Echap` pour annuler la sélection d'un point A ou B instantanément.
+*   **Résilience & Relocalisation Intelligente (Nouveau !) :**
+    *   **Auto-Réparation** : Si vous déplacez vos fichiers sur un autre disque (ex: de `C:` vers `D:\`), l'application le détecte et vous propose de les retrouver automatiquement.
+    *   **Scan Multi-Lecteurs** : Le moteur de recherche intelligent est capable de scanner la racine de tous vos disques physiques pour localiser vos médias perdus.
+    *   **Re-scan des Stems** : Pour les projets multipistes, le système recalcule instantanément l'emplacement de chaque piste individuelle après un déplacement.
+    *   **Portabilité Totale** : Support transparent des chemins `${app_dir}` (insensible à la casse), garantissant que votre bibliothèque fonctionne sur n'importe quel ordinateur, même si les lettres de lecteurs changent.
 
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)
