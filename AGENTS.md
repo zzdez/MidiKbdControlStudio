@@ -383,3 +383,15 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     *   **Cache-Busting Frontend :** Incrémentation forcée de la version du script (`app.js?v=6`) dans `index.html` pour garantir l'utilisation de la nouvelle logique de synchronisation.
 *   **Résolution de Chemins (Case-Insensitive) :**
     *   Refonte de `resolve_portable_path` dans `utils.py` pour accepter indifféremment `${app_dir}` ou `${APP_DIR}`, éliminant les erreurs 404 sur les stems causées par des incohérences de casse dans les métadonnées.
+
+### 38. Évolution V33 : Relocalisation Avancée & Gestion de Portabilité
+*   **Workflow en Deux Étapes (`index.html` & `app.js`) :**
+    - **Isolation de la Recherche** : La modale de fichier manquant sépare désormais la phase de détection (Smart/Manual) de la phase d'action.
+    - **Step 2 (Choix d'Action)** : Une nouvelle interface de confirmation présente le chemin trouvé et propose trois options : **Lier** (MàJ base uniquement), **Copier** (Sécurité), ou **Déplacer** (Organisation).
+*   **Moteur d'Action Physique (`server.py` - `relocate_apply`) :**
+    - **Gestion Intelligente des Dossiers** : Le backend redirige automatiquement les fichiers vers les sous-dossiers standardisés (`Audios`, `Videos`, `Midi`, `Multipistes`) situés dans `Medias/`.
+    - **Opérations `shutil`** : Utilisation de `shutil.copy2` (préservation des métadonnées) et `shutil.move` pour les manipulations physiques. 
+    - **Sécurité des Doublons** : Implémentation d'un algorithme de renommage automatique (incrémentation numérique `_1`, `_2`) si un fichier cible existe déjà, évitant toute perte de données.
+*   **Internationalisation & UX :**
+    - **i18n Intégrale** : Support complet des labels et messages d'erreur en Français et Anglais via `fr.json` et `en.json`.
+    - **Sync Universelle** : La relocalisation d'un fichier met à jour toutes ses occurrences dans la Médiathèque et la Setlist de manière atomique.

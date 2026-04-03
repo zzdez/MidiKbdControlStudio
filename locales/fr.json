@@ -146,6 +146,7 @@
         "btn_smart_import": "Smart Import",
         "btn_add_app": "Ajouter App",
         "btn_add_folder": "Ajouter Dossier",
+        "layout_mode": "Disposition",
         "col_artist": "Artiste",
         "col_title": "Titre",
         "col_category": "Cat",
@@ -440,6 +441,13 @@
         "hint_consolidate": "Copie tous les médias externes (Audio, Vidéos, Multitracks) à l'intérieur du dossier portable de l'application.",
         "btn_consolidate_run": "Consolider",
         "lbl_missing_media": "Médias Déconnectés",
-        "hint_missing_media": "Si vous avez changé d'ordinateur ou déplacé des dossiers, utilisez l'outil de relocalisation depuis la ligne du fichier brisé (icône loupe rouge) dans la vue Fichiers Locaux."
+        "hint_missing_media": "Si vous avez changé d'ordinateur ou déplacé des dossiers, utilisez l'outil de relocalisation depuis la ligne du fichier brisé (icône loupe rouge) dans la vue Fichiers Locaux.",
+        "modal_relocate_results_title": "Fichier trouvé !",
+        "msg_relocate_choice": "Que souhaitez-vous faire avec ce fichier ?",
+        "btn_relocate_link": "Lier uniquement (MàJ chemin)",
+        "btn_relocate_copy": "Copier vers le dossier Medias (Sûr)",
+        "btn_relocate_move": "Déplacer vers le dossier Medias (Propre)",
+        "lbl_found_at": "Trouvé à :",
+        "msg_relocate_success": "Média relocalisé avec succès !"
     }
 }

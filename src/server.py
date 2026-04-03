@@ -1452,10 +1452,10 @@ async def get_local_stem_peaks(index: int, stem_index: int):
         return []
 
 @app.post("/api/local/smart_relocate/{type}/{index}")
-async def smart_relocate(type: str, index: int):
+async def smart_relocate(type: str, index: int, apply: bool = True):
     """
     Tries to find a missing file by scanning internal Media folders.
-    If found, updates ALL occurrences of this file in both Setlist and Library.
+    If apply=True, updates ALL occurrences. If False, just returns the found path.
     """
     try:
         from utils import get_internal_media_dirs, to_portable_path, resolve_portable_path
@@ -1485,8 +1485,6 @@ async def smart_relocate(type: str, index: int):
         internal_parents = get_internal_media_dirs()
         new_found_path = None
         
-        print(f"[SmartRelocate] Level 1: Searching for '{filename}' in internal folders...")
-        
         # Phase 1: Internal, Phase 2: All Drives
         found = False
         import string
@@ -1503,50 +1501,50 @@ async def smart_relocate(type: str, index: int):
 
         for phase, parents in enumerate([internal_parents, get_drives()]):
             if found: break
-            print(f"[SmartRelocate] Phase {phase+1} search...")
             for parent in parents:
                 if found: break
                 if not os.path.exists(parent): continue
-                # Search recursively
                 for root, dirs, files in os.walk(parent):
-                    # Check case-insensitively
                     if filename.lower() in [f.lower() for f in files] or filename.lower() in [d.lower() for d in dirs]:
                         found_name = next((f for f in files if f.lower() == filename.lower()), None)
                         if not found_name:
                              found_name = next((d for d in dirs if d.lower() == filename.lower()), filename)
                         
                         new_found_path = os.path.join(root, found_name)
-                        print(f"[SmartRelocate] Found at: {new_found_path}")
                         found = True
                         break
 
         if not new_found_path:
-             return {"status": "error", "message": f"Fichier '{filename}' non trouvé dans l'application ni sur les lecteurs système."}
+             return {"status": "error", "message": f"Fichier '{filename}' non trouvé."}
                 
+        # If we just want to find
+        if not apply:
+            return {
+                "status": "ok", 
+                "found_path": os.path.abspath(new_found_path),
+                "portable_path": to_portable_path(new_found_path)
+            }
+
         if new_found_path:
             portable_new_path = to_portable_path(new_found_path)
             updated_count = 0
             
-            # Pre-scan stems for the multitrack logic to apply it everywhere
+            # Update DB (Simplified call to apply logic internally or reuse same logic)
+            # For now, keep the legacy immediate update for backward compatibility if needed
             new_stems = []
             if target_item.get("is_multitrack"):
                 try:
                     new_meta = metadata_service.scan_file_metadata(new_found_path)
                     if new_meta.get("stems"):
                         new_stems = [to_portable_path(s) for s in new_meta["stems"]]
-                except:
-                    pass
+                except: pass
 
-            # --- UNIVERSAL UPDATE (Library + Setlist) ---
             for db_path in [LOCAL_LIB_FILE, SETLIST_FILE]:
                 if not os.path.exists(db_path): continue
-                
                 changed = False
                 with open(db_path, "r", encoding="utf-8") as f:
                     db_items = json.load(f)
-                
                 curr_path_key = "url" if db_path == SETLIST_FILE else "path"
-                
                 for item in db_items:
                     item_path = item.get(curr_path_key, "")
                     if item_path and not item_path.startswith("http"):
@@ -1558,29 +1556,169 @@ async def smart_relocate(type: str, index: int):
                                 item["stems"] = new_stems
                             changed = True
                             updated_count += 1
-                
                 if changed:
                     with open(db_path, "w", encoding="utf-8") as f:
                         json.dump(db_items, f, indent=4)
             
-            # CRITICAL: Update the specific item we're returning to frontend
             target_item[path_key] = portable_new_path
             target_item["is_missing"] = False
-            if target_item.get("is_multitrack"):
-                target_item["stems"] = new_stems
-
-            return {
-                "status": "ok", 
-                "new_path": portable_new_path, 
-                "updated_count": updated_count,
-                "item": target_item,
-                "message": f"Fichier relocalisé et mis à jour {updated_count} fois."
-            }
-        else:
-            return {"status": "not_found", "message": f"Fichier '{filename}' non trouvé dans l'application."}
+            return {"status": "ok", "new_path": portable_new_path, "updated_count": updated_count}
 
     except Exception as e:
         print(f"[SmartRelocate] Error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/local/relocate_apply")
+async def relocate_apply(data: dict):
+    """
+    Applies the final relocation action (link, copy, move).
+    Updates all occurrences in all databases.
+    """
+    try:
+        from utils import get_app_dir, to_portable_path, resolve_portable_path
+        import shutil
+
+        # Extract data
+        action = data.get("action") # 'link', 'copy', 'move'
+        item_type = data.get("type") # 'library', 'setlist'
+        index = data.get("index")
+        new_source_path = data.get("new_path") # Absolute source path found
+
+        if not action or index is None or not new_source_path:
+            return {"status": "error", "message": "Missing parameters"}
+
+        # 1. Load the item to get filename and properties
+        db_file = SETLIST_FILE if item_type == "setlist" else LOCAL_LIB_FILE
+        with open(db_file, "r", encoding="utf-8") as f:
+            items = json.load(f)
+        
+        target_item = items[index]
+        is_multitrack = target_item.get("is_multitrack", False)
+        filename = os.path.basename(new_source_path.rstrip('/\\'))
+        
+        final_dest_path = new_source_path
+
+        # 2. Handle Copy / Move to Internal Folders
+        if action in ['copy', 'move']:
+            # Determine Target Subfolder
+            subfolder = "Audios"
+            ext = os.path.splitext(filename)[1].lower()
+            if is_multitrack: subfolder = "Multipistes"
+            elif ext in ['.mp4', '.mkv', '.avi', '.mov', '.webm']: subfolder = "Videos"
+            elif ext in ['.mid', '.midi']: subfolder = "Midi"
+            
+            dest_dir = os.path.join(get_app_dir(), "Medias", subfolder)
+            os.makedirs(dest_dir, exist_ok=True)
+            
+            # Destination absolute path
+            final_dest_path = os.path.join(dest_dir, filename)
+            
+            # Handle duplicates (Suffix _1, _2...)
+            if os.path.exists(final_dest_path) and os.path.abspath(final_dest_path).lower() != os.path.abspath(new_source_path).lower():
+                base, ext_part = os.path.splitext(filename)
+                counter = 1
+                while os.path.exists(os.path.join(dest_dir, f"{base}_{counter}{ext_part}")):
+                    counter += 1
+                filename = f"{base}_{counter}{ext_part}"
+                final_dest_path = os.path.join(dest_dir, filename)
+
+            # Perform physical operation
+            if os.path.abspath(final_dest_path).lower() != os.path.abspath(new_source_path).lower():
+                if action == 'copy':
+                    if os.path.isdir(new_source_path):
+                        shutil.copytree(new_source_path, final_dest_path)
+                    else:
+                        shutil.copy2(new_source_path, final_dest_path)
+                else: # Move
+                    shutil.move(new_source_path, final_dest_path)
+
+                # --- NEW: Sidecar Files Persistence (JSON + Subtitles) ---
+                # Also move/copy the associated files if they exist (E.g. song.mp4.json, song.mp3.srt)
+                # Note: For multitrack folders, the meta is INSIDE (airstep_meta.json) and already handled.
+                if not is_multitrack:
+                    import glob
+                    base_src, _ = os.path.splitext(new_source_path)
+                    base_dest, _ = os.path.splitext(final_dest_path)
+                    
+                    # We look for .json, .srt, .vtt
+                    extensions = ['.json', '.srt', '.vtt']
+                    for ext in extensions:
+                        sidecar_src = base_src + ext
+                        # Subtitles can have variants like song.fr.srt or song.en.srt
+                        # Actually let's look for EXACT filename base + ext, and also filename*.srt
+                        # But to keep it simple and safe (avoiding grabbing unrelated files):
+                        # We follow the server.py logic: search_srt = glob.glob(glob.escape(base) + "*.srt")
+                        pats = [glob.escape(base_src) + ext, glob.escape(base_src) + "*" + ext]
+                        for pat in pats:
+                            for found_src in glob.glob(pat):
+                                if os.path.exists(found_src):
+                                    # Example: found_src = "song.fr.srt"
+                                    # We need to construct the dest filename by replacing the base
+                                    # relative_fn = os.path.basename(found_src)
+                                    # If base_src is "D:\Music\song", and found_src is "D:\Music\song.fr.srt"
+                                    # suffix is ".fr.srt"
+                                    suffix = found_src[len(base_src):]
+                                    sidecar_dest = base_dest + suffix
+                                    
+                                    try:
+                                        if action == 'copy':
+                                            if os.path.isdir(found_src): shutil.copytree(found_src, sidecar_dest)
+                                            else: shutil.copy2(found_src, sidecar_dest)
+                                        else:
+                                            shutil.move(found_src, sidecar_dest)
+                                        print(f"[RelocateApply] Sidecar File {action}d: {sidecar_dest}")
+                                    except Exception as se:
+                                        print(f"[RelocateApply] Failed to {action} sidecar file {found_src}: {se}")
+
+        # 3. Universal DB Update (All DBs, all matches)
+        portable_final_path = to_portable_path(final_dest_path)
+        updated_count = 0
+        
+        # Pre-scan stems for multitrack
+        new_stems = []
+        if is_multitrack:
+            try:
+                new_meta = metadata_service.scan_file_metadata(final_dest_path)
+                if new_meta.get("stems"):
+                    new_stems = [to_portable_path(s) for s in new_meta["stems"]]
+            except: pass
+
+        for db_path in [LOCAL_LIB_FILE, SETLIST_FILE]:
+            if not os.path.exists(db_path): continue
+            changed = False
+            with open(db_path, "r", encoding="utf-8") as f:
+                db_items = json.load(f)
+            
+            path_key = "url" if db_path == SETLIST_FILE else "path"
+            
+            # Search by filename match (legacy search logic)
+            orig_filename = os.path.basename(target_item.get(path_key, "").rstrip('/\\'))
+            
+            for it in db_items:
+                it_path = it.get(path_key, "")
+                if it_path and not it_path.startswith("http"):
+                    it_fn = os.path.basename(it_path.rstrip('/\\'))
+                    if it_fn.lower() == orig_filename.lower():
+                        it[path_key] = portable_final_path
+                        it["is_missing"] = False
+                        if it.get("is_multitrack"):
+                             it["stems"] = new_stems
+                        changed = True
+                        updated_count += 1
+            
+            if changed:
+                with open(db_path, "w", encoding="utf-8") as f:
+                    json.dump(db_items, f, indent=4)
+
+        return {
+            "status": "ok",
+            "new_path": portable_final_path,
+            "updated_count": updated_count,
+            "action": action
+        }
+
+    except Exception as e:
+        print(f"[RelocateApply] Error: {e}")
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/local/subs_list/{index}")

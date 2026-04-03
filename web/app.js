@@ -7655,42 +7655,20 @@ async function executeSmartRelocate() {
     const btn = document.getElementById('btn-smart-relocate');
     const oldHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> Recherche...`;
+    btn.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> ${t('web.msg_dl_processing', 'Recherche...')}`;
     
     try {
         const { type, index } = window.currentRelocateInfo;
-        console.log(`[SmartRelocate] Attempting fetch for ${type} index ${index}`);
-        const res = await fetch(`/api/local/smart_relocate/${type}/${index}`, { method: 'POST' });
+        console.log(`[SmartRelocate] Attempting FIND for ${type} index ${index}`);
+        // Call with apply=false to just get the path
+        const res = await fetch(`/api/local/smart_relocate/${type}/${index}?apply=false`, { method: 'POST' });
         const data = await res.json();
-        console.log("[SmartRelocate] API Response:", data);
         
-        if (data.status === 'ok') {
-            document.getElementById('modal-missing-file').close();
-            
-            // Update local state
-            const track = window.currentRelocateInfo.track;
-            if (data.item) {
-                // Sync ALL properties including updated stems
-                Object.assign(track, data.item);
-            }
-            track.is_missing = false;
-            
-            // Reload UI
-            loadSetlist();
-            loadLocalFiles();
-            
-            // Marquer comme "fraîchement réparé" pour éviter que handlePlayerError ne le bloque immédiatement
-            track._just_relocated = true;
-            setTimeout(() => { track._just_relocated = false; }, 2000);
-
-            // Play immediately!
-            setTimeout(() => {
-                if (type === 'setlist') playTrackAt(index);
-                else playLocal(index);
-            }, 300);
+        if (data.status === 'ok' && data.found_path) {
+            showRelocateActions(data.found_path);
         } else {
             console.warn("[SmartRelocate] Not found or error:", data.message);
-            alert(data.message || "Fichier non trouvé dans les dossiers Medias de l'application.");
+            alert(data.message || "Fichier non trouvé.");
         }
     } catch (e) {
         console.error(e);
@@ -7703,58 +7681,92 @@ async function executeSmartRelocate() {
 
 async function executeManualRelocate() {
     if (!window.currentRelocateInfo) return;
-    const { type, index, track } = window.currentRelocateInfo;
+    const { track } = window.currentRelocateInfo;
     
     try {
-        // 1. Pick Path (Universal Picker)
         const isMultitrack = track.is_multitrack;
         const pickerType = isMultitrack ? "folder" : "file";
         const pickerRes = await fetch(`/api/local/pick_path?type=${pickerType}`);
         const pickerData = await pickerRes.json();
         
         if (pickerData.status === "ok" && pickerData.path) {
-            const newPath = pickerData.path;
-            
-            // 2. Prepare edit payload
-            const payload = (type === 'setlist') ? { url: newPath } : { path: newPath };
-            
-            // 3. Send update to correct backend edit route (Library: /api/local/edit, Setlist: /api/setlist/edit)
-            const endpoint = (type === 'setlist') ? `/api/setlist/edit/${index}` : `/api/local/edit/${index}`;
-            
-            const updateRes = await fetch(endpoint, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-            const data = await updateRes.json();
-            
-            if (updateRes.ok) {
-                document.getElementById('modal-missing-file').close();
-                
-                // Update local state (Sync new path and stems)
-                if (data.items && data.items[index]) {
-                    Object.assign(track, data.items[index]);
-                } else if (data.status === "ok") {
-                    // Fallback manual sync if items not returned
-                    if (type === 'setlist') track.url = newPath;
-                    else track.path = newPath;
-                }
-                track.is_missing = false;
+            showRelocateActions(pickerData.path);
+        }
+    } catch (e) {
+        console.error("Manual Relocate Error:", e);
+        alert("Erreur lors de la sélection manuelle.");
+    }
+}
 
-                loadSetlist();
-                loadLocalFiles();
+function showRelocateActions(foundPath) {
+    if (!window.currentRelocateInfo) return;
+    window.currentRelocateInfo.newFoundPath = foundPath;
+    
+    document.getElementById('missing-file-step-1').style.display = 'none';
+    const step2 = document.getElementById('missing-file-step-2');
+    step2.style.display = 'block';
+    
+    document.getElementById('missing-file-found-path').textContent = foundPath;
+}
+
+function resetRelocateModal() {
+    document.getElementById('missing-file-step-1').style.display = 'block';
+    document.getElementById('missing-file-step-2').style.display = 'none';
+}
+
+async function applyRelocateAction(action) {
+    if (!window.currentRelocateInfo || !window.currentRelocateInfo.newFoundPath) return;
+    
+    const { type, index, track, newFoundPath } = window.currentRelocateInfo;
+    const step2 = document.getElementById('missing-file-step-2');
+    const buttons = step2.querySelectorAll('button');
+    buttons.forEach(b => b.disabled = true);
+    
+    try {
+        const res = await fetch('/api/local/relocate_apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: action,
+                type: type,
+                index: index,
+                new_path: newFoundPath
+            })
+        });
+        
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+            track.is_missing = false;
+            if (type === 'setlist') track.url = data.new_path;
+            else track.path = data.new_path;
+            
+            loadSetlist();
+            loadLocalFiles();
+            
+            setTimeout(() => {
+                const modal = document.getElementById('modal-missing-file');
+                if (modal) modal.close();
+                resetRelocateModal();
                 
-                // Play immediately!
+                showFloatingAlert(t('web.msg_relocate_success', 'Média relocalisé avec succès !'));
+                
+                track._just_relocated = true;
+                setTimeout(() => { track._just_relocated = false; }, 2000);
+
                 setTimeout(() => {
                     if (type === 'setlist') playTrackAt(index);
                     else playLocal(index);
                 }, 300);
-            } else {
-                alert("Erreur lors de la mise à jour : " + (data.detail || data.message));
-            }
+            }, 300);
+
+        } else {
+            alert("Erreur lors de l'application : " + (data.message || "Inconnue"));
+            buttons.forEach(b => b.disabled = false);
         }
     } catch (e) {
         console.error(e);
-        alert("Erreur lors de la relocalisation manuelle.");
+        alert("Erreur réseau.");
+        buttons.forEach(b => b.disabled = false);
     }
 }

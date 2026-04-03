@@ -2480,30 +2480,62 @@
     </dialog>
 
     <!-- MISSING FILE MODAL -->
-    <dialog id="modal-missing-file" class="modern-modal" style="width: 450px; border: 1px solid #c0392b; background: #1a1a1a;">
+    <dialog id="modal-missing-file" class="modern-modal" style="width: 480px; border: 1px solid #c0392b; background: #1a1a1a;">
         <div class="modal-header" style="background: #c0392b; color: white;">
-            <h3 style="margin:0; font-size: 1.1em;"><i class="ph ph-warning-circle"></i> Fichier Manquant</h3>
+            <h3 style="margin:0; font-size: 1.1em;"><i class="ph ph-warning-circle"></i> <span data-i18n="web.modal_relocate_results_title">Fichier Manquant</span></h3>
             <button onclick="document.getElementById('modal-missing-file').close()" class="btn-close">×</button>
         </div>
-        <div class="modal-body" style="padding: 25px; text-align: center;">
+        
+        <!-- STEP 1: SEARCH -->
+        <div id="missing-file-step-1" class="modal-body" style="padding: 25px; text-align: center;">
             <i class="ph ph-magnifying-glass" style="font-size: 4rem; color: #c0392b; margin-bottom: 20px; display: block;"></i>
             <p style="font-weight: bold; font-size: 1.1em; color: #fff; margin-bottom: 10px;" id="missing-file-name">Nom du fichier</p>
-            <p style="color: #bbb; font-size: 0.9em; line-height: 1.5; margin-bottom: 25px;">
+            <p style="color: #bbb; font-size: 0.9em; line-height: 1.5; margin-bottom: 25px;" data-i18n="web.hint_missing_media">
                 Ce fichier ne se trouve plus à son emplacement d'origine. 
-                S'il a été déplacé dans le dossier <b>Medias</b> de l'application, nous pouvons le retrouver automatiquement.
+                S'il a été déplacé dans le dossier Medias de l'application, nous pouvons le retrouver automatiquement.
             </p>
             
             <div style="display: flex; flex-direction: column; gap: 12px;">
                 <button class="btn-primary" id="btn-smart-relocate" onclick="executeSmartRelocate()" style="height: 45px; font-weight: bold; background: #c0392b;">
-                    <i class="ph ph-lightning"></i> Recherche Intelligente
+                    <i class="ph ph-lightning"></i> <span data-i18n="web.btn_smart_import">Recherche Intelligente</span>
                 </button>
                 <button class="btn-secondary" onclick="executeManualRelocate()" style="height: 45px;">
-                    <i class="ph ph-folder-open"></i> Choisir l'emplacement...
+                    <i class="ph ph-folder-open"></i> <span data-i18n="web.btn_add_folder">Choisir l'emplacement...</span>
                 </button>
             </div>
+            <div class="modal-footer" style="background: transparent; justify-content: center; padding-top: 20px;">
+                <button class="btn-text" onclick="document.getElementById('modal-missing-file').close()" data-i18n="gui.btn_cancel">Plus tard</button>
+            </div>
         </div>
-        <div class="modal-footer" style="background: #111; justify-content: center;">
-            <button class="btn-text" onclick="document.getElementById('modal-missing-file').close()">Plus tard</button>
+
+        <!-- STEP 2: ACTION CHOICE (Hidden by default) -->
+        <div id="missing-file-step-2" class="modal-body" style="padding: 25px; text-align: center; display: none;">
+            <i class="ph ph-check-circle" style="font-size: 4rem; color: #27ae60; margin-bottom: 20px; display: block;"></i>
+            <p style="font-weight: bold; font-size: 1.1em; color: #fff; margin-bottom: 5px;" data-i18n="web.modal_relocate_results_title">Fichier trouvé !</p>
+            <div style="background: #111; padding: 10px; border-radius: 5px; margin-bottom: 20px; border: 1px dashed #444;">
+                <span style="font-size: 0.8em; color: #888; display: block; margin-bottom: 5px;" data-i18n="web.lbl_found_at">Trouvé à :</span>
+                <span id="missing-file-found-path" style="font-size: 0.85em; color: #27ae60; word-break: break-all; line-height: 1.4;">C:\...</span>
+            </div>
+
+            <p style="color: #bbb; font-size: 0.9em; margin-bottom: 20px;" data-i18n="web.msg_relocate_choice">Que souhaitez-vous faire ?</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button class="btn-primary" onclick="applyRelocateAction('copy')" style="height: 40px; background: #27ae60; border-color: #27ae60;">
+                    <i class="ph ph-copy"></i> <span data-i18n="web.btn_relocate_copy">Copier vers Medias (Sûr)</span>
+                </button>
+                <button class="btn-secondary" onclick="applyRelocateAction('move')" style="height: 40px;">
+                    <i class="ph ph-arrows-out-cardinal"></i> <span data-i18n="web.btn_relocate_move">Déplacer vers Medias (Propre)</span>
+                </button>
+                <button class="btn-text" onclick="applyRelocateAction('link')" style="height: 40px; color: #aaa; text-decoration: underline;">
+                    <i class="ph ph-link"></i> <span data-i18n="web.btn_relocate_link">Lier uniquement (MàJ chemin)</span>
+                </button>
+            </div>
+
+            <div class="modal-footer" style="background: transparent; justify-content: center; padding-top: 20px;">
+                <button class="btn-secondary" onclick="resetRelocateModal()" style="height: 35px; width: 100%;">
+                    <i class="ph ph-arrow-left"></i> <span data-i18n="web.btn_back_search">Retour</span>
+                </button>
+            </div>
         </div>
     </dialog>
 
