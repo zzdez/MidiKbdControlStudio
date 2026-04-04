@@ -395,3 +395,15 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 *   **Internationalisation & UX :**
     - **i18n Intégrale** : Support complet des labels et messages d'erreur en Français et Anglais via `fr.json` et `en.json`.
     - **Sync Universelle** : La relocalisation d'un fichier met à jour toutes ses occurrences dans la Médiathèque et la Setlist de manière atomique.
+
+### 23. Évolution V37 : Modèle de Transfert Source/Action/Destination
+*   **Contrôle Explicite (`index.html`)** :
+    *   Séparation claire de la **Source de Recherche** (Où chercher les fichiers actuels) et de la **Destination de Rangement** (Où les copier/déplacer).
+*   **UI Réactive (`app.js`)** :
+    *   Le champ **Destination** est dynamiquement **grisé / désactivé** lorsque l'action est "Lier uniquement", car le fichier reste à sa source de scan.
+    *   Population simultanée des deux listes (Favoris/Auto) à l'ouverture de la modale.
+*   **Backend Directionnel (`server.py`)** :
+    *   `relocate_apply` utilise désormais la destination choisie par l'utilisateur comme priorité haute, avec un fallback vers le routage automatique par extension si nécessaire.
+*   **Polishing UX & i18n** : Hiérarchisation numérotée (1, 2, 3) dans la modale pour guider l'utilisateur. Suppression des contrôles redondants dans le pied de page de la modale.
+*   **Résilience du Moteur de Fichiers (`server.py`)** : Implémentation de blocs `try-except` atomiques pour les opérations physiques (Copy/Move) pour capturer les erreurs d'accès disque et de les remonter au frontend avec un message clair.
+*   **Gestion Silencieuse des Sidecars** : Les erreurs sur les fichiers annexes (.json, .srt) ne bloquent plus la relocalisation du média principal.

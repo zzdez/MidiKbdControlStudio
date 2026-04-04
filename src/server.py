@@ -1601,74 +1601,76 @@ async def relocate_apply(data: dict):
         # 2. Handle Copy / Move to Internal Folders
         if action in ['copy', 'move']:
             # Determine Target Subfolder
-            subfolder = "Audios"
-            ext = os.path.splitext(filename)[1].lower()
-            if is_multitrack: subfolder = "Multipistes"
-            elif ext in ['.mp4', '.mkv', '.avi', '.mov', '.webm']: subfolder = "Videos"
-            elif ext in ['.mid', '.midi']: subfolder = "Midi"
+            target_folder = data.get("target_folder")
             
-            dest_dir = os.path.join(get_app_dir(), "Medias", subfolder)
+            if target_folder and os.path.exists(target_folder):
+                dest_dir = target_folder
+            else:
+                # Default Routing Logic
+                subfolder = "Audios"
+                ext = os.path.splitext(filename)[1].lower()
+                if is_multitrack: subfolder = "Multipistes"
+                elif ext in ['.mp4', '.mkv', '.avi', '.mov', '.webm']: subfolder = "Videos"
+                elif ext in ['.mid', '.midi']: subfolder = "Midi"
+                dest_dir = os.path.join(get_app_dir(), "Medias", subfolder)
+            
+            # Normalization to avoid double slashes and Windows path issues
+            dest_dir = os.path.normpath(dest_dir)
+            if os.path.isfile(dest_dir):
+                return {"status": "error", "message": f"Conflit: '{dest_dir}' est un fichier, pas un dossier."}
             os.makedirs(dest_dir, exist_ok=True)
             
             # Destination absolute path
-            final_dest_path = os.path.join(dest_dir, filename)
+            filename = os.path.basename(filename) # Double safety
+            final_dest_path = os.path.normpath(os.path.join(dest_dir, filename))
             
             # Handle duplicates (Suffix _1, _2...)
-            if os.path.exists(final_dest_path) and os.path.abspath(final_dest_path).lower() != os.path.abspath(new_source_path).lower():
-                base, ext_part = os.path.splitext(filename)
+            src_abs = os.path.abspath(new_source_path).lower()
+            if os.path.exists(final_dest_path) and os.path.abspath(final_dest_path).lower() != src_abs:
+                base_name, ext_part = os.path.splitext(filename)
                 counter = 1
-                while os.path.exists(os.path.join(dest_dir, f"{base}_{counter}{ext_part}")):
+                while os.path.exists(os.path.join(dest_dir, f"{base_name}_{counter}{ext_part}")):
                     counter += 1
-                filename = f"{base}_{counter}{ext_part}"
-                final_dest_path = os.path.join(dest_dir, filename)
+                final_dest_path = os.path.normpath(os.path.join(dest_dir, f"{base_name}_{counter}{ext_part}"))
 
             # Perform physical operation
-            if os.path.abspath(final_dest_path).lower() != os.path.abspath(new_source_path).lower():
-                if action == 'copy':
-                    if os.path.isdir(new_source_path):
-                        shutil.copytree(new_source_path, final_dest_path)
-                    else:
-                        shutil.copy2(new_source_path, final_dest_path)
-                else: # Move
-                    shutil.move(new_source_path, final_dest_path)
+            try:
+                dest_abs = os.path.abspath(final_dest_path).lower()
+                if dest_abs != src_abs:
+                    if action == 'copy':
+                        if os.path.isdir(new_source_path):
+                            # dirs_exist_ok allows copying into an existing folder (Python 3.8+)
+                            shutil.copytree(new_source_path, final_dest_path, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(new_source_path, final_dest_path)
+                    else: # Move
+                        shutil.move(new_source_path, final_dest_path)
 
-                # --- NEW: Sidecar Files Persistence (JSON + Subtitles) ---
-                # Also move/copy the associated files if they exist (E.g. song.mp4.json, song.mp3.srt)
-                # Note: For multitrack folders, the meta is INSIDE (airstep_meta.json) and already handled.
-                if not is_multitrack:
-                    import glob
-                    base_src, _ = os.path.splitext(new_source_path)
-                    base_dest, _ = os.path.splitext(final_dest_path)
-                    
-                    # We look for .json, .srt, .vtt
-                    extensions = ['.json', '.srt', '.vtt']
-                    for ext in extensions:
-                        sidecar_src = base_src + ext
-                        # Subtitles can have variants like song.fr.srt or song.en.srt
-                        # Actually let's look for EXACT filename base + ext, and also filename*.srt
-                        # But to keep it simple and safe (avoiding grabbing unrelated files):
-                        # We follow the server.py logic: search_srt = glob.glob(glob.escape(base) + "*.srt")
-                        pats = [glob.escape(base_src) + ext, glob.escape(base_src) + "*" + ext]
-                        for pat in pats:
-                            for found_src in glob.glob(pat):
-                                if os.path.exists(found_src):
-                                    # Example: found_src = "song.fr.srt"
-                                    # We need to construct the dest filename by replacing the base
-                                    # relative_fn = os.path.basename(found_src)
-                                    # If base_src is "D:\Music\song", and found_src is "D:\Music\song.fr.srt"
-                                    # suffix is ".fr.srt"
-                                    suffix = found_src[len(base_src):]
-                                    sidecar_dest = base_dest + suffix
+                    # --- Sidecar Files Persistence (JSON + Subtitles) ---
+                    if not is_multitrack:
+                        import glob
+                        base_src, _ = os.path.splitext(new_source_path)
+                        base_dest, _ = os.path.splitext(final_dest_path)
+                        
+                        # Use glob for precise matches
+                        for ext in ['.json', '.srt', '.vtt']:
+                            # Handle both direct base matches and variants (e.g., .fr.srt)
+                            pattern = glob.escape(base_src) + "*" + ext
+                            for src_file in glob.glob(pattern):
+                                try:
+                                    s_filename = os.path.basename(src_file)
+                                    # Calculate dest name relative to base
+                                    suffix = s_filename[len(os.path.basename(base_src)):]
+                                    s_dest = base_dest + suffix
                                     
-                                    try:
-                                        if action == 'copy':
-                                            if os.path.isdir(found_src): shutil.copytree(found_src, sidecar_dest)
-                                            else: shutil.copy2(found_src, sidecar_dest)
-                                        else:
-                                            shutil.move(found_src, sidecar_dest)
-                                        print(f"[RelocateApply] Sidecar File {action}d: {sidecar_dest}")
-                                    except Exception as se:
-                                        print(f"[RelocateApply] Failed to {action} sidecar file {found_src}: {se}")
+                                    if action == 'copy':
+                                        shutil.copy2(src_file, s_dest)
+                                    else:
+                                        shutil.move(src_file, s_dest)
+                                except Exception as e_side:
+                                    print(f"Sidecar Error ({s_filename}): {e_side}")
+            except Exception as e:
+                return {"status": "error", "message": f"Erreur système (Fichier): {str(e)}"}
 
         # 3. Universal DB Update (All DBs, all matches)
         portable_final_path = to_portable_path(final_dest_path)
@@ -2351,6 +2353,28 @@ async def dl_start(data: Dict):
 
     return {"status": "started"}
 
+@app.get("/api/utils/select_folder")
+async def api_select_folder(request: Request):
+    """Triggers the native OS folder dialog and returns the selected path."""
+    try:
+        if hasattr(request.app.state, "select_folder_callback"):
+            callback = request.app.state.select_folder_callback
+            if callback:
+                path = callback()
+                return {"status": "ok", "path": path}
+        return {"status": "error", "message": "Callback not connected"}
+    except Exception as e:
+        print(f"SelectFolder Error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/config/managed_folders")
+async def get_managed_folders():
+    """Returns the list of library folders configured by the user."""
+    from config_manager import ConfigManager
+    config = ConfigManager()
+    folders = config.get("media_folders", [])
+    return {"status": "ok", "folders": folders}
+
 @app.post("/api/open_settings")
 async def api_open_settings(request: Request):
     try:
@@ -2391,6 +2415,153 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+@app.get("/api/local/missing_items")
+async def get_missing_items():
+    """Returns a unified list of all missing local items from Library and Setlist."""
+    missing = []
+    
+    def is_web(p):
+        if not p: return True
+        return p.lower().startswith("http") or p.lower().startswith("https")
+    
+    if os.path.exists(LOCAL_LIB_FILE):
+        try:
+            with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                lib_items = json.load(f)
+                for i, item in enumerate(lib_items):
+                    raw_path = item.get("path", "")
+                    if not raw_path: continue
+                    path = resolve_portable_path(raw_path)
+                    if path and not is_web(path) and not os.path.exists(path):
+                        print(f"[MISSING CHECK] Library item {i} is missing: {path}")
+                        missing.append({
+                            "type": "library", "index": i,
+                            "title": item.get("title", f"Item {i}"),
+                            "old_path": path, "is_multitrack": item.get("is_multitrack", False)
+                        })
+        except Exception as e:
+            print(f"[MISSING CHECK] Error reading Library: {e}")
+                    
+    if os.path.exists(SETLIST_FILE):
+        try:
+            with open(SETLIST_FILE, "r", encoding="utf-8") as f:
+                set_items = json.load(f)
+                for i, item in enumerate(set_items):
+                    raw_url = item.get("url", "")
+                    if not raw_url: continue
+                    url = resolve_portable_path(raw_url)
+                    if url and not is_web(url) and not os.path.exists(url):
+                        print(f"[MISSING CHECK] Setlist item {i} is missing: {url}")
+                        missing.append({
+                            "type": "setlist", "index": i,
+                            "title": item.get("title", f"Item {i}"),
+                            "old_path": url, "is_multitrack": item.get("is_multitrack", False)
+                        })
+        except Exception as e:
+            print(f"[MISSING CHECK] Error reading Setlist: {e}")
+    
+    return missing
+
+@app.post("/api/local/search_folder")
+async def search_folder_bulk(data: dict):
+    folder_path = data.get("folder_path")
+    missing_items = data.get("items", [])
+    
+    if not folder_path or not os.path.exists(folder_path):
+        return {"status": "error", "message": "Dossier ou chemin invalide."}
+        
+    results = []
+    to_find = {}
+    for i, item in enumerate(missing_items):
+        fn = os.path.basename(item["old_path"].rstrip('/\\')).lower()
+        if fn not in to_find: to_find[fn] = []
+        to_find[fn].append(i)
+        
+    found_count = 0
+    for root, dirs, files in os.walk(folder_path):
+        all_entries_lower = [f.lower() for f in files] + [d.lower() for d in dirs]
+        for fn_lower in list(to_find.keys()):
+            if fn_lower in all_entries_lower:
+                actual_name = next((f for f in files if f.lower() == fn_lower), None)
+                if not actual_name:
+                    actual_name = next((d for d in dirs if d.lower() == fn_lower), fn_lower)
+                
+                full_found_path = os.path.join(root, actual_name)
+                for item_idx in to_find[fn_lower]:
+                    results.append({"item_list_index": item_idx, "found_path": full_found_path})
+                    found_count += 1
+                del to_find[fn_lower]
+        if not to_find: break
+    return {"status": "ok", "results": results, "found_count": found_count}
+
+@app.post("/api/local/relocate_bulk")
+async def relocate_bulk(data: dict):
+    """
+    Applies bulk relocation action (link, copy, move).
+    If target_folder is 'AUTO', routes each item to its app-default Medias/ subfolder.
+    """
+    action = data.get("action", "link")
+    mappings = data.get("mappings", [])
+    target_folder = data.get("target_folder", "") # Can be a path or 'AUTO'
+    
+    success_count = 0
+    errors = []
+
+    from utils import get_internal_media_dirs
+    # Map internal types to actual paths
+    # Index 0: Audios, 1: Videos, 2: Midi, 3: Multipistes (order from utils.py)
+    internal_dirs = get_internal_media_dirs()
+    
+    for m in mappings:
+        try:
+            current_target = m.get("new_path") # This is WHERE it was found during scan
+            
+            # If target_folder is NOT AUTO and NOT empty, we might want to override scan result?
+            # Actually, if it's COPY/MOVE, the user wants it to go to 'target_folder'.
+            # BUT if it's 'AUTO', we route by type.
+            
+            final_dest = None
+            if action in ['copy', 'move']:
+                # If target_folder is provide and is a valid directory, use it.
+                if target_folder and os.path.isdir(target_folder):
+                    final_dest = target_folder
+                else: 
+                    # Default to AUTO logic if no valid folder provided for physical op
+                    # Determine subfolder by type
+                    m_type = m.get("type", "library")
+                    is_mt = m.get("is_multitrack", False)
+                    
+                    if is_mt: sub_idx = 3 # Multipistes
+                    else:
+                        # Simple type detection by extension of found path
+                        ext = os.path.splitext(current_target)[1].lower()
+                        if ext in ['.mp4', '.mkv', '.webm', '.avi']: sub_idx = 1 # Videos
+                        elif ext in ['.mid', '.midi']: sub_idx = 2 # Midi
+                        else: sub_idx = 0 # Audios
+                    
+                    final_dest = internal_dirs[sub_idx]
+
+            res = await relocate_apply({
+                "action": action, 
+                "type": m["type"], 
+                "index": m["index"], 
+                "new_path": current_target,
+                "target_folder": final_dest if action in ['copy', 'move'] else None
+            })
+            
+            if res.get("status") == "ok": 
+                success_count += 1
+            else: 
+                errors.append(f"{os.path.basename(m['new_path'])}: {res.get('message')}")
+        except Exception as e: 
+            errors.append(f"Erreur fatale index {m['index']}: {str(e)}")
+            
+    # Success if AT LEAST one file was handled.
+    # Otherwise return error with the reason of the FIRST error for clarity.
+    status = "ok" if success_count > 0 else "error"
+    main_msg = "" if status == "ok" else (errors[0] if errors else "Inconnu")
+    return {"status": status, "success_count": success_count, "total": len(mappings), "errors": errors, "message": main_msg}
 
 # Static Files Logic
 if getattr(sys, 'frozen', False):

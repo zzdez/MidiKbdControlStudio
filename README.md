@@ -104,6 +104,12 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     *   **Scan Multi-Lecteurs** : Capacité de scanner la racine de tous les disques physiques pour localiser vos médias perdus en quelques secondes.
     *   **Re-scan des Stems** : Pour les projets multipistes, le système reconstruit instantanément les liens de chaque piste après un déplacement.
     *   **Portabilité Totale** : Utilisation systématique du token `${APP_DIR}`, garantissant que votre bibliothèque vous suit partout, même sur une clé USB.
+    *   **Réparation de Masse (Transfert Explicite ✨)** : Nouveau modèle de gestion en 3 étapes :
+        1. **Source** : Identifiez où se trouvent les médias (favoris ou parcourir).
+        2. **Action** : Choisissez entre Lier, Copier ou Déplacer.
+        3. **Destination** : Indiquez le dossier cible ou laissez le programme ranger automatiquement (Médias/Audios, etc.).
+        *   **UI Intelligente** : La destination est grisée automatiquement si vous choisissez de "Lier uniquement".
+        *   **Relocalisation Groupée** : Appliquez les réparations sur toute votre sélection en un clic.
 
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)

@@ -467,6 +467,7 @@ function connectVideoWebSocket() {
         document.getElementById("connection-status").classList.add("connected");
         loadSetlist();
         loadApps();
+        checkMissingItems(); // Check for orphans on startup
     };
 
     websocket.onmessage = (event) => {
@@ -675,7 +676,10 @@ function switchView(viewName) {
     document.getElementById("view-apps").style.display = viewName === "apps" ? "block" : "none";
     document.getElementById("view-local").style.display = viewName === "local" ? "block" : "none";
 
-    if (viewName === "local") loadLocalFiles();
+    if (viewName === "local") {
+        loadLocalFiles();
+        checkMissingItems();
+    }
 }
 
 // --- SETLIST ---
@@ -698,6 +702,7 @@ async function loadSetlist() {
         currentTrackList = [];
     }
     renderSetlist(currentTrackList);
+    checkMissingItems(); // Sync bulk banner
 }
 
 function getIcon(url) {
@@ -7749,7 +7754,7 @@ async function applyRelocateAction(action) {
                 if (modal) modal.close();
                 resetRelocateModal();
                 
-                showFloatingAlert(t('web.msg_relocate_success', 'Média relocalisé avec succès !'));
+                alert(t('web.msg_relocate_success', 'Média relocalisé avec succès !'));
                 
                 track._just_relocated = true;
                 setTimeout(() => { track._just_relocated = false; }, 2000);
@@ -7768,5 +7773,373 @@ async function applyRelocateAction(action) {
         console.error(e);
         alert("Erreur réseau.");
         buttons.forEach(b => b.disabled = false);
+    }
+}
+
+/* ==========================================
+   BULK RELOCATE LOGIC
+   ========================================== */
+let missingItems = []; // Global list of { type, index, title, old_path, found_path, selected }
+
+async function checkMissingItems() {
+    try {
+        const response = await fetch(`/api/local/missing_items`);
+        missingItems = await response.json();
+        
+        const banner = document.getElementById('bulk-relocate-banner');
+        const text = document.getElementById('bulk-relocate-text');
+        
+        if (missingItems && missingItems.length > 0) {
+            console.log(`[RELOCATE] ${missingItems.length} missing items detected.`);
+            missingItems.forEach(item => {
+                item.selected = true;
+                item.found_path = null;
+            });
+            
+            if (banner) {
+                banner.style.display = 'flex';
+                if (text) text.innerText = t('web.msg_missing_files', '{n} fichiers manquants détectés').replace('{n}', missingItems.length);
+            }
+        } else {
+            console.log("[RELOCATE] No missing items found.");
+            if (banner) banner.style.display = 'none';
+        }
+    } catch (e) {
+        console.error("Failed to check missing items:", e);
+    }
+}
+
+async function openBulkRelocateModal() {
+    const modal = document.getElementById('modal-relocate-bulk');
+    if (!modal) return;
+    
+    await loadRelocationFolders();
+    updateBulkDestState(); // Initial lock state
+    checkMissingItems();
+    renderBulkItems();
+    updateBulkCountStatus();
+    modal.showModal();
+}
+
+async function loadRelocationFolders() {
+    const sourceSelect = document.getElementById('bulk-source-select');
+    const destSelect = document.getElementById('bulk-dest-select');
+    if (!sourceSelect || !destSelect) return;
+
+    // Reset with default options
+    const sourceAuto = sourceSelect.querySelector('option[value="AUTO"]');
+    const destAuto = destSelect.querySelector('option[value="AUTO"]');
+    
+    sourceSelect.innerHTML = '';
+    destSelect.innerHTML = '';
+    
+    if (sourceAuto) sourceSelect.appendChild(sourceAuto);
+    if (destAuto) destSelect.appendChild(destAuto);
+
+    try {
+        const res = await fetch("/api/config/managed_folders");
+        const data = await res.json();
+        if (data.status === 'ok' && data.folders) {
+            data.folders.forEach(folder => {
+                const optS = document.createElement('option');
+                optS.value = folder; optS.innerText = "📁 " + folder;
+                sourceSelect.appendChild(optS);
+                
+                const optD = document.createElement('option');
+                optD.value = folder; optD.innerText = "📁 " + folder;
+                destSelect.appendChild(optD);
+            });
+        }
+    } catch (e) { console.error("Error loading managed folders:", e); }
+}
+
+function updateBulkDestState() {
+    const action = document.getElementById('bulk-action-select').value;
+    const destSelect = document.getElementById('bulk-dest-select');
+    const browseBtn = document.getElementById('btn-browse-dest');
+    const label = document.getElementById('lbl-bulk-dest');
+    
+    const isLink = (action === 'link');
+    
+    if (destSelect) {
+        destSelect.disabled = isLink;
+        destSelect.style.background = isLink ? "rgba(0,0,0,0.2)" : "#252525";
+        destSelect.style.color = isLink ? "#666" : "white";
+        destSelect.style.borderColor = isLink ? "#333" : "#444";
+    }
+    if (browseBtn) {
+        browseBtn.disabled = isLink;
+        browseBtn.style.opacity = isLink ? 0.4 : 1;
+    }
+    if (label) {
+        label.style.color = isLink ? "#555" : "#aaa";
+    }
+}
+
+function closeBulkRelocateModal() {
+    const modal = document.getElementById('modal-relocate-bulk');
+    if (modal) modal.close();
+}
+
+function renderBulkItems() {
+    const list = document.getElementById('bulk-items-list');
+    if (!list) return;
+    
+    list.innerHTML = missingItems.map((item, i) => `
+        <div class="bulk-item-row ${item.found_path ? 'found' : 'not-found'}">
+            <input type="checkbox" ${item.selected ? 'checked' : ''} onchange="toggleBulkItem(${i}, this.checked)">
+            <div class="bulk-item-info">
+                <span class="bulk-item-title">${item.title}</span>
+                <span class="bulk-item-path">${item.old_path}</span>
+                ${item.found_path ? `<span class="bulk-item-path" style="color:var(--accent); font-weight:bold;">→ ${item.found_path}</span>` : ''}
+            </div>
+            <span class="status-badge ${item.found_path ? 'found' : 'missing'}">
+                ${item.found_path ? t('web.status_found', 'TROUVÉ') : t('web.status_missing', 'MANQUANT')}
+            </span>
+        </div>
+    `).join('');
+    
+    // Enable/disable apply button
+    const btnApply = document.getElementById('btn-apply-bulk');
+    const hasFound = missingItems.some(i => i.selected && i.found_path);
+    if (btnApply) btnApply.disabled = !hasFound;
+}
+
+function toggleBulkItem(index, checked) {
+    missingItems[index].selected = checked;
+    updateBulkCountStatus();
+    renderBulkItems();
+}
+
+function toggleBulkSelectAll(checked) {
+    missingItems.forEach(item => item.selected = checked);
+    updateBulkCountStatus();
+    renderBulkItems();
+}
+
+function updateBulkCountStatus() {
+    const count = missingItems.filter(i => i.selected).length;
+    const status = document.getElementById('bulk-count-status');
+    if (status) status.innerText = `${count} / ${missingItems.length} ` + t('web.lbl_selected', 'sélectionné(s)');
+}
+
+async function startBulkSmartScan() {
+    const selected = missingItems.filter(i => i.selected && !i.found_path);
+    if (selected.length === 0) return;
+    
+    updateBulkProgress(0, selected.length, t('web.msg_scanning', 'Recherche en cours...'));
+    
+    for(let i=0; i < selected.length; i++) {
+        const item = selected[i];
+        try {
+            const res = await fetch(`/api/local/smart_relocate?index=${item.index}&type=${item.type}&apply=false`);
+            const data = await res.json();
+            if (data.status === 'ok' && data.found_path) {
+                item.found_path = data.found_path;
+            }
+        } catch(e) {}
+        updateBulkProgress(i + 1, selected.length);
+    }
+    
+    renderBulkItems();
+}
+
+async function startBulkFolderScan() {
+    const folderPath = document.getElementById('bulk-manual-folder').value;
+    if (!folderPath) {
+        alert(t('web.msg_enter_folder', 'Veuillez coller un chemin de dossier'));
+        return;
+    }
+    
+    const selected = missingItems.filter(i => i.selected);
+    if (selected.length === 0) return;
+    
+    updateBulkProgress(0, 100, t('web.msg_folder_scanning', 'Scan récursif du dossier...'));
+    
+    try {
+        const res = await fetch(`/api/local/search_folder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folder_path: folderPath, items: selected })
+        });
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+            data.results.forEach(res => {
+                // The backend returned mapping to our input list (selected)
+                // We need to map back to global list
+                const originalItem = selected[res.item_list_index];
+                if (originalItem) originalItem.found_path = res.found_path;
+            });
+            alert(t('web.msg_scan_found', '{n} fichiers trouvés').replace('{n}', data.found_count));
+        } else {
+            alert(data.message);
+        }
+    } catch(e) {
+        console.error(e);
+        alert("Erreur lors du scan.");
+    } finally {
+        document.getElementById('bulk-progress-container').style.display = 'none';
+        renderBulkItems();
+    }
+}
+
+async function applyBulkRelocation() {
+    const action = document.getElementById('bulk-action-select').value;
+    const destSelect = document.getElementById('bulk-dest-select');
+    const targetFolder = destSelect ? destSelect.value : 'AUTO';
+    
+    const mappings = missingItems.filter(i => i.selected && i.found_path).map(i => ({
+        type: i.type,
+        index: i.index,
+        new_path: i.found_path,
+        is_multitrack: i.is_multitrack
+    }));
+    
+    if (mappings.length === 0) return;
+    
+    if (!confirm(t('web.confirm_bulk_apply', 'Êtes-vous sûr de vouloir appliquer ces {n} changements ?').replace('{n}', mappings.length))) return;
+    
+    updateBulkProgress(0, 1, t('web.msg_applying', 'Application des changements...'));
+    
+    try {
+        const res = await fetch(`/api/local/relocate_bulk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: action, mappings: mappings, target_folder: targetFolder })
+        });
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+            alert(t('web.msg_bulk_success', '{n} fichiers relocalisés !').replace('{n}', data.success_count));
+            closeBulkRelocateModal();
+            loadSetlist();
+            loadLocalFiles();
+            checkMissingItems();
+        } else {
+            alert(t('web.msg_bulk_error', "Erreur lors de l'application groupée : ") + (data.message || "Action impossible"));
+            if (data.errors && data.errors.length > 0) {
+                console.error("Bulk Relocation Errors:", data.errors);
+            }
+        }
+    } catch(e) {
+        console.error(e);
+        alert("Erreur réseau.");
+    } finally {
+        document.getElementById('bulk-progress-container').style.display = 'none';
+    }
+}
+
+function updateBulkProgress(current, total, text = null) {
+    const container = document.getElementById('bulk-progress-container');
+    const fill = document.getElementById('bulk-progress-fill');
+    const percentTxt = document.getElementById('bulk-progress-percent');
+    const label = document.getElementById('bulk-progress-text');
+    
+    if (container) container.style.display = 'block';
+    const pct = Math.round((current / total) * 100);
+    if (fill) fill.style.width = pct + '%';
+    if (percentTxt) percentTxt.innerText = pct + '%';
+    if (text && label) label.innerText = text;
+    
+    if (pct >= 100 && total > 0) {
+        setTimeout(() => { if (container) container.style.display = 'none'; }, 2000);
+    }
+}
+async function openNativeFolderPicker(targetType = 'source') {
+    try {
+        const res = await fetch("/api/utils/select_folder");
+        const data = await res.json();
+        if (data.status === 'ok' && data.path) {
+            const selectId = (targetType === 'source') ? 'bulk-source-select' : 'bulk-dest-select';
+            const select = document.getElementById(selectId);
+            if (select) {
+                let exists = false;
+                for (let i=0; i<select.options.length; i++) {
+                    if (select.options[i].value === data.path) { exists = true; break; }
+                }
+                if (!exists) {
+                    const opt = document.createElement('option');
+                    opt.value = data.path;
+                    opt.innerText = "⭐ " + data.path;
+                    select.appendChild(opt);
+                }
+                select.value = data.path;
+            }
+        }
+    } catch(e) { console.error("Picker Error", e); }
+}
+
+async function startBulkFolderScan() {
+    const sourceSelect = document.getElementById('bulk-source-select');
+    const sourcePath = sourceSelect ? sourceSelect.value : 'AUTO';
+    
+    const selected = missingItems.filter(i => i.selected);
+    if (selected.length === 0) return;
+
+    updateBulkProgress(0, 100, t('web.msg_scanning', 'Recherche en cours...'));
+    
+    try {
+        if (sourcePath === 'AUTO') {
+            await scanManagedFolders(); 
+        } else {
+            const res = await fetch(`/api/local/search_folder`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folder_path: sourcePath, items: selected })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                data.results.forEach(r => {
+                    const originalItem = selected[r.item_list_index];
+                    if (originalItem) originalItem.found_path = r.found_path;
+                });
+                alert(t('web.msg_scan_found', '{n} fichiers trouvés').replace('{n}', data.found_count));
+            } else { alert(data.message); }
+        }
+    } catch(e) {
+        console.error(e);
+        alert("Erreur lors du scan.");
+    } finally {
+        document.getElementById('bulk-progress-container').style.display = 'none';
+        renderBulkItems();
+    }
+}
+async function scanManagedFolders() {
+    try {
+        updateBulkProgress(0, 100, t('web.msg_fetching_config', 'Récupération de la configuration...'));
+        const resConfig = await fetch("/api/config/managed_folders");
+        const configData = await resConfig.json();
+        const folders = configData.folders || [];
+        
+        const selected = missingItems.filter(i => i.selected);
+        if (selected.length === 0) return;
+
+        let totalFound = 0;
+        for (let i = 0; i < folders.length; i++) {
+            const folder = folders[i];
+            updateBulkProgress(i, folders.length, t('web.msg_scanning_managed', 'Scan du dossier {n}/{total}').replace('{n}', i+1).replace('{total}', folders.length));
+            
+            const scanRes = await fetch(`/api/local/search_folder`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folder_path: folder, items: selected })
+            });
+            const scanData = await scanRes.json();
+            if (scanData.status === 'ok') {
+                scanData.results.forEach(r => {
+                    const originalItem = selected[r.item_list_index];
+                    if (originalItem) originalItem.found_path = r.found_path;
+                });
+                totalFound += scanData.found_count;
+            }
+        }
+        alert(t('web.msg_managed_scan_done', 'Scan terminé. {n} correspondances trouvées.').replace('{n}', totalFound));
+    } catch(e) { 
+        console.error("Managed Scan Error", e); 
+        alert("Erreur lors du scan automatique.");
+    } finally {
+        document.getElementById('bulk-progress-container').style.display = 'none';
+        renderBulkItems();
     }
 }
