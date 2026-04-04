@@ -5015,8 +5015,7 @@ function openEditLocalModal(index) {
         const destMode = document.getElementById("local-relocate-dest-mode");
         if (destMode) {
             destMode.value = "AUTO"; // Reset to Auto by default
-            console.log("[DEBUG UI] Triggering populateRelocateSelect for Local Modal");
-            populateRelocateSelect("local-relocate-dest-mode");
+            loadRelocationFolders();
         }
         const useArtistChk = document.getElementById("local-relocate-use-artist");
         if (useArtistChk) useArtistChk.checked = true; // Default to checked
@@ -5106,7 +5105,7 @@ function openMultitrackModal(index) {
         const destMode = document.getElementById("mt-relocate-dest-mode");
         if (destMode) {
             destMode.value = "AUTO"; // Reset to Auto by default
-            populateRelocateSelect("mt-relocate-dest-mode");
+            loadRelocationFolders();
         }
         const useArtistChk = document.getElementById("mt-relocate-use-artist");
         if (useArtistChk) useArtistChk.checked = true; // Default to checked
@@ -7852,37 +7851,7 @@ async function openBulkRelocateModal() {
     modal.showModal();
 }
 
-async function loadRelocationFolders() {
-    const sourceSelect = document.getElementById('bulk-source-select');
-    const destSelect = document.getElementById('bulk-dest-select');
-    if (!sourceSelect || !destSelect) return;
-
-    // Reset with default options
-    const sourceAuto = sourceSelect.querySelector('option[value="AUTO"]');
-    const destAuto = destSelect.querySelector('option[value="AUTO"]');
-    
-    sourceSelect.innerHTML = '';
-    destSelect.innerHTML = '';
-    
-    if (sourceAuto) sourceSelect.appendChild(sourceAuto);
-    if (destAuto) destSelect.appendChild(destAuto);
-
-    try {
-        const res = await fetch("/api/config/managed_folders");
-        const data = await res.json();
-        if (data.status === 'ok' && data.folders) {
-            data.folders.forEach(folder => {
-                const optS = document.createElement('option');
-                optS.value = folder; optS.innerText = "📁 " + folder;
-                sourceSelect.appendChild(optS);
-                
-                const optD = document.createElement('option');
-                optD.value = folder; optD.innerText = "📁 " + folder;
-                destSelect.appendChild(optD);
-            });
-        }
-    } catch (e) { console.error("Error loading managed folders:", e); }
-}
+// Universal loadRelocationFolders is now defined further down (V45)
 
 function updateBulkDestState() {
     const action = document.getElementById('bulk-action-select').value;
@@ -8065,146 +8034,283 @@ async function applyBulkRelocation() {
     }
 }
 
-async function populateRelocateSelect(selectId) {
-    const select = document.getElementById(selectId);
-    if (!select) {
-        console.error("[DEBUG UI] Select not found:", selectId);
-        return;
-    }
-
-    console.log("[DEBUG UI] populateRelocateSelect started for:", selectId);
-
-    // Helper to format display path (Resolve ${APP_DIR} for UI contrast)
-    const formatPath = (p) => {
-        if (!p) return p;
-        if (p.includes("${APP_DIR}")) {
-            // Internal application folders
-            return "📦 [App] \\ " + p.replace("${APP_DIR}", "").replace(/\//g, " \\ ").replace(/^ \\ /, "");
-        }
-        // User custom folders
-        return "⭐ " + p;
-    };
-
-    // Save current selection
-    const currentVal = select.value;
-
-    // Secure base options (we clone them to avoid losing events or data-i18n)
-    const autoOpt = select.querySelector('option[value="AUTO"]');
-    const manualOpt = select.querySelector('option[value="MANUAL"]');
-
-    select.innerHTML = "";
-    if (autoOpt) select.appendChild(autoOpt.cloneNode(true));
-
+/**
+ * Universal function to populate all relocation/destination selectors in the app.
+ * Used by: Bulk Relocation, Library Manager, and Single Item Edit modals.
+ */
+async function loadRelocationFolders() {
+    const selects = [
+        'bulk-source-select', 
+        'bulk-dest-select', 
+        'lib-manager-dest-select',
+        'local-relocate-dest-mode',
+        'mt-relocate-dest-mode',
+        'relocate-confirm-dest-select'
+    ];
+    
+    let folders = [];
     try {
         const res = await fetch("/api/config/managed_folders");
         const data = await res.json();
-        console.log("[DEBUG UI] API Response folders:", data.folders);
-        
-        if (data.status === 'ok' && data.folders && Array.isArray(data.folders)) {
-            data.folders.forEach(folder => {
-                // Avoid adding the same folder twice if it's already an option
-                if (folder === "AUTO" || folder === "MANUAL") return;
-                
-                const opt = document.createElement('option');
-                opt.value = folder;
-                opt.innerText = formatPath(folder);
-                select.appendChild(opt);
-            });
+        if (data.status === 'ok') {
+            folders = data.folders || [];
+            console.log("[DEBUG UI] Managed Folders Loaded:", folders.length);
         }
-    } catch (e) {
-        console.error("[DEBUG UI] Failed to load managed folders:", e);
+    } catch (e) { 
+        console.error("[RELOCATE] Error loading managed folders:", e); 
     }
 
-    if (manualOpt) select.appendChild(manualOpt.cloneNode(true));
-    
-    // Restore selection if it still exists in the new list
-    if (currentVal) {
-        const exists = Array.from(select.options).some(o => o.value === currentVal);
-        if (exists) select.value = currentVal;
-        else select.value = "AUTO";
-    }
-    
-    console.log("[DEBUG UI] populateRelocateSelect finished. Option count:", select.options.length);
+    const formatPath = (p) => {
+        if (!p) return p;
+        if (p.includes("${APP_DIR}")) {
+            return "📦 [App] \\ " + p.replace("${APP_DIR}", "").replace(/\//g, " \\ ").replace(/^ \\ /, "");
+        }
+        return "⭐ " + p;
+    };
+
+    selects.forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+
+        const currentVal = select.value || "AUTO";
+        select.innerHTML = '';
+
+        // 1. Create AUTO option
+        const optAuto = document.createElement('option');
+        optAuto.value = "AUTO";
+        optAuto.setAttribute('data-i18n', 'web.opt_auto_artist_dest');
+        optAuto.innerText = t('web.opt_auto_artist_dest', '-- Auto-routage par Artiste (Recommandé) --');
+        select.appendChild(optAuto);
+
+        // 2. Add Managed Folders
+        folders.forEach(f => {
+            if (f === "AUTO" || f === "MANUAL") return;
+            const opt = document.createElement('option');
+            opt.value = f;
+            opt.innerText = formatPath(f);
+            select.appendChild(opt);
+        });
+
+        // 3. Create MANUAL option
+        const optManual = document.createElement('option');
+        optManual.value = "MANUAL";
+        optManual.setAttribute('data-i18n', 'web.opt_manual_dest');
+        optManual.innerText = t('web.opt_manual_dest', 'Choisir un dossier spécifique...');
+        select.appendChild(optManual);
+        
+        // Restore selection
+        if (currentVal) {
+            const exists = Array.from(select.options).some(o => o.value === currentVal);
+            if (exists) select.value = currentVal;
+            else select.value = "AUTO";
+        }
+    });
 }
+
+// Remove old functions to avoid confusion
+async function populateRelocateSelect() { loadRelocationFolders(); }
+
+/**
+ * Perform a physical file operation (Copy or Move) for a single item from the edit modal.
 
 /**
  * Perform a physical file operation (Copy or Move) for a single item from the edit modal.
  * Integrated V41: Choice between Auto-routing (Artist based) or Manual destination.
  */
-async function relocateFromEdit(action) {
-    if (editingLocalIndex === null || editingLocalIndex === undefined) {
-        console.error("No active item being edited.");
-        return;
-    }
+let pendingRelocateAction = null;
 
-    const item = localFiles[editingLocalIndex];
+/**
+ * Universal relocation trigger from Edit Medias Modals.
+ * Instead of executing immediately, it prepares data and opens a confirmation modal (V47).
+ */
+async function relocateFromEdit(action) {
+    // Detect context based on which modal is currently open
+    const isMT = document.getElementById("modal-multitrack").open;
+    const idx = editingLocalIndex;
+    
+    if (idx === null || idx === undefined) return;
+    const item = localFiles[idx];
+    
     if (!item || !item.path) {
         alert(t('web.msg_error_path_not_found', "Action impossible : chemin du média introuvable."));
         return;
     }
 
-    // Determine context (Local or Multitrack)
-    const isMT = item.is_multitrack === true;
-    const modeSelectId = isMT ? "mt-relocate-dest-mode" : "local-relocate-dest-mode";
-    const useArtistId = isMT ? "mt-relocate-use-artist" : "local-relocate-use-artist";
+    const selectId = isMT ? "mt-relocate-dest-mode" : "local-relocate-dest-mode";
+    const chkId = isMT ? "mt-relocate-use-artist" : "local-relocate-use-artist";
+    const sourceMode = document.getElementById(selectId) ? document.getElementById(selectId).value : "AUTO";
+    const useArtist = document.getElementById(chkId).checked;
+
+    // Load folders to ensure the confirm modal select is ready
+    await loadRelocationFolders();
+
+    // Save for confirmation
+    pendingRelocateAction = {
+        action: action,
+        type: isMT ? 'multitrack' : 'library',
+        index: idx,
+        create_artist_folder: useArtist,
+        sourcePath: item.path,
+        title: item.title
+    };
+
+     // UI Feedback in Confirmation Modal
+    const modal = document.getElementById('modal-relocate-confirm');
+    const titleEl = document.getElementById('relocate-confirm-title');
+    const headerEl = document.getElementById('relocate-confirm-header');
+    const sourceEl = document.getElementById('relocate-confirm-source');
+    const confirmSelect = document.getElementById('relocate-confirm-dest-select');
     
-    const mode = document.getElementById(modeSelectId).value;
-    const createArtistFolder = document.getElementById(useArtistId) ? document.getElementById(useArtistId).checked : false;
+    const warnEl = document.getElementById('relocate-confirm-artist-warning'); // Legacy
+    const artistInput = document.getElementById('relocate-confirm-artist-input');
+    const artistChk = document.getElementById('relocate-confirm-use-artist-chk');
+    const artistErr = document.getElementById('relocate-confirm-artist-error');
+    const artistMsg = document.getElementById('relocate-confirm-artist-msg');
 
-    let targetFolder = null; // null triggers AUTO-routing in the backend
+    if (titleEl) titleEl.innerText = t(action === 'copy' ? 'web.modal_confirm_relocate_title' : 'web.modal_confirm_move_title');
+    if (headerEl) headerEl.style.background = (action === 'copy' ? '#2980b9' : '#e67e22'); // Bleu pour copie, Orange pour déplacement
+    if (sourceEl) sourceEl.innerText = item.path;
+    
+    // Pre-select the choice from parent modal if valid
+    if (confirmSelect) {
+        confirmSelect.value = sourceMode;
+    }
+    
+    if (warnEl) warnEl.style.display = 'none';
 
-    if (mode === 'MANUAL') {
-        try {
-            // 1. Open Folder Picker
-            const pickRes = await fetch("/api/utils/select_folder");
-            const pickData = await pickRes.json();
-            
-            // If user cancelled, just return
-            if (pickData.status !== 'ok' || !pickData.path) return;
-            
-            targetFolder = pickData.path;
-        } catch (e) {
-            console.error("Manual selector error", e);
-            alert("Erreur lors de la sélection du dossier.");
-            return;
-        }
-    } else if (mode !== 'AUTO') {
-        // Managed Folder selected directly
-        targetFolder = mode;
+    // Artist Assistant Prep
+    if (artistInput) {
+        artistInput.value = item.artist || "";
+        artistInput.oninput = (e) => {
+            clearTimeout(artistCheckTimeout);
+            artistCheckTimeout = setTimeout(() => checkArtistFolderMatch(e.target.value), 400);
+        };
+        // Initial check
+        checkArtistFolderMatch(item.artist || "");
     }
 
-    try {
-        // Show loading status if possible
-        const statusKey = (action === 'copy') ? 'web.btn_copy_to' : 'web.btn_move_to';
-        console.log(`[Relocate] Single Item: ${action} to ${targetFolder || 'AUTO'}`);
+    if (artistChk) artistChk.checked = (item.artist && item.artist.trim() !== "");
+    if (artistErr && artistMsg) {
+        if (!item.artist || item.artist.trim() === "") {
+            artistErr.style.display = "flex";
+            artistMsg.innerText = "Attention: Artiste manquant !";
+            artistInput.style.borderColor = "#ff9800";
+        } else {
+            artistErr.style.display = "none";
+            artistInput.style.borderColor = "#444";
+        }
+    }
 
-        // 2. Call Relocation API
+    if (modal) modal.showModal();
+}
+
+let artistCheckTimeout = null;
+
+/**
+ * Searches for existing artist folders across all managed roots.
+ * Suggests the best destination to avoid duplicates (V50).
+ */
+async function checkArtistFolderMatch(name) {
+    const zone = document.getElementById('relocate-confirm-artist-match-zone');
+    const pathEl = document.getElementById('relocate-confirm-match-path');
+    const btn = document.getElementById('btn-use-detected-folder');
+    
+    if (!name || name.trim() === "" || name.trim() === "Divers") {
+        if (zone) zone.style.display = 'none';
+        return;
+    }
+    
+    try {
+        const res = await fetch(`/api/local/find_artist_folder?name=${encodeURIComponent(name)}`);
+        const data = await res.json();
+        
+        if (data.status === 'ok' && data.matches && data.matches.length > 0) {
+            const match = data.matches[0];
+            if (zone) zone.style.display = 'block';
+            if (pathEl) pathEl.innerText = match.root; 
+            
+            if (btn) {
+                btn.onclick = () => {
+                    const select = document.getElementById('relocate-confirm-dest-select');
+                    const artistChk = document.getElementById('relocate-confirm-use-artist-chk');
+                    if (select) {
+                        select.value = match.root;
+                        // Success Feedback
+                        select.style.borderColor = "#4caf50";
+                        select.style.boxShadow = "0 0 10px rgba(76, 175, 80, 0.4)";
+                        setTimeout(() => { 
+                            select.style.borderColor = "#444"; 
+                            select.style.boxShadow = "none";
+                        }, 2000);
+                    }
+                    if (artistChk) artistChk.checked = true;
+                };
+            }
+        } else {
+            if (zone) zone.style.display = 'none';
+        }
+    } catch (e) {
+        if (zone) zone.style.display = 'none';
+    }
+}
+
+/**
+ * Final execution after user confirmation in modal-relocate-confirm.
+ */
+async function confirmRelocateUnitary() {
+    if (!pendingRelocateAction) return;
+    
+    // Final values from confirmation modal
+    const confirmSelect = document.getElementById('relocate-confirm-dest-select');
+    const finalDest = (confirmSelect && confirmSelect.value !== "AUTO") ? confirmSelect.value : null;
+    
+    const useArtist = document.getElementById('relocate-confirm-use-artist-chk').checked;
+    const updatedArtist = document.getElementById('relocate-confirm-artist-input').value.trim();
+
+    const { action, type, index } = pendingRelocateAction;
+    
+    document.getElementById('modal-relocate-confirm').close();
+    
+    try {
+        console.log(`[Relocate] Confirming Unitary: ${action} to ${finalDest || 'AUTO'} (Artist: ${updatedArtist})`);
+
         const res = await fetch('/api/local/relocate_apply', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 action: action,
-                type: 'library',
-                index: editingLocalIndex,
-                new_path: item.path, // Existing path
-                target_folder: targetFolder, // null for AUTO or absolute path
-                create_artist_folder: createArtistFolder
+                type: type,
+                index: index,
+                target_folder: finalDest,
+                create_artist_folder: useArtist,
+                updated_artist: updatedArtist
             })
         });
 
         const data = await res.json();
-
         if (data.status === 'ok') {
-            // Update the item path in memory immediately
-            item.path = data.new_path;
+            // Update the item in memory
+            if (localFiles && localFiles[index]) {
+                localFiles[index].path = data.new_path;
+                if (updatedArtist) localFiles[index].artist = updatedArtist;
+            }
             
-            // Update UI displays in both modals
+            // Update UI displays
             const lp = document.getElementById("local-path-display");
             const mp = document.getElementById("mt-path-display");
-            if (lp) lp.innerText = item.path;
-            if (mp) mp.innerText = item.path;
+            const mtArtist = document.getElementById("mt-artist");
+            const localArtist = document.getElementById("edit-artist");
 
-            loadLocalFiles(); // Refresh background library list
+            if (lp) lp.innerText = data.new_path;
+            if (mp) mp.innerText = data.new_path;
+            
+            // Re-sync artist fields in edit modals if they were changed
+            if (updatedArtist) {
+                if (mtArtist) mtArtist.value = updatedArtist;
+                if (localArtist) localArtist.value = updatedArtist;
+            }
+
+            loadLocalFiles(); // Refresh library
             
             const successKey = (action === 'copy') ? 'web.msg_bulk_success_copy' : 'web.msg_bulk_success_move';
             alert(t(successKey, 'Opération réussie !').replace('{n}', 1));
@@ -8212,10 +8318,11 @@ async function relocateFromEdit(action) {
         } else {
             alert("Erreur : " + (data.message || "Inconnue"));
         }
-
     } catch (e) {
         console.error("Relocation Error", e);
         alert("Erreur technique lors de la relocalisation.");
+    } finally {
+        pendingRelocateAction = null;
     }
 }
 
@@ -8243,6 +8350,7 @@ async function openNativeFolderPicker(targetType = 'source') {
             let selectId = 'bulk-source-select';
             if (targetType === 'dest') selectId = 'bulk-dest-select';
             else if (targetType === 'lib-dest') selectId = 'lib-manager-dest-select';
+            else if (targetType === 'confirm-dest') selectId = 'relocate-confirm-dest-select';
             
             const select = document.getElementById(selectId);
             if (select) {
@@ -8347,7 +8455,10 @@ function openLibraryManagerModal() {
     if (searchInput) searchInput.value = "";
     
     const destSelect = document.getElementById("lib-manager-dest-select");
-    if (destSelect) destSelect.value = "AUTO";
+    if (destSelect) {
+        destSelect.value = "AUTO";
+        loadRelocationFolders(); // UNIFIED V45 - Load folders for library manager
+    }
     
     const progContainer = document.getElementById("lib-manager-progress-container");
     if (progContainer) progContainer.style.display = "none";

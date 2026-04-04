@@ -495,6 +495,13 @@
         "btn_move_to": "Déplacer vers...",
         "chk_create_artist_folder": "Créer un sous-dossier Artiste",
         "msg_relocating": "Traitement en cours...",
-        "lbl_current_path": "Chemin actuel :"
+        "lbl_current_path": "Chemin actuel :",
+        "modal_confirm_relocate_title": "Confirmer la COPIE du fichier",
+        "modal_confirm_move_title": "Confirmer le DÉPLACEMENT du fichier",
+        "lbl_confirm_relocate_desc": "Vous êtes sur le point d'effectuer une action physique sur ce fichier.",
+        "lbl_source_file": "Fichier Source",
+        "lbl_target_folder": "Dossier de Destination",
+        "btn_confirm_action": "Confirmer l'Action",
+        "lbl_artist_name": "Nom de l'Artiste"
     }
 }

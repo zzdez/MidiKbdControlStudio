@@ -1595,6 +1595,14 @@ async def relocate_apply(data: dict):
         target_item = items[index]
         is_multitrack = target_item.get("is_multitrack", False)
         filename = os.path.basename(new_source_path.rstrip('/\\'))
+
+        # Update metadata if requested (V49)
+        updated_artist = data.get("updated_artist")
+        if updated_artist and updated_artist.strip():
+            target_item["artist"] = updated_artist.strip()
+            # Save DB update immediately so the rest of the logic uses new metadata
+            with open(db_file, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4, ensure_ascii=False)
         
         final_dest_path = new_source_path
 
@@ -2575,6 +2583,42 @@ async def relocate_bulk(data: dict):
     status = "ok" if success_count > 0 else "error"
     main_msg = "" if status == "ok" else (errors[0] if errors else "Inconnu")
     return {"status": status, "success_count": success_count, "total": len(mappings), "errors": errors, "message": main_msg}
+
+@app.get("/api/local/find_artist_folder")
+async def find_artist_folder(name: str):
+    """
+    Scans managed folders to see if a subfolder with this artist name already exists.
+    Useful to suggest destination to the user (V50).
+    """
+    if not name or not name.strip() or name.strip() == "Divers":
+        return {"status": "ok", "matches": []}
+    
+    # Secure Name (same as relocation logic)
+    import re
+    safe_name = re.sub(r'[\\/*?Source: server.py:"<>|]', '_', name.strip())
+    
+    from config_manager import ConfigManager
+    config = ConfigManager()
+    base_folders = config.get("media_folders", [])
+    
+    matches = []
+    for base in base_folders:
+        try:
+            resolved_base = resolve_portable_path(base)
+            if not resolved_base or not os.path.exists(resolved_base):
+                continue
+                
+            # Check direct subfolder
+            potential = os.path.join(resolved_base, safe_name)
+            if os.path.exists(potential) and os.path.isdir(potential):
+                matches.append({
+                    "root": base, # Portable path for the UI select
+                    "full_path": potential
+                })
+        except:
+            continue
+            
+    return {"status": "ok", "matches": matches}
 
 # Static Files Logic
 if getattr(sys, 'frozen', False):

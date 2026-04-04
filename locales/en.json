@@ -495,6 +495,13 @@
         "btn_move_to": "Move to...",
         "chk_create_artist_folder": "Create Artist subfolder",
         "msg_relocating": "Processing...",
-        "lbl_current_path": "Current path:"
+        "lbl_current_path": "Current path:",
+        "modal_confirm_relocate_title": "Confirm FILE COPY",
+        "modal_confirm_move_title": "Confirm FILE MOVE",
+        "lbl_confirm_relocate_desc": "You are about to perform a physical action on this file.",
+        "lbl_source_file": "Source File",
+        "lbl_target_folder": "Destination Folder",
+        "btn_confirm_action": "Confirm Action",
+        "lbl_artist_name": "Artist Name"
     }
 }
