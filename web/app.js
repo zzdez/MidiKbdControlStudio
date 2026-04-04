@@ -8227,7 +8227,16 @@ async function checkArtistFolderMatch(name) {
         if (data.status === 'ok' && data.matches && data.matches.length > 0) {
             const match = data.matches[0];
             if (zone) zone.style.display = 'block';
-            if (pathEl) pathEl.innerText = match.root; 
+            
+            // Format complete path for display (V51)
+            let displayPath = match.full_path;
+            if (displayPath.includes("${APP_DIR}")) {
+                displayPath = displayPath.replace("${APP_DIR}", "APP").replace(/\//g, " \\ ").replace(/^ \\ /, "");
+            } else {
+                displayPath = "⭐ " + displayPath;
+            }
+            
+            if (pathEl) pathEl.innerText = displayPath; 
             
             if (btn) {
                 btn.onclick = () => {
