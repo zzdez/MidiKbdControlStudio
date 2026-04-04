@@ -8011,7 +8011,11 @@ async function applyBulkRelocation() {
         const data = await res.json();
         
         if (data.status === 'ok') {
-            alert(t('web.msg_bulk_success', '{n} fichiers relocalisés !').replace('{n}', data.success_count));
+            let msgKey = 'web.msg_bulk_success_link';
+            if (action === 'copy') msgKey = 'web.msg_bulk_success_copy';
+            else if (action === 'move') msgKey = 'web.msg_bulk_success_move';
+            
+            alert(t(msgKey, '{n} fichiers relocalisés !').replace('{n}', data.success_count));
             closeBulkRelocateModal();
             loadSetlist();
             loadLocalFiles();
@@ -8027,6 +8031,71 @@ async function applyBulkRelocation() {
         alert("Erreur réseau.");
     } finally {
         document.getElementById('bulk-progress-container').style.display = 'none';
+    }
+}
+
+/**
+ * Perform a physical file operation (Copy or Move) for a single item from the edit modal.
+ */
+async function relocateFromEdit(action) {
+    if (editingLocalIndex === null || editingLocalIndex === undefined) {
+        console.error("No active item being edited.");
+        return;
+    }
+
+    const item = localFiles[editingLocalIndex];
+    if (!item || !item.path) {
+        alert(t('web.msg_error_path_not_found', "Action impossible : chemin du média introuvable."));
+        return;
+    }
+
+    try {
+        // 1. Open Folder Picker
+        const pickRes = await fetch("/api/utils/select_folder");
+        const pickData = await pickRes.json();
+        
+        // If user cancelled, just return
+        if (pickData.status !== 'ok' || !pickData.path) return;
+        
+        const targetFolder = pickData.path;
+
+        // 2. Call Relocation API
+        const res = await fetch('/api/local/relocate_apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: action,
+                type: 'library',
+                index: editingLocalIndex,
+                new_path: item.path, // Existing path is the "found" one for healthy file
+                target_folder: targetFolder
+            })
+        });
+
+        const data = await res.json();
+
+        if (data.status === 'ok') {
+            // Update the item path in memory immediately
+            item.path = data.new_path;
+            
+            // Update UI displays in both modals
+            const lp = document.getElementById("local-path-display");
+            const mp = document.getElementById("mt-path-display");
+            if (lp) lp.innerText = item.path;
+            if (mp) mp.innerText = item.path;
+
+            loadLocalFiles(); // Refresh background library list
+            
+            const successKey = (action === 'copy') ? 'web.msg_bulk_success_copy' : 'web.msg_bulk_success_move';
+            alert(t(successKey, 'Opération réussie !').replace('{n}', 1));
+            
+        } else {
+            alert("Erreur : " + (data.message || "Inconnue"));
+        }
+
+    } catch (e) {
+        console.error("Relocation Error", e);
+        alert("Erreur technique lors de la relocalisation.");
     }
 }
 
@@ -8051,7 +8120,10 @@ async function openNativeFolderPicker(targetType = 'source') {
         const res = await fetch("/api/utils/select_folder");
         const data = await res.json();
         if (data.status === 'ok' && data.path) {
-            const selectId = (targetType === 'source') ? 'bulk-source-select' : 'bulk-dest-select';
+            let selectId = 'bulk-source-select';
+            if (targetType === 'dest') selectId = 'bulk-dest-select';
+            else if (targetType === 'lib-dest') selectId = 'lib-manager-dest-select';
+            
             const select = document.getElementById(selectId);
             if (select) {
                 let exists = false;
@@ -8142,4 +8214,174 @@ async function scanManagedFolders() {
         document.getElementById('bulk-progress-container').style.display = 'none';
         renderBulkItems();
     }
+}
+
+/* ==========================================
+   LIBRARY MANAGER LOGIC (V40)
+   ========================================== */
+let libManagerSelectedIndices = new Set();
+
+function openLibraryManagerModal() {
+    libManagerSelectedIndices.clear();
+    const searchInput = document.getElementById("lib-manager-search");
+    if (searchInput) searchInput.value = "";
+    
+    const destSelect = document.getElementById("lib-manager-dest-select");
+    if (destSelect) destSelect.value = "AUTO";
+    
+    const progContainer = document.getElementById("lib-manager-progress-container");
+    if (progContainer) progContainer.style.display = "none";
+    
+    const selAll = document.getElementById("lib-manager-select-all");
+    if (selAll) selAll.checked = false;
+    
+    renderLibraryManagerItems();
+    const modal = document.getElementById("modal-library-manager");
+    if (modal) modal.showModal();
+}
+
+function closeLibraryManagerModal() {
+    const modal = document.getElementById("modal-library-manager");
+    if (modal) modal.close();
+}
+
+function renderLibraryManagerItems() {
+    const list = document.getElementById("lib-manager-items-list");
+    const searchEl = document.getElementById("lib-manager-search");
+    const search = searchEl ? searchEl.value.toLowerCase() : "";
+    
+    if (!list) return;
+    list.innerHTML = "";
+
+    const filtered = localFiles.filter(item => {
+        const match = (item.title || "").toLowerCase().includes(search) || (item.artist || "").toLowerCase().includes(search);
+        return match;
+    });
+
+    filtered.forEach((item) => {
+        const originalIndex = localFiles.indexOf(item);
+        const isSelected = libManagerSelectedIndices.has(originalIndex);
+        
+        const div = document.createElement("div");
+        div.className = "bulk-item-row";
+        div.style.display = "flex";
+        div.style.alignItems = "center";
+        div.style.padding = "8px";
+        div.style.borderBottom = "1px solid #222";
+        div.style.gap = "10px";
+
+        const chk = document.createElement("input");
+        chk.type = "checkbox";
+        chk.checked = isSelected;
+        chk.onchange = (e) => {
+            if (e.target.checked) libManagerSelectedIndices.add(originalIndex);
+            else libManagerSelectedIndices.delete(originalIndex);
+            updateLibManagerStatus();
+        }
+
+        const info = document.createElement("div");
+        info.style.flex = "1";
+        info.innerHTML = `<div style="font-weight:bold; font-size:0.9em;">${item.title}</div>
+                          <div style="font-size:0.75em; color:#888;">${item.artist || "---"}</div>
+                          <div style="font-size:0.75em; color:#555; word-break:break-all;">${item.path}</div>`;
+
+        div.appendChild(chk);
+        div.appendChild(info);
+        list.appendChild(div);
+    });
+
+    updateLibManagerStatus();
+}
+
+function updateLibManagerStatus() {
+    const statusTxt = document.getElementById("lib-manager-count-status");
+    if (statusTxt) {
+        statusTxt.innerText = `${libManagerSelectedIndices.size} / ${localFiles.length} sélectionné(s)`;
+    }
+}
+
+function toggleLibManagerSelectAll(checked) {
+    const searchEl = document.getElementById("lib-manager-search");
+    const search = searchEl ? searchEl.value.toLowerCase() : "";
+    
+    localFiles.forEach((item, idx) => {
+        const match = (item.title || "").toLowerCase().includes(search) || (item.artist || "").toLowerCase().includes(search);
+        if (match) {
+            if (checked) libManagerSelectedIndices.add(idx);
+            else libManagerSelectedIndices.delete(idx);
+        }
+    });
+    renderLibraryManagerItems();
+}
+
+function updateLibManagerDestState() {
+    // Optional UI updates based on action choice
+}
+
+async function applyLibraryManagerActions() {
+    if (libManagerSelectedIndices.size === 0) {
+        alert("Veuillez sélectionner au moins un média.");
+        return;
+    }
+
+    const action = document.getElementById("lib-manager-action-select").value;
+    const dest = document.getElementById("lib-manager-dest-select").value;
+    const selectedArray = Array.from(libManagerSelectedIndices);
+    
+    if (!confirm(t('confirm_bulk_apply', 'Appliquer ces {n} changements ?').replace('{n}', selectedArray.length))) return;
+
+    const progressContainer = document.getElementById("lib-manager-progress-container");
+    const progressFill = document.getElementById("lib-manager-progress-fill");
+    const progressText = document.getElementById("lib-manager-progress-text");
+    const progressPercent = document.getElementById("lib-manager-progress-percent");
+
+    if (progressContainer) progressContainer.style.display = "block";
+    
+    let successCount = 0;
+    let errors = [];
+
+    for (let i = 0; i < selectedArray.length; i++) {
+        const idx = selectedArray[i];
+        const item = localFiles[idx];
+        
+        const pct = Math.round(((i + 1) / selectedArray.length) * 100);
+        if (progressFill) progressFill.style.width = pct + "%";
+        if (progressPercent) progressPercent.innerText = pct + "%";
+        if (progressText) progressText.innerText = `Traitement ${i + 1}/${selectedArray.length} : ${item.title}`;
+
+        try {
+            const res = await fetch('/api/local/relocate_apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: action,
+                    type: 'library',
+                    index: idx,
+                    new_path: item.path,
+                    target_folder: dest === "AUTO" ? null : dest
+                })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                successCount++;
+                item.path = data.new_path; // Sync in memory
+            } else {
+                errors.push(`${item.title}: ${data.message}`);
+            }
+        } catch (e) {
+            errors.push(`${item.title}: Erreur réseau`);
+        }
+    }
+
+    if (progressContainer) progressContainer.style.display = "none";
+    loadLocalFiles();
+    
+    let msgKey = (action === 'copy') ? 'web.msg_bulk_success_copy' : 'web.msg_bulk_success_move';
+    alert(t(msgKey, '{n} fichiers traités !').replace('{n}', successCount));
+    
+    if (errors.length > 0) {
+        console.error("Library Manager Errors:", errors);
+    }
+    
+    renderLibraryManagerItems(); // Refresh modal view
 }

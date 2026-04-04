@@ -691,6 +691,9 @@
                     <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
                         Fichiers Locaux
                         <div style="display:flex; gap:5px;">
+                            <button class="btn-icon" onclick="openLibraryManagerModal()"
+                                title="Gérer la Bibliothèque" data-i18n-title="web.btn_manage_library"><i
+                                    class="ph ph-books"></i></button>
                             <button class="btn-icon" onclick="addLocalMultitrack()"
                                 title="Ajouter un Dossier Multipiste" data-i18n-title="web.hint_add_multitrack"><i
                                     class="ph ph-folder-plus"></i></button>
@@ -951,9 +954,12 @@
                     onchange="handleLocalCover(this)">
             </div>
 
-            <div class="edit-form">
-                <div id="local-path-display"
-                    style="font-size:0.8em; color:#888; background:#222; padding:5px; border-radius:4px; margin-bottom:10px; word-break:break-all;">
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#222; padding:5px; border-radius:4px; margin-bottom:10px;">
+                    <div id="local-path-display" style="font-size:0.8em; color:#888; word-break:break-all; flex:1;"></div>
+                    <div style="display:flex; gap:5px; margin-left:10px;">
+                        <button class="btn-secondary" style="padding:2px 5px; font-size:0.8em;" onclick="relocateFromEdit('copy')" title="Copier vers..." data-i18n-title="web.opt_copy">🎵 C</button>
+                        <button class="btn-secondary" style="padding:2px 5px; font-size:0.8em;" onclick="relocateFromEdit('move')" title="Déplacer vers..." data-i18n-title="web.opt_move">🚗 D</button>
+                    </div>
                 </div>
 
                 <label data-i18n="web.lbl_title">Titre</label>
@@ -1124,9 +1130,12 @@
                     onchange="handleMultitrackCover(this)">
             </div>
 
-            <div class="edit-form">
-                <div id="mt-path-display"
-                    style="font-size:0.8em; color:#888; background:#222; padding:5px; border-radius:4px; margin-bottom:10px; word-break:break-all;">
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#222; padding:5px; border-radius:4px; margin-bottom:10px;">
+                    <div id="mt-path-display" style="font-size:0.8em; color:#888; word-break:break-all; flex:1;"></div>
+                    <div style="display:flex; gap:5px; margin-left:10px;">
+                        <button class="btn-secondary" style="padding:2px 5px; font-size:0.8em;" onclick="relocateFromEdit('copy')" title="Copier vers..." data-i18n-title="web.opt_copy">🎵 C</button>
+                        <button class="btn-secondary" style="padding:2px 5px; font-size:0.8em;" onclick="relocateFromEdit('move')" title="Déplacer vers..." data-i18n-title="web.opt_move">🚗 D</button>
+                    </div>
                 </div>
 
                 <label data-i18n="web.lbl_title">Titre</label>
@@ -2627,6 +2636,74 @@
         </div>
         <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:15px;">
             <button class="btn-secondary" onclick="closeBulkRelocateModal()" data-i18n="web.btn_close">Fermer</button>
+        </div>
+    </dialog>
+    
+    <!-- LIBRARY MANAGER MODAL (V40) -->
+    <dialog id="modal-library-manager" class="modal-advanced">
+        <div class="modal-header">
+            <h3 data-i18n="web.title_library_manager">Gestionnaire de Bibliothèque</h3>
+            <button onclick="closeLibraryManagerModal()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body" style="padding:15px; display:flex; flex-direction:column; gap:15px;">
+            <div style="display:flex; gap:15px; align-items:flex-end;">
+                <div style="flex:1;">
+                    <label style="font-size:0.8em; color:#aaa;" data-i18n="web.lbl_search">Recherche (Artiste, Titre...)</label>
+                    <input type="text" id="lib-manager-search" onkeyup="renderLibraryManagerItems()" placeholder="..." style="width:100%; background:#222; border:1px solid #444; color:white; padding:8px; border-radius:4px;">
+                </div>
+                <div style="flex:1;">
+                    <label style="font-size:0.8em; color:#aaa;" data-i18n="web.lbl_action_to_apply">Action :</label>
+                    <select id="lib-manager-action-select" onchange="updateLibManagerDestState()" style="width:100%; background:#222; border:1px solid #444; color:white; padding:8px; border-radius:4px;">
+                        <option value="copy" data-i18n="web.opt_copy">Copier vers dossier</option>
+                        <option value="move" data-i18n="web.opt_move">Déplacer vers dossier</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="background:#222; padding:12px; border-radius:8px; border:1px solid #333;">
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div>
+                        <label style="font-size:0.8em; color:#aaa; display:block; margin-bottom:5px;" data-i18n="web.lbl_bulk_target">Dossier de destination :</label>
+                        <div style="display:flex; gap:8px;">
+                            <select id="lib-manager-dest-select" style="flex:1; background:#111; border:1px solid #444; color:white; border-radius:4px; padding:8px;">
+                                <option value="AUTO" data-i18n="web.opt_auto_artist_dest">-- Auto-routage par Artiste --</option>
+                            </select>
+                            <button id="btn-lib-browse-dest" class="btn-secondary" onclick="openNativeFolderPicker('lib-dest')" style="padding:0 12px;">
+                                <i class="ph ph-folder-open"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn-primary" onclick="applyLibraryManagerActions()" style="width:100%; height:40px; background:#03dac6; color:black; font-weight:bold; margin-top:15px;">
+                    <i class="ph ph-check-circle"></i> <span data-i18n="web.btn_apply_actions">Appliquer les actions</span>
+                </button>
+            </div>
+
+            <div class="bulk-list-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px; font-size:0.85em; color:#aaa;">
+                <div>
+                   <input type="checkbox" id="lib-manager-select-all" onchange="toggleLibManagerSelectAll(this.checked)">
+                   <label for="lib-manager-select-all" data-i18n="web.lbl_select_all" style="cursor:pointer;">Tout sélectionner</label>
+                </div>
+                <span id="lib-manager-count-status">0 / 0 sélectionné(s)</span>
+            </div>
+
+            <div id="lib-manager-items-list" class="bulk-items-list" style="flex:1; max-height:350px; min-height:200px; overflow-y:auto; border:1px solid #333; border-radius:4px; background:#1a1a1a;">
+                <!-- JS Generated items -->
+            </div>
+
+            <div id="lib-manager-progress-container" style="display:none; margin-top:10px;">
+                <div style="display:flex; justify-content:space-between; font-size:0.85em; margin-bottom:5px;">
+                    <span id="lib-manager-progress-text">Traitement...</span>
+                    <span id="lib-manager-progress-percent">0%</span>
+                </div>
+                <div class="progress-bar-bg" style="height:8px; background:#333; border-radius:4px; overflow:hidden;">
+                    <div id="lib-manager-progress-fill" style="height:100%; width:0%; background:var(--accent); transition:width 0.2s;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:15px;">
+            <button class="btn-secondary" onclick="closeLibraryManagerModal()" data-i18n="web.btn_close">Fermer</button>
         </div>
     </dialog>
 

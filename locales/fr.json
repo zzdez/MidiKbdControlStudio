@@ -268,6 +268,9 @@
         "opt_auto_folders_search": "-- Dossiers favoris (Auto) --",
         "opt_auto_folders_dest": "-- Auto-routage par type (Recommandé) --",
         "msg_applying": "Application des changements...",
+        "msg_bulk_success_link": "{n} fichiers ont été reconnectés (Lien) !",
+        "msg_bulk_success_copy": "{n} fichiers ont été copiés et reconnectés !",
+        "msg_bulk_success_move": "{n} fichiers ont été déplacés et reconnectés !",
         "msg_bulk_error": "Erreur lors de l'application groupée : ",
         "msg_scan_found": "{n} fichiers localisés sur le disque",
         "confirm_bulk_apply": "Êtes-vous sûr de vouloir appliquer ces {n} changements ?",
@@ -479,6 +482,12 @@
         "btn_relocate_copy": "Copier vers le dossier Medias (Sûr)",
         "btn_relocate_move": "Déplacer vers le dossier Medias (Propre)",
         "lbl_found_at": "Trouvé à :",
-        "msg_relocate_success": "Média relocalisé avec succès !"
+        "msg_relocate_success": "Média relocalisé avec succès !",
+        "btn_manage_library": "Gérer la Bibliothèque",
+        "title_library_manager": "Gestionnaire de Bibliothèque",
+        "btn_apply_actions": "Appliquer les actions",
+        "lbl_search": "Recherche (Artiste, Titre...)",
+        "msg_error_path_not_found": "Action impossible : chemin du média introuvable.",
+        "opt_auto_artist_dest": "-- Auto-routage par Artiste --"
     }
 }

@@ -1607,12 +1607,22 @@ async def relocate_apply(data: dict):
                 dest_dir = target_folder
             else:
                 # Default Routing Logic
+                import re
                 subfolder = "Audios"
                 ext = os.path.splitext(filename)[1].lower()
                 if is_multitrack: subfolder = "Multipistes"
                 elif ext in ['.mp4', '.mkv', '.avi', '.mov', '.webm']: subfolder = "Videos"
                 elif ext in ['.mid', '.midi']: subfolder = "Midi"
-                dest_dir = os.path.join(get_app_dir(), "Medias", subfolder)
+                
+                # Fetch artist and sanitize
+                artist = target_item.get("artist", "").strip()
+                if artist:
+                    # Replace invalid characters for Windows folders
+                    safe_artist = re.sub(r'[\\/*?:"<>|]', '_', artist)
+                else:
+                    safe_artist = "Divers"
+                    
+                dest_dir = os.path.join(get_app_dir(), "Medias", subfolder, safe_artist)
             
             # Normalization to avoid double slashes and Windows path issues
             dest_dir = os.path.normpath(dest_dir)

@@ -268,6 +268,9 @@
         "opt_auto_folders_search": "-- Favorite Folders (Auto) --",
         "opt_auto_folders_dest": "-- Smart Routing by type --",
         "msg_applying": "Applying changes...",
+        "msg_bulk_success_link": "{n} files were reconnected (Link)!",
+        "msg_bulk_success_copy": "{n} files were copied and reconnected!",
+        "msg_bulk_success_move": "{n} files were moved and reconnected!",
         "msg_bulk_error": "Error during bulk relocation: ",
         "msg_scan_found": "{n} files located on disk",
         "confirm_bulk_apply": "Are you sure you want to apply these {n} changes?",
@@ -479,6 +482,12 @@
         "btn_relocate_copy": "Copy to Medias folder (Safe)",
         "btn_relocate_move": "Move to Medias folder (Clean)",
         "lbl_found_at": "Found at:",
-        "msg_relocate_success": "Media relocated successfully!"
+        "msg_relocate_success": "Media relocated successfully!",
+        "btn_manage_library": "Manage Library",
+        "title_library_manager": "Library Manager",
+        "btn_apply_actions": "Apply actions",
+        "lbl_search": "Search (Artist, Title...)",
+        "msg_error_path_not_found": "Action impossible: media path not found.",
+        "opt_auto_artist_dest": "-- Artist Auto-Routing --"
     }
 }
