@@ -488,6 +488,13 @@
         "btn_apply_actions": "Apply actions",
         "lbl_search": "Search (Artist, Title...)",
         "msg_error_path_not_found": "Action impossible: media path not found.",
-        "opt_auto_artist_dest": "-- Artist Auto-Routing --"
+        "opt_auto_artist_dest": "-- Artist-Driven Auto-Routing --",
+        "lbl_physical_management": "Physical File Management",
+        "opt_manual_dest": "Choose a specific folder...",
+        "btn_copy_to": "Copy to...",
+        "btn_move_to": "Move to...",
+        "chk_create_artist_folder": "Create Artist subfolder",
+        "msg_relocating": "Processing...",
+        "lbl_current_path": "Current path:"
     }
 }

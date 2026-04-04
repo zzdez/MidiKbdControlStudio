@@ -488,6 +488,13 @@
         "btn_apply_actions": "Appliquer les actions",
         "lbl_search": "Recherche (Artiste, Titre...)",
         "msg_error_path_not_found": "Action impossible : chemin du média introuvable.",
-        "opt_auto_artist_dest": "-- Auto-routage par Artiste --"
+        "opt_auto_artist_dest": "-- Auto-routage par Artiste (Recommandé) --",
+        "lbl_physical_management": "Gestion Physique du Fichier",
+        "opt_manual_dest": "Choisir un dossier spécifique...",
+        "btn_copy_to": "Copier vers...",
+        "btn_move_to": "Déplacer vers...",
+        "chk_create_artist_folder": "Créer un sous-dossier Artiste",
+        "msg_relocating": "Traitement en cours...",
+        "lbl_current_path": "Chemin actuel :"
     }
 }

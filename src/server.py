@@ -1602,26 +1602,28 @@ async def relocate_apply(data: dict):
         if action in ['copy', 'move']:
             # Determine Target Subfolder
             target_folder = data.get("target_folder")
+            create_artist_folder = data.get("create_artist_folder", False)
+
+            # Pre-calculate safe artist name
+            import re
+            artist = target_item.get("artist", "").strip()
+            if artist:
+                safe_artist = re.sub(r'[\\/*?:"<>|]', '_', artist)
+            else:
+                safe_artist = "Divers"
             
             if target_folder and os.path.exists(target_folder):
                 dest_dir = target_folder
+                if create_artist_folder:
+                    dest_dir = os.path.join(dest_dir, safe_artist)
             else:
-                # Default Routing Logic
-                import re
+                # Default Routing Logic (Internal auto-routing)
                 subfolder = "Audios"
                 ext = os.path.splitext(filename)[1].lower()
                 if is_multitrack: subfolder = "Multipistes"
                 elif ext in ['.mp4', '.mkv', '.avi', '.mov', '.webm']: subfolder = "Videos"
                 elif ext in ['.mid', '.midi']: subfolder = "Midi"
                 
-                # Fetch artist and sanitize
-                artist = target_item.get("artist", "").strip()
-                if artist:
-                    # Replace invalid characters for Windows folders
-                    safe_artist = re.sub(r'[\\/*?:"<>|]', '_', artist)
-                else:
-                    safe_artist = "Divers"
-                    
                 dest_dir = os.path.join(get_app_dir(), "Medias", subfolder, safe_artist)
             
             # Normalization to avoid double slashes and Windows path issues
@@ -2383,6 +2385,7 @@ async def get_managed_folders():
     from config_manager import ConfigManager
     config = ConfigManager()
     folders = config.get("media_folders", [])
+    print(f"[DEBUG API] Sending managed folders to UI: {folders}")
     return {"status": "ok", "folders": folders}
 
 @app.post("/api/open_settings")
