@@ -275,6 +275,11 @@
                             <i class="ph ph-line-segments"></i>
                         </button>
 
+                        <!-- Training Mode Button -->
+                        <button class="control-btn" id="btn-audio-training" onclick="toggleTrainingUI('audio')" title="Mode Entraînement" data-i18n-title="web.lbl_training_mode" style="font-size: 1.2rem; margin-left:10px;">
+                            <i class="ph ph-trend-up"></i>
+                        </button>
+
                         <!-- Pitch Control (Compact) -->
                         <div class="pitch-pill"
                             style="display:flex; align-items:center; gap:6px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
@@ -336,6 +341,38 @@
                     <div class="controls-right-spacer"></div>
                 </div>
 
+                <!-- MEDIA TRAINING PANEL (AUDIO) -->
+                <div id="audio-training-panel" class="media-training-panel">
+                    <div class="training-status-badge">
+                        <i class="ph ph-trend-up"></i>
+                        <span data-i18n="web.lbl_status_training_active">Entraînement Actif</span>
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_start_bpm">Départ</label>
+                        <input type="number" id="audio-train-start" value="100" onchange="updateTrainingParam('audio')">
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_final_bpm">Cible</label>
+                        <input type="number" id="audio-train-final" value="140" onchange="updateTrainingParam('audio')">
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_inc_bpm">Inc (+)</label>
+                        <input type="number" id="audio-train-inc" value="5" onchange="updateTrainingParam('audio')">
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_cycles_before_inc">Cycles</label>
+                        <input type="number" id="audio-train-cycles" value="4" onchange="updateTrainingParam('audio')">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
+                        <input type="checkbox" id="audio-train-stop" onchange="updateTrainingParam('audio')">
+                        <label for="audio-train-stop" style="font-size:0.75em; color:#aaa; cursor:pointer;" data-i18n="web.lbl_stop_at_target">Stop à la cible</label>
+                    </div>
+                    <div style="flex:1;"></div>
+                    <div id="audio-train-live-info" class="next-cycle-info">
+                        <span data-i18n="web.lbl_next_inc_in">Next in:</span> <span class="val">--</span>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Multitrack Player (DAW Mode) -->
@@ -385,6 +422,11 @@
                             <i class="ph ph-line-segments"></i>
                         </button>
 
+                        <!-- Training Mode Button -->
+                        <button class="control-btn" id="btn-multitrack-training" onclick="toggleTrainingUI('multitrack')" title="Mode Entraînement" data-i18n-title="web.lbl_training_mode" style="font-size: 1.2rem; margin-left:10px;">
+                            <i class="ph ph-trend-up"></i>
+                        </button>
+
                         <!-- Master Volume Control -->
                         <div
                             style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left:10px;">
@@ -427,6 +469,38 @@
                         </div>
                     </div>
                     <div class="controls-right-spacer"></div>
+                </div>
+
+                <!-- MEDIA TRAINING PANEL (MULTITRACK) -->
+                <div id="multitrack-training-panel" class="media-training-panel">
+                    <div class="training-status-badge">
+                        <i class="ph ph-trend-up"></i>
+                        <span data-i18n="web.lbl_status_training_active">Entraînement Actif</span>
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_start_bpm">Départ</label>
+                        <input type="number" id="multitrack-train-start" value="100" onchange="updateTrainingParam('multitrack')">
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_final_bpm">Cible</label>
+                        <input type="number" id="multitrack-train-final" value="140" onchange="updateTrainingParam('multitrack')">
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_inc_bpm">Inc (+)</label>
+                        <input type="number" id="multitrack-train-inc" value="5" onchange="updateTrainingParam('multitrack')">
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_cycles_before_inc">Cycles</label>
+                        <input type="number" id="multitrack-train-cycles" value="4" onchange="updateTrainingParam('multitrack')">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
+                        <input type="checkbox" id="multitrack-train-stop" onchange="updateTrainingParam('multitrack')">
+                        <label for="multitrack-train-stop" style="font-size:0.75em; color:#aaa; cursor:pointer;" data-i18n="web.lbl_stop_at_target">Stop à la cible</label>
+                    </div>
+                    <div style="flex:1;"></div>
+                    <div id="multitrack-train-live-info" class="next-cycle-info">
+                        <span data-i18n="web.lbl_next_inc_in">Next in:</span> <span class="val">--</span>
+                    </div>
                 </div>
 
                 <!-- Multitrack Timeline & Loop Bar Row -->
@@ -525,6 +599,11 @@
                         <i class="ph ph-line-segments"></i>
                     </button>
 
+                    <!-- Training Mode Button -->
+                    <button class="control-btn" id="btn-video-training" onclick="toggleTrainingUI('video')" title="Mode Entraînement" data-i18n-title="web.lbl_training_mode" style="font-size: 1.2rem; margin-left:10px;">
+                        <i class="ph ph-trend-up"></i>
+                    </button>
+
                     <!-- Subtitle Toggle Area -->
                     <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
                         <button class="control-btn" id="btn-toggle-subs" onclick="toggleSubtitles()"
@@ -593,6 +672,38 @@
                     </div>
                 </div>
                 <div class="controls-right-spacer"></div>
+            </div>
+
+            <!-- MEDIA TRAINING PANEL (VIDEO) -->
+            <div id="video-training-panel" class="media-training-panel">
+                <div class="training-status-badge">
+                    <i class="ph ph-trend-up"></i>
+                    <span data-i18n="web.lbl_status_training_active">Entraînement Actif</span>
+                </div>
+                <div class="training-input-group">
+                    <label data-i18n="web.lbl_start_bpm">Départ</label>
+                    <input type="number" id="video-train-start" value="100" onchange="updateTrainingParam('video')">
+                </div>
+                <div class="training-input-group">
+                    <label data-i18n="web.lbl_final_bpm">Cible</label>
+                    <input type="number" id="video-train-final" value="140" onchange="updateTrainingParam('video')">
+                </div>
+                <div class="training-input-group">
+                    <label data-i18n="web.lbl_inc_bpm">Inc (+)</label>
+                    <input type="number" id="video-train-inc" value="5" onchange="updateTrainingParam('video')">
+                </div>
+                <div class="training-input-group">
+                    <label data-i18n="web.lbl_cycles_before_inc">Cycles</label>
+                    <input type="number" id="video-train-cycles" value="4" onchange="updateTrainingParam('video')">
+                </div>
+                <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
+                    <input type="checkbox" id="video-train-stop" onchange="updateTrainingParam('video')">
+                    <label for="video-train-stop" style="font-size:0.75em; color:#aaa; cursor:pointer;" data-i18n="web.lbl_stop_at_target">Stop à la cible</label>
+                </div>
+                <div style="flex:1;"></div>
+                <div id="video-train-live-info" class="next-cycle-info">
+                    <span data-i18n="web.lbl_next_inc_in">Next in:</span> <span class="val">--</span>
+                </div>
             </div>
 
             </div>

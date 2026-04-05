@@ -801,6 +801,74 @@ dialog::backdrop {
     overflow: hidden;
 }
 
+/* MEDIA TRAINING PANEL */
+.media-training-panel {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 5px 10px;
+    display: none;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    z-index: 100;
+}
+
+.training-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.training-input-group label {
+    font-size: 0.75em;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.training-input-group input {
+    width: 65px !important;
+    background: #111 !important;
+    border: 1px solid #444 !important;
+    padding: 4px 8px !important;
+    border-radius: 4px !important;
+    font-size: 0.9em !important;
+    color: var(--accent) !important;
+    font-weight: bold;
+    text-align: center;
+}
+
+.training-status-badge {
+    background: rgba(187, 134, 252, 0.1);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 4px 10px;
+    border-radius: 15px;
+    font-size: 0.85em;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.training-status-badge .ph-trend-up {
+    animation: blink-training 1.5s infinite;
+}
+
+@keyframes blink-training {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+
+.next-cycle-info {
+    font-size: 0.82em;
+    color: #aaa;
+    font-family: 'JetBrains Mono', monospace;
+}
+
 /* EDIT FORM */
 .edit-layout {
     display: flex;

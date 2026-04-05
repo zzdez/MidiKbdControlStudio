@@ -422,6 +422,10 @@ function onPlayerStateChange(event) {
         if (event.data === YT.PlayerState.ENDED) {
             if (window.currentAutoreplay === true) {
                 player.playVideo();
+                // TRAINING HOOK: Autoreplay YouTube
+                if (window.MediaTrainingManager && window.MediaTrainingManager.video && window.MediaTrainingManager.video.active) {
+                    window.MediaTrainingManager.onCycleEnd('video');
+                }
             } else {
                 player.seekTo(0);
                 player.pauseVideo();
@@ -2683,6 +2687,10 @@ function initWaveSurfer() {
             if (window.currentAutoreplay === true) {
                 wavesurfer.play();
                 updatePlayPauseUI();
+                // TRAINING HOOK: Local Audio Autoreplay
+                if (window.MediaTrainingManager && window.MediaTrainingManager.audio && window.MediaTrainingManager.audio.active) {
+                    window.MediaTrainingManager.onCycleEnd('audio');
+                }
             }
         });
 
@@ -5753,6 +5761,22 @@ function setupVideoTimeline() {
         if (v.paused) v.play();
         else v.pause();
     };
+
+    // --- NEW: Autoreplay & Training Hook ---
+    v.onended = () => {
+        if (window.currentAutoreplay === true) {
+            v.currentTime = 0;
+            v.play();
+            // TRAINING HOOK: Local Video Autoreplay
+            if (window.MediaTrainingManager && window.MediaTrainingManager.video && window.MediaTrainingManager.video.active) {
+                window.MediaTrainingManager.onCycleEnd('video');
+            }
+        } else {
+            v.currentTime = 0;
+            v.pause();
+            updatePlayPauseIcon('video', false);
+        }
+    };
 }
 
 function updatePlayPauseIcon(type, isPlaying) {
@@ -6133,6 +6157,18 @@ function updateLoopUI() {
 function checkLoop(currentTime) {
     if (!isLoopActive || loopA === null || loopB === null) return;
     if (currentTime >= loopB) {
+        
+        // TRAINING HOOK: Loop Cycle End
+        if (window.MediaTrainingManager) {
+            let playerType = 'audio';
+            if (currentActivePlayer === 'video' || currentActivePlayer === 'local' || currentActivePlayer === 'youtube') playerType = 'video';
+            else if (currentActivePlayer === 'multitrack') playerType = 'multitrack';
+            
+            if (window.MediaTrainingManager[playerType] && window.MediaTrainingManager[playerType].active) {
+                window.MediaTrainingManager.onCycleEnd(playerType);
+            }
+        }
+
         if (!isSequentialLoop) {
             seekPlayerTo(loopA);
         } else {
@@ -6168,6 +6204,10 @@ setInterval(() => {
             window.multitrack.setTime(0);
             if (window.currentAutoreplay === true) {
                 window.multitrack.play();
+                // TRAINING HOOK: Autoreplay
+                if (window.MediaTrainingManager && window.MediaTrainingManager['multitrack'] && window.MediaTrainingManager['multitrack'].active) {
+                    window.MediaTrainingManager.onCycleEnd('multitrack');
+                }
             }
             updatePlayPauseUI();
         }
@@ -6175,11 +6215,152 @@ setInterval(() => {
 
     if (currentActivePlayer === 'youtube') {
         updateTimelineUI(time);
+        
+        // TRAINING HOOK: YT Autoreplay
+        if (window.currentAutoreplay === true && player && player.getPlayerState() === YT.PlayerState.ENDED) {
+             // YT state logic handles replay, but we need to catch the "end" event in the interval if needed
+             // Actually, YT onStateChange might be better for "End of media"
+        }
     }
 
     // Always update the universal timer (elapsed/remaining)
     updateUniversalTimer();
 }, 50);
+
+// ==========================================
+// MEDIA TRAINING ENGINE (SPEED TRAINER)
+// ==========================================
+window.MediaTrainingManager = {
+    audio: { active: false, startBpm: 100, finalBpm: 140, increment: 5, cyclesPerStep: 4, stopAtTarget: false, currentCycles: 0, currentBpm: 100 },
+    video: { active: false, startBpm: 100, finalBpm: 140, increment: 5, cyclesPerStep: 4, stopAtTarget: false, currentCycles: 0, currentBpm: 100 },
+    multitrack: { active: false, startBpm: 100, finalBpm: 140, increment: 5, cyclesPerStep: 4, stopAtTarget: false, currentCycles: 0, currentBpm: 100 },
+
+    toggle(player) {
+        const panel = document.getElementById(`${player}-training-panel`);
+        if (!panel) return;
+        const isVisible = panel.style.display === 'flex';
+        panel.style.display = isVisible ? 'none' : 'flex';
+        
+        const btn = document.getElementById(`btn-${player}-training`);
+        if (btn) btn.style.color = isVisible ? '' : 'var(--accent)';
+
+        if (!isVisible) {
+            this.initPlayer(player);
+        } else {
+            this[player].active = false;
+        }
+    },
+
+    initPlayer(player) {
+        this[player].startBpm = parseFloat(document.getElementById(`${player}-train-start`).value) || 120;
+        this[player].finalBpm = parseFloat(document.getElementById(`${player}-train-final`).value) || 140;
+        this[player].increment = parseFloat(document.getElementById(`${player}-train-inc`).value) || 5;
+        this[player].cyclesPerStep = parseInt(document.getElementById(`${player}-train-cycles`).value) || 1;
+        this[player].stopAtTarget = document.getElementById(`${player}-train-stop`).checked;
+        
+        this[player].currentCycles = 0;
+        this[player].currentBpm = this[player].startBpm;
+        this[player].active = true;
+
+        this.updatePlayerSpeed(player);
+        this.updateUI(player);
+    },
+
+    updateParam(player) {
+        if (!this[player].active) return;
+        this[player].startBpm = parseFloat(document.getElementById(`${player}-train-start`).value) || 120;
+        this[player].finalBpm = parseFloat(document.getElementById(`${player}-train-final`).value) || 140;
+        this[player].increment = parseFloat(document.getElementById(`${player}-train-inc`).value) || 5;
+        this[player].cyclesPerStep = parseInt(document.getElementById(`${player}-train-cycles`).value) || 1;
+        this[player].stopAtTarget = document.getElementById(`${player}-train-stop`).checked;
+        
+        // If user changed startBpm manually while active, we might want to reset or jump
+        // For now, just keep track of currentBpm
+        this.updateUI(player);
+    },
+
+    updatePlayerSpeed(player) {
+        if (!this[player].active) return;
+        
+        let refBpm = 120;
+        const item = (currentActivePlayer === 'multitrack' || currentActivePlayer === 'local' || currentActivePlayer === 'waveform') 
+                     ? localFiles[window.currentPlayingIndex] 
+                     : (currentActivePlayer === 'youtube' ? ytSetlist[window.currentPlayingIndex] : null);
+        
+        if (item && item.bpm) refBpm = parseFloat(item.bpm);
+
+        const newSpeed = this[player].currentBpm / refBpm;
+        
+        if (player === 'audio') {
+            if (wavesurfer) wavesurfer.setPlaybackRate(newSpeed);
+            const speedSpan = document.getElementById("btn-audio-speed");
+            if (speedSpan) speedSpan.innerText = newSpeed.toFixed(2) + "x";
+        } else if (player === 'video') {
+            if (currentActivePlayer === 'youtube' && player && typeof player.setPlaybackRate === 'function') {
+                player.setPlaybackRate(newSpeed);
+            } else if (currentActivePlayer === 'local') {
+                const vid = document.getElementById("html5-player");
+                if (vid) vid.playbackRate = newSpeed;
+            }
+            const speedSpan = document.getElementById("btn-video-speed");
+            if (speedSpan) speedSpan.innerText = newSpeed.toFixed(2) + "x";
+        } else if (player === 'multitrack') {
+            if (window.multitrack) window.multitrack.setPlaybackRate(newSpeed);
+            const speedSpan = document.getElementById("btn-multitrack-speed");
+            if (speedSpan) speedSpan.innerText = newSpeed.toFixed(2) + "x";
+        }
+    },
+
+    onCycleEnd(player) {
+        if (!this[player].active) return;
+
+        this[player].currentCycles++;
+        console.log(`[TRAINING] Cycle end for ${player}. Count: ${this[player].currentCycles}/${this[player].cyclesPerStep}`);
+        
+        if (this[player].currentCycles >= this[player].cyclesPerStep) {
+            this[player].currentCycles = 0;
+            
+            if (Math.abs(this[player].currentBpm - this[player].finalBpm) < 0.1) {
+                // Target reached exactly
+                if (this[player].stopAtTarget) {
+                    this.stopMedia(player);
+                    this[player].active = false;
+                }
+            } else if (this[player].currentBpm < this[player].finalBpm) {
+                this[player].currentBpm += this[player].increment;
+                if (this[player].currentBpm > this[player].finalBpm) {
+                    this[player].currentBpm = this[player].finalBpm;
+                }
+                this.updatePlayerSpeed(player);
+            } else {
+                // Was already at or above finalBpm
+                if (this[player].stopAtTarget) {
+                    this.stopMedia(player);
+                    this[player].active = false;
+                }
+            }
+        }
+        this.updateUI(player);
+    },
+
+    updateUI(player) {
+        const info = document.getElementById(`${player}-train-live-info`);
+        if (!info) return;
+        const valSpan = info.querySelector('.val');
+        const remaining = this[player].cyclesPerStep - this[player].currentCycles;
+        valSpan.innerText = `${remaining} cycle(s) - Actual: ${Math.round(this[player].currentBpm)} BPM`;
+    },
+
+    stopMedia(player) {
+         if (player === 'audio') audioControl('playpause');
+         else if (player === 'video') videoControl('playpause');
+         else if (player === 'multitrack') multitrackControl('playpause');
+    }
+};
+
+// GLOBAL BRIDGES FOR HTML
+function toggleTrainingUI(player) { window.MediaTrainingManager.toggle(player); }
+function updateTrainingParam(player) { window.MediaTrainingManager.updateParam(player); }
 
 // --- LOOP MODAL LOGIC ---
 function openLoopModal() {
