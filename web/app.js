@@ -424,7 +424,11 @@ function onPlayerStateChange(event) {
                 player.playVideo();
                 // TRAINING HOOK: Autoreplay YouTube
                 if (window.MediaTrainingManager && window.MediaTrainingManager.video && window.MediaTrainingManager.video.active) {
-                    window.MediaTrainingManager.onCycleEnd('video');
+                    const now = Date.now();
+                    if (now - window.MediaTrainingManager.lastCycleEnd > 500) {
+                        window.MediaTrainingManager.lastCycleEnd = now;
+                        window.MediaTrainingManager.onCycleEnd('video');
+                    }
                 }
             } else {
                 player.seekTo(0);
@@ -2689,7 +2693,11 @@ function initWaveSurfer() {
                 updatePlayPauseUI();
                 // TRAINING HOOK: Local Audio Autoreplay
                 if (window.MediaTrainingManager && window.MediaTrainingManager.audio && window.MediaTrainingManager.audio.active) {
-                    window.MediaTrainingManager.onCycleEnd('audio');
+                    const now = Date.now();
+                    if (now - window.MediaTrainingManager.lastCycleEnd > 500) {
+                        window.MediaTrainingManager.lastCycleEnd = now;
+                        window.MediaTrainingManager.onCycleEnd('audio');
+                    }
                 }
             }
         });
@@ -5769,7 +5777,11 @@ function setupVideoTimeline() {
             v.play();
             // TRAINING HOOK: Local Video Autoreplay
             if (window.MediaTrainingManager && window.MediaTrainingManager.video && window.MediaTrainingManager.video.active) {
-                window.MediaTrainingManager.onCycleEnd('video');
+                const now = Date.now();
+                if (now - window.MediaTrainingManager.lastCycleEnd > 500) {
+                    window.MediaTrainingManager.lastCycleEnd = now;
+                    window.MediaTrainingManager.onCycleEnd('video');
+                }
             }
         } else {
             v.currentTime = 0;
@@ -6165,7 +6177,12 @@ function checkLoop(currentTime) {
             else if (currentActivePlayer === 'multitrack') playerType = 'multitrack';
             
             if (window.MediaTrainingManager[playerType] && window.MediaTrainingManager[playerType].active) {
-                window.MediaTrainingManager.onCycleEnd(playerType);
+                // DEBOUNCE: Only trigger training cycle once per 500ms to allow seek to finish
+                const now = Date.now();
+                if (now - window.MediaTrainingManager.lastCycleEnd > 500) {
+                    window.MediaTrainingManager.lastCycleEnd = now;
+                    window.MediaTrainingManager.onCycleEnd(playerType);
+                }
             }
         }
 
@@ -6206,7 +6223,11 @@ setInterval(() => {
                 window.multitrack.play();
                 // TRAINING HOOK: Autoreplay
                 if (window.MediaTrainingManager && window.MediaTrainingManager['multitrack'] && window.MediaTrainingManager['multitrack'].active) {
-                    window.MediaTrainingManager.onCycleEnd('multitrack');
+                    const now = Date.now();
+                    if (now - window.MediaTrainingManager.lastCycleEnd > 500) {
+                        window.MediaTrainingManager.lastCycleEnd = now;
+                        window.MediaTrainingManager.onCycleEnd('multitrack');
+                    }
                 }
             }
             updatePlayPauseUI();
@@ -6231,9 +6252,10 @@ setInterval(() => {
 // MEDIA TRAINING ENGINE (SPEED TRAINER)
 // ==========================================
 window.MediaTrainingManager = {
-    audio: { active: false, startBpm: 100, finalBpm: 140, increment: 5, cyclesPerStep: 4, stopAtTarget: false, currentCycles: 0, currentBpm: 100 },
-    video: { active: false, startBpm: 100, finalBpm: 140, increment: 5, cyclesPerStep: 4, stopAtTarget: false, currentCycles: 0, currentBpm: 100 },
-    multitrack: { active: false, startBpm: 100, finalBpm: 140, increment: 5, cyclesPerStep: 4, stopAtTarget: false, currentCycles: 0, currentBpm: 100 },
+    audio: { active: false, startBpm: 100, finalBpm: 140, increment: 5, cyclesPerStep: 1, stopAtTarget: false, currentCycles: 0, currentBpm: 100 },
+    video: { active: false, startBpm: 100, finalBpm: 140, increment: 5, cyclesPerStep: 1, stopAtTarget: false, currentCycles: 0, currentBpm: 100 },
+    multitrack: { active: false, startBpm: 100, finalBpm: 140, increment: 5, cyclesPerStep: 1, stopAtTarget: false, currentCycles: 0, currentBpm: 100 },
+    lastCycleEnd: 0, // Debounce timestamp
 
     toggle(player) {
         const panel = document.getElementById(`${player}-training-panel`);
@@ -6251,9 +6273,34 @@ window.MediaTrainingManager = {
         }
     },
 
+    getActiveTrack() {
+        if (window.currentSource === 'setlist') {
+            return currentTrackList.find(t => t.originalIndex === window.currentPlayingIndex);
+        } else {
+            // Library / Local view - note: localFiles is not on window.
+            if (typeof localFiles !== 'undefined' && window.currentPlayingIndex !== null) {
+                return localFiles[window.currentPlayingIndex];
+            }
+        }
+        return null;
+    },
+
     initPlayer(player) {
-        this[player].startBpm = parseFloat(document.getElementById(`${player}-train-start`).value) || 120;
-        this[player].finalBpm = parseFloat(document.getElementById(`${player}-train-final`).value) || 140;
+        let refBpm = 120;
+        const item = this.getActiveTrack();
+        
+        if (item && item.bpm) refBpm = parseFloat(item.bpm);
+        console.log(`[TRAINING] Init player ${player}. Active track: ${item ? (item.title || item.path) : 'None'} | Track BPM: ${refBpm}`);
+
+        const startInput = document.getElementById(`${player}-train-start`);
+        const finalInput = document.getElementById(`${player}-train-final`);
+        
+        // Only pre-fill IF empty or at static 100/140 default
+        if (startInput && (startInput.value === "" || startInput.value == "100")) startInput.value = Math.round(refBpm * 0.75);
+        if (finalInput && (finalInput.value === "" || finalInput.value == "140")) finalInput.value = Math.round(refBpm);
+
+        this[player].startBpm = parseFloat(startInput.value) || refBpm;
+        this[player].finalBpm = parseFloat(finalInput.value) || 140;
         this[player].increment = parseFloat(document.getElementById(`${player}-train-inc`).value) || 5;
         this[player].cyclesPerStep = parseInt(document.getElementById(`${player}-train-cycles`).value) || 1;
         this[player].stopAtTarget = document.getElementById(`${player}-train-stop`).checked;
@@ -6267,15 +6314,19 @@ window.MediaTrainingManager = {
     },
 
     updateParam(player) {
-        if (!this[player].active) return;
+        if (!this[player]) return;
         this[player].startBpm = parseFloat(document.getElementById(`${player}-train-start`).value) || 120;
         this[player].finalBpm = parseFloat(document.getElementById(`${player}-train-final`).value) || 140;
         this[player].increment = parseFloat(document.getElementById(`${player}-train-inc`).value) || 5;
         this[player].cyclesPerStep = parseInt(document.getElementById(`${player}-train-cycles`).value) || 1;
         this[player].stopAtTarget = document.getElementById(`${player}-train-stop`).checked;
         
-        // If user changed startBpm manually while active, we might want to reset or jump
-        // For now, just keep track of currentBpm
+        // SYNC: If training is just starting (cycles=0), force currentBpm to match user's new startBpm immediately
+        if (this[player].active && this[player].currentCycles === 0) {
+            this[player].currentBpm = this[player].startBpm;
+            this.updatePlayerSpeed(player);
+        }
+        
         this.updateUI(player);
     },
 
@@ -6283,29 +6334,32 @@ window.MediaTrainingManager = {
         if (!this[player].active) return;
         
         let refBpm = 120;
-        const item = (currentActivePlayer === 'multitrack' || currentActivePlayer === 'local' || currentActivePlayer === 'waveform') 
-                     ? localFiles[window.currentPlayingIndex] 
-                     : (currentActivePlayer === 'youtube' ? ytSetlist[window.currentPlayingIndex] : null);
-        
+        const item = this.getActiveTrack();
         if (item && item.bpm) refBpm = parseFloat(item.bpm);
 
         const newSpeed = this[player].currentBpm / refBpm;
+        console.log(`[TRAINING] Speed calculation: CurrentBpm=${this[player].currentBpm.toFixed(1)} / RefBpm=${refBpm} = ${newSpeed.toFixed(2)}x`);
         
         if (player === 'audio') {
             if (wavesurfer) wavesurfer.setPlaybackRate(newSpeed);
             const speedSpan = document.getElementById("btn-audio-speed");
             if (speedSpan) speedSpan.innerText = newSpeed.toFixed(2) + "x";
         } else if (player === 'video') {
-            if (currentActivePlayer === 'youtube' && player && typeof player.setPlaybackRate === 'function') {
-                player.setPlaybackRate(newSpeed);
-            } else if (currentActivePlayer === 'local') {
+            if (currentActivePlayer === 'youtube') {
+                if (player && typeof player.setPlaybackRate === 'function') player.setPlaybackRate(newSpeed);
+            } else {
                 const vid = document.getElementById("html5-player");
                 if (vid) vid.playbackRate = newSpeed;
             }
             const speedSpan = document.getElementById("btn-video-speed");
             if (speedSpan) speedSpan.innerText = newSpeed.toFixed(2) + "x";
         } else if (player === 'multitrack') {
-            if (window.multitrack) window.multitrack.setPlaybackRate(newSpeed);
+            if (window.multitrack) {
+                // FIXED: Iterate over audios for Multitrack
+                if (window.multitrack.audios) {
+                    window.multitrack.audios.forEach(a => { if (a) a.playbackRate = newSpeed; });
+                }
+            }
             const speedSpan = document.getElementById("btn-multitrack-speed");
             if (speedSpan) speedSpan.innerText = newSpeed.toFixed(2) + "x";
         }
@@ -6315,29 +6369,29 @@ window.MediaTrainingManager = {
         if (!this[player].active) return;
 
         this[player].currentCycles++;
-        console.log(`[TRAINING] Cycle end for ${player}. Count: ${this[player].currentCycles}/${this[player].cyclesPerStep}`);
+        console.log(`[TRAINING] Cycle end for ${player}. Count: ${this[player].currentCycles}/${this[player].cyclesPerStep} | Current BPM: ${this[player].currentBpm.toFixed(1)}`);
         
         if (this[player].currentCycles >= this[player].cyclesPerStep) {
             this[player].currentCycles = 0;
             
-            if (Math.abs(this[player].currentBpm - this[player].finalBpm) < 0.1) {
-                // Target reached exactly
+            // Allow a small margin for float comparison
+            if (this[player].currentBpm >= this[player].finalBpm - 0.1) {
+                // Target reached or exceeded
                 if (this[player].stopAtTarget) {
+                    console.log(`[TRAINING] Target reached (${this[player].finalBpm} BPM). Stopping media.`);
                     this.stopMedia(player);
                     this[player].active = false;
+                } else {
+                    console.log(`[TRAINING] Target reached but CONTINUE option is ON.`);
                 }
-            } else if (this[player].currentBpm < this[player].finalBpm) {
+            } else {
+                const oldBpm = this[player].currentBpm;
                 this[player].currentBpm += this[player].increment;
                 if (this[player].currentBpm > this[player].finalBpm) {
                     this[player].currentBpm = this[player].finalBpm;
                 }
+                console.log(`[TRAINING] Incrementing BPM: ${oldBpm} -> ${this[player].currentBpm}`);
                 this.updatePlayerSpeed(player);
-            } else {
-                // Was already at or above finalBpm
-                if (this[player].stopAtTarget) {
-                    this.stopMedia(player);
-                    this[player].active = false;
-                }
             }
         }
         this.updateUI(player);

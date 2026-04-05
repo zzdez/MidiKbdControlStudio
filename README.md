@@ -67,9 +67,11 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     - **Timeline Marker :** Posez des drapeaux pour programmer des avertisseurs visuels HUD avant les couplets.
     - **Global Override :** Mutez l'intégralité des bips d'un clic sur la Cloche sans perdre vos calibrations.
     - **Repères Visuels Timeline :** Affichage automatique de légers traits jaunes permettant de situer instantanément les zones clés.
-*   **Système d'Entraînement Avancé (A-B Looping 3 États) :**
+*   **Système d'Entraînement Avancé (A-B Looping & Speed Trainer) :**
     - **Boucles Multiples :** Définissez, nommez et sauvegardez plusieurs boucles (Points A & B) pour chaque morceau, incluant **désormais un support total et visuel pour les vidéos YouTube en streaming**.
     - **Mode Séquentiel Intelligent :** Activez "Boucle Unique" pour répéter la section, ou "Boucle Séquentielle" pour passer automatiquement à la suite d'accords suivante une fois le solo maîtrisé.
+    - **Speed Trainer Progressif :** Augmentez automatiquement le BPM de vos boucles après chaque cycle. Le système détecte intelligemment le tempo original de vos morceaux pour proposer un départ à 75% et une cible à 100%.
+    - **Moteur Stabilisé :** Protection anti-rebond (Debounce) pour garantir un comptage précis des cycles même sur des boucles très courtes.
     - **Rendu Visuel :** Les boucles s'affichent sous forme de zones sur la timeline (Audio, HTML5 et YouTube), avec le nom de vos sections (Couplet, Refrain...) agissant comme une carte visuelle persistante.
 *   **Contrôle Hybride & Robuste :**
     *   **Contrôle Granulaire Vitesse :** Ajustez par pas de 0.05x (sans altération du Pitch/Tonalité).
