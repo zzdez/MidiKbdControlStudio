@@ -373,3 +373,68 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 *   **Support "Wide Art" (16:9) :**
     *   **Architecture Flexible (`style.css`) :** Remplacement des contraintes carrées par un système `width: fit-content` avec `max-width: 320px`.
     *   **Détection Automatique (`app.js`) :** Les pochettes issues de vidéos pour des fichiers audio standards sont désormais détectées et affichées dans leur format large (16:9) réel, éliminiant les bandes noires ou les déformations dans les modales et le header.
+### 37. Évolution V32 : Relocalisation Universelle & Smart Drive Scan
+*   **Moteur de Recherche Multicouches (Backend - `server.py`) :**
+    *   **Phase 1 (Interne) :** Recherche ultra-rapide dans les dossiers `Medias/` de l'application.
+    *   **Phase 2 (Globale) :** En cas d'échec, le serveur utilise `GetLogicalDrives` (Win32 API) pour scanner la racine de tous les lecteurs physiques (`C:\`, `D:\`, etc.) à une profondeur contrôlée de 3 niveaux.
+    *   **Auto-Correction Stems :** Toute relocalisation (manuelle ou intelligente) d'un dossier multipiste déclenche un re-scan immédiat via `metadata_service` pour reconstruire les liens des pistes individuelles.
+*   **Protocole de Communication Robuste :**
+    *   **Migration POST Universelle :** Abandon des méthodes `PUT` pour l'édition de la bibliothèque et de la setlist au profit de routes `POST` dédiées (`/api/local/edit/` et `/api/setlist/edit/`). 
+    *   **Cache-Busting Frontend :** Incrémentation forcée de la version du script (`app.js?v=6`) dans `index.html` pour garantir l'utilisation de la nouvelle logique de synchronisation.
+*   **Résolution de Chemins (Case-Insensitive) :**
+    *   Refonte de `resolve_portable_path` dans `utils.py` pour accepter indifféremment `${app_dir}` ou `${APP_DIR}`, éliminant les erreurs 404 sur les stems causées par des incohérences de casse dans les métadonnées.
+
+### 38. Évolution V33 : Relocalisation Avancée & Gestion de Portabilité
+*   **Workflow en Deux Étapes (`index.html` & `app.js`) :**
+    - **Isolation de la Recherche** : La modale de fichier manquant sépare désormais la phase de détection (Smart/Manual) de la phase d'action.
+    - **Step 2 (Choix d'Action)** : Une nouvelle interface de confirmation présente le chemin trouvé et propose trois options : **Lier** (MàJ base uniquement), **Copier** (Sécurité), ou **Déplacer** (Organisation).
+*   **Moteur d'Action Physique (`server.py` - `relocate_apply`) :**
+    - **Gestion Intelligente des Dossiers** : Le backend redirige automatiquement les fichiers vers les sous-dossiers standardisés (`Audios`, `Videos`, `Midi`, `Multipistes`) situés dans `Medias/`.
+    - **Opérations `shutil`** : Utilisation de `shutil.copy2` (préservation des métadonnées) et `shutil.move` pour les manipulations physiques. 
+    - **Sécurité des Doublons** : Implémentation d'un algorithme de renommage automatique (incrémentation numérique `_1`, `_2`) si un fichier cible existe déjà, évitant toute perte de données.
+*   **Internationalisation & UX :**
+    - **i18n Intégrale** : Support complet des labels et messages d'erreur en Français et Anglais via `fr.json` et `en.json`.
+    - **Sync Universelle** : La relocalisation d'un fichier met à jour toutes ses occurrences dans la Médiathèque et la Setlist de manière atomique.
+
+### 23. Évolution V40 : Wizard de Relocalisation "Self-Healing" (Source/Action/Dest)
+*   **Architecture Transfert 3-Étapes (`index.html`)** : Workflow visuel Source -> Action -> Destination. Suppression des contrôles redondants dans le pied de page pour une interface épurée.
+*   **UI Réactive (`app.js`)** : Le champ **Destination** est dynamiquement **grisé / désactivé** lors d'une action "Lier uniquement". 
+*   **Gestion Dynamique i18n** : Les messages de succès précisent désormais l'action effectuée (Lier, Copier, Déplacer) en FR et EN.
+*   **Résilience du Moteur de Fichiers (`server.py`)** : 
+    *   **Sécurisation Atomique** : Implémentation de blocs `try-except` pour capturer les erreurs d'accès disque (fichiers verrouillés, permissions).
+    *   **Fix WinError 183** : Normalisation stricte des chemins (`os.path.normpath`) et support de `dirs_exist_ok=True` pour les dossiers multipistes.
+    *   **Auto-Fallback Destination** : Le programme bascule automatiquement sur les dossiers Medias internes (mode AUTO) si la destination fournie est invalide pour une copie.
+
+### 24. Évolution V41 : Organisation & Gestion de Bibliothèque (Artist-Routing & Manager)
+*   **Classement par Artiste Intégré (`server.py`)** : Le moteur de relocalisation extrait désormais le champ `artist` pour créer dynamiquement une arborescence `Medias/{Type}/{Artiste}/`. Inclut une sanitarisation Regex des caractères Windows interdits (`/`, `:`, `*`...) et un fallback `Divers`.
+*   **Déménagement Unitaire en Édition (`app.js` & `index.html`)** :
+    - **UI Directe** : Intégration de l'affichage du chemin physique et de boutons d'action rapide (Copier/Déplacer) dans les modales `modal-local` et `modal-multitrack`.
+    - **Logic RelocateFromEdit** : Capacité à déménager un média sain vers n'importe quel dossier manuel, avec mise à jour immédiate du lien en base de données.
+*   **Gestionnaire de Bibliothèque Global (`lib-manager`)** :
+    - **Vue de Masse** : Nouvelle modale `modal-library-manager` permettant de traiter l'intégralité de la bibliothèque locale (recherche, filtre, sélection multiple).
+    - **Actions Groupées** : Exécution séquentielle d'opérations physiques (Copy/Move) vers une destination fixe ou via l'Auto-routage par Artiste pour une réorganisation complète instantanée.
+*   **Renforcement i18n & UX** : Ajout de clés de traduction pour la gestion avancée et indicateurs de progression spécifiques pour les opérations de masse.
+
+### 25. Évolution V53 : Restauration Pixel-Perfect & Unification des Modales de Médias
+*   **Unification du Workflow d'Édition (`index.html` & `app.js`)** :
+    - **Fusion YouTube / Local** : Suppression de `modal-local` (orpheline) au profit d'un `media-modal` unique gérant intelligemment les deux types de contenus.
+    - **Logic Redirection** : `openEditLocalModal` et `saveLocalItem` redirigent désormais vers les IDs standardisés (`edit-url`, `edit-title`, etc.), simplifiant la maintenance.
+    - **Gestion Dynamique UI** : Masquage contextuel de la zone de recherche YouTube lors de l'édition de fichiers locaux.
+*   **Restauration Design "Studio" (`style.css` & `index.html`)** :
+    - **Alignement Pixel-Perfect** : Retour aux paddings et marges de la version stable pour éliminer les scrollbars parasites dans toutes les modales.
+    - **Harmonisation Art** : Utilisation systématique de la classe `wide-art` (16:9) pour une cohérence visuelle entre les types de médias.
+*   **Fiabilisation de l'Interface** :
+    - **Nettoyage des Duplicatas d'ID** : Élimination des conflits sur `local-path-display` qui empêchaient l'affichage du chemin.
+    - **Correction Structurelle HTML** : Résolution des erreurs de balises `<dialog>` orphelines qui bloquaient le rendu du navigateur.
+    - **Bandeau de Relocalisation** : Réintégration propre des fonctions Copier/Déplacer dans la modale d'édition unifiée.
+
+### 40. Évolution V54 : Stabilisation du Media Training (Anti-Rebond & Logique)
+*   **Moteur "Debounce" (`app.js`)** :
+    *   **Protection contre l'emballement** : Ajout d'un verrou de sécurité de 500ms dans `MediaTrainingManager` pour empêcher le multi-déclenchement des cycles lors des bonds temporels (`seek`).
+    *   **Synchronisation en "Live"** : La fonction `updateParam` synchronise désormais instantanément le BPM cible et la vitesse de lecture si l'utilisateur modifie l'interface en cours d'entraînement.
+*   **Logique d'Apprentissage Progressive** :
+    *   **Inversion des Valeurs par Défaut** : Le système pré-remplit désormais intelligemment les champs : **Cible** = 100% du BPM original du morceau, **Départ** = 75% du BPM original. Cela favorise un apprentissage réaliste du tempo réel.
+    *   **Cycles par défaut** : Passage de 4 à 1 cycle par défaut pour une progression plus agile.
+*   **Fiabilisation de la Détection (Helper `getActiveTrack`)** :
+    *   Centralisation de la récupération des métadonnées. Correction d'un bug de portée sur `localFiles` qui empêchait la lecture du BPM sur les projets multipistes.
+    *   Logs détaillés en console pour le suivi précis du ratio de vitesse (`CurrentBpm / RefBpm`).

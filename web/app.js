@@ -422,6 +422,14 @@ function onPlayerStateChange(event) {
         if (event.data === YT.PlayerState.ENDED) {
             if (window.currentAutoreplay === true) {
                 player.playVideo();
+                // TRAINING HOOK: Autoreplay YouTube
+                if (window.MediaTrainingManager && window.MediaTrainingManager.video && window.MediaTrainingManager.video.active) {
+                    const now = Date.now();
+                    if (now - window.MediaTrainingManager.lastCycleEnd > 500) {
+                        window.MediaTrainingManager.lastCycleEnd = now;
+                        window.MediaTrainingManager.onCycleEnd('video');
+                    }
+                }
             } else {
                 player.seekTo(0);
                 player.pauseVideo();
@@ -467,6 +475,7 @@ function connectVideoWebSocket() {
         document.getElementById("connection-status").classList.add("connected");
         loadSetlist();
         loadApps();
+        checkMissingItems(); // Check for orphans on startup
     };
 
     websocket.onmessage = (event) => {
@@ -675,7 +684,10 @@ function switchView(viewName) {
     document.getElementById("view-apps").style.display = viewName === "apps" ? "block" : "none";
     document.getElementById("view-local").style.display = viewName === "local" ? "block" : "none";
 
-    if (viewName === "local") loadLocalFiles();
+    if (viewName === "local") {
+        loadLocalFiles();
+        checkMissingItems();
+    }
 }
 
 // --- SETLIST ---
@@ -698,6 +710,7 @@ async function loadSetlist() {
         currentTrackList = [];
     }
     renderSetlist(currentTrackList);
+    checkMissingItems(); // Sync bulk banner
 }
 
 function getIcon(url) {
@@ -754,13 +767,22 @@ function renderSetlist(list) {
             tr.classList.add('active');
         }
 
+        const isMissing = track.is_missing === true;
+        if (isMissing) tr.classList.add('track-missing');
+
         const iconUrl = getIcon(track.url);
-        const iconImg = iconUrl ? `<img src="${iconUrl}" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">` : '';
+        let iconImg = iconUrl ? `<img src="${iconUrl}" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">` : '';
+        
+        if (isMissing) {
+            iconImg = `<i class="ph ph-warning-circle" style="margin-right:8px; vertical-align:middle;" title="Fichier introuvable"></i>`;
+        }
 
         // Swapped Columns: Artist | Title (with icon) | Category
         tr.innerHTML = `
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.artist || ""}</td>
-            <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${iconImg}${track.title || track.url}</td>
+            <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">
+                ${iconImg}${track.title || track.url}
+            </td>
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.category || ""}</td>
             <td style="text-align:right;">
                 <button class="btn-action" onclick="openEditModal(${realIndex})" title="${t("web.btn_edit")}">✎</button>
@@ -1061,6 +1083,7 @@ function switchSettingsTab(tabName) {
     // Hide all
     document.getElementById("tab-settings-general").style.display = "none";
     document.getElementById("tab-settings-library").style.display = "none";
+    document.getElementById("tab-settings-storage").style.display = "none";
     document.getElementById("tab-settings-controller").style.display = "none";
 
     // Deactivate Buttons
@@ -1068,10 +1091,11 @@ function switchSettingsTab(tabName) {
     btns.forEach(b => b.classList.remove("active"));
 
     // Show Target
-    document.getElementById(`tab-settings-${tabName}`).style.display = "block";
+    const target = document.getElementById(`tab-settings-${tabName}`);
+    if (target) target.style.display = "block";
 
-    // Activate Button (Simple Index Logic or Search)
-    const map = { 'general': 0, 'library': 1, 'controller': 2 };
+    // Activate Button (Mapping correct avec l'ordre de l'index.html)
+    const map = { 'general': 0, 'library': 1, 'storage': 2, 'controller': 3 };
     if (btns[map[tabName]]) btns[map[tabName]].classList.add("active");
 }
 
@@ -1301,7 +1325,12 @@ function openEditModal(index) {
     document.getElementById("edit-title").value = track.title;
     document.getElementById("edit-artist").value = track.artist || "";
     document.getElementById("edit-channel").value = track.channel || "";
-    document.getElementById("edit-url").value = track.url;
+    
+    const urlField = document.getElementById("edit-url");
+    urlField.value = track.url;
+    urlField.parentElement.style.display = "block"; // Show URL for YouTube
+    document.getElementById("yt-local-path-container").style.display = "none"; // Hide local path for YouTube
+    document.getElementById("search-zone-container").style.display = "block"; // Ensure search zone is available for YouTube
     document.getElementById("edit-category").value = track.category || "Général";
     document.getElementById("edit-genre").value = track.genre || "Divers";
     document.getElementById("edit-mode").value = track.open_mode || "auto";
@@ -2025,6 +2054,11 @@ function playTrackAt(index) {
 }
 
 function playTrack(track) {
+    if (track.is_missing === true) {
+        openMissingFileModal(track, 'setlist');
+        return;
+    }
+    window.currentSource = 'setlist';
     window.currentPlayingIndex = track.originalIndex;
     
     // Sync UI Highlight immediately
@@ -2625,6 +2659,18 @@ function initWaveSurfer() {
 
         wavesurfer.on('interaction', () => { wavesurfer.play(); });
 
+        wavesurfer.on('error', (err) => {
+            console.error("WaveSurfer Error:", err);
+            // If it's a 404 or load error, try to flag as missing
+            if (window.currentPlayingIndex !== null) {
+                const track = findTrackInLibraryOrSetlist(window.currentPlayingIndex);
+                if (track && !track.url?.startsWith('http')) {
+                    track.is_missing = true;
+                    openMissingFileModal(track);
+                }
+            }
+        });
+
         wavesurfer.on('ready', () => {
             // Retrieve strictly from the wavesurfer object state so we don't accidentally play
             // a previous song's state if loaded quickly from cache.
@@ -2645,6 +2691,14 @@ function initWaveSurfer() {
             if (window.currentAutoreplay === true) {
                 wavesurfer.play();
                 updatePlayPauseUI();
+                // TRAINING HOOK: Local Audio Autoreplay
+                if (window.MediaTrainingManager && window.MediaTrainingManager.audio && window.MediaTrainingManager.audio.active) {
+                    const now = Date.now();
+                    if (now - window.MediaTrainingManager.lastCycleEnd > 500) {
+                        window.MediaTrainingManager.lastCycleEnd = now;
+                        window.MediaTrainingManager.onCycleEnd('audio');
+                    }
+                }
             }
         });
 
@@ -2692,7 +2746,9 @@ async function loadLocalFiles() {
         await loadBlockedTags(); // Load blocked list first
 
         const res = await fetch("/api/local/files");
-        localFiles = await res.json();
+        const rawLocal = await res.json();
+        // Assign originalIndex for safe referencing during relocation/edit
+        localFiles = rawLocal.map((f, idx) => ({ ...f, originalIndex: idx }));
     } catch (e) { localFiles = []; }
 
     // Initialize Custom Autocompletes
@@ -2734,8 +2790,11 @@ function renderLocalFiles() {
         const isAudio = ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg'].includes(ext);
 
         // Phosphor Icons
+        const isMissing = file.is_missing === true;
         let iconHtml = '';
-        if (isAudio) {
+        if (isMissing) {
+            iconHtml = `<i class="ph ph-warning-circle" style="color:#ff4444; font-size:1.2em; vertical-align:middle; margin-right:5px;" title="Fichier introuvable"></i>`;
+        } else if (isAudio) {
             iconHtml = `<i class="ph ph-music-notes" style="color:#bb86fc; font-size:1.2em; vertical-align:middle; margin-right:5px;"></i>`;
         } else {
             // Video / Film Strip
@@ -2744,6 +2803,9 @@ function renderLocalFiles() {
 
         const tr = document.createElement("tr");
         tr.setAttribute('data-index', realIndex); // Attribut technique pour robustesse V7.4
+
+        if (isMissing) tr.classList.add('track-missing');
+
         tr.innerHTML = `
             <td>${file.artist || ""}</td>
             <td style="cursor:pointer;" onclick="playLocal(${realIndex})">
@@ -3084,6 +3146,12 @@ async function playLocal(index) {
     const file = localFiles[index];
     if (!file) return;
 
+    if (file.is_missing === true) {
+        openMissingFileModal(file, 'library');
+        return;
+    }
+
+    window.currentSource = 'library';
     window.currentPlayingIndex = index; // Important : Stocker l'index actif pour TOUS les types de médias
     
     // Sync UI Highlight immediately
@@ -4888,33 +4956,68 @@ async function confirmImport(action) {
 function openEditLocalModal(index) {
     editingLocalIndex = index;
     const item = localFiles[index];
-    document.getElementById("modal-local").showModal();
+    
+    // Reveal sidebar if in theater mode to give context to editing
+    if (isTheaterMode && typeof toggleTheaterMode === 'function') {
+        toggleTheaterMode(false);
+    }
+
+    document.getElementById("media-modal").showModal();
+
+    // Auto-scroll in background
+    setTimeout(scrollToActiveTrack, 200);
+
+    // Fill Form (Mappings from local- to edit-)
+    document.getElementById("edit-title").value = item.title;
+    document.getElementById("edit-artist").value = item.artist || "";
+    
+    const urlField = document.getElementById("edit-url");
+    urlField.value = ""; // URL empty for local, path shown below
+    urlField.parentElement.style.display = "none"; // Hide URL field for local
+    document.getElementById("edit-category").value = item.category || "Général";
+    document.getElementById("edit-genre").value = item.genre || "Divers";
+    document.getElementById("edit-target-profile").value = item.target_profile || "Auto";
+    document.getElementById("edit-bpm").value = item.bpm || "";
+    document.getElementById("edit-key").value = item.key || "";
+    document.getElementById("edit-media-key").value = item.media_key || "";
+    document.getElementById("edit-scale").value = item.scale || "";
+    document.getElementById("edit-tuning").value = item.tuning || "standard";
+    document.getElementById("edit-original-pitch").value = item.original_pitch || "";
+    document.getElementById("edit-target-pitch").value = item.target_pitch || "";
+
+    // Specific local display elements
+    document.getElementById("local-path-display").innerText = item.path;
+    document.getElementById("yt-local-path-container").style.display = "flex";
+    document.getElementById("search-zone-container").style.display = "none";
+    document.getElementById("btn-back-search").style.display = "none";
+
+    let volValLoc = (item.volume !== undefined) ? item.volume : 100;
+    document.getElementById("edit-volume").value = volValLoc;
+    const evp = document.getElementById("edit-volume-percent"); if (evp) evp.innerText = volValLoc + "%";
+    
+    document.getElementById("user-notes-input").value = item.user_notes || "";
+    document.getElementById("youtube-desc-input").value = "";
 
     // ASPECT RATIO & SUBTITLES LOGIC
-    const artContainer = document.getElementById("local-art-container");
-    const subSettings = document.getElementById("local-subtitle-settings");
+    const thumbContainer = document.getElementById("preview-thumbnail");
+    const subSettings = document.getElementById("edit-subtitle-settings");
 
     // Reset classes
-    artContainer.classList.remove("wide-art", "square-art");
+    thumbContainer.classList.remove("wide-art", "square-art");
 
     // Simple check for video extensions
     if (item.path.match(/\.(mp4|mkv|mov|avi|webm|m4v)$/i)) {
-        artContainer.classList.add("wide-art");
+        thumbContainer.classList.add("wide-art");
         subSettings.style.display = "flex";
         subSettings.style.flexDirection = "column";
         window.tempModalSubEnabled = item.subtitle_enabled || false;
-        updateCCIconState(window.tempModalSubEnabled, 'local');
+        updateCCIconState(window.tempModalSubEnabled, 'edit');
 
         let posVal = item.subtitle_pos_y;
         if (posVal === undefined) posVal = 80;
         const sVal = 100 - posVal;
-        document.getElementById("local-sub-pos").value = sVal;
-        const lsp = document.getElementById("local-sub-pos-percent"); if (lsp) lsp.innerText = sVal + "%";
-
-        // Update live preview if the edited video is currently playing
-        if (currentActivePlayer === 'local' && window.currentPlayingIndex === index) {
-            updateLiveSubtitlePos(100 - posVal);
-        }
+        document.getElementById("edit-sub-pos").value = sVal;
+        const esp = document.getElementById("edit-sub-pos-percent"); if (esp) esp.innerText = sVal + "%";
 
         // Fetch list to enable context-menu support
         fetch(`/api/local/subs_list/${index}`)
@@ -4922,7 +5025,6 @@ function openEditLocalModal(index) {
             .then(data => {
                 if (data.status === "ok" && data.subs.length > 0) {
                     window.currentAvailableSubs = data.subs;
-                    // Pre-fill the temporary track choice for the settings modal
                     window.tempModalSelectedTrack = item.subtitle_track || "";
                 } else {
                     window.currentAvailableSubs = [];
@@ -4932,62 +5034,34 @@ function openEditLocalModal(index) {
             .catch(e => { console.error("Error fetching sub list", e); window.currentAvailableSubs = []; });
 
     } else {
-        // Use wide-art by default to allow 16:9 proportions if art is present
-        artContainer.classList.add("wide-art");
+        thumbContainer.classList.add("wide-art");
         subSettings.style.display = "none";
         window.currentAvailableSubs = [];
         window.tempModalSelectedTrack = "";
     }
 
-    document.getElementById("local-path-display").innerText = item.path;
-    document.getElementById("local-title").value = item.title;
-    document.getElementById("local-artist").value = item.artist || "";
-    document.getElementById("local-album").value = item.album || "";
-    document.getElementById("local-genre").value = item.genre || "";
-    document.getElementById("local-category").value = item.category || "Général";
-    document.getElementById("local-year").value = item.year || "";
-    document.getElementById("local-bpm").value = item.bpm || "";
-    document.getElementById("local-key").value = item.key || "";
-    document.getElementById("local-media-key").value = item.media_key || "";
-    document.getElementById("local-scale").value = item.scale || "";
-    document.getElementById("local-tuning").value = item.tuning || "standard";
-    document.getElementById("local-original-pitch").value = item.original_pitch || "";
-    document.getElementById("local-target-pitch").value = item.target_pitch || "";
-    document.getElementById("local-target-profile").value = item.target_profile || "Auto";
-    let volValLoc = (item.volume !== undefined) ? item.volume : 100;
-    document.getElementById("local-volume").value = volValLoc;
-    const lvp = document.getElementById("local-volume-percent"); if (lvp) lvp.innerText = volValLoc + "%";
-    document.getElementById("local-notes").value = item.user_notes || "";
-
     syncPlaybackSettingsToModals(item);
 
     // Load Art
     currentCoverData = null;
-    document.getElementById("cover-upload").value = "";
+    const imgHtml = `<img id="edit-art-img" src="/api/local/art/${index}?t=${Date.now()}" style="width:100%; height:100%; object-fit:contain;">
+                     <div id="btn-edit-delete-cover" class="btn-delete-cover" style="display:none;"
+                          onclick="event.stopPropagation(); removeEditCover();">×</div>`;
+    thumbContainer.innerHTML = imgHtml;
 
-    const img = document.getElementById("local-art-img");
-    const placeholder = document.getElementById("local-art-placeholder");
+    const img = thumbContainer.querySelector("img");
+    const btnDel = thumbContainer.querySelector(".btn-delete-cover");
 
-    const btnDel = document.getElementById("btn-delete-cover");
-    if (btnDel) btnDel.style.display = "none";
-
-    img.onload = () => {
-        img.style.display = "block";
-        placeholder.style.display = "none";
-        if (btnDel) btnDel.style.display = "flex";
-    };
+    img.onload = () => { if (btnDel) btnDel.style.display = "flex"; };
     img.onerror = () => {
-        img.style.display = "none";
-        placeholder.style.display = "flex";
-        if (btnDel) btnDel.style.display = "none";
+        thumbContainer.innerHTML = `<span style="font-size:30px;">🎵</span>
+                                    <div id="btn-edit-delete-cover" class="btn-delete-cover" style="display:none;"
+                                         onclick="event.stopPropagation(); removeEditCover();">×</div>`;
     };
-
-    img.src = `/api/local/art/${index}?t=${Date.now()}`;
 }
 
 function closeLocalModal() {
-    document.getElementById("modal-local").close();
-    editingLocalIndex = null;
+    closeModal();
 }
 
 // --- MULTITRACK MODAL LOGIC ---
@@ -5033,6 +5107,21 @@ function openMultitrackModal(index) {
     if (mvp) mvp.innerText = volVal + "%";
 
     document.getElementById("mt-notes").value = item.user_notes || "";
+
+    // Physical Management (V41)
+    const physCont = document.getElementById("mt-physical-management-container");
+    if (physCont) {
+        physCont.style.display = "block";
+        const pathDisp = document.getElementById("mt-path-display");
+        if (pathDisp) pathDisp.innerText = item.path;
+        const destMode = document.getElementById("mt-relocate-dest-mode");
+        if (destMode) {
+            destMode.value = "AUTO"; // Reset to Auto by default
+            loadRelocationFolders();
+        }
+        const useArtistChk = document.getElementById("mt-relocate-use-artist");
+        if (useArtistChk) useArtistChk.checked = true; // Default to checked
+    }
 
     document.getElementById("mt-autoplay").checked = !!item.autoplay;
     document.getElementById("mt-autoreplay").checked = !!item.autoreplay;
@@ -5130,28 +5219,28 @@ async function saveLocalItem() {
     if (editingLocalIndex === null) return;
 
     const payload = {
-        title: document.getElementById("local-title").value,
-        artist: document.getElementById("local-artist").value,
-        album: document.getElementById("local-album").value,
-        genre: document.getElementById("local-genre").value,
-        category: document.getElementById("local-category").value || "Général",
-        year: document.getElementById("local-year").value,
-        bpm: document.getElementById("local-bpm").value,
-        key: document.getElementById("local-key").value,
-        media_key: document.getElementById("local-media-key").value,
-        scale: document.getElementById("local-scale").value,
-        tuning: document.getElementById("local-tuning").value,
-        original_pitch: document.getElementById("local-original-pitch").value,
-        target_pitch: document.getElementById("local-target-pitch").value,
-        target_profile: document.getElementById("local-target-profile").value,
-        user_notes: document.getElementById("local-notes").value,
+        title: document.getElementById("edit-title").value,
+        artist: document.getElementById("edit-artist").value,
+        album: (editingLocalIndex !== null && localFiles[editingLocalIndex]) ? localFiles[editingLocalIndex].album : "", // Keep album if existing
+        genre: document.getElementById("edit-genre").value,
+        category: document.getElementById("edit-category").value || "Général",
+        year: (editingLocalIndex !== null && localFiles[editingLocalIndex]) ? localFiles[editingLocalIndex].year : "", // Keep year if existing
+        bpm: document.getElementById("edit-bpm").value,
+        key: document.getElementById("edit-key").value,
+        media_key: document.getElementById("edit-media-key").value,
+        scale: document.getElementById("edit-scale").value,
+        tuning: document.getElementById("edit-tuning").value,
+        original_pitch: document.getElementById("edit-original-pitch").value,
+        target_pitch: document.getElementById("edit-target-pitch").value,
+        target_profile: document.getElementById("edit-target-profile").value,
+        user_notes: document.getElementById("user-notes-input").value,
         subtitle_enabled: window.tempModalSubEnabled,
-        subtitle_pos_y: 100 - parseInt(document.getElementById("local-sub-pos").value, 10),
+        subtitle_pos_y: 100 - parseInt(document.getElementById("edit-sub-pos").value, 10),
         subtitle_track: window.tempModalSelectedTrack || "",
-        cover_data: currentCoverData, // Send base64 data if changed
-        volume: parseInt(document.getElementById("local-volume").value, 10) || 100,
-        autoplay: document.getElementById("local-autoplay").checked,
-        autoreplay: document.getElementById("local-autoreplay").checked
+        cover_data: currentCoverData,
+        volume: parseInt(document.getElementById("edit-volume").value, 10) || 100,
+        autoplay: document.getElementById("edit-autoplay").checked,
+        autoreplay: document.getElementById("edit-autoreplay").checked
     };
 
     const res = await fetch(`/api/local/${editingLocalIndex}`, {
@@ -5680,6 +5769,26 @@ function setupVideoTimeline() {
         if (v.paused) v.play();
         else v.pause();
     };
+
+    // --- NEW: Autoreplay & Training Hook ---
+    v.onended = () => {
+        if (window.currentAutoreplay === true) {
+            v.currentTime = 0;
+            v.play();
+            // TRAINING HOOK: Local Video Autoreplay
+            if (window.MediaTrainingManager && window.MediaTrainingManager.video && window.MediaTrainingManager.video.active) {
+                const now = Date.now();
+                if (now - window.MediaTrainingManager.lastCycleEnd > 500) {
+                    window.MediaTrainingManager.lastCycleEnd = now;
+                    window.MediaTrainingManager.onCycleEnd('video');
+                }
+            }
+        } else {
+            v.currentTime = 0;
+            v.pause();
+            updatePlayPauseIcon('video', false);
+        }
+    };
 }
 
 function updatePlayPauseIcon(type, isPlaying) {
@@ -6060,6 +6169,23 @@ function updateLoopUI() {
 function checkLoop(currentTime) {
     if (!isLoopActive || loopA === null || loopB === null) return;
     if (currentTime >= loopB) {
+        
+        // TRAINING HOOK: Loop Cycle End
+        if (window.MediaTrainingManager) {
+            let playerType = 'audio';
+            if (currentActivePlayer === 'video' || currentActivePlayer === 'local' || currentActivePlayer === 'youtube') playerType = 'video';
+            else if (currentActivePlayer === 'multitrack') playerType = 'multitrack';
+            
+            if (window.MediaTrainingManager[playerType] && window.MediaTrainingManager[playerType].active) {
+                // DEBOUNCE: Only trigger training cycle once per 500ms to allow seek to finish
+                const now = Date.now();
+                if (now - window.MediaTrainingManager.lastCycleEnd > 500) {
+                    window.MediaTrainingManager.lastCycleEnd = now;
+                    window.MediaTrainingManager.onCycleEnd(playerType);
+                }
+            }
+        }
+
         if (!isSequentialLoop) {
             seekPlayerTo(loopA);
         } else {
@@ -6095,6 +6221,14 @@ setInterval(() => {
             window.multitrack.setTime(0);
             if (window.currentAutoreplay === true) {
                 window.multitrack.play();
+                // TRAINING HOOK: Autoreplay
+                if (window.MediaTrainingManager && window.MediaTrainingManager['multitrack'] && window.MediaTrainingManager['multitrack'].active) {
+                    const now = Date.now();
+                    if (now - window.MediaTrainingManager.lastCycleEnd > 500) {
+                        window.MediaTrainingManager.lastCycleEnd = now;
+                        window.MediaTrainingManager.onCycleEnd('multitrack');
+                    }
+                }
             }
             updatePlayPauseUI();
         }
@@ -6102,11 +6236,185 @@ setInterval(() => {
 
     if (currentActivePlayer === 'youtube') {
         updateTimelineUI(time);
+        
+        // TRAINING HOOK: YT Autoreplay
+        if (window.currentAutoreplay === true && player && player.getPlayerState() === YT.PlayerState.ENDED) {
+             // YT state logic handles replay, but we need to catch the "end" event in the interval if needed
+             // Actually, YT onStateChange might be better for "End of media"
+        }
     }
 
     // Always update the universal timer (elapsed/remaining)
     updateUniversalTimer();
 }, 50);
+
+// ==========================================
+// MEDIA TRAINING ENGINE (SPEED TRAINER)
+// ==========================================
+window.MediaTrainingManager = {
+    audio: { active: false, startBpm: 100, finalBpm: 140, increment: 5, cyclesPerStep: 1, stopAtTarget: false, currentCycles: 0, currentBpm: 100 },
+    video: { active: false, startBpm: 100, finalBpm: 140, increment: 5, cyclesPerStep: 1, stopAtTarget: false, currentCycles: 0, currentBpm: 100 },
+    multitrack: { active: false, startBpm: 100, finalBpm: 140, increment: 5, cyclesPerStep: 1, stopAtTarget: false, currentCycles: 0, currentBpm: 100 },
+    lastCycleEnd: 0, // Debounce timestamp
+
+    toggle(player) {
+        const panel = document.getElementById(`${player}-training-panel`);
+        if (!panel) return;
+        const isVisible = panel.style.display === 'flex';
+        panel.style.display = isVisible ? 'none' : 'flex';
+        
+        const btn = document.getElementById(`btn-${player}-training`);
+        if (btn) btn.style.color = isVisible ? '' : 'var(--accent)';
+
+        if (!isVisible) {
+            this.initPlayer(player);
+        } else {
+            this[player].active = false;
+        }
+    },
+
+    getActiveTrack() {
+        if (window.currentSource === 'setlist') {
+            return currentTrackList.find(t => t.originalIndex === window.currentPlayingIndex);
+        } else {
+            // Library / Local view - note: localFiles is not on window.
+            if (typeof localFiles !== 'undefined' && window.currentPlayingIndex !== null) {
+                return localFiles[window.currentPlayingIndex];
+            }
+        }
+        return null;
+    },
+
+    initPlayer(player) {
+        let refBpm = 120;
+        const item = this.getActiveTrack();
+        
+        if (item && item.bpm) refBpm = parseFloat(item.bpm);
+        console.log(`[TRAINING] Init player ${player}. Active track: ${item ? (item.title || item.path) : 'None'} | Track BPM: ${refBpm}`);
+
+        const startInput = document.getElementById(`${player}-train-start`);
+        const finalInput = document.getElementById(`${player}-train-final`);
+        
+        // Only pre-fill IF empty or at static 100/140 default
+        if (startInput && (startInput.value === "" || startInput.value == "100")) startInput.value = Math.round(refBpm * 0.75);
+        if (finalInput && (finalInput.value === "" || finalInput.value == "140")) finalInput.value = Math.round(refBpm);
+
+        this[player].startBpm = parseFloat(startInput.value) || refBpm;
+        this[player].finalBpm = parseFloat(finalInput.value) || 140;
+        this[player].increment = parseFloat(document.getElementById(`${player}-train-inc`).value) || 5;
+        this[player].cyclesPerStep = parseInt(document.getElementById(`${player}-train-cycles`).value) || 1;
+        this[player].stopAtTarget = document.getElementById(`${player}-train-stop`).checked;
+        
+        this[player].currentCycles = 0;
+        this[player].currentBpm = this[player].startBpm;
+        this[player].active = true;
+
+        this.updatePlayerSpeed(player);
+        this.updateUI(player);
+    },
+
+    updateParam(player) {
+        if (!this[player]) return;
+        this[player].startBpm = parseFloat(document.getElementById(`${player}-train-start`).value) || 120;
+        this[player].finalBpm = parseFloat(document.getElementById(`${player}-train-final`).value) || 140;
+        this[player].increment = parseFloat(document.getElementById(`${player}-train-inc`).value) || 5;
+        this[player].cyclesPerStep = parseInt(document.getElementById(`${player}-train-cycles`).value) || 1;
+        this[player].stopAtTarget = document.getElementById(`${player}-train-stop`).checked;
+        
+        // SYNC: If training is just starting (cycles=0), force currentBpm to match user's new startBpm immediately
+        if (this[player].active && this[player].currentCycles === 0) {
+            this[player].currentBpm = this[player].startBpm;
+            this.updatePlayerSpeed(player);
+        }
+        
+        this.updateUI(player);
+    },
+
+    updatePlayerSpeed(player) {
+        if (!this[player].active) return;
+        
+        let refBpm = 120;
+        const item = this.getActiveTrack();
+        if (item && item.bpm) refBpm = parseFloat(item.bpm);
+
+        const newSpeed = this[player].currentBpm / refBpm;
+        console.log(`[TRAINING] Speed calculation: CurrentBpm=${this[player].currentBpm.toFixed(1)} / RefBpm=${refBpm} = ${newSpeed.toFixed(2)}x`);
+        
+        if (player === 'audio') {
+            if (wavesurfer) wavesurfer.setPlaybackRate(newSpeed);
+            const speedSpan = document.getElementById("btn-audio-speed");
+            if (speedSpan) speedSpan.innerText = newSpeed.toFixed(2) + "x";
+        } else if (player === 'video') {
+            if (currentActivePlayer === 'youtube') {
+                if (player && typeof player.setPlaybackRate === 'function') player.setPlaybackRate(newSpeed);
+            } else {
+                const vid = document.getElementById("html5-player");
+                if (vid) vid.playbackRate = newSpeed;
+            }
+            const speedSpan = document.getElementById("btn-video-speed");
+            if (speedSpan) speedSpan.innerText = newSpeed.toFixed(2) + "x";
+        } else if (player === 'multitrack') {
+            if (window.multitrack) {
+                // FIXED: Iterate over audios for Multitrack
+                if (window.multitrack.audios) {
+                    window.multitrack.audios.forEach(a => { if (a) a.playbackRate = newSpeed; });
+                }
+            }
+            const speedSpan = document.getElementById("btn-multitrack-speed");
+            if (speedSpan) speedSpan.innerText = newSpeed.toFixed(2) + "x";
+        }
+    },
+
+    onCycleEnd(player) {
+        if (!this[player].active) return;
+
+        this[player].currentCycles++;
+        console.log(`[TRAINING] Cycle end for ${player}. Count: ${this[player].currentCycles}/${this[player].cyclesPerStep} | Current BPM: ${this[player].currentBpm.toFixed(1)}`);
+        
+        if (this[player].currentCycles >= this[player].cyclesPerStep) {
+            this[player].currentCycles = 0;
+            
+            // Allow a small margin for float comparison
+            if (this[player].currentBpm >= this[player].finalBpm - 0.1) {
+                // Target reached or exceeded
+                if (this[player].stopAtTarget) {
+                    console.log(`[TRAINING] Target reached (${this[player].finalBpm} BPM). Stopping media.`);
+                    this.stopMedia(player);
+                    this[player].active = false;
+                } else {
+                    console.log(`[TRAINING] Target reached but CONTINUE option is ON.`);
+                }
+            } else {
+                const oldBpm = this[player].currentBpm;
+                this[player].currentBpm += this[player].increment;
+                if (this[player].currentBpm > this[player].finalBpm) {
+                    this[player].currentBpm = this[player].finalBpm;
+                }
+                console.log(`[TRAINING] Incrementing BPM: ${oldBpm} -> ${this[player].currentBpm}`);
+                this.updatePlayerSpeed(player);
+            }
+        }
+        this.updateUI(player);
+    },
+
+    updateUI(player) {
+        const info = document.getElementById(`${player}-train-live-info`);
+        if (!info) return;
+        const valSpan = info.querySelector('.val');
+        const remaining = this[player].cyclesPerStep - this[player].currentCycles;
+        valSpan.innerText = `${remaining} cycle(s) - Actual: ${Math.round(this[player].currentBpm)} BPM`;
+    },
+
+    stopMedia(player) {
+         if (player === 'audio') audioControl('playpause');
+         else if (player === 'video') videoControl('playpause');
+         else if (player === 'multitrack') multitrackControl('playpause');
+    }
+};
+
+// GLOBAL BRIDGES FOR HTML
+function toggleTrainingUI(player) { window.MediaTrainingManager.toggle(player); }
+function updateTrainingParam(player) { window.MediaTrainingManager.updateParam(player); }
 
 // --- LOOP MODAL LOGIC ---
 function openLoopModal() {
@@ -7530,4 +7838,1011 @@ function refreshSetlistHighlights() {
 
     // Optionnel : Scroll immédiat si besoin
     scrollToActiveTrack();
+}
+
+function handlePlayerError(el) {
+    // Si on est en train de charger un multipiste, on ignore les erreurs du joueur vidéo résiduel
+    if (window.currentActivePlayer === 'multitrack' && el.id === 'html5-player') {
+        return; 
+    }
+
+    console.warn("Player Error detected on:", el.id);
+    if (!el.src || el.src === "" || el.src.includes('undefined')) return;
+    
+    if (window.currentPlayingIndex !== null) {
+        const track = findTrackInLibraryOrSetlist(window.currentPlayingIndex, window.currentSource);
+        if (track && !track.url?.startsWith('http') && !track.path?.startsWith('http')) {
+            // Empêcher le marquage si on vient juste de réparer le fichier (debounce)
+            if (track._just_relocated) return;
+
+            // Marquer comme manquant pour l'affichage (grisé), 
+            // MAIS ne pas ouvrir la modale automatiquement pour éviter de "tourner en rond"
+            track.is_missing = true;
+            console.error("Fichier marqué comme manquant suite à une erreur de lecture.");
+            
+            // On rafraîchit les indicateurs visuels sans forcer la modale
+            loadSetlist();
+            loadLocalFiles();
+        }
+    }
+}
+
+function findTrackInLibraryOrSetlist(index, forceSource = null) {
+    // 1. Force Source if known
+    if (forceSource === 'setlist') {
+        const t = currentTrackList.find(t => t.originalIndex === index);
+        if (t) return t;
+    } else if (forceSource === 'library') {
+        const t = localFiles[index];
+        if (t) { t.originalIndex = index; return t; }
+    }
+
+    // 2. Fallback detection if source unknown
+    let track = currentTrackList.find(t => t.originalIndex === index);
+    if (track) return track;
+    
+    track = localFiles[index];
+    if (track) {
+        track.originalIndex = index;
+        return track;
+    }
+    return null;
+}
+
+window.currentRelocateInfo = null;
+
+function openMissingFileModal(track, type = null) {
+    const dialog = document.getElementById('modal-missing-file');
+    if (!dialog) return;
+    
+    // Explicit type or detection
+    let finalType = type;
+    if (!finalType) {
+        const isSetlistItem = currentTrackList.some(t => t.originalIndex === track.originalIndex && t.title === track.title);
+        finalType = isSetlistItem ? 'setlist' : 'library';
+    }
+
+    window.currentRelocateInfo = {
+        type: finalType,
+        index: track.originalIndex,
+        track: track
+    };
+    
+    const path = track.url || track.path || "Fichier inconnu";
+    const filename = path.split(/[/\\]/).pop();
+    document.getElementById('missing-file-name').innerText = filename;
+    
+    dialog.showModal();
+}
+
+async function executeSmartRelocate() {
+    if (!window.currentRelocateInfo) return;
+    
+    const btn = document.getElementById('btn-smart-relocate');
+    const oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> ${t('web.msg_dl_processing', 'Recherche...')}`;
+    
+    try {
+        const { type, index } = window.currentRelocateInfo;
+        console.log(`[SmartRelocate] Attempting FIND for ${type} index ${index}`);
+        // Call with apply=false to just get the path
+        const res = await fetch(`/api/local/smart_relocate/${type}/${index}?apply=false`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.status === 'ok' && data.found_path) {
+            showRelocateActions(data.found_path);
+        } else {
+            console.warn("[SmartRelocate] Not found or error:", data.message);
+            alert(data.message || "Fichier non trouvé.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Erreur lors de la recherche.");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+    }
+}
+
+async function executeManualRelocate() {
+    if (!window.currentRelocateInfo) return;
+    const { track } = window.currentRelocateInfo;
+    
+    try {
+        const isMultitrack = track.is_multitrack;
+        const pickerType = isMultitrack ? "folder" : "file";
+        const pickerRes = await fetch(`/api/local/pick_path?type=${pickerType}`);
+        const pickerData = await pickerRes.json();
+        
+        if (pickerData.status === "ok" && pickerData.path) {
+            showRelocateActions(pickerData.path);
+        }
+    } catch (e) {
+        console.error("Manual Relocate Error:", e);
+        alert("Erreur lors de la sélection manuelle.");
+    }
+}
+
+function showRelocateActions(foundPath) {
+    if (!window.currentRelocateInfo) return;
+    window.currentRelocateInfo.newFoundPath = foundPath;
+    
+    document.getElementById('missing-file-step-1').style.display = 'none';
+    const step2 = document.getElementById('missing-file-step-2');
+    step2.style.display = 'block';
+    
+    document.getElementById('missing-file-found-path').textContent = foundPath;
+}
+
+function resetRelocateModal() {
+    document.getElementById('missing-file-step-1').style.display = 'block';
+    document.getElementById('missing-file-step-2').style.display = 'none';
+}
+
+async function applyRelocateAction(action) {
+    if (!window.currentRelocateInfo || !window.currentRelocateInfo.newFoundPath) return;
+    
+    const { type, index, track, newFoundPath } = window.currentRelocateInfo;
+    const step2 = document.getElementById('missing-file-step-2');
+    const buttons = step2.querySelectorAll('button');
+    buttons.forEach(b => b.disabled = true);
+    
+    try {
+        const res = await fetch('/api/local/relocate_apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: action,
+                type: type,
+                index: index,
+                new_path: newFoundPath
+            })
+        });
+        
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+            track.is_missing = false;
+            if (type === 'setlist') track.url = data.new_path;
+            else track.path = data.new_path;
+            
+            loadSetlist();
+            loadLocalFiles();
+            
+            setTimeout(() => {
+                const modal = document.getElementById('modal-missing-file');
+                if (modal) modal.close();
+                resetRelocateModal();
+                
+                alert(t('web.msg_relocate_success', 'Média relocalisé avec succès !'));
+                
+                track._just_relocated = true;
+                setTimeout(() => { track._just_relocated = false; }, 2000);
+
+                setTimeout(() => {
+                    if (type === 'setlist') playTrackAt(index);
+                    else playLocal(index);
+                }, 300);
+            }, 300);
+
+        } else {
+            alert("Erreur lors de l'application : " + (data.message || "Inconnue"));
+            buttons.forEach(b => b.disabled = false);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Erreur réseau.");
+        buttons.forEach(b => b.disabled = false);
+    }
+}
+
+/* ==========================================
+   BULK RELOCATE LOGIC
+   ========================================== */
+let missingItems = []; // Global list of { type, index, title, old_path, found_path, selected }
+
+async function checkMissingItems() {
+    try {
+        const response = await fetch(`/api/local/missing_items`);
+        missingItems = await response.json();
+        
+        const banner = document.getElementById('bulk-relocate-banner');
+        const text = document.getElementById('bulk-relocate-text');
+        
+        if (missingItems && missingItems.length > 0) {
+            console.log(`[RELOCATE] ${missingItems.length} missing items detected.`);
+            missingItems.forEach(item => {
+                item.selected = true;
+                item.found_path = null;
+            });
+            
+            if (banner) {
+                banner.style.display = 'flex';
+                if (text) text.innerText = t('web.msg_missing_files', '{n} fichiers manquants détectés').replace('{n}', missingItems.length);
+            }
+        } else {
+            console.log("[RELOCATE] No missing items found.");
+            if (banner) banner.style.display = 'none';
+        }
+    } catch (e) {
+        console.error("Failed to check missing items:", e);
+    }
+}
+
+async function openBulkRelocateModal() {
+    const modal = document.getElementById('modal-relocate-bulk');
+    if (!modal) return;
+    
+    await loadRelocationFolders();
+    updateBulkDestState(); // Initial lock state
+    checkMissingItems();
+    renderBulkItems();
+    updateBulkCountStatus();
+    modal.showModal();
+}
+
+// Universal loadRelocationFolders is now defined further down (V45)
+
+function updateBulkDestState() {
+    const action = document.getElementById('bulk-action-select').value;
+    const destSelect = document.getElementById('bulk-dest-select');
+    const browseBtn = document.getElementById('btn-browse-dest');
+    const label = document.getElementById('lbl-bulk-dest');
+    
+    const isLink = (action === 'link');
+    
+    if (destSelect) {
+        destSelect.disabled = isLink;
+        destSelect.style.background = isLink ? "rgba(0,0,0,0.2)" : "#252525";
+        destSelect.style.color = isLink ? "#666" : "white";
+        destSelect.style.borderColor = isLink ? "#333" : "#444";
+    }
+    if (browseBtn) {
+        browseBtn.disabled = isLink;
+        browseBtn.style.opacity = isLink ? 0.4 : 1;
+    }
+    if (label) {
+        label.style.color = isLink ? "#555" : "#aaa";
+    }
+}
+
+function closeBulkRelocateModal() {
+    const modal = document.getElementById('modal-relocate-bulk');
+    if (modal) modal.close();
+}
+
+function renderBulkItems() {
+    const list = document.getElementById('bulk-items-list');
+    if (!list) return;
+    
+    list.innerHTML = missingItems.map((item, i) => `
+        <div class="bulk-item-row ${item.found_path ? 'found' : 'not-found'}">
+            <input type="checkbox" ${item.selected ? 'checked' : ''} onchange="toggleBulkItem(${i}, this.checked)">
+            <div class="bulk-item-info">
+                <span class="bulk-item-title">${item.title}</span>
+                <span class="bulk-item-path">${item.old_path}</span>
+                ${item.found_path ? `<span class="bulk-item-path" style="color:var(--accent); font-weight:bold;">→ ${item.found_path}</span>` : ''}
+            </div>
+            <span class="status-badge ${item.found_path ? 'found' : 'missing'}">
+                ${item.found_path ? t('web.status_found', 'TROUVÉ') : t('web.status_missing', 'MANQUANT')}
+            </span>
+        </div>
+    `).join('');
+    
+    // Enable/disable apply button
+    const btnApply = document.getElementById('btn-apply-bulk');
+    const hasFound = missingItems.some(i => i.selected && i.found_path);
+    if (btnApply) btnApply.disabled = !hasFound;
+}
+
+function toggleBulkItem(index, checked) {
+    missingItems[index].selected = checked;
+    updateBulkCountStatus();
+    renderBulkItems();
+}
+
+function toggleBulkSelectAll(checked) {
+    missingItems.forEach(item => item.selected = checked);
+    updateBulkCountStatus();
+    renderBulkItems();
+}
+
+function updateBulkCountStatus() {
+    const count = missingItems.filter(i => i.selected).length;
+    const status = document.getElementById('bulk-count-status');
+    if (status) status.innerText = `${count} / ${missingItems.length} ` + t('web.lbl_selected', 'sélectionné(s)');
+}
+
+async function startBulkSmartScan() {
+    const selected = missingItems.filter(i => i.selected && !i.found_path);
+    if (selected.length === 0) return;
+    
+    updateBulkProgress(0, selected.length, t('web.msg_scanning', 'Recherche en cours...'));
+    
+    for(let i=0; i < selected.length; i++) {
+        const item = selected[i];
+        try {
+            const res = await fetch(`/api/local/smart_relocate?index=${item.index}&type=${item.type}&apply=false`);
+            const data = await res.json();
+            if (data.status === 'ok' && data.found_path) {
+                item.found_path = data.found_path;
+            }
+        } catch(e) {}
+        updateBulkProgress(i + 1, selected.length);
+    }
+    
+    renderBulkItems();
+}
+
+async function startBulkFolderScan() {
+    const folderPath = document.getElementById('bulk-manual-folder').value;
+    if (!folderPath) {
+        alert(t('web.msg_enter_folder', 'Veuillez coller un chemin de dossier'));
+        return;
+    }
+    
+    const selected = missingItems.filter(i => i.selected);
+    if (selected.length === 0) return;
+    
+    updateBulkProgress(0, 100, t('web.msg_folder_scanning', 'Scan récursif du dossier...'));
+    
+    try {
+        const res = await fetch(`/api/local/search_folder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folder_path: folderPath, items: selected })
+        });
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+            data.results.forEach(res => {
+                // The backend returned mapping to our input list (selected)
+                // We need to map back to global list
+                const originalItem = selected[res.item_list_index];
+                if (originalItem) originalItem.found_path = res.found_path;
+            });
+            alert(t('web.msg_scan_found', '{n} fichiers trouvés').replace('{n}', data.found_count));
+        } else {
+            alert(data.message);
+        }
+    } catch(e) {
+        console.error(e);
+        alert("Erreur lors du scan.");
+    } finally {
+        document.getElementById('bulk-progress-container').style.display = 'none';
+        renderBulkItems();
+    }
+}
+
+async function applyBulkRelocation() {
+    const action = document.getElementById('bulk-action-select').value;
+    const destSelect = document.getElementById('bulk-dest-select');
+    const targetFolder = destSelect ? destSelect.value : 'AUTO';
+    
+    const mappings = missingItems.filter(i => i.selected && i.found_path).map(i => ({
+        type: i.type,
+        index: i.index,
+        new_path: i.found_path,
+        is_multitrack: i.is_multitrack
+    }));
+    
+    if (mappings.length === 0) return;
+    
+    if (!confirm(t('web.confirm_bulk_apply', 'Êtes-vous sûr de vouloir appliquer ces {n} changements ?').replace('{n}', mappings.length))) return;
+    
+    updateBulkProgress(0, 1, t('web.msg_applying', 'Application des changements...'));
+    
+    try {
+        const res = await fetch(`/api/local/relocate_bulk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: action, mappings: mappings, target_folder: targetFolder })
+        });
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+            let msgKey = 'web.msg_bulk_success_link';
+            if (action === 'copy') msgKey = 'web.msg_bulk_success_copy';
+            else if (action === 'move') msgKey = 'web.msg_bulk_success_move';
+            
+            alert(t(msgKey, '{n} fichiers relocalisés !').replace('{n}', data.success_count));
+            closeBulkRelocateModal();
+            loadSetlist();
+            loadLocalFiles();
+            checkMissingItems();
+        } else {
+            alert(t('web.msg_bulk_error', "Erreur lors de l'application groupée : ") + (data.message || "Action impossible"));
+            if (data.errors && data.errors.length > 0) {
+                console.error("Bulk Relocation Errors:", data.errors);
+            }
+        }
+    } catch(e) {
+        console.error(e);
+        alert("Erreur réseau.");
+    } finally {
+        document.getElementById('bulk-progress-container').style.display = 'none';
+    }
+}
+
+/**
+ * Universal function to populate all relocation/destination selectors in the app.
+ * Used by: Bulk Relocation, Library Manager, and Single Item Edit modals.
+ */
+async function loadRelocationFolders() {
+    const selects = [
+        'bulk-source-select', 
+        'bulk-dest-select', 
+        'lib-manager-dest-select',
+        'relocate-confirm-dest-select'
+    ];
+    
+    let folders = [];
+    try {
+        const res = await fetch("/api/config/managed_folders");
+        const data = await res.json();
+        if (data.status === 'ok') {
+            folders = data.folders || [];
+            console.log("[DEBUG UI] Managed Folders Loaded:", folders.length);
+        }
+    } catch (e) { 
+        console.error("[RELOCATE] Error loading managed folders:", e); 
+    }
+
+    const formatPath = (p) => {
+        if (!p) return p;
+        if (p.includes("${APP_DIR}")) {
+            return "📦 [App] \\ " + p.replace("${APP_DIR}", "").replace(/\//g, " \\ ").replace(/^ \\ /, "");
+        }
+        return "⭐ " + p;
+    };
+
+    selects.forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+
+        const currentVal = select.value || "AUTO";
+        select.innerHTML = '';
+
+        // 1. Create AUTO option
+        const optAuto = document.createElement('option');
+        optAuto.value = "AUTO";
+        optAuto.setAttribute('data-i18n', 'web.opt_auto_artist_dest');
+        optAuto.innerText = t('web.opt_auto_artist_dest', '-- Auto-routage par Artiste (Recommandé) --');
+        select.appendChild(optAuto);
+
+        // 2. Add Managed Folders
+        folders.forEach(f => {
+            if (f === "AUTO" || f === "MANUAL") return;
+            const opt = document.createElement('option');
+            opt.value = f;
+            opt.innerText = formatPath(f);
+            select.appendChild(opt);
+        });
+
+        // 3. Create MANUAL option
+        const optManual = document.createElement('option');
+        optManual.value = "MANUAL";
+        optManual.setAttribute('data-i18n', 'web.opt_manual_dest');
+        optManual.innerText = t('web.opt_manual_dest', 'Choisir un dossier spécifique...');
+        select.appendChild(optManual);
+        
+        // Restore selection
+        if (currentVal) {
+            const exists = Array.from(select.options).some(o => o.value === currentVal);
+            if (exists) select.value = currentVal;
+            else select.value = "AUTO";
+        }
+    });
+}
+
+// Remove old functions to avoid confusion
+async function populateRelocateSelect() { loadRelocationFolders(); }
+
+/**
+ * Perform a physical file operation (Copy or Move) for a single item from the edit modal.
+
+/**
+ * Perform a physical file operation (Copy or Move) for a single item from the edit modal.
+ * Integrated V41: Choice between Auto-routing (Artist based) or Manual destination.
+ */
+let pendingRelocateAction = null;
+
+/**
+ * Universal relocation trigger from Edit Medias Modals.
+ * Instead of executing immediately, it prepares data and opens a confirmation modal (V47).
+ */
+async function relocateFromEdit(action) {
+    // Detect context based on which modal is currently open
+    const isMT = document.getElementById("modal-multitrack").open;
+    const idx = editingLocalIndex;
+    
+    if (idx === null || idx === undefined || idx === -1) return;
+    const item = localFiles[idx];
+    
+    if (!item || !item.path) {
+        alert(t('web.msg_error_path_not_found', "Action impossible : chemin du média introuvable."));
+        return;
+    }
+
+    // Load folders to ensure the confirm modal select is ready
+    await loadRelocationFolders();
+
+    // Save for confirmation (V52)
+    pendingRelocateAction = {
+        action: action,
+        type: isMT ? 'multitrack' : 'library',
+        index: idx
+    };
+
+     // UI Feedback in Confirmation Modal
+    const modal = document.getElementById('modal-relocate-confirm');
+    const titleEl = document.getElementById('relocate-confirm-title');
+    const headerEl = document.getElementById('relocate-confirm-header');
+    const sourceEl = document.getElementById('relocate-confirm-source');
+    const confirmSelect = document.getElementById('relocate-confirm-dest-select');
+    
+    const warnEl = document.getElementById('relocate-confirm-artist-warning'); // Legacy
+    const artistInput = document.getElementById('relocate-confirm-artist-input');
+    const artistChk = document.getElementById('relocate-confirm-use-artist-chk');
+    const artistErr = document.getElementById('relocate-confirm-artist-error');
+    const artistMsg = document.getElementById('relocate-confirm-artist-msg');
+
+    if (titleEl) titleEl.innerText = t(action === 'copy' ? 'web.modal_confirm_relocate_title' : 'web.modal_confirm_move_title');
+    if (headerEl) headerEl.style.background = (action === 'copy' ? '#2980b9' : '#e67e22'); // Bleu pour copie, Orange pour déplacement
+    if (sourceEl) sourceEl.innerText = item.path;
+    
+    // Default to AUTO for smart routing
+    if (confirmSelect) {
+        confirmSelect.value = "AUTO";
+    }
+    
+    if (warnEl) warnEl.style.display = 'none';
+
+    // Artist Assistant Prep
+    if (artistInput) {
+        artistInput.value = item.artist || "";
+        artistInput.oninput = (e) => {
+            clearTimeout(artistCheckTimeout);
+            artistCheckTimeout = setTimeout(() => checkArtistFolderMatch(e.target.value), 400);
+        };
+        // Initial check
+        checkArtistFolderMatch(item.artist || "");
+    }
+
+    if (artistChk) artistChk.checked = (item.artist && item.artist.trim() !== "");
+    if (artistErr && artistMsg) {
+        if (!item.artist || item.artist.trim() === "") {
+            artistErr.style.display = "flex";
+            artistMsg.innerText = "Attention: Artiste manquant !";
+            artistInput.style.borderColor = "#ff9800";
+        } else {
+            artistErr.style.display = "none";
+            artistInput.style.borderColor = "#444";
+        }
+    }
+
+    if (modal) modal.showModal();
+}
+
+let artistCheckTimeout = null;
+
+/**
+ * Searches for existing artist folders across all managed roots.
+ * Suggests the best destination to avoid duplicates (V50).
+ */
+async function checkArtistFolderMatch(name) {
+    const zone = document.getElementById('relocate-confirm-artist-match-zone');
+    const pathEl = document.getElementById('relocate-confirm-match-path');
+    const btn = document.getElementById('btn-use-detected-folder');
+    
+    if (!name || name.trim() === "" || name.trim() === "Divers") {
+        if (zone) zone.style.display = 'none';
+        return;
+    }
+    
+    try {
+        const res = await fetch(`/api/local/find_artist_folder?name=${encodeURIComponent(name)}`);
+        const data = await res.json();
+        
+        if (data.status === 'ok' && data.matches && data.matches.length > 0) {
+            const match = data.matches[0];
+            if (zone) zone.style.display = 'block';
+            
+            // Format complete path for display (V51)
+            let displayPath = match.full_path;
+            if (displayPath.includes("${APP_DIR}")) {
+                displayPath = displayPath.replace("${APP_DIR}", "APP").replace(/\//g, " \\ ").replace(/^ \\ /, "");
+            } else {
+                displayPath = "⭐ " + displayPath;
+            }
+            
+            if (pathEl) pathEl.innerText = displayPath; 
+            
+            if (btn) {
+                btn.onclick = () => {
+                    const select = document.getElementById('relocate-confirm-dest-select');
+                    const artistChk = document.getElementById('relocate-confirm-use-artist-chk');
+                    if (select) {
+                        select.value = match.root;
+                        // Success Feedback
+                        select.style.borderColor = "#4caf50";
+                        select.style.boxShadow = "0 0 10px rgba(76, 175, 80, 0.4)";
+                        setTimeout(() => { 
+                            select.style.borderColor = "#444"; 
+                            select.style.boxShadow = "none";
+                        }, 2000);
+                    }
+                    if (artistChk) artistChk.checked = true;
+                };
+            }
+        } else {
+            if (zone) zone.style.display = 'none';
+        }
+    } catch (e) {
+        if (zone) zone.style.display = 'none';
+    }
+}
+
+/**
+ * Final execution after user confirmation in modal-relocate-confirm.
+ */
+async function confirmRelocateUnitary() {
+    if (!pendingRelocateAction) return;
+    
+    // Final values from confirmation modal
+    const confirmSelect = document.getElementById('relocate-confirm-dest-select');
+    const finalDest = (confirmSelect && confirmSelect.value !== "AUTO") ? confirmSelect.value : null;
+    
+    const useArtist = document.getElementById('relocate-confirm-use-artist-chk').checked;
+    const updatedArtist = document.getElementById('relocate-confirm-artist-input').value.trim();
+
+    const { action, type, index } = pendingRelocateAction;
+    
+    document.getElementById('modal-relocate-confirm').close();
+    
+    try {
+        console.log(`[Relocate] Confirming Unitary: ${action} to ${finalDest || 'AUTO'} (Artist: ${updatedArtist})`);
+
+        const res = await fetch('/api/local/relocate_apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: action,
+                type: type,
+                index: index,
+                target_folder: finalDest,
+                create_artist_folder: useArtist,
+                updated_artist: updatedArtist
+            })
+        });
+
+        const data = await res.json();
+        if (data.status === 'ok') {
+            // Update the item in memory
+            if (localFiles && localFiles[index]) {
+                localFiles[index].path = data.new_path;
+                if (updatedArtist) localFiles[index].artist = updatedArtist;
+            }
+            
+            // Update UI displays
+            const lp = document.getElementById("local-path-display");
+            const mp = document.getElementById("mt-path-display");
+            const mtArtist = document.getElementById("mt-artist");
+            const localArtist = document.getElementById("edit-artist");
+
+            if (lp) lp.innerText = data.new_path;
+            if (mp) mp.innerText = data.new_path;
+            
+            // Re-sync artist fields in edit modals if they were changed
+            if (updatedArtist) {
+                if (mtArtist) mtArtist.value = updatedArtist;
+                if (localArtist) localArtist.value = updatedArtist;
+            }
+
+            loadLocalFiles(); // Refresh library
+            
+            const successKey = (action === 'copy') ? 'web.msg_bulk_success_copy' : 'web.msg_bulk_success_move';
+            alert(t(successKey, 'Opération réussie !').replace('{n}', 1));
+            
+        } else {
+            alert("Erreur : " + (data.message || "Inconnue"));
+        }
+    } catch (e) {
+        console.error("Relocation Error", e);
+        alert("Erreur technique lors de la relocalisation.");
+    } finally {
+        pendingRelocateAction = null;
+    }
+}
+
+function updateBulkProgress(current, total, text = null) {
+    const container = document.getElementById('bulk-progress-container');
+    const fill = document.getElementById('bulk-progress-fill');
+    const percentTxt = document.getElementById('bulk-progress-percent');
+    const label = document.getElementById('bulk-progress-text');
+    
+    if (container) container.style.display = 'block';
+    const pct = Math.round((current / total) * 100);
+    if (fill) fill.style.width = pct + '%';
+    if (percentTxt) percentTxt.innerText = pct + '%';
+    if (text && label) label.innerText = text;
+    
+    if (pct >= 100 && total > 0) {
+        setTimeout(() => { if (container) container.style.display = 'none'; }, 2000);
+    }
+}
+async function openNativeFolderPicker(targetType = 'source') {
+    try {
+        const res = await fetch("/api/utils/select_folder");
+        const data = await res.json();
+        if (data.status === 'ok' && data.path) {
+            let selectId = 'bulk-source-select';
+            if (targetType === 'dest') selectId = 'bulk-dest-select';
+            else if (targetType === 'lib-dest') selectId = 'lib-manager-dest-select';
+            else if (targetType === 'confirm-dest') selectId = 'relocate-confirm-dest-select';
+            
+            const select = document.getElementById(selectId);
+            if (select) {
+                let exists = false;
+                for (let i=0; i<select.options.length; i++) {
+                    if (select.options[i].value === data.path) { exists = true; break; }
+                }
+                if (!exists) {
+                    const opt = document.createElement('option');
+                    opt.value = data.path;
+                    opt.innerText = "⭐ " + data.path;
+                    select.appendChild(opt);
+                }
+                select.value = data.path;
+            }
+        }
+    } catch(e) { console.error("Picker Error", e); }
+}
+
+async function startBulkFolderScan() {
+    const sourceSelect = document.getElementById('bulk-source-select');
+    const sourcePath = sourceSelect ? sourceSelect.value : 'AUTO';
+    
+    const selected = missingItems.filter(i => i.selected);
+    if (selected.length === 0) return;
+
+    updateBulkProgress(0, 100, t('web.msg_scanning', 'Recherche en cours...'));
+    
+    try {
+        if (sourcePath === 'AUTO') {
+            await scanManagedFolders(); 
+        } else {
+            const res = await fetch(`/api/local/search_folder`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folder_path: sourcePath, items: selected })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                data.results.forEach(r => {
+                    const originalItem = selected[r.item_list_index];
+                    if (originalItem) originalItem.found_path = r.found_path;
+                });
+                alert(t('web.msg_scan_found', '{n} fichiers trouvés').replace('{n}', data.found_count));
+            } else { alert(data.message); }
+        }
+    } catch(e) {
+        console.error(e);
+        alert("Erreur lors du scan.");
+    } finally {
+        document.getElementById('bulk-progress-container').style.display = 'none';
+        renderBulkItems();
+    }
+}
+async function scanManagedFolders() {
+    try {
+        updateBulkProgress(0, 100, t('web.msg_fetching_config', 'Récupération de la configuration...'));
+        const resConfig = await fetch("/api/config/managed_folders");
+        const configData = await resConfig.json();
+        const folders = configData.folders || [];
+        
+        const selected = missingItems.filter(i => i.selected);
+        if (selected.length === 0) return;
+
+        let totalFound = 0;
+        for (let i = 0; i < folders.length; i++) {
+            const folder = folders[i];
+            updateBulkProgress(i, folders.length, t('web.msg_scanning_managed', 'Scan du dossier {n}/{total}').replace('{n}', i+1).replace('{total}', folders.length));
+            
+            const scanRes = await fetch(`/api/local/search_folder`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folder_path: folder, items: selected })
+            });
+            const scanData = await scanRes.json();
+            if (scanData.status === 'ok') {
+                scanData.results.forEach(r => {
+                    const originalItem = selected[r.item_list_index];
+                    if (originalItem) originalItem.found_path = r.found_path;
+                });
+                totalFound += scanData.found_count;
+            }
+        }
+        alert(t('web.msg_managed_scan_done', 'Scan terminé. {n} correspondances trouvées.').replace('{n}', totalFound));
+    } catch(e) { 
+        console.error("Managed Scan Error", e); 
+        alert("Erreur lors du scan automatique.");
+    } finally {
+        document.getElementById('bulk-progress-container').style.display = 'none';
+        renderBulkItems();
+    }
+}
+
+/* ==========================================
+   LIBRARY MANAGER LOGIC (V40)
+   ========================================== */
+let libManagerSelectedIndices = new Set();
+
+function openLibraryManagerModal() {
+    libManagerSelectedIndices.clear();
+    const searchInput = document.getElementById("lib-manager-search");
+    if (searchInput) searchInput.value = "";
+    
+    const destSelect = document.getElementById("lib-manager-dest-select");
+    if (destSelect) {
+        destSelect.value = "AUTO";
+        loadRelocationFolders(); // UNIFIED V45 - Load folders for library manager
+    }
+    
+    const progContainer = document.getElementById("lib-manager-progress-container");
+    if (progContainer) progContainer.style.display = "none";
+    
+    const selAll = document.getElementById("lib-manager-select-all");
+    if (selAll) selAll.checked = false;
+    
+    renderLibraryManagerItems();
+    const modal = document.getElementById("modal-library-manager");
+    if (modal) modal.showModal();
+}
+
+function closeLibraryManagerModal() {
+    const modal = document.getElementById("modal-library-manager");
+    if (modal) modal.close();
+}
+
+function renderLibraryManagerItems() {
+    const list = document.getElementById("lib-manager-items-list");
+    const searchEl = document.getElementById("lib-manager-search");
+    const search = searchEl ? searchEl.value.toLowerCase() : "";
+    
+    if (!list) return;
+    list.innerHTML = "";
+
+    const filtered = localFiles.filter(item => {
+        const match = (item.title || "").toLowerCase().includes(search) || (item.artist || "").toLowerCase().includes(search);
+        return match;
+    });
+
+    filtered.forEach((item) => {
+        const originalIndex = localFiles.indexOf(item);
+        const isSelected = libManagerSelectedIndices.has(originalIndex);
+        
+        const div = document.createElement("div");
+        div.className = "bulk-item-row";
+        div.style.display = "flex";
+        div.style.alignItems = "center";
+        div.style.padding = "8px";
+        div.style.borderBottom = "1px solid #222";
+        div.style.gap = "10px";
+
+        const chk = document.createElement("input");
+        chk.type = "checkbox";
+        chk.checked = isSelected;
+        chk.onchange = (e) => {
+            if (e.target.checked) libManagerSelectedIndices.add(originalIndex);
+            else libManagerSelectedIndices.delete(originalIndex);
+            updateLibManagerStatus();
+        }
+
+        const info = document.createElement("div");
+        info.style.flex = "1";
+        info.innerHTML = `<div style="font-weight:bold; font-size:0.9em;">${item.title}</div>
+                          <div style="font-size:0.75em; color:#888;">${item.artist || "---"}</div>
+                          <div style="font-size:0.75em; color:#555; word-break:break-all;">${item.path}</div>`;
+
+        div.appendChild(chk);
+        div.appendChild(info);
+        list.appendChild(div);
+    });
+
+    updateLibManagerStatus();
+}
+
+function updateLibManagerStatus() {
+    const statusTxt = document.getElementById("lib-manager-count-status");
+    if (statusTxt) {
+        statusTxt.innerText = `${libManagerSelectedIndices.size} / ${localFiles.length} sélectionné(s)`;
+    }
+}
+
+function toggleLibManagerSelectAll(checked) {
+    const searchEl = document.getElementById("lib-manager-search");
+    const search = searchEl ? searchEl.value.toLowerCase() : "";
+    
+    localFiles.forEach((item, idx) => {
+        const match = (item.title || "").toLowerCase().includes(search) || (item.artist || "").toLowerCase().includes(search);
+        if (match) {
+            if (checked) libManagerSelectedIndices.add(idx);
+            else libManagerSelectedIndices.delete(idx);
+        }
+    });
+    renderLibraryManagerItems();
+}
+
+function updateLibManagerDestState() {
+    // Optional UI updates based on action choice
+}
+
+async function applyLibraryManagerActions() {
+    if (libManagerSelectedIndices.size === 0) {
+        alert("Veuillez sélectionner au moins un média.");
+        return;
+    }
+
+    const action = document.getElementById("lib-manager-action-select").value;
+    const dest = document.getElementById("lib-manager-dest-select").value;
+    const selectedArray = Array.from(libManagerSelectedIndices);
+    
+    if (!confirm(t('web.confirm_bulk_apply', 'Appliquer ces {n} changements ?').replace('{n}', selectedArray.length))) return;
+
+    const progressContainer = document.getElementById("lib-manager-progress-container");
+    const progressFill = document.getElementById("lib-manager-progress-fill");
+    const progressText = document.getElementById("lib-manager-progress-text");
+    const progressPercent = document.getElementById("lib-manager-progress-percent");
+
+    if (progressContainer) progressContainer.style.display = "block";
+    
+    let successCount = 0;
+    let errors = [];
+
+    for (let i = 0; i < selectedArray.length; i++) {
+        const idx = selectedArray[i];
+        const item = localFiles[idx];
+        
+        const pct = Math.round(((i + 1) / selectedArray.length) * 100);
+        if (progressFill) progressFill.style.width = pct + "%";
+        if (progressPercent) progressPercent.innerText = pct + "%";
+        if (progressText) progressText.innerText = `Traitement ${i + 1}/${selectedArray.length} : ${item.title}`;
+
+        try {
+            const res = await fetch('/api/local/relocate_apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: action,
+                    type: 'library',
+                    index: idx,
+                    new_path: item.path,
+                    target_folder: dest === "AUTO" ? null : dest
+                })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                successCount++;
+                item.path = data.new_path; // Sync in memory
+            } else {
+                errors.push(`${item.title}: ${data.message}`);
+            }
+        } catch (e) {
+            errors.push(`${item.title}: Erreur réseau`);
+        }
+    }
+
+    if (progressContainer) progressContainer.style.display = "none";
+    loadLocalFiles();
+    
+    let msgKey = (action === 'copy') ? 'web.msg_bulk_success_copy' : 'web.msg_bulk_success_move';
+    alert(t(msgKey, '{n} fichiers traités !').replace('{n}', successCount));
+    
+    if (errors.length > 0) {
+        console.error("Library Manager Errors:", errors);
+    }
+    
+    renderLibraryManagerItems(); // Refresh modal view
 }

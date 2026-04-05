@@ -569,6 +569,61 @@ button:hover {
 }
 
 /* MODAL STYLES */
+.modern-modal {
+    padding: 0;
+    border: none;
+    border-radius: 12px;
+    background: #1a1a1a;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+    overflow: hidden;
+    color: white;
+}
+
+.modern-modal::backdrop {
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(4px);
+}
+
+.modern-modal .modal-header {
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modern-modal .modal-body {
+    padding: 20px;
+}
+
+.modern-modal .modal-footer {
+    padding: 15px 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* --- MISSING FILES STYLES --- */
+.track-missing {
+    opacity: 0.6;
+    background-color: rgba(207, 102, 121, 0.05) !important;
+}
+
+.track-missing td {
+    color: #888 !important;
+}
+
+.track-missing .ph-warning-circle {
+    color: #ff4444;
+    animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* MODAL STYLES */
 dialog {
     background-color: #1e1e1e;
     /* Hardcoded fallback or var not resolving in dialog sometimes */
@@ -746,6 +801,74 @@ dialog::backdrop {
     overflow: hidden;
 }
 
+/* MEDIA TRAINING PANEL */
+.media-training-panel {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 5px 10px;
+    display: none;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    z-index: 100;
+}
+
+.training-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.training-input-group label {
+    font-size: 0.75em;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.training-input-group input {
+    width: 65px !important;
+    background: #111 !important;
+    border: 1px solid #444 !important;
+    padding: 4px 8px !important;
+    border-radius: 4px !important;
+    font-size: 0.9em !important;
+    color: var(--accent) !important;
+    font-weight: bold;
+    text-align: center;
+}
+
+.training-status-badge {
+    background: rgba(187, 134, 252, 0.1);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 4px 10px;
+    border-radius: 15px;
+    font-size: 0.85em;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.training-status-badge .ph-trend-up {
+    animation: blink-training 1.5s infinite;
+}
+
+@keyframes blink-training {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+
+.next-cycle-info {
+    font-size: 0.82em;
+    color: #aaa;
+    font-family: 'JetBrains Mono', monospace;
+}
+
 /* EDIT FORM */
 .edit-layout {
     display: flex;
@@ -778,6 +901,7 @@ dialog::backdrop {
     /* Fill remaining vertical space */
     min-height: 100px;
     /* Reduced from 170px */
+    min-height: 100px;
 }
 
 .thumbnail-preview {

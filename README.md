@@ -67,9 +67,11 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     - **Timeline Marker :** Posez des drapeaux pour programmer des avertisseurs visuels HUD avant les couplets.
     - **Global Override :** Mutez l'intégralité des bips d'un clic sur la Cloche sans perdre vos calibrations.
     - **Repères Visuels Timeline :** Affichage automatique de légers traits jaunes permettant de situer instantanément les zones clés.
-*   **Système d'Entraînement Avancé (A-B Looping 3 États) :**
+*   **Système d'Entraînement Avancé (A-B Looping & Speed Trainer) :**
     - **Boucles Multiples :** Définissez, nommez et sauvegardez plusieurs boucles (Points A & B) pour chaque morceau, incluant **désormais un support total et visuel pour les vidéos YouTube en streaming**.
     - **Mode Séquentiel Intelligent :** Activez "Boucle Unique" pour répéter la section, ou "Boucle Séquentielle" pour passer automatiquement à la suite d'accords suivante une fois le solo maîtrisé.
+    - **Speed Trainer Progressif :** Augmentez automatiquement le BPM de vos boucles après chaque cycle. Le système détecte intelligemment le tempo original de vos morceaux pour proposer un départ à 75% et une cible à 100%.
+    - **Moteur Stabilisé :** Protection anti-rebond (Debounce) pour garantir un comptage précis des cycles même sur des boucles très courtes.
     - **Rendu Visuel :** Les boucles s'affichent sous forme de zones sur la timeline (Audio, HTML5 et YouTube), avec le nom de vos sections (Couplet, Refrain...) agissant comme une carte visuelle persistante.
 *   **Contrôle Hybride & Robuste :**
     *   **Contrôle Granulaire Vitesse :** Ajustez par pas de 0.05x (sans altération du Pitch/Tonalité).
@@ -85,15 +87,33 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
 *   **Persistance Sidecar JSON :**
     *   Toutes vos modifications (BPM, Tonalité Originale, Tonalité Média, Pitch, Notes) sont désormais sauvegardées dans un petit fichier `.json` à côté de vos médias locaux.
     *   Vos métadonnées vous suivent partout, même si vous déplacez vos dossiers.
-*   **Éditeur de Médias Harmonisé :**
-    *   Interface ultra-compacte et professionnelle, identique pour tous les types de médias (YouTube, Local, Multipiste).
-    *   **Ligne Technique Unifiée** : BPM, Tonalité Originale, Tonalité Média, Pitch Original et Pitch Média sont désormais regroupés sur une seule ligne pour une visibilité instantanée sans défilement.
-    *   **Support Wide Art (16:9)** : Les pochettes d'albums et miniatures YouTube s'affichent désormais dans leur format d'origine (panoramique) sans déformation ni recadrage carré forcé.
+*   **Éditeur de Médias Unifié :**
+    *   **Interface Unique** : Fusion totale des outils d'édition. Les médias YouTube, Audios/Vidéos locaux et Multipistes partagent désormais la même structure technique (`media-modal`), garantissant une expérience fluide et une maintenance simplifiée.
+    *   **Design Studio "Pixel-Perfect"** : Interface ultra-compacte et professionnelle. Alignement rigoureux des marges et paddings pour une visibilité totale sans défilement parasite.
+    *   **Ligne Technique Unifiée** : BPM, Tonalité Originale, Tonalité Média, Pitch Original et Pitch Média sont regroupés sur une seule ligne pour une visibilité instantanée.
+    *   **Support Wide Art (16:9)** : Les pochettes d'albums et miniatures YouTube s'affichent dans leur format d'origine (panoramique) sans déformation.
     *   **Modale de notes dédiée** fusionnant la description YouTube et vos propres mémos techniques.
-    *   **Optimisation Vision :** Plus de barre de défilement parasite dans les modales, tout est accessible en un coup d'œil.
 *   **Navigation & Ergonomie :**
     *   **Auto-Restart** : Tous les lecteurs reviennent automatiquement à 00:00 une fois le morceau terminé.
     *   **Annulation Boucle** : Touche `Echap` pour annuler la sélection d'un point A ou B instantanément.
+*   **Résilience & Gestion de Portabilité Avancée (Nouveau !) :**
+    *   **Assistant de Réparation** : Si vous déplacez vos fichiers ou changez de disque (ex: de `C:` vers `D:\`), l'application le détecte et vous propose de les retrouver.
+    *   **Workflow en 2 Étapes** : Une fois le fichier localisé (via scan intelligent ou sélection manuelle), vous choisissez l'action :
+        *   **Lier** : Met à jour le chemin sans toucher au fichier.
+        *   **Copier** : Importe une copie dans les dossiers `Medias/` de l'application (Dossier portable).
+        *   **Déplacer** : Range physiquement votre fichier original dans la structure propre de l'application.
+    *   **Rangement Automatisé** : Le système trie vos fichiers dans les bons dossiers (`Audios`, `Videos`, `Midi` ou `Multipistes`) selon leur format.
+    *   **Scan Multi-Lecteurs** : Capacité de scanner la racine de tous les disques physiques pour localiser vos médias perdus en quelques secondes.
+    *   **Re-scan des Stems** : Pour les projets multipistes, le système reconstruit instantanément les liens de chaque piste après un déplacement.
+    *   **Portabilité Totale** : Utilisation systématique du token `${APP_DIR}`, garantissant que votre bibliothèque vous suit partout, même sur une clé USB.
+    *   **Réparation de Masse & Gestionnaire de Bibliothèque (✨ Nouveau ✨)** : 
+        1. **Source** : Identifiez où se trouvent les médias (favoris ou parcourir).
+        2. **Action** : Choisissez entre Lier, Copier ou Déplacer.
+        3. **Destination** : Indiquez le dossier cible ou laissez le programme **Ranger Automatiquement par Artiste**.
+        *   **Auto-Routage par Artiste** : Le système crée dynamiquement une arborescence propre (`Medias/Videos/Artiste/`) en extrayant les métadonnées. Fini les dossiers "vrac" !
+        *   **Relocalisation Groupée** : Appliquez les réparations sur toute votre sélection ou l'intégralité de la bibliothèque en un clic.
+        *   **Déménagement Unitaire** : Boutons "Copier" et "Déplacer" intégrés directement dans les fiches d'édition pour une gestion agile fichier par fichier.
+        *   **Sidecars Intelligents** : Vos sous-titres et métadonnées JSON suivent automatiquement le média lors d'un déplacement physique.
 
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)

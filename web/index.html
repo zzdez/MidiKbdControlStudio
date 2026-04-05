@@ -106,7 +106,7 @@
                 <div id="player"></div>
                 <iframe id="generic-player" style="width:100%; height:100%; display:none; border:none;"
                     allowfullscreen></iframe>
-                <video id="html5-player" style="width:100%; height:100%; display:none; background:#000;"></video>
+                <video id="html5-player" style="width:100%; height:100%; display:none; background:#000;" onerror="handlePlayerError(this)"></video>
 
                 <!-- Custom Subtitle Overlay -->
                 <div id="subtitle-overlay"
@@ -275,6 +275,11 @@
                             <i class="ph ph-line-segments"></i>
                         </button>
 
+                        <!-- Training Mode Button -->
+                        <button class="control-btn" id="btn-audio-training" onclick="toggleTrainingUI('audio')" title="Mode Entraînement" data-i18n-title="web.lbl_training_mode" style="font-size: 1.2rem; margin-left:10px;">
+                            <i class="ph ph-trend-up"></i>
+                        </button>
+
                         <!-- Pitch Control (Compact) -->
                         <div class="pitch-pill"
                             style="display:flex; align-items:center; gap:6px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333;">
@@ -336,6 +341,38 @@
                     <div class="controls-right-spacer"></div>
                 </div>
 
+                <!-- MEDIA TRAINING PANEL (AUDIO) -->
+                <div id="audio-training-panel" class="media-training-panel">
+                    <div class="training-status-badge">
+                        <i class="ph ph-trend-up"></i>
+                        <span data-i18n="web.lbl_status_training_active">Entraînement Actif</span>
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_start_bpm">Départ</label>
+                        <input type="number" id="audio-train-start" value="100" onchange="updateTrainingParam('audio')">
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_final_bpm">Cible</label>
+                        <input type="number" id="audio-train-final" value="140" onchange="updateTrainingParam('audio')">
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_inc_bpm">Inc (+)</label>
+                        <input type="number" id="audio-train-inc" value="5" onchange="updateTrainingParam('audio')">
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_cycles_before_inc">Cycles</label>
+                        <input type="number" id="audio-train-cycles" value="1" onchange="updateTrainingParam('audio')">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
+                        <input type="checkbox" id="audio-train-stop" onchange="updateTrainingParam('audio')">
+                        <label for="audio-train-stop" style="font-size:0.75em; color:#aaa; cursor:pointer;" data-i18n="web.lbl_stop_at_target">Stop à la cible</label>
+                    </div>
+                    <div style="flex:1;"></div>
+                    <div id="audio-train-live-info" class="next-cycle-info">
+                        <span data-i18n="web.lbl_next_inc_in">Next in:</span> <span class="val">--</span>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Multitrack Player (DAW Mode) -->
@@ -385,6 +422,11 @@
                             <i class="ph ph-line-segments"></i>
                         </button>
 
+                        <!-- Training Mode Button -->
+                        <button class="control-btn" id="btn-multitrack-training" onclick="toggleTrainingUI('multitrack')" title="Mode Entraînement" data-i18n-title="web.lbl_training_mode" style="font-size: 1.2rem; margin-left:10px;">
+                            <i class="ph ph-trend-up"></i>
+                        </button>
+
                         <!-- Master Volume Control -->
                         <div
                             style="display:flex; align-items:center; gap:5px; background:#222; border-radius:15px; padding:2px 10px; border:1px solid #333; margin-left:10px;">
@@ -427,6 +469,38 @@
                         </div>
                     </div>
                     <div class="controls-right-spacer"></div>
+                </div>
+
+                <!-- MEDIA TRAINING PANEL (MULTITRACK) -->
+                <div id="multitrack-training-panel" class="media-training-panel">
+                    <div class="training-status-badge">
+                        <i class="ph ph-trend-up"></i>
+                        <span data-i18n="web.lbl_status_training_active">Entraînement Actif</span>
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_start_bpm">Départ</label>
+                        <input type="number" id="multitrack-train-start" value="100" onchange="updateTrainingParam('multitrack')">
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_final_bpm">Cible</label>
+                        <input type="number" id="multitrack-train-final" value="140" onchange="updateTrainingParam('multitrack')">
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_inc_bpm">Inc (+)</label>
+                        <input type="number" id="multitrack-train-inc" value="5" onchange="updateTrainingParam('multitrack')">
+                    </div>
+                    <div class="training-input-group">
+                        <label data-i18n="web.lbl_cycles_before_inc">Cycles</label>
+                        <input type="number" id="multitrack-train-cycles" value="1" onchange="updateTrainingParam('multitrack')">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
+                        <input type="checkbox" id="multitrack-train-stop" onchange="updateTrainingParam('multitrack')">
+                        <label for="multitrack-train-stop" style="font-size:0.75em; color:#aaa; cursor:pointer;" data-i18n="web.lbl_stop_at_target">Stop à la cible</label>
+                    </div>
+                    <div style="flex:1;"></div>
+                    <div id="multitrack-train-live-info" class="next-cycle-info">
+                        <span data-i18n="web.lbl_next_inc_in">Next in:</span> <span class="val">--</span>
+                    </div>
                 </div>
 
                 <!-- Multitrack Timeline & Loop Bar Row -->
@@ -525,6 +599,11 @@
                         <i class="ph ph-line-segments"></i>
                     </button>
 
+                    <!-- Training Mode Button -->
+                    <button class="control-btn" id="btn-video-training" onclick="toggleTrainingUI('video')" title="Mode Entraînement" data-i18n-title="web.lbl_training_mode" style="font-size: 1.2rem; margin-left:10px;">
+                        <i class="ph ph-trend-up"></i>
+                    </button>
+
                     <!-- Subtitle Toggle Area -->
                     <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
                         <button class="control-btn" id="btn-toggle-subs" onclick="toggleSubtitles()"
@@ -595,6 +674,38 @@
                 <div class="controls-right-spacer"></div>
             </div>
 
+            <!-- MEDIA TRAINING PANEL (VIDEO) -->
+            <div id="video-training-panel" class="media-training-panel">
+                <div class="training-status-badge">
+                    <i class="ph ph-trend-up"></i>
+                    <span data-i18n="web.lbl_status_training_active">Entraînement Actif</span>
+                </div>
+                <div class="training-input-group">
+                    <label data-i18n="web.lbl_start_bpm">Départ</label>
+                    <input type="number" id="video-train-start" value="100" onchange="updateTrainingParam('video')">
+                </div>
+                <div class="training-input-group">
+                    <label data-i18n="web.lbl_final_bpm">Cible</label>
+                    <input type="number" id="video-train-final" value="140" onchange="updateTrainingParam('video')">
+                </div>
+                <div class="training-input-group">
+                    <label data-i18n="web.lbl_inc_bpm">Inc (+)</label>
+                    <input type="number" id="video-train-inc" value="5" onchange="updateTrainingParam('video')">
+                </div>
+                <div class="training-input-group">
+                    <label data-i18n="web.lbl_cycles_before_inc">Cycles</label>
+                    <input type="number" id="video-train-cycles" value="1" onchange="updateTrainingParam('video')">
+                </div>
+                <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
+                    <input type="checkbox" id="video-train-stop" onchange="updateTrainingParam('video')">
+                    <label for="video-train-stop" style="font-size:0.75em; color:#aaa; cursor:pointer;" data-i18n="web.lbl_stop_at_target">Stop à la cible</label>
+                </div>
+                <div style="flex:1;"></div>
+                <div id="video-train-live-info" class="next-cycle-info">
+                    <span data-i18n="web.lbl_next_inc_in">Next in:</span> <span class="val">--</span>
+                </div>
+            </div>
+
             </div>
 
             <!-- CHAPTERS LIST -->
@@ -623,8 +734,8 @@
                         data-i18n="web.tab_apps">Applications</span></button>
             </div>
 
-            <!-- VIEW: LIBRARY -->
-            <div id="view-library" class="view-container">
+<div id="view-library" class="view-container">
+
                 <div class="sidebar-section">
                     <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
                         Setlist
@@ -678,10 +789,22 @@
 
             <!-- VIEW: LOCAL FILES -->
             <div id="view-local" class="view-container" style="display:none;">
+                <!-- Bulk Relocate Banner -->
+                <div id="bulk-relocate-banner" style="display:none; background:rgba(255,152,0,0.1); border:1px solid rgba(255,152,0,0.3); border-radius:4px; padding:10px; margin: 0 15px 15px 15px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:8px; color:#ff9800;">
+                        <i class="ph ph-warning-circle" style="font-size:1.2em;"></i>
+                        <span id="bulk-relocate-text" style="font-size:0.85em; font-weight:bold;"></span>
+                    </div>
+                    <button class="btn-small" onclick="openBulkRelocateModal()" style="background:#ff9800; color:black; border:none; padding:5px 10px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:0.8em;" data-i18n="web.btn_repair">Réparer</button>
+                </div>
+
                 <div class="sidebar-section">
                     <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
                         Fichiers Locaux
                         <div style="display:flex; gap:5px;">
+                            <button class="btn-icon" onclick="openLibraryManagerModal()"
+                                title="Gérer la Bibliothèque" data-i18n-title="web.btn_manage_library"><i
+                                    class="ph ph-books"></i></button>
                             <button class="btn-icon" onclick="addLocalMultitrack()"
                                 title="Ajouter un Dossier Multipiste" data-i18n-title="web.hint_add_multitrack"><i
                                     class="ph ph-folder-plus"></i></button>
@@ -883,187 +1006,7 @@
         </div>
     </dialog>
 
-    <!-- LOCAL FILE MODAL -->
-    <dialog id="modal-local">
-        <div class="modal-header">
-            <h3 data-i18n="web.modal_local_title">Éditer Fichier Local</h3>
-            <button onclick="closeLocalModal()" class="btn-close">×</button>
-        </div>
-        <div class="modal-body">
-            <!-- ART PREVIEW WITH VERTICAL SLIDERS -->
-            <div class="modal-media-stack">
-                <!-- Volume Vertical Slider (Left) -->
-                <div class="vertical-slider-container">
-                    <span class="slider-label">VOL</span>
-                    <input type="range" id="local-volume" min="0" max="100" value="100" orient="vertical"
-                        oninput="liveUpdateModalVolume('local', this.value); document.getElementById('local-volume-percent').innerText = this.value + '%';">
-                    <span id="local-volume-percent" class="slider-percent">100%</span>
-                </div>
 
-                <!-- Poster (Center) -->
-                <div id="local-art-container" class="art-container wide-art"
-                    onclick="document.getElementById('cover-upload').click()">
-                    <img id="local-art-img" src="" style="display:none;">
-                    <div id="local-art-placeholder"
-                        style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#888; background:#222; border: 1px dashed #444; border-radius:8px;">
-                        <span>+</span>
-                    </div>
-                    <div id="btn-delete-cover" class="btn-delete-cover" style="display:none;"
-                        onclick="event.stopPropagation(); removeLocalCover();">×</div>
-                </div>
-
-                <!-- Controls Group (Right) -->
-                <div style="display:flex; align-items:center; gap:12px; min-width:140px; justify-content: flex-start;">
-                    <!-- Vertical Sub Slider -->
-                    <div id="local-subtitle-settings" class="vertical-slider-container" style="display:none;">
-                        <span class="slider-label" data-i18n="web.lbl_subs_height">Hauteur</span>
-                        <input type="range" id="local-sub-pos" min="0" max="100" value="20" orient="vertical"
-                            oninput="updateLiveSubtitlePos(this.value)">
-                        <span id="local-sub-pos-percent" class="slider-percent">20%</span>
-                    </div>
-
-                    <!-- Switches -->
-                    <div style="display:flex; flex-direction:column; gap:8px;">
-                        <label class="modern-switch">
-                            <input type="checkbox" id="local-autoplay" onchange="liveUpdatePlaybackOption('autoplay', this.checked)">
-                            <span class="switch-slider"></span>
-                            <span class="switch-label" data-i18n="web.lbl_autoplay">Auto</span>
-                        </label>
-                        <label class="modern-switch">
-                            <input type="checkbox" id="local-autoreplay" onchange="liveUpdatePlaybackOption('autoreplay', this.checked)">
-                            <span class="switch-slider"></span>
-                            <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Hidden File Input -->
-                <input type="file" id="cover-upload" accept="image/*" style="display:none"
-                    onchange="handleLocalCover(this)">
-            </div>
-
-            <div class="edit-form">
-                <div id="local-path-display"
-                    style="font-size:0.8em; color:#888; background:#222; padding:5px; border-radius:4px; margin-bottom:10px; word-break:break-all;">
-                </div>
-
-                <label data-i18n="web.lbl_title">Titre</label>
-                <div style="display:flex; gap:10px;">
-                    <input type="text" id="local-title" style="flex:1;">
-                    <button class="btn-secondary" onclick="autoTagLocal()" title="Rechercher sur MusicBrainz"
-                        data-i18n-title="web.hint_musicbrainz">🔍
-                        Auto-Tag</button>
-                </div>
-
-                <div class="row-inputs">
-                    <div class="col">
-                        <label data-i18n="web.lbl_artist">Artiste</label>
-                        <input type="text" id="local-artist" list="artists">
-                    </div>
-                    <div class="col">
-                        <label data-i18n="web.lbl_category">Catégorie</label>
-                        <input type="text" id="local-category" placeholder="ex: Tuto..." list="categories">
-                    </div>
-                </div>
-
-                <!-- Technical Data Row -->
-                <div class="row-inputs">
-                    <div class="col" style="position: relative; flex: 0.8;">
-                        <label data-i18n="web.lbl_bpm"
-                            style="display: flex; justify-content: space-between; align-items: center;">
-                            BPM <a href="https://getsongbpm.com" target="_blank"
-                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongBPM)</a>
-                        </label>
-                        <input type="number" id="local-bpm" placeholder="120">
-                    </div>
-                    <div class="col" style="position: relative; flex: 1;">
-                        <label data-i18n="web.lbl_key"
-                            style="display: flex; justify-content: space-between; align-items: center;">
-                            Ton. Orig. <a href="https://getsongkey.com" target="_blank"
-                                style="color: #3498db; font-size: 0.85em; margin-left: 5px; text-decoration: none; font-weight: bold;">(GetSongKey)</a>
-                        </label>
-                        <input type="text" id="local-key" placeholder="Ex: Am, G..."
-                            data-i18n-placeholder="web.placeholder_key" list="mt-key-suggestions">
-                    </div>
-                    <div class="col" style="flex: 1;">
-                        <label data-i18n="web.lbl_media_key">Ton. Média</label>
-                        <input type="text" id="local-media-key" placeholder="Ex: Am" list="mt-key-suggestions">
-                    </div>
-                    <div class="col" style="flex: 1.2;">
-                        <label data-i18n="web.lbl_scale">Gamme</label>
-                        <select id="local-scale">
-                            <option value="">Auto / Non défini</option>
-                            <option value="major_pentatonic" data-i18n="web.scale_major_pentatonic">Penta. Majeure</option>
-                            <option value="minor_pentatonic" data-i18n="web.scale_minor_pentatonic">Penta. Mineure</option>
-                            <option value="major" data-i18n="web.scale_major">Majeure</option>
-                            <option value="minor" data-i18n="web.scale_minor">Mineure Naturelle</option>
-                            <option value="blues" data-i18n="web.scale_blues">Blues</option>
-                            <option value="dorian" data-i18n="web.scale_dorian">Dorien</option>
-                            <option value="mixolydian" data-i18n="web.scale_mixolydian">Mixolydien</option>
-                            <option value="phrygian" data-i18n="web.scale_phrygian">Phrygien</option>
-                            <option value="lydian" data-i18n="web.scale_lydian">Lydien</option>
-                            <option value="locrian" data-i18n="web.scale_locrian">Locrien</option>
-                        </select>
-                    </div>
-                </div>
-                <!-- Row 2 : Accordage / Pitch -->
-                <div class="row-inputs">
-                    <div class="col" style="flex: 1.2;">
-                        <label data-i18n="web.lbl_tuning">Accordage</label>
-                        <select id="local-tuning">
-                            <option value="standard" data-i18n="web.tuning_standard">Standard (E A D G B E)</option>
-                            <option value="drop_d" data-i18n="web.tuning_drop_d">Drop D (D A D G B E)</option>
-                            <option value="drop_c" data-i18n="web.tuning_drop_c">Drop C (C G C F A D)</option>
-                            <option value="eb" data-i18n="web.tuning_eb">Eb Standard (Eb Ab Db Gb Bb Eb)</option>
-                            <option value="d" data-i18n="web.tuning_d">D Standard (D G C F A D)</option>
-                            <option value="open_g" data-i18n="web.tuning_open_g">Open G (D G D G B D)</option>
-                            <option value="open_d" data-i18n="web.tuning_open_d">Open D (D A D F# A D)</option>
-                        </select>
-                    </div>
-                    <div class="col" style="flex: 0.8;">
-                        <label data-i18n="web.lbl_original_pitch">Pitch Orig.</label>
-                        <input type="text" id="local-original-pitch" placeholder="432">
-                    </div>
-                    <div class="col" style="flex: 0.8;">
-                        <label data-i18n="web.lbl_target_pitch">Pitch Média</label>
-                        <input type="text" id="local-target-pitch" placeholder="440">
-                    </div>
-                </div>
-
-                <div class="row-inputs">
-                    <div class="col" style="flex:2;">
-                        <label data-i18n="web.lbl_album">Album</label>
-                        <input type="text" id="local-album">
-                    </div>
-                    <div class="col" style="flex:2;">
-                        <label data-i18n="web.lbl_genre">Genre</label>
-                        <input type="text" id="local-genre" list="genres">
-                    </div>
-                    <div class="col" style="flex:0.8;">
-                        <label data-i18n="web.lbl_year">Année</label>
-                        <input type="text" id="local-year">
-                    </div>
-                </div>
-
-                <div class="row-inputs">
-                    <div class="col">
-                        <label data-i18n="web.lbl_profile_device">Profil Appareil</label>
-                        <select id="local-target-profile">
-                            <option value="Auto" data-i18n="web.opt_auto_recommended">Auto (Recommandé)</option>
-                        </select>
-                    </div>
-                </div>
-
-
-                <label data-i18n="web.lbl_notes">Notes</label>
-                <textarea id="local-notes" rows="3"></textarea>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn-text" onclick="closeLocalModal()" data-i18n="web.btn_cancel">Annuler</button>
-            <button class="btn-primary" onclick="saveLocalItem()" data-i18n="web.btn_save">Sauvegarder</button>
-        </div>
-    </dialog>
 
     <!-- MULTITRACK MODAL -->
     <dialog id="modal-multitrack">
@@ -1116,8 +1059,16 @@
             </div>
 
             <div class="edit-form">
-                <div id="mt-path-display"
-                    style="font-size:0.8em; color:#888; background:#222; padding:5px; border-radius:4px; margin-bottom:10px; word-break:break-all;">
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#222; padding:5px; border-radius:4px; margin-bottom:10px;">
+                    <div id="mt-path-display" style="font-size:0.8em; color:#888; word-break:break-all; flex:1;">-</div>
+                    <div style="display:flex; gap:5px; margin-left:10px;">
+                        <button class="btn-secondary" style="padding:2px 6px; font-size:0.75em; height:24px; border-color:#444;" onclick="relocateFromEdit('copy')" title="Copier vers..." data-i18n-title="web.btn_copy_to">
+                            <i class="ph ph-copy" style="font-size:1.1em;"></i>
+                        </button>
+                        <button class="btn-secondary" style="padding:2px 6px; font-size:0.75em; height:24px; border-color:#444;" onclick="relocateFromEdit('move')" title="Déplacer vers..." data-i18n-title="web.btn_move_to">
+                            <i class="ph ph-arrows-out-cardinal" style="font-size:1.1em;"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <label data-i18n="web.lbl_title">Titre</label>
@@ -1139,7 +1090,6 @@
                     </div>
                 </div>
 
-                <!-- NEW FIELDS: BPM, Key, Pitch -->
                 <!-- Technical Data Row -->
                 <div class="row-inputs">
                     <div class="col" style="position: relative; flex: 0.8;">
@@ -1234,10 +1184,11 @@
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn-text" onclick="closeMultitrackModal()" data-i18n="web.btn_cancel">Annuler</button>
             <button class="btn-primary" onclick="saveMultitrackItem()" data-i18n="web.btn_save">Sauvegarder</button>
         </div>
     </dialog>
+
+    <!-- LOCAL MEDIA MODAL (AUDIO STANDARD) -->
 
     <!-- MEDIA MODAL -->
     <dialog id="media-modal">
@@ -1270,8 +1221,6 @@
             </div>
 
             <hr class="separator">
-
-            <!-- Edit Form Content (Directly in body to avoid display issues) -->
 
             <!-- Zone 2: Media Stack (Sliders | Image | Switches) -->
             <div class="modal-media-stack" style="margin-top:10px;">
@@ -1313,6 +1262,19 @@
                             <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
                         </label>
                     </div>
+                </div>
+            </div>
+
+            <!-- Path & Relocation Buttons (Compact V52) - SHOWN ONLY FOR LOCAL MEDIA -->
+            <div id="yt-local-path-container" style="display:none; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:5px; border-radius:4px; margin-top:10px; border:1px solid #333;">
+                <div id="local-path-display" style="font-size:0.8em; color:#888; word-break:break-all; flex:1;">-</div>
+                <div style="display:flex; gap:5px; margin-left:10px;">
+                    <button class="btn-secondary" style="padding:2px 6px; font-size:0.75em; height:24px; border-color:#444;" onclick="relocateFromEdit('copy')" title="Copier vers..." data-i18n-title="web.btn_copy_to">
+                        <i class="ph ph-copy" style="font-size:1.1em;"></i>
+                    </button>
+                    <button class="btn-secondary" style="padding:2px 6px; font-size:0.75em; height:24px; border-color:#444;" onclick="relocateFromEdit('move')" title="Déplacer vers..." data-i18n-title="web.btn_move_to">
+                        <i class="ph ph-arrows-out-cardinal" style="font-size:1.1em;"></i>
+                    </button>
                 </div>
             </div>
 
@@ -1457,7 +1419,6 @@
                 </div>
             </div>
 
-
             <!-- DOWNLOAD OPTIONS (Hidden) -->
             <div id="dl-options-container"
                 style="display:none; background:#1a1a1a; padding:8px 15px; margin-top:10px; border-radius:6px; border:1px solid #333;">
@@ -1531,6 +1492,7 @@
                 Web</button>
         </div>
     </dialog>
+
 
     <!-- LOOP SAVE MODAL -->
     <dialog id="loop-modal">
@@ -1667,6 +1629,8 @@
                     data-i18n="web.tab_general">Général</button>
                 <button class="nav-btn" onclick="switchSettingsTab('library')"
                     data-i18n="web.tab_library">Médiathèque</button>
+                <button class="nav-btn" onclick="switchSettingsTab('storage')"
+                    data-i18n="web.tab_storage">Stockage</button>
                 <button class="nav-btn" onclick="switchSettingsTab('controller')"
                     data-i18n="web.tab_controller">Contrôleur</button>
             </div>
@@ -1779,6 +1743,27 @@
                             style="padding:15px 30px; font-size:1.1em;" data-i18n="gui.btn_open_editor">
                             Ouvrir l'Éditeur Avancé ⚙️
                         </button>
+                    </div>
+                </div>
+
+                <!-- TAB: STORAGE -->
+                <div id="tab-settings-storage" class="settings-tab" style="display:none;">
+                    <h4 data-i18n="web.lbl_portability">Portabilité & Migration</h4>
+                    <p data-i18n="web.hint_portability" style="font-size: 0.85em; color: #888;">Gérez vos médias pour le transfert entre ordinateurs. Les chemins de cette application sont stockés en relatif.</p>
+
+                    <div style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-top: 15px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="padding-right: 15px;">
+                                <strong data-i18n="web.lbl_consolidate">Consolider la Bibliothèque</strong>
+                                <p style="font-size: 0.8em; color: #888; margin-top: 5px;" data-i18n="web.hint_consolidate">Copie tous les médias externes (Audio, Vidéos, Multitracks) à l'intérieur du dossier portable de l'application.</p>
+                            </div>
+                            <button class="btn-primary" onclick="consolidateLibrary()" data-i18n="web.btn_consolidate_run" style="white-space:nowrap;">Consolider</button>
+                        </div>
+                    </div>
+                    
+                    <div style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-top: 15px;">
+                        <h5 data-i18n="web.lbl_missing_media" style="margin-top:0; color:#cf6679; display: flex; align-items: center; gap: 5px;"><i class="ph ph-warning"></i> Médias Déconnectés</h5>
+                        <p style="font-size: 0.8em; color: #888;" data-i18n="web.hint_missing_media">Si vous avez changé d'ordinateur ou déplacé des dossiers, utilisez l'outil de relocalisation depuis la ligne du fichier brisé (icône loupe rouge) dans la vue Fichiers Locaux.</p>
                     </div>
                 </div>
             </div>
@@ -2456,13 +2441,289 @@
         </footer>
     </dialog>
 
+    <!-- MISSING FILE MODAL -->
+    <dialog id="modal-missing-file" class="modern-modal" style="width: 480px; border: 1px solid #c0392b; background: #1a1a1a;">
+        <div class="modal-header" style="background: #c0392b; color: white;">
+            <h3 style="margin:0; font-size: 1.1em;"><i class="ph ph-warning-circle"></i> <span data-i18n="web.modal_relocate_results_title">Fichier Manquant</span></h3>
+            <button onclick="document.getElementById('modal-missing-file').close()" class="btn-close">×</button>
+        </div>
+        
+        <!-- STEP 1: SEARCH -->
+        <div id="missing-file-step-1" class="modal-body" style="padding: 25px; text-align: center;">
+            <i class="ph ph-magnifying-glass" style="font-size: 4rem; color: #c0392b; margin-bottom: 20px; display: block;"></i>
+            <p style="font-weight: bold; font-size: 1.1em; color: #fff; margin-bottom: 10px;" id="missing-file-name">Nom du fichier</p>
+            <p style="color: #bbb; font-size: 0.9em; line-height: 1.5; margin-bottom: 25px;" data-i18n="web.hint_missing_media">
+                Ce fichier ne se trouve plus à son emplacement d'origine. 
+                S'il a été déplacé dans le dossier Medias de l'application, nous pouvons le retrouver automatiquement.
+            </p>
+            
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button class="btn-primary" id="btn-smart-relocate" onclick="executeSmartRelocate()" style="height: 45px; font-weight: bold; background: #c0392b;">
+                    <i class="ph ph-lightning"></i> <span data-i18n="web.btn_smart_import">Recherche Intelligente</span>
+                </button>
+                <button class="btn-secondary" onclick="executeManualRelocate()" style="height: 45px;">
+                    <i class="ph ph-folder-open"></i> <span data-i18n="web.btn_add_folder">Choisir l'emplacement...</span>
+                </button>
+            </div>
+            <div class="modal-footer" style="background: transparent; justify-content: center; padding-top: 20px;">
+                <button class="btn-text" onclick="document.getElementById('modal-missing-file').close()" data-i18n="gui.btn_cancel">Plus tard</button>
+            </div>
+        </div>
+
+        <!-- STEP 2: ACTION CHOICE (Hidden by default) -->
+        <div id="missing-file-step-2" class="modal-body" style="padding: 25px; text-align: center; display: none;">
+            <i class="ph ph-check-circle" style="font-size: 4rem; color: #27ae60; margin-bottom: 20px; display: block;"></i>
+            <p style="font-weight: bold; font-size: 1.1em; color: #fff; margin-bottom: 5px;" data-i18n="web.modal_relocate_results_title">Fichier trouvé !</p>
+            <div style="background: #111; padding: 10px; border-radius: 5px; margin-bottom: 20px; border: 1px dashed #444;">
+                <span style="font-size: 0.8em; color: #888; display: block; margin-bottom: 5px;" data-i18n="web.lbl_found_at">Trouvé à :</span>
+                <span id="missing-file-found-path" style="font-size: 0.85em; color: #27ae60; word-break: break-all; line-height: 1.4;">C:\...</span>
+            </div>
+
+            <p style="color: #bbb; font-size: 0.9em; margin-bottom: 20px;" data-i18n="web.msg_relocate_choice">Que souhaitez-vous faire ?</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button class="btn-primary" onclick="applyRelocateAction('copy')" style="height: 40px; background: #27ae60; border-color: #27ae60;">
+                    <i class="ph ph-copy"></i> <span data-i18n="web.btn_relocate_copy">Copier vers Medias (Sûr)</span>
+                </button>
+                <button class="btn-secondary" onclick="applyRelocateAction('move')" style="height: 40px;">
+                    <i class="ph ph-arrows-out-cardinal"></i> <span data-i18n="web.btn_relocate_move">Déplacer vers Medias (Propre)</span>
+                </button>
+                <button class="btn-text" onclick="applyRelocateAction('link')" style="height: 40px; color: #aaa; text-decoration: underline;">
+                    <i class="ph ph-link"></i> <span data-i18n="web.btn_relocate_link">Lier uniquement (MàJ chemin)</span>
+                </button>
+            </div>
+
+            <div class="modal-footer" style="background: transparent; justify-content: center; padding-top: 20px;">
+                <button class="btn-secondary" onclick="resetRelocateModal()" style="height: 35px; width: 100%;">
+                    <i class="ph ph-arrow-left"></i> <span data-i18n="web.btn_back_search">Retour</span>
+                </button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- MODAL: BULK RELOCATE -->
+    <dialog id="modal-relocate-bulk" class="modal-advanced">
+        <div class="modal-header">
+            <h2 data-i18n="web.title_bulk_relocate">Réparation de la Bibliothèque</h2>
+            <button class="btn-close" onclick="closeBulkRelocateModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <p data-i18n="web.desc_bulk_relocate" style="color:#888; font-size:0.9em; margin-bottom:15px;">Sélectionnez les médias à réparer et choisissez une méthode de recherche.</p>
+            
+            <div class="bulk-tools" style="background:rgba(255,255,255,0.03); padding:15px; border-radius:8px; border:1px solid #333; margin-bottom:20px; display:flex; flex-direction:column; gap:15px;">
+                <!-- SECTION 1: SOURCE (SEARCH) -->
+                <div style="display:flex; flex-direction:column; gap:5px;">
+                    <label style="font-size:0.8em; color:#ff9800; font-weight:bold;">1. SOURCE : Où chercher les fichiers ?</label>
+                    <div style="display:flex; gap:8px;">
+                        <select id="bulk-source-select" style="flex:1; background:#252525; color:white; border:1px solid #444; padding:8px; border-radius:4px;">
+                            <option value="AUTO" data-i18n="web.opt_auto_folders_search">-- Dossiers favoris (Auto) --</option>
+                        </select>
+                        <button class="btn-secondary" onclick="openNativeFolderPicker('source')" title="Parcourir..." style="padding:0 12px;">
+                            <i class="ph ph-folder-open"></i>
+                        </button>
+                        <button class="btn-primary" onclick="startBulkFolderScan()" style="background:#ff9800; color:black; height:36px; padding:0 15px; font-weight:bold;">
+                            <i class="ph ph-magnifying-glass"></i> <span data-i18n="web.btn_scan">Scanner</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SECTION 2: ACTION & DESTINATION -->
+                <div style="display:flex; gap:15px; align-items:flex-end;">
+                    <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+                        <label style="font-size:0.8em; color:#aaa; font-weight:bold;">2. ACTION :</label>
+                        <select id="bulk-action-select" onchange="updateBulkDestState()" style="background:#252525; color:white; border:1px solid #444; padding:8px; border-radius:4px;">
+                            <option value="link" data-i18n="web.opt_link">Lier uniquement (Destination grisée)</option>
+                            <option value="copy" data-i18n="web.opt_copy">Copier vers destination</option>
+                            <option value="move" data-i18n="web.opt_move">Déplacer vers destination</option>
+                        </select>
+                    </div>
+
+                    <div style="flex:2; display:flex; flex-direction:column; gap:5px;">
+                        <label id="lbl-bulk-dest" style="font-size:0.8em; color:#888; font-weight:bold;">3. DESTINATION : Où ranger les fichiers ?</label>
+                        <div style="display:flex; gap:8px;">
+                            <select id="bulk-dest-select" disabled style="flex:1; background:rgba(0,0,0,0.2); color:#666; border:1px solid #333; padding:8px; border-radius:4px;">
+                                <option value="AUTO" data-i18n="web.opt_auto_folders_dest">-- Auto-routage par type (Recommandé) --</option>
+                            </select>
+                            <button id="btn-browse-dest" disabled class="btn-secondary" onclick="openNativeFolderPicker('dest')" style="padding:0 12px; opacity:0.5;">
+                                <i class="ph ph-folder-open"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn-primary" onclick="applyBulkRelocation()" style="width:100%; height:40px; background:#03dac6; color:black; font-weight:bold; margin-top:5px;">
+                    <i class="ph ph-check-circle"></i> <span data-i18n="web.btn_apply_changes">Appliquer les réparations</span>
+                </button>
+            </div>
+
+            <div class="bulk-list-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; font-size:0.85em; color:#aaa;">
+                <div>
+                   <input type="checkbox" id="bulk-select-all" onchange="toggleBulkSelectAll(this.checked)">
+                   <label for="bulk-select-all" data-i18n="web.lbl_select_all" style="cursor:pointer;">Tout sélectionner</label>
+                </div>
+                <span id="bulk-count-status">0 / 0 sélectionné(s)</span>
+            </div>
+
+            <div id="bulk-items-list" class="bulk-items-list" style="max-height:300px; overflow-y:auto; border:1px solid #333; border-radius:4px; background:#1a1a1a;">
+                <!-- JS Generated items -->
+            </div>
+
+            <div id="bulk-progress-container" style="display:none; margin-top:20px;">
+                <div style="display:flex; justify-content:space-between; font-size:0.85em; margin-bottom:5px;">
+                    <span id="bulk-progress-text">Traitement...</span>
+                    <span id="bulk-progress-percent">0%</span>
+                </div>
+                <div class="progress-bar-bg" style="height:8px; background:#333; border-radius:4px; overflow:hidden;">
+                    <div id="bulk-progress-fill" style="height:100%; width:0%; background:var(--accent); transition:width 0.2s;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:15px;">
+            <button class="btn-secondary" onclick="closeBulkRelocateModal()" data-i18n="web.btn_close">Fermer</button>
+        </div>
+    </dialog>
+    
+    <!-- LIBRARY MANAGER MODAL (V40) -->
+    <dialog id="modal-library-manager" class="modal-advanced">
+        <div class="modal-header">
+            <h3 data-i18n="web.title_library_manager">Gestionnaire de Bibliothèque</h3>
+            <button onclick="closeLibraryManagerModal()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body" style="padding:15px; display:flex; flex-direction:column; gap:15px;">
+            <div style="display:flex; gap:15px; align-items:flex-end;">
+                <div style="flex:1;">
+                    <label style="font-size:0.8em; color:#aaa;" data-i18n="web.lbl_search">Recherche (Artiste, Titre...)</label>
+                    <input type="text" id="lib-manager-search" onkeyup="renderLibraryManagerItems()" placeholder="..." style="width:100%; background:#222; border:1px solid #444; color:white; padding:8px; border-radius:4px;">
+                </div>
+                <div style="flex:1;">
+                    <label style="font-size:0.8em; color:#aaa;" data-i18n="web.lbl_action_to_apply">Action :</label>
+                    <select id="lib-manager-action-select" onchange="updateLibManagerDestState()" style="width:100%; background:#222; border:1px solid #444; color:white; padding:8px; border-radius:4px;">
+                        <option value="copy" data-i18n="web.opt_copy">Copier vers dossier</option>
+                        <option value="move" data-i18n="web.opt_move">Déplacer vers dossier</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="background:#222; padding:12px; border-radius:8px; border:1px solid #333;">
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div>
+                        <label style="font-size:0.8em; color:#aaa; display:block; margin-bottom:5px;" data-i18n="web.lbl_bulk_target">Dossier de destination :</label>
+                        <div style="display:flex; gap:8px;">
+                            <select id="lib-manager-dest-select" style="flex:1; background:#111; border:1px solid #444; color:white; border-radius:4px; padding:8px;">
+                                <option value="AUTO" data-i18n="web.opt_auto_artist_dest">-- Auto-routage par Artiste --</option>
+                            </select>
+                            <button id="btn-lib-browse-dest" class="btn-secondary" onclick="openNativeFolderPicker('lib-dest')" style="padding:0 12px;">
+                                <i class="ph ph-folder-open"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn-primary" onclick="applyLibraryManagerActions()" style="width:100%; height:40px; background:#03dac6; color:black; font-weight:bold; margin-top:15px;">
+                    <i class="ph ph-check-circle"></i> <span data-i18n="web.btn_apply_actions">Appliquer les actions</span>
+                </button>
+            </div>
+
+            <div class="bulk-list-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px; font-size:0.85em; color:#aaa;">
+                <div>
+                   <input type="checkbox" id="lib-manager-select-all" onchange="toggleLibManagerSelectAll(this.checked)">
+                   <label for="lib-manager-select-all" data-i18n="web.lbl_select_all" style="cursor:pointer;">Tout sélectionner</label>
+                </div>
+                <span id="lib-manager-count-status">0 / 0 sélectionné(s)</span>
+            </div>
+
+            <div id="lib-manager-items-list" class="bulk-items-list" style="flex:1; max-height:350px; min-height:200px; overflow-y:auto; border:1px solid #333; border-radius:4px; background:#1a1a1a;">
+                <!-- JS Generated items -->
+            </div>
+
+            <div id="lib-manager-progress-container" style="display:none; margin-top:10px;">
+                <div style="display:flex; justify-content:space-between; font-size:0.85em; margin-bottom:5px;">
+                    <span id="lib-manager-progress-text">Traitement...</span>
+                    <span id="lib-manager-progress-percent">0%</span>
+                </div>
+                <div class="progress-bar-bg" style="height:8px; background:#333; border-radius:4px; overflow:hidden;">
+                    <div id="lib-manager-progress-fill" style="height:100%; width:0%; background:var(--accent); transition:width 0.2s;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:15px;">
+            <button class="btn-secondary" onclick="closeLibraryManagerModal()" data-i18n="web.btn_close">Fermer</button>
+        </div>
+    </dialog>
+
+    <!-- MODAL: RELOCATE CONFIRMATION (V47) -->
+    <dialog id="modal-relocate-confirm" class="modern-modal" style="width: 450px; border: 1px solid #444; background: #1a1a1a;">
+        <div id="relocate-confirm-header" class="modal-header" style="background: #2980b9; color: white;">
+            <h3 style="margin:0; font-size: 1.1em;"><i class="ph ph-question"></i> <span id="relocate-confirm-title">Confirmation</span></h3>
+            <button onclick="document.getElementById('modal-relocate-confirm').close()" class="btn-close">×</button>
+        </div>
+        <div class="modal-body" style="padding: 20px;">
+            <p style="color: #bbb; font-size: 0.92em; margin-bottom: 20px; line-height: 1.4;" data-i18n="web.lbl_confirm_relocate_desc">Vous êtes sur le point d'effectuer une action physique sur ce fichier.</p>
+            
+            <div style="background: #111; padding: 12px; border-radius: 6px; border: 1px solid #333; display: flex; flex-direction: column; gap: 10px;">
+                <div>
+                    <span style="font-size: 0.75em; color: #666; text-transform: uppercase; font-weight: bold;" data-i18n="web.lbl_source_file">Fichier Source</span>
+                    <div id="relocate-confirm-source" style="font-size: 0.85em; color: #eee; word-break: break-all; margin-top: 4px; font-family: monospace;">-</div>
+                </div>
+                <div style="border-top:1px solid #222; padding-top:10px;">
+                    <span style="font-size: 0.75em; color: #666; text-transform: uppercase; font-weight: bold;" data-i18n="web.lbl_target_folder">Destination</span>
+                    <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+                        <select id="relocate-confirm-dest-select" style="flex:1; background:#252525; color:var(--accent); border:1px solid #444; padding:6px; border-radius:4px; font-size:0.9em; font-weight:bold;">
+                            <!-- Populated dynamically -->
+                        </select>
+                        <button class="btn-secondary" onclick="openNativeFolderPicker('confirm-dest')" style="padding:0 10px; height:32px; flex-shrink:0;" title="Parcourir...">
+                            <i class="ph ph-folder-open" style="font-size:1.2em;"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ARTIST ASSISTANT (V49) -->
+            <div id="relocate-confirm-artist-assistant" style="margin-top: 15px; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 6px; border: 1px solid #444;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <input type="checkbox" id="relocate-confirm-use-artist-chk" style="width: 18px; height: 18px; cursor: pointer;">
+                    <label for="relocate-confirm-use-artist-chk" style="cursor: pointer; font-size: 0.9em; font-weight: bold;" data-i18n="web.chk_create_artist_folder">Créer un sous-dossier Artiste</label>
+                </div>
+                
+                <div id="relocate-confirm-artist-field" style="display: flex; flex-direction: column; gap: 5px; padding-left: 28px;">
+                    <label style="font-size: 0.75em; color: #888;" data-i18n="web.lbl_artist_name">Nom de l'Artiste</label>
+                    <input type="text" id="relocate-confirm-artist-input" style="background: #111; color: white; border: 1px solid #444; padding: 6px 10px; border-radius: 4px; font-size: 0.9em;" placeholder="...">
+                    <div id="relocate-confirm-artist-error" style="color: #ff9800; font-size: 0.75em; display: none; align-items: center; gap: 5px; margin-top: 4px;">
+                        <i class="ph ph-warning-circle" style="font-size: 1.1em;"></i>
+                        <span id="relocate-confirm-artist-msg">Info: Ce nom servira au routage du fichier.</span>
+                    </div>
+
+                    <!-- MATCH SUGGESTION (V50) -->
+                    <div id="relocate-confirm-artist-match-zone" style="margin-top: 10px; display: none; padding: 10px; background: rgba(76, 175, 80, 0.1); border: 1px dashed rgba(76, 175, 80, 0.3); border-radius: 6px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <i class="ph ph-check-circle-fill" style="color: #4caf50; font-size: 1.5em;"></i>
+                            <div style="flex:1;">
+                                <div style="font-size: 0.85em; font-weight: bold; color: #4caf50;">Dossier existant trouvé !</div>
+                                <div id="relocate-confirm-match-path" style="font-size: 0.75em; color: #aaa; margin-top: 2px; word-break: break-all;">-</div>
+                            </div>
+                            <button id="btn-use-detected-folder" class="btn-secondary" style="height: 28px; font-size: 0.8em; padding: 0 10px; background: rgba(76, 175, 80, 0.2); border-color: #4caf50; color: white; white-space: nowrap;">
+                                Utiliser
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer" style="padding: 15px 20px; background: #222; border-top: 1px solid #333; display: flex; justify-content: flex-end; gap: 12px;">
+            <button class="btn-text" onclick="document.getElementById('modal-relocate-confirm').close()" data-i18n="web.btn_cancel">Annuler</button>
+            <button id="btn-relocate-confirm-final" class="btn-primary" onclick="confirmRelocateUnitary()" style="padding: 0 20px; height: 36px; font-weight: bold;">
+                <i class="ph ph-check"></i> <span data-i18n="web.btn_confirm_action">Confirmer l'Action</span>
+            </button>
+        </div>
+    </dialog>
+
     <!-- SCRIPTS -->
     <script src="lib/pitch_shifter.js?v=2"></script>
     <script src="fretboard.js?v=1"></script>
     <script src="js/metronome.js?v=2"></script>
     <script src="js/ui_metronome.js?v=2"></script>
     <script src="js/drums.js?v=7"></script>
-    <script src="app.js?v=5"></script>
+    <script src="app.js?v=6"></script>
     <div id="sidebar-hover-trigger"></div>
 </body>
 
