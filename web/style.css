@@ -40,14 +40,40 @@ header {
     letter-spacing: 2px;
 }
 
-.status-dot {
-    color: red;
-    font-size: 20px;
-    margin-right: 10px;
-}
-
 .status-dot.connected {
     color: var(--success);
+}
+
+/* INTERCONNECTION */
+#header-interconnection-links {
+    display: flex;
+    gap: 8px;
+    margin-right: 15px;
+    align-items: center;
+    background: rgba(255,255,255,0.05);
+    padding: 4px 8px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+#header-interconnection-links:empty {
+    display: none;
+}
+
+.btn-icon-small {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+}
+
+.btn-icon-small:hover {
+    transform: scale(1.2);
 }
 
 /* COCKPIT GRID */

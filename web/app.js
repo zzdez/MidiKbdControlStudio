@@ -99,6 +99,11 @@ let currentCues = [];
 let pendingCueTime = null;
 let lastPlayedCueId = null;
 
+// --- WEB LINKS ---
+let webLinks = [];
+let currentWebLinkIndex = -1;
+let currentWebLinkTrackList = [];
+
 // --- GLOBAL DEVICE STATUS ---
 let currentDeviceName = "Aucun";
 let currentConnectionMode = "MIDO";
@@ -474,6 +479,8 @@ function connectVideoWebSocket() {
     websocket.onopen = () => {
         document.getElementById("connection-status").classList.add("connected");
         loadSetlist();
+        loadLocalFiles(); // Load local early for interconnection
+        loadWebLinks();  // Load web links early for interconnection
         loadApps();
         checkMissingItems(); // Check for orphans on startup
     };
@@ -678,15 +685,19 @@ function switchView(viewName) {
     document.getElementById("tab-library").classList.toggle("active", viewName === "library");
     document.getElementById("tab-apps").classList.toggle("active", viewName === "apps");
     document.getElementById("tab-local").classList.toggle("active", viewName === "local");
+    document.getElementById("tab-web-links").classList.toggle("active", viewName === "web-links");
 
     // Containers
     document.getElementById("view-library").style.display = viewName === "library" ? "block" : "none";
     document.getElementById("view-apps").style.display = viewName === "apps" ? "block" : "none";
     document.getElementById("view-local").style.display = viewName === "local" ? "block" : "none";
+    document.getElementById("view-web-links").style.display = viewName === "web-links" ? "block" : "none";
 
     if (viewName === "local") {
         loadLocalFiles();
         checkMissingItems();
+    } else if (viewName === "web-links") {
+        loadWebLinks();
     }
 }
 
@@ -711,6 +722,367 @@ async function loadSetlist() {
     }
     renderSetlist(currentTrackList);
     checkMissingItems(); // Sync bulk banner
+}
+
+// --- WEB LINKS CRUD ---
+async function loadWebLinks() {
+    try {
+        const res = await fetch("/api/web_links");
+        if (res.ok) {
+            const rawList = await res.json();
+            webLinks = rawList.map((link, idx) => ({ ...link, originalIndex: idx }));
+            currentWebLinkTrackList = [...webLinks];
+        }
+    } catch (e) { console.error("Web Links load error:", e); }
+    renderWebLinks();
+}
+
+function renderWebLinks() {
+    const tbody = document.getElementById("web-links-body");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    const fArtist = document.getElementById("filter-web-artist").value.toLowerCase();
+    const fTitle = document.getElementById("filter-web-title").value.toLowerCase();
+
+    const filtered = currentWebLinkTrackList.filter(l => {
+        const matchArtist = (l.artist || "").toLowerCase().includes(fArtist);
+        const matchTitle = (l.title || "").toLowerCase().includes(fTitle);
+        return matchArtist && matchTitle;
+    });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:gray;">${t("web.msg_no_result")}</td></tr>`;
+        return;
+    }
+
+    filtered.forEach(link => {
+        const realIndex = link.originalIndex;
+        const tr = document.createElement("tr");
+        
+        let iconClass = "ph ph-globe";
+        if (link.type === "songsterr") iconClass = "ph ph-music-note";
+        if (link.type === "moises") iconClass = "ph ph-scissors";
+        if (link.type === "spotify") iconClass = "ph ph-spotify-logo";
+        if (link.type === "lesson") iconClass = "ph ph-graduation-cap";
+
+        tr.innerHTML = `
+            <td style="text-align:center;"><i class="${iconClass}" style="font-size:1.2em; color:var(--accent);"></i></td>
+            <td>${link.artist || ""}</td>
+            <td style="cursor:pointer; color:var(--accent);" onclick="playWebLink(${realIndex})">${link.title || link.url}</td>
+            <td style="text-align:right;">
+                <button class="btn-action" onclick="openWebLinkModal(${realIndex})" title="${t("web.btn_edit")}">✎</button>
+                <button class="btn-action" onclick="deleteWebLink(${realIndex})" style="color:#cf6679;" title="${t("web.btn_delete")}">×</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function openWebLinkModal(index = -1) {
+    currentWebLinkIndex = index;
+    const modal = document.getElementById("modal-web-link");
+    const titleEl = document.getElementById("web-link-modal-title");
+
+    // Reset Cover
+    document.getElementById("web-link-art-img").src = "";
+    document.getElementById("web-link-art-img").style.display = "none";
+    document.getElementById("web-link-art-placeholder").style.display = "flex";
+    document.getElementById("btn-web-link-delete-cover").style.display = "none";
+    window.currentWebLinkCover = null;
+
+    if (index === -1) {
+        titleEl.innerText = t("web.modal_web_link_title_add", "Ajouter un Lien Web");
+        document.getElementById("web-link-title").value = "";
+        document.getElementById("web-link-artist").value = "";
+        document.getElementById("web-link-url").value = "";
+        document.getElementById("web-link-type").value = "other";
+        document.getElementById("web-link-category").value = "";
+        document.getElementById("web-link-genre").value = "";
+        document.getElementById("web-link-notes").value = "";
+        
+        // New fields
+        document.getElementById("web-link-vol").value = 100;
+        document.getElementById("web-link-volume-percent").innerText = "100%";
+        document.getElementById("web-link-bpm").value = "";
+        document.getElementById("web-link-key").value = "";
+        document.getElementById("web-link-scale").value = "";
+        document.getElementById("web-link-tuning").value = "standard";
+    } else {
+        const link = webLinks[index];
+        titleEl.innerText = t("web.modal_web_link_title_edit", "Modifier le Lien Web");
+        document.getElementById("web-link-title").value = link.title || "";
+        document.getElementById("web-link-artist").value = link.artist || "";
+        document.getElementById("web-link-url").value = link.url || "";
+        document.getElementById("web-link-type").value = link.type || "other";
+        document.getElementById("web-link-category").value = link.category || "";
+        document.getElementById("web-link-genre").value = link.genre || "";
+        document.getElementById("web-link-notes").value = link.notes || "";
+        
+        // New fields
+        document.getElementById("web-link-vol").value = link.volume !== undefined ? link.volume * 100 : 100;
+        document.getElementById("web-link-volume-percent").innerText = (link.volume !== undefined ? Math.round(link.volume * 100) : 100) + "%";
+        document.getElementById("web-link-bpm").value = link.bpm || "";
+        document.getElementById("web-link-key").value = link.key || "";
+        document.getElementById("web-link-scale").value = link.scale || "";
+        document.getElementById("web-link-tuning").value = link.tuning || "standard";
+
+        // Cover
+        if (link.cover) {
+            window.currentWebLinkCover = link.cover;
+            const img = document.getElementById("web-link-art-img");
+            img.src = link.cover.startsWith('http') ? link.cover : `/api/cover?path=${encodeURIComponent(link.cover)}&t=${Date.now()}`;
+            img.style.display = "block";
+            document.getElementById("web-link-art-placeholder").style.display = "none";
+            document.getElementById("btn-web-link-delete-cover").style.display = "flex";
+        }
+    }
+    modal.showModal();
+}
+
+function closeWebLinkModal() {
+    document.getElementById("modal-web-link").close();
+}
+
+async function handleWebLinkCover(input) {
+    if (input.files && input.files[0]) {
+        const formData = new FormData();
+        formData.append('file', input.files[0]);
+        // Reusing standard cover upload endpoint if possible, or we might need a specific one.
+        // Usually /api/upload_cover works for any media if we don't strictly bind it to a track index during upload.
+        // Let's assume we can upload a generic cover.
+        try {
+            const res = await fetch("/api/upload_cover_generic", {
+                method: "POST",
+                body: formData
+            });
+            if (res.ok) {
+                const data = await res.json();
+                window.currentWebLinkCover = data.path;
+                const img = document.getElementById("web-link-art-img");
+                img.src = `/api/cover?path=${encodeURIComponent(data.path)}&t=${Date.now()}`;
+                img.style.display = "block";
+                document.getElementById("web-link-art-placeholder").style.display = "none";
+                document.getElementById("btn-web-link-delete-cover").style.display = "flex";
+            }
+        } catch (e) { console.error("Cover upload error:", e); }
+    }
+}
+
+function removeWebLinkCover() {
+    window.currentWebLinkCover = null;
+    document.getElementById("web-link-art-img").src = "";
+    document.getElementById("web-link-art-img").style.display = "none";
+    document.getElementById("web-link-art-placeholder").style.display = "flex";
+    document.getElementById("btn-web-link-delete-cover").style.display = "none";
+}
+
+async function saveWebLink() {
+    const payload = {
+        title: document.getElementById("web-link-title").value,
+        artist: document.getElementById("web-link-artist").value,
+        url: document.getElementById("web-link-url").value,
+        type: document.getElementById("web-link-type").value,
+        category: document.getElementById("web-link-category").value,
+        genre: document.getElementById("web-link-genre").value,
+        notes: document.getElementById("web-link-notes").value,
+        // New fields
+        volume: document.getElementById("web-link-vol").value / 100,
+        bpm: document.getElementById("web-link-bpm").value ? parseInt(document.getElementById("web-link-bpm").value) : null,
+        key: document.getElementById("web-link-key").value,
+        scale: document.getElementById("web-link-scale").value,
+        tuning: document.getElementById("web-link-tuning").value,
+        cover: window.currentWebLinkCover,
+        linked_ids: (currentWebLinkIndex !== -1 && webLinks[currentWebLinkIndex]) ? (webLinks[currentWebLinkIndex].linked_ids || []) : []
+    };
+
+    const method = currentWebLinkIndex === -1 ? "POST" : "PUT";
+    const url = currentWebLinkIndex === -1 ? "/api/web_links" : `/api/web_links/${currentWebLinkIndex}`;
+
+    try {
+        const res = await fetch(url, {
+            method: method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            closeWebLinkModal();
+            loadWebLinks();
+        }
+    } catch (e) { console.error("Save Web Link error:", e); }
+}
+
+async function deleteWebLink(index) {
+    if (!confirm(t("web.msg_confirm_delete", "Supprimer ce lien ?"))) return;
+    try {
+        await fetch(`/api/web_links/${index}`, { method: "DELETE" });
+        loadWebLinks();
+    } catch (e) { console.error("Delete Web Link error:", e); }
+}
+
+function playWebLink(index) {
+    const link = webLinks[index];
+    if (!link) return;
+    
+    // Open in browser
+    fetch(`/api/open_external?url=${encodeURIComponent(link.url)}`);
+    
+    // Update active highlight (visual only)
+    window.currentSource = 'web_links';
+    window.currentPlayingIndex = index;
+    renderWebLinks();
+    
+    // Trigger Interconnection UI
+    updateInterconnectionUI(link);
+}
+
+// --- SORT WEB LINKS ---
+let currentWebSortKey = 'artist';
+let currentSortOrderWeb = 'asc';
+
+function sortWebLinks(key) {
+    if (currentWebSortKey === key) {
+        currentSortOrderWeb = (currentSortOrderWeb === 'asc' ? 'desc' : 'asc');
+    } else {
+        currentWebSortKey = key;
+        currentSortOrderWeb = 'asc';
+    }
+
+    currentWebLinkTrackList.sort((a, b) => {
+        let valA = (a[key] || "").toString().toLowerCase();
+        let valB = (b[key] || "").toString().toLowerCase();
+        
+        if (valA < valB) return currentSortOrderWeb === 'asc' ? -1 : 1;
+        if (valA > valB) return currentSortOrderWeb === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    renderWebLinks();
+}
+
+// --- INTERCONNECTION ENGINE ---
+function updateInterconnectionUI(activeItem) {
+    const container = document.getElementById("header-interconnection-links");
+    if (!container) return;
+    container.innerHTML = "";
+
+    if (!activeItem) return;
+
+    const matches = {
+        youtube: [],
+        local: [],
+        songsterr: [],
+        moises: [],
+        spotify: [],
+        lesson: [],
+        other: []
+    };
+
+    const currentUID = `${window.currentSource.substring(0, 3)}:${window.currentPlayingIndex}`;
+
+    // 0. Manual Links (Priority)
+    if (activeItem.linked_ids && activeItem.linked_ids.length > 0) {
+        activeItem.linked_ids.forEach(uid => {
+            const item = getLinkedItem(uid);
+            if (!item) return;
+            
+            // Determine category
+            if (uid.startsWith('set')) matches.youtube.push(item);
+            else if (uid.startsWith('lib')) matches.local.push(item);
+            else if (uid.startsWith('web')) {
+                const type = item.type || 'other';
+                if (matches[type]) matches[type].push(item);
+                else matches.other.push(item);
+            }
+        });
+    }
+
+    // 1. Auto Search (if no manual link of the same type exists ?) 
+    // Actually, we can mix them.
+    const artist = (activeItem.artist || "").toLowerCase().trim();
+    const title = (activeItem.title || "").toLowerCase().trim();
+
+    if (artist || title) {
+        // Search in YouTube Setlist
+        currentTrackList.forEach((t, idx) => {
+            const uid = `set:${idx}`;
+            if (activeItem.linked_ids && activeItem.linked_ids.includes(uid)) return; // Already added
+            if (isMatch(t, artist, title) && idx !== (window.currentSource === 'setlist' ? window.currentPlayingIndex : -1)) {
+                matches.youtube.push(t);
+            }
+        });
+
+        // Search in Local Files
+        if (typeof localFiles !== 'undefined') {
+            localFiles.forEach((f, idx) => {
+                const uid = `lib:${idx}`;
+                if (activeItem.linked_ids && activeItem.linked_ids.includes(uid)) return; // Already added
+                if (isMatch(f, artist, title) && idx !== (window.currentSource === 'library' ? window.currentPlayingIndex : -1)) {
+                    matches.local.push({ ...f, originalIndex: idx });
+                }
+            });
+        }
+
+        // Search in Web Links
+        if (typeof webLinks !== 'undefined') {
+            webLinks.forEach((w, idx) => {
+                const uid = `web:${idx}`;
+                if (activeItem.linked_ids && activeItem.linked_ids.includes(uid)) return; // Already added
+                if (isMatch(w, artist, title) && idx !== (window.currentSource === 'web_links' ? window.currentPlayingIndex : -1)) {
+                    const type = w.type || 'other';
+                    if (matches[type]) matches[type].push({ ...w, originalIndex: idx });
+                    else matches.other.push({ ...w, originalIndex: idx });
+                }
+            });
+        }
+    }
+
+    // Render Icons
+    const renderIcon = (type, list, iconClass, color, titlePrefix) => {
+        if (list.length > 0) {
+            const btn = document.createElement("button");
+            btn.className = "btn-icon-small";
+            btn.style.color = color;
+            btn.innerHTML = `<i class="${iconClass}"></i>`;
+            btn.title = `${titlePrefix} (${list.length} match${list.length > 1 ? 'es' : ''})`;
+            btn.onclick = () => {
+                // Determine action based on type
+                if (type === 'youtube') playTrackAt(list[0].originalIndex);
+                else if (type === 'local') playLocal(list[0].originalIndex);
+                else playWebLink(list[0].originalIndex);
+            };
+            container.appendChild(btn);
+        }
+    };
+
+    renderIcon('youtube', matches.youtube, 'ph ph-youtube-logo', '#ff0000', 'YouTube');
+    renderIcon('local', matches.local, 'ph ph-music-note', '#03dac6', 'Local');
+    renderIcon('songsterr', matches.songsterr, 'ph ph-guitar', '#f39c12', 'Songsterr');
+    renderIcon('moises', matches.moises, 'ph ph-scissors', '#9b59b6', 'Moises');
+    renderIcon('spotify', matches.spotify, 'ph ph-spotify-logo', '#1db954', 'Spotify');
+    renderIcon('lesson', matches.lesson, 'ph ph-graduation-cap', '#3498db', 'Lesson');
+}
+
+function isMatch(item, artist, title) {
+    const itemArtist = (item.artist || "").toLowerCase().trim();
+    const itemTitle = (item.title || "").toLowerCase().trim();
+
+    // Strategy 1: Artist AND Title match (robust)
+    if (artist && title && itemArtist.includes(artist) && itemTitle.includes(title)) return true;
+    
+    // Strategy 2: Exact Title match if artist is missing or doesn't match perfectly
+    if (title && itemTitle === title) return true;
+
+    return false;
+}
+
+function getLinkedItem(uid) {
+    const [type, idxStr] = uid.split(':');
+    const idx = parseInt(idxStr);
+    if (type === 'set') return currentTrackList.find(t => t.originalIndex === idx);
+    if (type === 'lib') return localFiles.find(f => f.originalIndex === idx);
+    if (type === 'web') return webLinks.find(w => w.originalIndex === idx);
+    return null;
 }
 
 function getIcon(url) {
@@ -1813,7 +2185,8 @@ async function saveItem() {
         subtitle_enabled: window.tempModalSubEnabled || false,
         subtitle_pos_y: 100 - parseInt(document.getElementById("edit-sub-pos").value || 20, 10),
         autoplay: document.getElementById("edit-autoplay").checked,
-        autoreplay: document.getElementById("edit-autoreplay").checked
+        autoreplay: document.getElementById("edit-autoreplay").checked,
+        linked_ids: (editingIndex !== null && currentTrackList[editingIndex]) ? (currentTrackList[editingIndex].linked_ids || []) : []
     };
 
     if (editingIndex !== null) {
@@ -2240,6 +2613,9 @@ function playTrack(track) {
 
     // Load loops AFTER player state is established
     loadLoopsForTrack(track);
+
+    // Update Interconnection UI
+    updateInterconnectionUI(track);
 }
 
 // --- HELPERS ---
@@ -2836,6 +3212,10 @@ function resetFilters(mode) {
         document.getElementById("filter-local-title").value = "";
         document.getElementById("filter-local-album").value = "";
         renderLocalFiles();
+    } else if (mode === 'web_links' || mode === 'web-links') {
+        document.getElementById("filter-web-artist").value = "";
+        document.getElementById("filter-web-title").value = "";
+        renderWebLinks();
     }
 }
 
@@ -3773,6 +4153,9 @@ async function playLocal(index) {
 
             updateLoopUI();
             renderLoopsUI();
+            
+            // Update Interconnection UI
+            updateInterconnectionUI(file);
         });
 
         window.multitrack.on('play', () => {
@@ -5172,7 +5555,8 @@ async function saveMultitrackItem() {
         cover_data: currentCoverData,
         volume: parseInt(document.getElementById("mt-modal-volume").value, 10) || 100,
         autoplay: document.getElementById("mt-autoplay").checked,
-        autoreplay: document.getElementById("mt-autoreplay").checked
+        autoreplay: document.getElementById("mt-autoreplay").checked,
+        linked_ids: (editingLocalIndex !== null && localFiles[editingLocalIndex]) ? (localFiles[editingLocalIndex].linked_ids || []) : []
     };
 
     const res = await fetch(`/api/local/${editingLocalIndex}`, {
@@ -5240,7 +5624,8 @@ async function saveLocalItem() {
         cover_data: currentCoverData,
         volume: parseInt(document.getElementById("edit-volume").value, 10) || 100,
         autoplay: document.getElementById("edit-autoplay").checked,
-        autoreplay: document.getElementById("edit-autoreplay").checked
+        autoreplay: document.getElementById("edit-autoreplay").checked,
+        linked_ids: (editingLocalIndex !== null && localFiles[editingLocalIndex]) ? (localFiles[editingLocalIndex].linked_ids || []) : []
     };
 
     const res = await fetch(`/api/local/${editingLocalIndex}`, {
@@ -8845,4 +9230,190 @@ async function applyLibraryManagerActions() {
     }
     
     renderLibraryManagerItems(); // Refresh modal view
+}
+
+// --- SMART MAPPING (MEDIA LINKER) ---
+let linkerSourceType = '';
+let linkerSourceItem = null;
+let currentEditingLinkedIds = [];
+
+function openMediaLinker(sourceType) {
+    linkerSourceType = sourceType;
+    // Identifier l'item en cours d'édition
+    if (sourceType === 'setlist') {
+        linkerSourceItem = currentTrackList.find(t => t.originalIndex === editingIndex);
+    } else if (sourceType === 'library') {
+        linkerSourceItem = localFiles[editingLocalIndex];
+    } else if (sourceType === 'web_links') {
+        linkerSourceItem = webLinks[currentWebLinkIndex];
+    }
+
+    if (!linkerSourceItem) return;
+
+    currentEditingLinkedIds = linkerSourceItem.linked_ids || [];
+    
+    // Reset search
+    document.getElementById("linker-search-input").value = "";
+    renderLinkerResults("");
+    renderExistingLinks();
+
+    document.getElementById("modal-media-linker").showModal();
+}
+
+function closeMediaLinkerModal() {
+    document.getElementById("modal-media-linker").close();
+}
+
+function renderLinkerResults(query) {
+    const list = document.getElementById("linker-results");
+    if (!list) return;
+    list.innerHTML = "";
+
+    const q = query.toLowerCase().trim();
+    const results = [];
+
+    const currentIdx = (linkerSourceType === 'setlist') ? editingIndex : (linkerSourceType === 'library' ? editingLocalIndex : currentWebLinkIndex);
+
+    // Search across dictionaries
+    // 1. YouTube
+    currentTrackList.forEach((item, idx) => {
+        if (linkerSourceType === 'setlist' && idx === currentIdx) return;
+        if (matchQuery(item, q)) results.push({ type: 'setlist', index: idx, item });
+    });
+
+    // 2. Local
+    localFiles.forEach((item, idx) => {
+        if (linkerSourceType === 'library' && idx === currentIdx) return;
+        if (matchQuery(item, q)) results.push({ type: 'library', index: idx, item });
+    });
+
+    // 3. Web Links
+    webLinks.forEach((item, idx) => {
+        if (linkerSourceType === 'web_links' && idx === currentIdx) return;
+        if (matchQuery(item, q)) results.push({ type: 'web_links', index: idx, item });
+    });
+
+    if (results.length === 0) {
+        let msg = q ? t('web.lbl_linker_no_results', 'Aucun résultat') : 'Commencez à taper pour rechercher...';
+        list.innerHTML = `<div style="text-align:center; padding:20px; color:#666;">${msg}</div>`;
+        return;
+    }
+
+    results.slice(0, 50).forEach(res => {
+        const div = document.createElement("div");
+        div.className = "linker-result-item";
+        div.style = "display:flex; align-items:center; gap:10px; padding:8px; background:rgba(255,255,255,0.05); border-radius:5px; cursor:pointer; transition:background 0.2s; margin-bottom:5px;";
+        div.onmouseover = () => div.style.background = "rgba(255,255,255,0.1)";
+        div.onmouseout = () => div.style.background = "rgba(255,255,255,0.05)";
+        
+        const typeIcon = getTypeIcon(res);
+        const uid = `${res.type.substring(0,3)}:${res.index}`;
+        const isLinked = currentEditingLinkedIds.includes(uid);
+
+        div.innerHTML = `
+            <i class="${typeIcon}" style="font-size:1.2em; color:var(--accent);"></i>
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${res.item.title || 'Sans titre'}</div>
+                <div style="font-size:0.85em; color:#888;">${res.item.artist || 'Artiste inconnu'}</div>
+            </div>
+            <button class="btn-secondary" style="padding:4px 8px; font-size:0.8em; border-color:${isLinked ? '#ff4444' : '#444'}; color:${isLinked ? '#ff4444' : '#fff'};"
+                onclick="toggleMediaLink('${res.type}', ${res.index})">
+                ${isLinked ? 'Détacher' : t('web.lbl_link_this', 'Lier')}
+            </button>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function matchQuery(item, q) {
+    if (!q) return false; // Show nothing if empty query? Or show all? The user might want to see all.
+    // Let's show all if q is empty for setlist/library? No, better search.
+    return (item.title || "").toLowerCase().includes(q) || (item.artist || "").toLowerCase().includes(q);
+}
+
+function getTypeIcon(res) {
+    if (res.type === 'setlist') return 'ph ph-youtube-logo';
+    if (res.type === 'library') return 'ph ph-file-audio';
+    
+    // Web Links
+    const type = res.item.type || 'other';
+    if (type === 'songsterr') return 'ph ph-guitar';
+    if (type === 'moises') return 'ph ph-scissors';
+    if (type === 'spotify') return 'ph ph-spotify-logo';
+    if (type === 'lesson') return 'ph ph-graduation-cap';
+    
+    const url = (res.item.url || "").toLowerCase();
+    if (url.includes("songsterr")) return 'ph ph-guitar';
+    if (url.includes("spotify")) return 'ph ph-spotify-logo';
+    if (url.includes("youtube") || url.includes("youtu.be")) return 'ph ph-youtube-logo';
+    
+    return 'ph ph-globe';
+}
+
+function renderExistingLinks() {
+    const container = document.getElementById("linker-existing-links");
+    if (!container) return;
+    container.innerHTML = "";
+
+    if (currentEditingLinkedIds.length === 0) {
+        container.innerHTML = `<span style="color:#555; font-size:0.9em;">Aucun lien manuel.</span>`;
+        return;
+    }
+
+    currentEditingLinkedIds.forEach(uid => {
+        const item = getLinkedItem(uid);
+        if (!item) return;
+
+        const prefix = uid.substring(0, 3).toUpperCase();
+        const [typeCode, idx] = uid.split(':');
+
+        const badge = document.createElement("div");
+        badge.style = "background:rgba(255,255,255,0.05); border:1px solid #444; padding:2px 8px; border-radius:12px; font-size:0.8em; display:flex; align-items:center; gap:5px;";
+        badge.innerHTML = `
+            <span style="font-weight:bold; color:var(--accent); font-size:0.7em;">${prefix}</span>
+            <span style="max-width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</span>
+            <span style="cursor:pointer; font-weight:bold; color:#ff4444; margin-left:5px;" onclick="toggleMediaLink('${typeCode === 'set' ? 'setlist' : (typeCode === 'lib' ? 'library' : 'web_links')}', ${idx})">×</span>
+        `;
+        container.appendChild(badge);
+    });
+}
+
+async function toggleMediaLink(targetType, targetIndex) {
+    const targetPrefix = targetType.substring(0, 3);
+    const targetUid = `${targetPrefix}:${targetIndex}`;
+    
+    const sourcePrefix = linkerSourceType.substring(0, 3);
+    const sourceIndex = (linkerSourceType === 'setlist') ? editingIndex : (linkerSourceType === 'library' ? editingLocalIndex : currentWebLinkIndex);
+    const sourceUid = `${sourcePrefix}:${sourceIndex}`;
+
+    // 1. Update source memory
+    if (currentEditingLinkedIds.includes(targetUid)) {
+        currentEditingLinkedIds = currentEditingLinkedIds.filter(id => id !== targetUid);
+    } else {
+        currentEditingLinkedIds.push(targetUid);
+    }
+    
+    // Update the item being edited directly
+    linkerSourceItem.linked_ids = currentEditingLinkedIds;
+
+    // 2. Update target (Backend call for immediate bidirectional link)
+    const isNowLinked = currentEditingLinkedIds.includes(targetUid);
+    try {
+        await fetch('/api/media/link_bidirectional', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source_type: linkerSourceType,
+                source_index: sourceIndex,
+                target_type: targetType,
+                target_index: targetIndex,
+                action: isNowLinked ? 'link' : 'unlink'
+            })
+        });
+    } catch (e) {
+        console.error("Bidirectional link error:", e);
+    }
+
+    renderLinkerResults(document.getElementById("linker-search-input").value);
+    renderExistingLinks();
 }

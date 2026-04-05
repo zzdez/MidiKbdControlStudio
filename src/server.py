@@ -43,6 +43,7 @@ download_service = DownloadService()
 SETLIST_FILE = os.path.join(get_data_dir(), "setlist.json")
 APPS_FILE = os.path.join(get_data_dir(), "apps.json")
 LOCAL_LIB_FILE = os.path.join(get_data_dir(), "local_lib.json")
+WEB_LINKS_FILE = os.path.join(get_data_dir(), "web_links.json")
 DRUM_SETTINGS_FILE = os.path.join(get_data_dir(), "drum_settings.json")
 
 app.add_middleware(
@@ -692,6 +693,85 @@ async def edit_setlist_item(index: int, item: Dict):
              raise HTTPException(status_code=404, detail="Index not found")
     except Exception as e:
         print(f"Edit Setlist Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- WEB LINKS ROUTES ---
+
+@app.get("/api/web_links")
+async def get_web_links():
+    if os.path.exists(WEB_LINKS_FILE):
+        try:
+            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+@app.post("/api/web_links")
+async def add_web_link(item: Dict):
+    try:
+        items = []
+        if os.path.exists(WEB_LINKS_FILE):
+            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+        
+        # Ensure default values
+        new_item = {
+            "title": item.get("title", "Sans titre"),
+            "artist": item.get("artist", ""),
+            "url": item.get("url", ""),
+            "type": item.get("type", "other"), # songsterr, moises, spotify, lesson, other
+            "category": item.get("category", "Général"),
+            "genre": item.get("genre", "Divers"),
+            "user_notes": item.get("user_notes", "")
+        }
+        
+        items.append(new_item)
+        with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=4)
+        return items
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/web_links/{index}")
+async def update_web_link(index: int, item: Dict):
+    try:
+        items = []
+        if os.path.exists(WEB_LINKS_FILE):
+            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+        
+        if 0 <= index < len(items):
+            # Partial update or full replace
+            curr = items[index]
+            curr["title"] = item.get("title", curr.get("title"))
+            curr["artist"] = item.get("artist", curr.get("artist"))
+            curr["url"] = item.get("url", curr.get("url"))
+            curr["type"] = item.get("type", curr.get("type"))
+            curr["category"] = item.get("category", curr.get("category"))
+            curr["genre"] = item.get("genre", curr.get("genre"))
+            curr["user_notes"] = item.get("user_notes", curr.get("user_notes"))
+            
+            with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+        return items
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/web_links/{index}")
+async def delete_web_link(index: int):
+    try:
+        items = []
+        if os.path.exists(WEB_LINKS_FILE):
+            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+        
+        if 0 <= index < len(items):
+            items.pop(index)
+            with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+        return items
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- APPS LAUNCHER ---
@@ -2584,6 +2664,81 @@ async def relocate_bulk(data: dict):
     main_msg = "" if status == "ok" else (errors[0] if errors else "Inconnu")
     return {"status": status, "success_count": success_count, "total": len(mappings), "errors": errors, "message": main_msg}
 
+@app.get("/api/web_links")
+async def get_web_links():
+    if os.path.exists(WEB_LINKS_FILE):
+        try:
+            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+@app.post("/api/web_links")
+async def add_web_link(item: Dict):
+    try:
+        links = []
+        if os.path.exists(WEB_LINKS_FILE):
+            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
+                links = json.load(f)
+        links.append(item)
+        with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
+            json.dump(links, f, indent=4)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/web_links/{index}")
+async def update_web_link(index: int, item: Dict):
+    try:
+        if os.path.exists(WEB_LINKS_FILE):
+            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
+                links = json.load(f)
+            if 0 <= index < len(links):
+                links[index] = item
+                with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(links, f, indent=4)
+                return {"status": "ok"}
+        raise HTTPException(status_code=404, detail="Link not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/web_links/{index}")
+async def delete_web_link_api(index: int):
+    try:
+        if os.path.exists(WEB_LINKS_FILE):
+            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
+                links = json.load(f)
+            if 0 <= index < len(links):
+                links.pop(index)
+                with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(links, f, indent=4)
+                return {"status": "ok"}
+        raise HTTPException(status_code=404, detail="Link not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/upload_cover_generic")
+async def upload_cover_generic(request: Request):
+    """Uploads a cover art image and returns its portable path."""
+    from fastapi import UploadFile, File
+    form = await request.form()
+    file = form.get("file")
+    if not file:
+        raise HTTPException(status_code=400, detail="No file")
+
+    filename = file.filename
+    # Destination in medias/covers/
+    dest_dir = os.path.join(get_data_dir(), "medias", "covers")
+    if not os.path.exists(dest_dir):
+        os.makedirs(dest_dir)
+
+    dest_path = os.path.join(dest_dir, filename)
+    with open(dest_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    return {"status": "ok", "path": to_portable_path(dest_path)}
+
 @app.get("/api/local/find_artist_folder")
 async def find_artist_folder(name: str):
     """
@@ -2619,6 +2774,65 @@ async def find_artist_folder(name: str):
             continue
             
     return {"status": "ok", "matches": matches}
+
+@app.post("/api/media/link_bidirectional")
+async def link_bidirectional(data: Dict):
+    """Etablit une liaison bidirectionnelle entre deux médias (YT, Local, Web)."""
+    try:
+        source_type = data.get("source_type") # 'setlist', 'library', 'web_links'
+        source_index = data.get("source_index")
+        target_type = data.get("target_type")
+        target_index = data.get("target_index")
+        action = data.get("action", "link")  # 'link' or 'unlink'
+
+        files = {
+            "setlist": YOUTUBE_LIB_FILE,
+            "library": LOCAL_LIB_FILE,
+            "web_links": WEB_LINKS_FILE
+        }
+
+        # Helper pour charger/sauvegarder
+        def get_db(t):
+            if os.path.exists(files[t]):
+                with open(files[t], "r", encoding="utf-8") as f:
+                    return json.load(f)
+            return []
+
+        def save_db(t, content):
+            with open(files[t], "w", encoding="utf-8") as f:
+                json.dump(content, f, indent=4)
+
+        db_s = get_db(source_type)
+        db_t = get_db(target_type)
+
+        if source_index < 0 or source_index >= len(db_s): return {"status": "error", "message": "Source out of range"}
+        if target_index < 0 or target_index >= len(db_t): return {"status": "error", "message": "Target out of range"}
+
+        s_uid = f"{source_type[:3]}:{source_index}"
+        t_uid = f"{target_type[:3]}:{target_index}"
+
+        # 1. Mise à jour Source
+        if "linked_ids" not in db_s[source_index]: db_s[source_index]["linked_ids"] = []
+        if action == "link":
+            if t_uid not in db_s[source_index]["linked_ids"]: db_s[source_index]["linked_ids"].append(t_uid)
+        else:
+            if t_uid in db_s[source_index]["linked_ids"]: db_s[source_index]["linked_ids"].remove(t_uid)
+        
+        # 2. Mise à jour Cible
+        if "linked_ids" not in db_t[target_index]: db_t[target_index]["linked_ids"] = []
+        if action == "link":
+            if s_uid not in db_t[target_index]["linked_ids"]: db_t[target_index]["linked_ids"].append(s_uid)
+        else:
+            if s_uid in db_t[target_index]["linked_ids"]: db_t[target_index]["linked_ids"].remove(s_uid)
+
+        save_db(source_type, db_s)
+        # Si même DB (ex: YT vers YT), on a déjà sauvé. Sinon, sauver la cible.
+        if source_type != target_type:
+            save_db(target_type, db_t)
+
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Static Files Logic
 if getattr(sys, 'frozen', False):
