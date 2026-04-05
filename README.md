@@ -85,12 +85,12 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
 *   **Persistance Sidecar JSON :**
     *   Toutes vos modifications (BPM, Tonalité Originale, Tonalité Média, Pitch, Notes) sont désormais sauvegardées dans un petit fichier `.json` à côté de vos médias locaux.
     *   Vos métadonnées vous suivent partout, même si vous déplacez vos dossiers.
-*   **Éditeur de Médias Harmonisé :**
-    *   Interface ultra-compacte et professionnelle, identique pour tous les types de médias (YouTube, Local, Multipiste).
-    *   **Ligne Technique Unifiée** : BPM, Tonalité Originale, Tonalité Média, Pitch Original et Pitch Média sont désormais regroupés sur une seule ligne pour une visibilité instantanée sans défilement.
-    *   **Support Wide Art (16:9)** : Les pochettes d'albums et miniatures YouTube s'affichent désormais dans leur format d'origine (panoramique) sans déformation ni recadrage carré forcé.
+*   **Éditeur de Médias Unifié :**
+    *   **Interface Unique** : Fusion totale des outils d'édition. Les médias YouTube, Audios/Vidéos locaux et Multipistes partagent désormais la même structure technique (`media-modal`), garantissant une expérience fluide et une maintenance simplifiée.
+    *   **Design Studio "Pixel-Perfect"** : Interface ultra-compacte et professionnelle. Alignement rigoureux des marges et paddings pour une visibilité totale sans défilement parasite.
+    *   **Ligne Technique Unifiée** : BPM, Tonalité Originale, Tonalité Média, Pitch Original et Pitch Média sont regroupés sur une seule ligne pour une visibilité instantanée.
+    *   **Support Wide Art (16:9)** : Les pochettes d'albums et miniatures YouTube s'affichent dans leur format d'origine (panoramique) sans déformation.
     *   **Modale de notes dédiée** fusionnant la description YouTube et vos propres mémos techniques.
-    *   **Optimisation Vision :** Plus de barre de défilement parasite dans les modales, tout est accessible en un coup d'œil.
 *   **Navigation & Ergonomie :**
     *   **Auto-Restart** : Tous les lecteurs reviennent automatiquement à 00:00 une fois le morceau terminé.
     *   **Annulation Boucle** : Touche `Echap` pour annuler la sélection d'un point A ou B instantanément.

@@ -414,3 +414,16 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     - **Vue de Masse** : Nouvelle modale `modal-library-manager` permettant de traiter l'intégralité de la bibliothèque locale (recherche, filtre, sélection multiple).
     - **Actions Groupées** : Exécution séquentielle d'opérations physiques (Copy/Move) vers une destination fixe ou via l'Auto-routage par Artiste pour une réorganisation complète instantanée.
 *   **Renforcement i18n & UX** : Ajout de clés de traduction pour la gestion avancée et indicateurs de progression spécifiques pour les opérations de masse.
+
+### 25. Évolution V53 : Restauration Pixel-Perfect & Unification des Modales de Médias
+*   **Unification du Workflow d'Édition (`index.html` & `app.js`)** :
+    - **Fusion YouTube / Local** : Suppression de `modal-local` (orpheline) au profit d'un `media-modal` unique gérant intelligemment les deux types de contenus.
+    - **Logic Redirection** : `openEditLocalModal` et `saveLocalItem` redirigent désormais vers les IDs standardisés (`edit-url`, `edit-title`, etc.), simplifiant la maintenance.
+    - **Gestion Dynamique UI** : Masquage contextuel de la zone de recherche YouTube lors de l'édition de fichiers locaux.
+*   **Restauration Design "Studio" (`style.css` & `index.html`)** :
+    - **Alignement Pixel-Perfect** : Retour aux paddings et marges de la version stable pour éliminer les scrollbars parasites dans toutes les modales.
+    - **Harmonisation Art** : Utilisation systématique de la classe `wide-art` (16:9) pour une cohérence visuelle entre les types de médias.
+*   **Fiabilisation de l'Interface** :
+    - **Nettoyage des Duplicatas d'ID** : Élimination des conflits sur `local-path-display` qui empêchaient l'affichage du chemin.
+    - **Correction Structurelle HTML** : Résolution des erreurs de balises `<dialog>` orphelines qui bloquaient le rendu du navigateur.
+    - **Bandeau de Relocalisation** : Réintégration propre des fonctions Copier/Déplacer dans la modale d'édition unifiée.

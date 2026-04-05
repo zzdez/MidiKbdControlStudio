@@ -1317,7 +1317,12 @@ function openEditModal(index) {
     document.getElementById("edit-title").value = track.title;
     document.getElementById("edit-artist").value = track.artist || "";
     document.getElementById("edit-channel").value = track.channel || "";
-    document.getElementById("edit-url").value = track.url;
+    
+    const urlField = document.getElementById("edit-url");
+    urlField.value = track.url;
+    urlField.parentElement.style.display = "block"; // Show URL for YouTube
+    document.getElementById("yt-local-path-container").style.display = "none"; // Hide local path for YouTube
+    document.getElementById("search-zone-container").style.display = "block"; // Ensure search zone is available for YouTube
     document.getElementById("edit-category").value = track.category || "Général";
     document.getElementById("edit-genre").value = track.genre || "Divers";
     document.getElementById("edit-mode").value = track.open_mode || "auto";
@@ -4935,33 +4940,68 @@ async function confirmImport(action) {
 function openEditLocalModal(index) {
     editingLocalIndex = index;
     const item = localFiles[index];
-    document.getElementById("modal-local").showModal();
+    
+    // Reveal sidebar if in theater mode to give context to editing
+    if (isTheaterMode && typeof toggleTheaterMode === 'function') {
+        toggleTheaterMode(false);
+    }
+
+    document.getElementById("media-modal").showModal();
+
+    // Auto-scroll in background
+    setTimeout(scrollToActiveTrack, 200);
+
+    // Fill Form (Mappings from local- to edit-)
+    document.getElementById("edit-title").value = item.title;
+    document.getElementById("edit-artist").value = item.artist || "";
+    
+    const urlField = document.getElementById("edit-url");
+    urlField.value = ""; // URL empty for local, path shown below
+    urlField.parentElement.style.display = "none"; // Hide URL field for local
+    document.getElementById("edit-category").value = item.category || "Général";
+    document.getElementById("edit-genre").value = item.genre || "Divers";
+    document.getElementById("edit-target-profile").value = item.target_profile || "Auto";
+    document.getElementById("edit-bpm").value = item.bpm || "";
+    document.getElementById("edit-key").value = item.key || "";
+    document.getElementById("edit-media-key").value = item.media_key || "";
+    document.getElementById("edit-scale").value = item.scale || "";
+    document.getElementById("edit-tuning").value = item.tuning || "standard";
+    document.getElementById("edit-original-pitch").value = item.original_pitch || "";
+    document.getElementById("edit-target-pitch").value = item.target_pitch || "";
+
+    // Specific local display elements
+    document.getElementById("local-path-display").innerText = item.path;
+    document.getElementById("yt-local-path-container").style.display = "flex";
+    document.getElementById("search-zone-container").style.display = "none";
+    document.getElementById("btn-back-search").style.display = "none";
+
+    let volValLoc = (item.volume !== undefined) ? item.volume : 100;
+    document.getElementById("edit-volume").value = volValLoc;
+    const evp = document.getElementById("edit-volume-percent"); if (evp) evp.innerText = volValLoc + "%";
+    
+    document.getElementById("user-notes-input").value = item.user_notes || "";
+    document.getElementById("youtube-desc-input").value = "";
 
     // ASPECT RATIO & SUBTITLES LOGIC
-    const artContainer = document.getElementById("local-art-container");
-    const subSettings = document.getElementById("local-subtitle-settings");
+    const thumbContainer = document.getElementById("preview-thumbnail");
+    const subSettings = document.getElementById("edit-subtitle-settings");
 
     // Reset classes
-    artContainer.classList.remove("wide-art", "square-art");
+    thumbContainer.classList.remove("wide-art", "square-art");
 
     // Simple check for video extensions
     if (item.path.match(/\.(mp4|mkv|mov|avi|webm|m4v)$/i)) {
-        artContainer.classList.add("wide-art");
+        thumbContainer.classList.add("wide-art");
         subSettings.style.display = "flex";
         subSettings.style.flexDirection = "column";
         window.tempModalSubEnabled = item.subtitle_enabled || false;
-        updateCCIconState(window.tempModalSubEnabled, 'local');
+        updateCCIconState(window.tempModalSubEnabled, 'edit');
 
         let posVal = item.subtitle_pos_y;
         if (posVal === undefined) posVal = 80;
         const sVal = 100 - posVal;
-        document.getElementById("local-sub-pos").value = sVal;
-        const lsp = document.getElementById("local-sub-pos-percent"); if (lsp) lsp.innerText = sVal + "%";
-
-        // Update live preview if the edited video is currently playing
-        if (currentActivePlayer === 'local' && window.currentPlayingIndex === index) {
-            updateLiveSubtitlePos(100 - posVal);
-        }
+        document.getElementById("edit-sub-pos").value = sVal;
+        const esp = document.getElementById("edit-sub-pos-percent"); if (esp) esp.innerText = sVal + "%";
 
         // Fetch list to enable context-menu support
         fetch(`/api/local/subs_list/${index}`)
@@ -4969,7 +5009,6 @@ function openEditLocalModal(index) {
             .then(data => {
                 if (data.status === "ok" && data.subs.length > 0) {
                     window.currentAvailableSubs = data.subs;
-                    // Pre-fill the temporary track choice for the settings modal
                     window.tempModalSelectedTrack = item.subtitle_track || "";
                 } else {
                     window.currentAvailableSubs = [];
@@ -4979,77 +5018,34 @@ function openEditLocalModal(index) {
             .catch(e => { console.error("Error fetching sub list", e); window.currentAvailableSubs = []; });
 
     } else {
-        // Use wide-art by default to allow 16:9 proportions if art is present
-        artContainer.classList.add("wide-art");
+        thumbContainer.classList.add("wide-art");
         subSettings.style.display = "none";
         window.currentAvailableSubs = [];
         window.tempModalSelectedTrack = "";
-    }
-
-    document.getElementById("local-path-display").innerText = item.path;
-    document.getElementById("local-title").value = item.title;
-    document.getElementById("local-artist").value = item.artist || "";
-    document.getElementById("local-album").value = item.album || "";
-    document.getElementById("local-genre").value = item.genre || "";
-    document.getElementById("local-category").value = item.category || "Général";
-    document.getElementById("local-year").value = item.year || "";
-    document.getElementById("local-bpm").value = item.bpm || "";
-    document.getElementById("local-key").value = item.key || "";
-    document.getElementById("local-media-key").value = item.media_key || "";
-    document.getElementById("local-scale").value = item.scale || "";
-    document.getElementById("local-tuning").value = item.tuning || "standard";
-    document.getElementById("local-original-pitch").value = item.original_pitch || "";
-    document.getElementById("local-target-pitch").value = item.target_pitch || "";
-    document.getElementById("local-target-profile").value = item.target_profile || "Auto";
-    let volValLoc = (item.volume !== undefined) ? item.volume : 100;
-    document.getElementById("local-volume").value = volValLoc;
-    const lvp = document.getElementById("local-volume-percent"); if (lvp) lvp.innerText = volValLoc + "%";
-    document.getElementById("local-notes").value = item.user_notes || "";
-
-    // Physical Management (V41)
-    const physCont = document.getElementById("local-physical-management-container");
-    if (physCont) {
-        physCont.style.display = "block";
-        const pathDisp = document.getElementById("local-path-display");
-        if (pathDisp) pathDisp.innerText = item.path;
-        const destMode = document.getElementById("local-relocate-dest-mode");
-        if (destMode) {
-            destMode.value = "AUTO"; // Reset to Auto by default
-            loadRelocationFolders();
-        }
-        const useArtistChk = document.getElementById("local-relocate-use-artist");
-        if (useArtistChk) useArtistChk.checked = true; // Default to checked
     }
 
     syncPlaybackSettingsToModals(item);
 
     // Load Art
     currentCoverData = null;
-    document.getElementById("cover-upload").value = "";
+    const imgHtml = `<img id="edit-art-img" src="/api/local/art/${index}?t=${Date.now()}" style="width:100%; height:100%; object-fit:contain;">
+                     <div id="btn-edit-delete-cover" class="btn-delete-cover" style="display:none;"
+                          onclick="event.stopPropagation(); removeEditCover();">×</div>`;
+    thumbContainer.innerHTML = imgHtml;
 
-    const img = document.getElementById("local-art-img");
-    const placeholder = document.getElementById("local-art-placeholder");
+    const img = thumbContainer.querySelector("img");
+    const btnDel = thumbContainer.querySelector(".btn-delete-cover");
 
-    const btnDel = document.getElementById("btn-delete-cover");
-    if (btnDel) btnDel.style.display = "none";
-
-    img.onload = () => {
-        img.style.display = "block";
-        placeholder.style.display = "none";
-        if (btnDel) btnDel.style.display = "flex";
-    };
+    img.onload = () => { if (btnDel) btnDel.style.display = "flex"; };
     img.onerror = () => {
-        img.style.display = "none";
-        placeholder.style.display = "flex";
-        if (btnDel) btnDel.style.display = "none";
+        thumbContainer.innerHTML = `<span style="font-size:30px;">🎵</span>
+                                    <div id="btn-edit-delete-cover" class="btn-delete-cover" style="display:none;"
+                                         onclick="event.stopPropagation(); removeEditCover();">×</div>`;
     };
-
-    img.src = `/api/local/art/${index}?t=${Date.now()}`;
 }
 
 function closeLocalModal() {
-    document.getElementById("modal-local").close();
-    editingLocalIndex = null;
+    closeModal();
 }
 
 // --- MULTITRACK MODAL LOGIC ---
@@ -5207,28 +5203,28 @@ async function saveLocalItem() {
     if (editingLocalIndex === null) return;
 
     const payload = {
-        title: document.getElementById("local-title").value,
-        artist: document.getElementById("local-artist").value,
-        album: document.getElementById("local-album").value,
-        genre: document.getElementById("local-genre").value,
-        category: document.getElementById("local-category").value || "Général",
-        year: document.getElementById("local-year").value,
-        bpm: document.getElementById("local-bpm").value,
-        key: document.getElementById("local-key").value,
-        media_key: document.getElementById("local-media-key").value,
-        scale: document.getElementById("local-scale").value,
-        tuning: document.getElementById("local-tuning").value,
-        original_pitch: document.getElementById("local-original-pitch").value,
-        target_pitch: document.getElementById("local-target-pitch").value,
-        target_profile: document.getElementById("local-target-profile").value,
-        user_notes: document.getElementById("local-notes").value,
+        title: document.getElementById("edit-title").value,
+        artist: document.getElementById("edit-artist").value,
+        album: (editingLocalIndex !== null && localFiles[editingLocalIndex]) ? localFiles[editingLocalIndex].album : "", // Keep album if existing
+        genre: document.getElementById("edit-genre").value,
+        category: document.getElementById("edit-category").value || "Général",
+        year: (editingLocalIndex !== null && localFiles[editingLocalIndex]) ? localFiles[editingLocalIndex].year : "", // Keep year if existing
+        bpm: document.getElementById("edit-bpm").value,
+        key: document.getElementById("edit-key").value,
+        media_key: document.getElementById("edit-media-key").value,
+        scale: document.getElementById("edit-scale").value,
+        tuning: document.getElementById("edit-tuning").value,
+        original_pitch: document.getElementById("edit-original-pitch").value,
+        target_pitch: document.getElementById("edit-target-pitch").value,
+        target_profile: document.getElementById("edit-target-profile").value,
+        user_notes: document.getElementById("user-notes-input").value,
         subtitle_enabled: window.tempModalSubEnabled,
-        subtitle_pos_y: 100 - parseInt(document.getElementById("local-sub-pos").value, 10),
+        subtitle_pos_y: 100 - parseInt(document.getElementById("edit-sub-pos").value, 10),
         subtitle_track: window.tempModalSelectedTrack || "",
-        cover_data: currentCoverData, // Send base64 data if changed
-        volume: parseInt(document.getElementById("local-volume").value, 10) || 100,
-        autoplay: document.getElementById("local-autoplay").checked,
-        autoreplay: document.getElementById("local-autoreplay").checked
+        cover_data: currentCoverData,
+        volume: parseInt(document.getElementById("edit-volume").value, 10) || 100,
+        autoplay: document.getElementById("edit-autoplay").checked,
+        autoreplay: document.getElementById("edit-autoreplay").checked
     };
 
     const res = await fetch(`/api/local/${editingLocalIndex}`, {

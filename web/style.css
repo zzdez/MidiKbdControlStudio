@@ -623,6 +623,7 @@ button:hover {
     100% { opacity: 1; }
 }
 
+/* MODAL STYLES */
 dialog {
     background-color: #1e1e1e;
     /* Hardcoded fallback or var not resolving in dialog sometimes */
@@ -832,6 +833,7 @@ dialog::backdrop {
     /* Fill remaining vertical space */
     min-height: 100px;
     /* Reduced from 170px */
+    min-height: 100px;
 }
 
 .thumbnail-preview {
