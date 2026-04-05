@@ -760,14 +760,14 @@ function renderWebLinks() {
         const realIndex = link.originalIndex;
         const tr = document.createElement("tr");
         
-        let iconClass = "ph ph-globe";
-        if (link.type === "songsterr") iconClass = "ph ph-music-note";
-        if (link.type === "moises") iconClass = "ph ph-scissors";
-        if (link.type === "spotify") iconClass = "ph ph-spotify-logo";
-        if (link.type === "lesson") iconClass = "ph ph-graduation-cap";
+        const favIcon = getIcon(link.url);
+        let iconHtml = `<i class="ph ph-globe" style="font-size:1.2em; color:var(--accent);"></i>`;
+        if (favIcon) {
+            iconHtml = `<img src="${favIcon}" style="width:20px; height:20px; border-radius:4px; vertical-align:middle;">`;
+        }
 
         tr.innerHTML = `
-            <td style="text-align:center;"><i class="${iconClass}" style="font-size:1.2em; color:var(--accent);"></i></td>
+            <td style="text-align:center;">${iconHtml}</td>
             <td>${link.artist || ""}</td>
             <td style="cursor:pointer; color:var(--accent);" onclick="playWebLink(${realIndex})">${link.title || link.url}</td>
             <td style="text-align:right;">
@@ -1043,10 +1043,21 @@ function updateInterconnectionUI(activeItem) {
             const btn = document.createElement("button");
             btn.className = "btn-icon-small";
             btn.style.color = color;
-            btn.innerHTML = `<i class="${iconClass}"></i>`;
+            
+            // SPECIAL: Web Links show Real Favicons
+            if (type !== 'youtube' && type !== 'local' && list[0].url) {
+                const iconUrl = getIcon(list[0].url);
+                if (iconUrl) {
+                    btn.innerHTML = `<img src="${iconUrl}" style="width:18px; height:18px; border-radius:3px; vertical-align:middle;">`;
+                } else {
+                    btn.innerHTML = `<i class="${iconClass}"></i>`;
+                }
+            } else {
+                btn.innerHTML = `<i class="${iconClass}"></i>`;
+            }
+
             btn.title = `${titlePrefix} (${list.length} match${list.length > 1 ? 'es' : ''})`;
             btn.onclick = () => {
-                // Determine action based on type
                 if (type === 'youtube') playTrackAt(list[0].originalIndex);
                 else if (type === 'local') playLocal(list[0].originalIndex);
                 else playWebLink(list[0].originalIndex);
@@ -1061,6 +1072,7 @@ function updateInterconnectionUI(activeItem) {
     renderIcon('moises', matches.moises, 'ph ph-scissors', '#9b59b6', 'Moises');
     renderIcon('spotify', matches.spotify, 'ph ph-spotify-logo', '#1db954', 'Spotify');
     renderIcon('lesson', matches.lesson, 'ph ph-graduation-cap', '#3498db', 'Lesson');
+    renderIcon('other', matches.other, 'ph ph-globe', '#999', 'Autre');
 }
 
 function isMatch(item, artist, title) {
@@ -9306,19 +9318,24 @@ function renderLinkerResults(query) {
         div.onmouseover = () => div.style.background = "rgba(255,255,255,0.1)";
         div.onmouseout = () => div.style.background = "rgba(255,255,255,0.05)";
         
+        const resType = res.type;
+        const iconUrl = (resType === 'web_links' || resType === 'web') ? getIcon(res.item.url) : null;
+        
         const typeIcon = getTypeIcon(res);
         const uid = `${res.type.substring(0,3)}:${res.index}`;
         const isLinked = currentEditingLinkedIds.includes(uid);
 
         div.innerHTML = `
-            <i class="${typeIcon}" style="font-size:1.2em; color:var(--accent);"></i>
-            <div style="flex:1; min-width:0;">
-                <div style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${res.item.title || 'Sans titre'}</div>
-                <div style="font-size:0.85em; color:#888;">${res.item.artist || 'Artiste inconnu'}</div>
+            <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+                ${iconUrl ? `<img src="${iconUrl}" style="width:20px; height:20px; border-radius:4px;">` : `<i class="${typeIcon}" style="font-size:1.2em; color:var(--accent);"></i>`}
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:bold; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${res.item.title || res.item.url}</div>
+                    <div style="font-size:0.85em; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${res.item.artist || ""}</div>
+                </div>
             </div>
             <button class="btn-secondary" style="padding:4px 8px; font-size:0.8em; border-color:${isLinked ? '#ff4444' : '#444'}; color:${isLinked ? '#ff4444' : '#fff'};"
-                onclick="toggleMediaLink('${res.type}', ${res.index})">
-                ${isLinked ? 'Détacher' : t('web.lbl_link_this', 'Lier')}
+                onclick="event.stopPropagation(); toggleMediaLink('${res.type}', ${res.index})">
+                ${isLinked ? translations[currentLang]?.web?.btn_unlink || 'Détacher' : translations[currentLang]?.web?.btn_link || 'Lier'}
             </button>
         `;
         list.appendChild(div);
@@ -9369,8 +9386,12 @@ function renderExistingLinks() {
 
         const badge = document.createElement("div");
         badge.style = "background:rgba(255,255,255,0.05); border:1px solid #444; padding:2px 8px; border-radius:12px; font-size:0.8em; display:flex; align-items:center; gap:5px;";
+        
+        const favIcon = typeCode === 'web' ? getIcon(item.url) : null;
+        const iconHtml = favIcon ? `<img src="${favIcon}" style="width:14px; height:14px; border-radius:2px;">` : `<span style="font-weight:bold; color:var(--accent); font-size:0.7em;">${prefix}</span>`;
+
         badge.innerHTML = `
-            <span style="font-weight:bold; color:var(--accent); font-size:0.7em;">${prefix}</span>
+            ${iconHtml}
             <span style="max-width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</span>
             <span style="cursor:pointer; font-weight:bold; color:#ff4444; margin-left:5px;" onclick="toggleMediaLink('${typeCode === 'set' ? 'setlist' : (typeCode === 'lib' ? 'library' : 'web_links')}', ${idx})">×</span>
         `;
