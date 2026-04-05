@@ -1130,11 +1130,16 @@
                     onchange="handleMultitrackCover(this)">
             </div>
 
-                <div style="display:flex; justify-content:space-between; align-items:center; background:#222; padding:5px; border-radius:4px; margin-bottom:10px;">
-                    <div id="mt-path-display" style="font-size:0.8em; color:#888; word-break:break-all; flex:1;"></div>
-                    <div style="display:flex; gap:5px; margin-left:10px;">
-                        <button class="btn-secondary" style="padding:2px 5px; font-size:0.8em;" onclick="relocateFromEdit('copy')" title="Copier vers..." data-i18n-title="web.opt_copy">🎵 C</button>
-                        <button class="btn-secondary" style="padding:2px 5px; font-size:0.8em;" onclick="relocateFromEdit('move')" title="Déplacer vers..." data-i18n-title="web.opt_move">🚗 D</button>
+                <!-- Path & Relocation Buttons (Compact V52) -->
+                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:6px; margin-bottom:12px; border:1px solid #333;">
+                    <div id="mt-path-display" style="font-size:0.8em; color:#888; word-break:break-all; flex:1;">-</div>
+                    <div style="display:flex; gap:8px; margin-left:12px;">
+                        <button class="btn-secondary" style="height:26px; padding:0 8px; font-size:0.75em; border-color:#444;" onclick="relocateFromEdit('copy')" title="Copier vers..." data-i18n-title="web.btn_copy_to">
+                            <i class="ph ph-copy" style="font-size:1.2em;"></i>
+                        </button>
+                        <button class="btn-secondary" style="height:26px; padding:0 8px; font-size:0.75em; border-color:#444;" onclick="relocateFromEdit('move')" title="Déplacer vers..." data-i18n-title="web.btn_move_to">
+                            <i class="ph ph-arrows-out-cardinal" style="font-size:1.2em;"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -1246,31 +1251,10 @@
                     </div>
                 </div>
 
-
                 <label data-i18n="web.lbl_notes">Notes</label>
                 <textarea id="mt-notes" rows="3"></textarea>
-
-                <!-- Physical Management (V41) -->
-                <div id="mt-physical-management-container" style="display:none; background:rgba(255,255,255,0.03); padding:10px 15px; margin-top:15px; border-radius:6px; border:1px solid #444;">
-                    <h4 style="margin:0 0 8px 0; color:#ff9800; font-size:0.9em; display:flex; align-items:center; gap:8px;">
-                        <i class="ph ph-hard-drive"></i> <span data-i18n="web.lbl_physical_management">Gestion Physique</span>
-                    </h4>
-                    <div style="font-size:0.8em; color:#888; margin-bottom:8px; word-break:break-all;">
-                        <span data-i18n="web.lbl_current_path">Chemin actuel :</span> <span id="mt-path-display" style="color:#aaa;">-</span>
-                    </div>
-                    <div style="display:flex; gap:10px; align-items:center;">
-                        <select id="mt-relocate-dest-mode" style="flex:1; background:#252525; color:white; border:1px solid #444; padding:5px; border-radius:4px; font-size:0.9em;">
-                            <option value="AUTO" data-i18n="web.opt_auto_artist_dest">-- Auto-routage par Artiste (Recommandé) --</option>
-                            <option value="MANUAL" data-i18n="web.opt_manual_dest">Choisir un dossier spécifique...</option>
-                        </select>
-                        <button class="btn-secondary" onclick="relocateFromEdit('copy')" data-i18n="web.btn_copy_to" style="height:32px; font-size:0.85em;">Copier vers...</button>
-                        <button class="btn-primary" onclick="relocateFromEdit('move')" data-i18n="web.btn_move_to" style="height:32px; font-size:0.85em; background:#ff9800; color:black;">Déplacer vers...</button>
-                    </div>
-                    <div style="margin-top:8px; display:flex; align-items:center; gap:8px; font-size:0.85em; color:#aaa;">
-                        <input type="checkbox" id="mt-relocate-use-artist" checked style="width:16px; height:16px; cursor:pointer;">
-                        <label for="mt-relocate-use-artist" data-i18n="web.chk_create_artist_folder" style="cursor:pointer;">Créer un sous-dossier Artiste</label>
-                    </div>
-                </div>
+            </div>
+        </div>
             </div>
         </div>
         <div class="modal-footer">
@@ -1549,25 +1533,17 @@
                     <div id="dl-progress-bar"
                         style="width:0%; height:100%; background:var(--accent); transition:width 0.2s ease;"></div>
                 </div>
-                <!-- Physical Management (V41) -->
-                <div id="local-physical-management-container" style="display:none; background:rgba(255,255,255,0.03); padding:10px 15px; margin-top:15px; border-radius:6px; border:1px solid #444;">
-                    <h4 style="margin:0 0 8px 0; color:#ff9800; font-size:0.9em; display:flex; align-items:center; gap:8px;">
-                        <i class="ph ph-hard-drive"></i> <span data-i18n="web.lbl_physical_management">Gestion Physique</span>
-                    </h4>
-                    <div style="font-size:0.8em; color:#888; margin-bottom:8px; word-break:break-all;">
-                        <span data-i18n="web.lbl_current_path">Chemin actuel :</span> <span id="local-path-display" style="color:#aaa;">-</span>
-                    </div>
-                    <div style="display:flex; gap:10px; align-items:center;">
-                        <select id="local-relocate-dest-mode" style="flex:1; background:#252525; color:white; border:1px solid #444; padding:5px; border-radius:4px; font-size:0.9em;">
-                            <option value="AUTO" data-i18n="web.opt_auto_artist_dest">-- Auto-routage par Artiste (Recommandé) --</option>
-                            <option value="MANUAL" data-i18n="web.opt_manual_dest">Choisir un dossier spécifique...</option>
-                        </select>
-                        <button class="btn-secondary" onclick="relocateFromEdit('copy')" data-i18n="web.btn_copy_to" style="height:32px; font-size:0.85em;">Copier vers...</button>
-                        <button class="btn-primary" onclick="relocateFromEdit('move')" data-i18n="web.btn_move_to" style="height:32px; font-size:0.85em; background:#ff9800; color:black;">Déplacer vers...</button>
-                    </div>
-                    <div style="margin-top:8px; display:flex; align-items:center; gap:8px; font-size:0.85em; color:#aaa;">
-                        <input type="checkbox" id="local-relocate-use-artist" checked style="width:16px; height:16px; cursor:pointer;">
-                        <label for="local-relocate-use-artist" data-i18n="web.chk_create_artist_folder" style="cursor:pointer;">Créer un sous-dossier Artiste</label>
+                
+                <!-- Path & Relocation Buttons (Compact V52) -->
+                <div id="local-path-container" style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:6px; margin-top:15px; border:1px solid #333;">
+                    <div id="local-path-display" style="font-size:0.8em; color:#888; word-break:break-all; flex:1;">-</div>
+                    <div style="display:flex; gap:8px; margin-left:12px;">
+                        <button class="btn-secondary" style="height:26px; padding:0 8px; font-size:0.75em; border-color:#444;" onclick="relocateFromEdit('copy')" title="Copier vers..." data-i18n-title="web.btn_copy_to">
+                            <i class="ph ph-copy" style="font-size:1.2em;"></i>
+                        </button>
+                        <button class="btn-secondary" style="height:26px; padding:0 8px; font-size:0.75em; border-color:#444;" onclick="relocateFromEdit('move')" title="Déplacer vers..." data-i18n-title="web.btn_move_to">
+                            <i class="ph ph-arrows-out-cardinal" style="font-size:1.2em;"></i>
+                        </button>
                     </div>
                 </div>
             </div>

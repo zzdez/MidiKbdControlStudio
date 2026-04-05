@@ -8043,8 +8043,6 @@ async function loadRelocationFolders() {
         'bulk-source-select', 
         'bulk-dest-select', 
         'lib-manager-dest-select',
-        'local-relocate-dest-mode',
-        'mt-relocate-dest-mode',
         'relocate-confirm-dest-select'
     ];
     
@@ -8128,7 +8126,7 @@ async function relocateFromEdit(action) {
     const isMT = document.getElementById("modal-multitrack").open;
     const idx = editingLocalIndex;
     
-    if (idx === null || idx === undefined) return;
+    if (idx === null || idx === undefined || idx === -1) return;
     const item = localFiles[idx];
     
     if (!item || !item.path) {
@@ -8136,22 +8134,14 @@ async function relocateFromEdit(action) {
         return;
     }
 
-    const selectId = isMT ? "mt-relocate-dest-mode" : "local-relocate-dest-mode";
-    const chkId = isMT ? "mt-relocate-use-artist" : "local-relocate-use-artist";
-    const sourceMode = document.getElementById(selectId) ? document.getElementById(selectId).value : "AUTO";
-    const useArtist = document.getElementById(chkId).checked;
-
     // Load folders to ensure the confirm modal select is ready
     await loadRelocationFolders();
 
-    // Save for confirmation
+    // Save for confirmation (V52)
     pendingRelocateAction = {
         action: action,
         type: isMT ? 'multitrack' : 'library',
-        index: idx,
-        create_artist_folder: useArtist,
-        sourcePath: item.path,
-        title: item.title
+        index: idx
     };
 
      // UI Feedback in Confirmation Modal
@@ -8171,9 +8161,9 @@ async function relocateFromEdit(action) {
     if (headerEl) headerEl.style.background = (action === 'copy' ? '#2980b9' : '#e67e22'); // Bleu pour copie, Orange pour déplacement
     if (sourceEl) sourceEl.innerText = item.path;
     
-    // Pre-select the choice from parent modal if valid
+    // Default to AUTO for smart routing
     if (confirmSelect) {
-        confirmSelect.value = sourceMode;
+        confirmSelect.value = "AUTO";
     }
     
     if (warnEl) warnEl.style.display = 'none';
