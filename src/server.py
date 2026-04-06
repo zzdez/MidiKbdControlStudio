@@ -351,13 +351,36 @@ async def get_cover_image(path: str):
         if not os.path.exists(resolved):
             logging.error(f"[COVER] File not found: {resolved}")
             raise HTTPException(status_code=404, detail=f"Cover not found: {resolved}")
-        
         import mimetypes
         mime_type, _ = mimetypes.guess_type(resolved)
+        
+        # V55: If the file is not an image (e.g. .mp3, .m4v or a DIRECTORY), try to extract embedded art
+        if os.path.isdir(resolved) or (mime_type and not mime_type.startswith("image/")):
+            logging.info(f"[COVER] Not an image or is directory ({mime_type}), attempting extraction for: {resolved}")
+
+            try:
+                data, extracted_mime = metadata_service.get_file_cover(resolved)
+                if data:
+                    logging.info(f"[COVER] Successfully extracted art ({extracted_mime}) from {resolved}")
+                    return Response(content=data, media_type=extracted_mime)
+            except Exception as ex:
+                logging.error(f"[COVER] Extraction failed for {resolved}: {ex}")
+
+        # Safety Fallback: Don't attempt to serve a directory via FileResponse
+        if os.path.isdir(resolved):
+            logging.warning(f"[COVER] Path is a directory and no art was extracted: {resolved}")
+            raise HTTPException(status_code=404, detail="No cover found for this directory")
+
+        # Default: serve the file
+        if mime_type is None:
+            mime_type = "application/octet-stream"
+            
         return FileResponse(resolved, media_type=mime_type)
+
     except Exception as e:
         logging.error(f"[COVER] Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/status")
 async def get_status():
@@ -2767,6 +2790,10 @@ async def link_bidirectional(data: Dict):
         target_type = data.get("target_type")
         target_index = data.get("target_index")
         action = data.get("action", "link")  # 'link' or 'unlink'
+
+        if not source_type or not target_type:
+            return {"status": "error", "message": "Missing types"}
+
 
         files = {
             "setlist": SETLIST_FILE,

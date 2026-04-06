@@ -767,16 +767,17 @@ function renderWebLinks() {
         
         let iconHtml = `<i class="ph ph-globe" style="font-size:1.2em; color:var(--accent);"></i>`;
         
-        // V60: Prioritize Cover Art over Favicon if present
-        if (link.cover) {
+        // V55: Show Site Icon (Favicon) for Web Links by default (Priority)
+        const favIcon = getIcon(link.url);
+        const isYoutube = link.url && (link.url.includes('youtube.com') || link.url.includes('youtu.be'));
+
+        if (favIcon && !isYoutube) {
+             iconHtml = `<img src="${favIcon}" style="width:20px; height:20px; border-radius:4px; vertical-align:middle;">`;
+        } else if (link.cover) {
             const coverUrl = link.cover.startsWith('http') ? link.cover : `/api/cover?path=${encodeURIComponent(link.cover)}&t=${Date.now()}`;
             iconHtml = `<img src="${coverUrl}" style="width:24px; height:24px; border-radius:4px; vertical-align:middle; object-fit:cover; border:1px solid rgba(255,255,255,0.1);">`;
-        } else {
-            const favIcon = getIcon(link.url);
-            if (favIcon) {
-                iconHtml = `<img src="${favIcon}" style="width:20px; height:20px; border-radius:4px; vertical-align:middle;">`;
-            }
         }
+
 
         tr.innerHTML = `
             <td style="text-align:center;">${iconHtml}</td>
@@ -5878,12 +5879,49 @@ async function performUniversalSearch() {
                         key: linked.key,
                         cover_url: linked.cover ? (linked.cover.startsWith('http') ? linked.cover : `/api/cover?path=${encodeURIComponent(linked.cover)}`) : null,
                         original_cover_path: linked.cover, // V54: Keep original path for internal sync
+                        url: linked.url, // V55: Pass URL for icon rendering
                         is_linked_suggestion: true
                     };
                     renderUniversalResultItem(res, true);
+
                 }
             });
         }
+
+        // 1. SMART LOCAL SEARCH (V55: Unified Search & Link)
+        const q = title.toLowerCase().trim();
+        const artistQ = artist ? artist.toLowerCase().trim() : "";
+        
+        if (q.length > 2) {
+            const localMatches = localFiles.filter(item => {
+                const itemTitle = (item.title || "").toLowerCase();
+                const itemArtist = (item.artist || "").toLowerCase();
+                // Check if already linked
+                const itemUid = `lib:${item.originalIndex}`;
+                if (sourceItem && sourceItem.linked_ids && sourceItem.linked_ids.includes(itemUid)) return false;
+                
+                return itemTitle.includes(q) || (artistQ && itemArtist.includes(artistQ));
+            });
+
+            if (localMatches.length > 0) {
+                localMatches.forEach(item => {
+                    const res = {
+                        title: item.title,
+                        artist: item.artist,
+                        album: item.album || "Bibliothèque Locale",
+                        year: item.year || "",
+                        bpm: item.bpm,
+                        key: item.key,
+                        original_cover_path: item.cover || item.path, // V55: Fallback to path for extraction if no specific cover file
+                        uid: `lib:${item.originalIndex}`,
+                        is_local_match: true
+                    };
+
+                    renderUniversalResultItem(res, false, true);
+                });
+            }
+        }
+
 
         const res = await fetch(`/api/metadata/search?q=${encodeURIComponent(query)}`);
         const results = await res.json();
@@ -5905,20 +5943,33 @@ async function performUniversalSearch() {
     }
 }
 
-function renderUniversalResultItem(item, isLinkedSync = false) {
+function renderUniversalResultItem(item, isLinkedSync = false, isLocalMatch = false) {
     const container = document.getElementById("utag-results-container");
     const div = document.createElement("div");
     div.className = "api-result-item";
     div.style.margin = "5px";
+    
     if (isLinkedSync) {
         div.style.border = "1px solid var(--accent)";
         div.style.background = "rgba(187,134,252,0.1)";
+    } else if (isLocalMatch) {
+        div.style.border = "1px solid #4CAF50";
+        div.style.background = "rgba(76,175,80,0.1)";
     }
     
     let thumb = "<span style='font-size:24px;'>🎵</span>";
-    if (item.cover_url) {
-        thumb = `<img src="${item.cover_url}" style="width:40px; height:40px; border-radius:4px; object-fit:cover;">`;
+    const coverToUse = item.cover_url || (item.original_cover_path ? `/api/cover?path=${encodeURIComponent(item.original_cover_path)}` : null);
+    
+    // V55: Show Site Icon (Favicon) for Web Links instead of song cover, for better recognition
+    if (item.url && !item.url.includes('youtube.com') && !item.url.includes('youtu.be')) {
+        const iconUrl = getIcon(item.url);
+        if (iconUrl) {
+            thumb = `<img src="${iconUrl}" style="width:32px; height:32px; border-radius:4px; margin: 4px;">`;
+        }
+    } else if (coverToUse) {
+        thumb = `<img src="${coverToUse}" style="width:40px; height:40px; border-radius:4px; object-fit:cover;">`;
     }
+
 
     let metaInfo = `${item.artist} - ${item.album} (${item.year || ""})`;
     if (item.bpm || item.key) {
@@ -5928,14 +5979,19 @@ function renderUniversalResultItem(item, isLinkedSync = false) {
         metaInfo += `</span>`;
     }
 
+    let btnLabel = isLinkedSync ? 'SYNC LINK' : (isLocalMatch ? 'LINK & SYNC' : 'Appliquer');
+    let btnStyle = `padding:4px 8px; font-size:0.8em; min-width:80px;`;
+    if (isLinkedSync) btnStyle += `background:var(--accent);`;
+    else if (isLocalMatch) btnStyle += `background:#2E7D32;`;
+
     div.innerHTML = `
         ${thumb}
         <div style="flex:1; min-width:0;">
             <div style="font-weight:bold; font-size:0.95em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</div>
             <div style="font-size:0.8em; color:#bbb; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${metaInfo}</div>
         </div>
-        <button class="btn-primary" style="padding:4px 8px; font-size:0.8em; min-width:80px; background:${isLinkedSync ? 'var(--accent)' : ''}">
-            ${isLinkedSync ? 'SYNC LINK' : 'Appliquer'}
+        <button class="btn-primary" style="${btnStyle}">
+            ${btnLabel}
         </button>
     `;
 
@@ -5945,6 +6001,7 @@ function renderUniversalResultItem(item, isLinkedSync = false) {
     };
     container.appendChild(div);
 }
+
 
 function applyUniversalMetadata(item) {
     try {
@@ -5990,6 +6047,24 @@ function applyUniversalMetadata(item) {
             if (yeaEl) yeaEl.value = item.year || "";
         }
 
+        // 3. AUTO-LINKING (V55: Unified Workflow)
+        if (item.uid && ctx === 'web-link') {
+            console.log("[UTAG] Auto-linking triggered for:", item.uid);
+            // Prepare linker state as if we opened openMediaLinker
+            const [typePrefix, index] = item.uid.split(':');
+            const targetType = typePrefix === 'lib' ? 'library' : (typePrefix === 'set' ? 'setlist' : 'web_links');
+            const targetIndex = parseInt(index);
+
+            linkerSourceType = 'web_links';
+            linkerSourceItem = (currentWebLinkIndex === -1) ? { linked_ids: currentEditingLinkedIds } : webLinks[currentWebLinkIndex];
+            
+            // Execute link (bidirectional)
+            toggleMediaLink(targetType, targetIndex).then(() => {
+                console.log("[UTAG] Link established successfully.");
+            });
+        }
+
+
         // 2. Pochette
         if (applyPochette && (item.cover_url || item.original_cover_path)) {
             console.log("[UTAG] Processing cover...");
@@ -6004,6 +6079,7 @@ function applyUniversalMetadata(item) {
                 deleteBtnId = "btn-web-link-delete-cover"; 
                 
                 // IMPORTANT: Update the global variable used for save
+                // V55: If no cover_url but original_cover_path is present, use it
                 window.currentWebLinkCover = item.original_cover_path || item.cover_url;
                 console.warn("[UTAG] Global currentWebLinkCover set to:", window.currentWebLinkCover);
             }
@@ -6012,12 +6088,24 @@ function applyUniversalMetadata(item) {
             if (img) {
                 const displayUrl = item.cover_url || (item.original_cover_path ? `/api/cover?path=${encodeURIComponent(item.original_cover_path)}` : "");
                 img.src = displayUrl;
+                
+                // V55: Handle placeholder UI
+                if (placeholderId) {
+                    const p = document.getElementById(placeholderId);
+                    if (p) p.style.display = "none";
+                }
+                if (deleteBtnId) {
+                    const d = document.getElementById(deleteBtnId);
+                    if (d) d.style.display = "flex";
+                }
+
                 img.style.display = "block";
                 if (ctx === 'edit') {
                     img.style.backgroundImage = `url(${displayUrl})`;
                     img.style.backgroundSize = "cover";
                     img.innerHTML = "";
                 }
+
                 console.log("[UTAG] UI updated for img:", imgId);
             }
 
@@ -6035,7 +6123,6 @@ function applyUniversalMetadata(item) {
         console.error("[UTAG] CRITICAL ERROR in applyUniversalMetadata:", err);
         logToBackend(`[UTAG] CRITICAL ERROR: ${err.message}`);
     }
-}
 }
 
 function removeLocalCover() {

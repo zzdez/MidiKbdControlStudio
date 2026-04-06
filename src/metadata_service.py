@@ -12,6 +12,7 @@ from mutagen.flac import Picture, FLAC
 from mutagen.oggvorbis import OggVorbis
 from mutagen.wave import WAVE
 from mutagen.mp4 import MP4, MP4Cover
+from utils import resolve_portable_path
 
 class MetadataService:
     def __init__(self):
@@ -673,8 +674,30 @@ class MetadataService:
         """
         if not os.path.exists(path): return None, None
         
-        # --- DIR CASE (Multitrack folder.jpg) ---
+        # --- DIR CASE (Multitrack/Folder) ---
         if os.path.isdir(path):
+            # Check for airstep_meta.json sidecar (V55)
+            sidecar_path = os.path.join(path, "airstep_meta.json")
+            if os.path.exists(sidecar_path):
+                try:
+                    import json
+                    with open(sidecar_path, "r", encoding="utf-8") as f:
+                        meta = json.load(f)
+                        cover_field = meta.get("cover")
+                        if cover_field:
+                            # If cover is a filename inside the same dir
+                            full_cover_path = os.path.join(path, cover_field)
+                            if os.path.exists(full_cover_path):
+                                # Recursively call to extract if it's an audio or just serve if image
+                                return self.get_file_cover(full_cover_path)
+                            # Or if it's an absolute/portable path
+                            resolved_cover = resolve_portable_path(cover_field)
+                            if os.path.exists(resolved_cover):
+                                return self.get_file_cover(resolved_cover)
+                except Exception as e:
+                    logging.error(f"[COVER] Sidecar read error in {path}: {e}")
+
+            # Fallback to folder.jpg
             img_path = os.path.join(path, "folder.jpg")
             if os.path.exists(img_path):
                 try:
@@ -682,6 +705,7 @@ class MetadataService:
                         return f.read(), "image/jpeg"
                 except: pass
             return None, None
+
 
         ext = os.path.splitext(path)[1].lower()
         

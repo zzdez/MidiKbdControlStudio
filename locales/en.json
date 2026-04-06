@@ -532,6 +532,8 @@
         "msg_link_success": "Media linked successfully!",
         "msg_link_removed": "Link removed",
         "lbl_linked_items": "Already linked items:",
-        "lbl_link_this": "Link this media"
+        "lbl_link_this": "Link this media",
+        "btn_universal_tag": "Link & Sync ✨",
+        "modal_universal_tag_title": "Music Magic ✨ (Link & Info)"
     }
 }
