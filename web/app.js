@@ -245,6 +245,18 @@ function initAudioContext() {
     }
 }
 
+// --- HEADER VISIBILITY HELPER (V55: Support 2-row layout) ---
+function updateHeaderVisibility(show) {
+    const info = document.getElementById("global-video-info");
+    const bottom = document.getElementById("header-bottom-row");
+    const cover = document.getElementById("global-video-cover");
+    
+    const displayVal = show ? "flex" : "none";
+    if (info) info.style.display = displayVal;
+    if (bottom) bottom.style.display = displayVal;
+    if (cover) cover.style.display = show ? "block" : "none";
+}
+
 function togglePitchEngine(enabled) {
     logToBackend("[PITCH] Toggle: " + enabled);
     isPitchEnabled = enabled;
@@ -2601,7 +2613,8 @@ function playTrack(track) {
         currentActivePlayer = 'youtube'; // Important for logic tracking
 
         // GLOBAL HEADER
-        document.getElementById("global-video-info").style.display = "flex";
+        updateHeaderVisibility(true);
+
         globalTitle.innerText = track.title || track.url;
         if (track.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = track.bpm; } else { globalBpm.style.display = "none"; }
         updateHeaderScaleDisplay(track);
@@ -2660,7 +2673,8 @@ function playTrack(track) {
         // Generic / Direct URL (could be any iframeable content)
         setMode("GENERIC", getProfile(track, "Web Generic")); // Fallback
 
-        document.getElementById("global-video-info").style.display = "none";
+        updateHeaderVisibility(false);
+
 
         // SMART EMBED CONVERSION
         // Automatically convert known platforms to Embed URL
@@ -3725,9 +3739,10 @@ async function playLocal(index) {
         console.log("[DEBUG JS] Envoi demande setMode (MULTITRACK) avec profil :", target);
         setMode("AUDIO", target);
         
-        document.getElementById("global-video-info").style.display = "flex";
+        updateHeaderVisibility(true);
         globalTitle.innerText = file.title || "Multitrack";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
+
         updateHeaderScaleDisplay(file);
 
         videoContainer.style.display = "none";
@@ -4246,7 +4261,8 @@ async function playLocal(index) {
         console.log("[DEBUG JS] Envoi demande setMode (AUDIO) avec profil :", target);
         setMode("AUDIO", target); // Context Switch
         
-        document.getElementById("global-video-info").style.display = "flex";
+        updateHeaderVisibility(true);
+
         globalTitle.innerText = file.title || "Audio";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
         updateHeaderScaleDisplay(file);
@@ -4335,7 +4351,8 @@ async function playLocal(index) {
         console.log("[DEBUG JS] Envoi demande setMode (VIDEO) avec profil :", target);
         setMode("VIDEO", target); // Context Switch
 
-        document.getElementById("global-video-info").style.display = "flex";
+        updateHeaderVisibility(true);
+
         globalTitle.innerText = file.title || "Video";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
         updateHeaderScaleDisplay(file);
