@@ -2058,11 +2058,20 @@ async def edit_local_file(index: int, item: Dict):
                     current["is_missing"] = False
 
             # Update other fields...
-            for key in ["title", "artist", "genre", "category", "bpm", "key", "scale", "instrument", "tuning", "user_notes"]:
+            for key in ["title", "artist", "genre", "category", "bpm", "key", "scale", "instrument", "tuning", "user_notes", "linked_ids"]:
                 if key in item: current[key] = item[key]
             
+            # --- PERSISTENCE (V55: Sidecar First) ---
+            try:
+                abs_p = resolve_portable_path(current.get("path", ""))
+                if abs_p and os.path.exists(abs_p):
+                    metadata_service.write_file_metadata(abs_p, current)
+            except Exception as pe:
+                logging.error(f"Persistence Error in edit_local_file: {pe}")
+
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=4)
+
             return {"status": "ok", "items": items}
         return {"status": "error", "message": "Index missing"}
     except Exception as e:
@@ -2845,7 +2854,23 @@ async def link_bidirectional(data: Dict):
         if source_type != target_type:
             save_db(target_type, db_t)
 
+        # --- PERSISTENCE (V55: Sidecar / Physical persistence) ---
+        def sync_physical(item_type, item):
+            if item_type == "library":
+                try:
+                    path = item.get("path")
+                    if path:
+                        abs_p = resolve_portable_path(path)
+                        if abs_p and os.path.exists(abs_p):
+                            metadata_service.write_file_metadata(abs_p, item)
+                except Exception as pe:
+                    logging.error(f"Persistence Error in link_bidirectional for {item.get('title')}: {pe}")
+
+        sync_physical(source_type, db_s[source_index])
+        sync_physical(target_type, db_t[target_index])
+
         return {"status": "ok"}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

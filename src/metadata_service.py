@@ -159,10 +159,12 @@ class MetadataService:
                 "autoplay": sidecar_data.get("autoplay", False),
                 "autoreplay": sidecar_data.get("autoreplay", False),
                 "subtitle_pos_y": sidecar_data.get("subtitle_pos_y", 80),
+                "linked_ids": sidecar_data.get("linked_ids", []),
                 "duration": max_duration,
                 "is_multitrack": True,
                 "stems": stems
             }
+
 
         # --- SINGLE FILE SCAN ---
         ext = os.path.splitext(path)[1].lower()
@@ -248,6 +250,12 @@ class MetadataService:
 
                         # Add Extended metadata that Mutagen doesn't reliably map
                         res["bpm"] = sidecar_data.get("bpm", "")
+                        res["key"] = sidecar_data.get("key", "")
+                        res["scale"] = sidecar_data.get("scale", "")
+                        res["linked_ids"] = sidecar_data.get("linked_ids", [])
+                        res["user_notes"] = sidecar_data.get("user_notes", "")
+                        res["category"] = sidecar_data.get("category", "")
+
                         res["key"] = sidecar_data.get("key", "")
                         res["media_key"] = sidecar_data.get("media_key", "")
                         res["scale"] = sidecar_data.get("scale", "")
