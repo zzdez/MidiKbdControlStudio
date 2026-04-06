@@ -16,17 +16,24 @@
 <body>
 
     <!-- HEADER -->
-    <header style="display: flex; flex-direction: column; height: 82px; padding: 0 20px; gap: 0;">
+    <!-- HEADER -->
+    <header style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; height: 82px; padding: 0 20px; gap: 15px;">
         
-        <!-- ROW 1: Logo | Title | Buttons -->
-        <div class="header-top-row" style="display: flex; justify-content: space-between; align-items: center; width: 100%; height: 42px;">
-            <div class="logo" style="display: flex; align-items: center; gap: 10px; min-width: 250px;">
-                <img src="/assets/logo.png" alt="MidiKbd Control Studio" id="main-logo" style="height: 32px; width: auto;">
-                <span id="header-device-status" data-i18n="web.status_waiting" style="font-size: 0.8em; color: #888; font-weight: normal;">○ En attente...</span>
-            </div>
+        <!-- COL 1: Logo -->
+        <div class="logo" style="display: flex; align-items: center; gap: 10px; min-width: 210px; flex-shrink: 0;">
+            <img src="/assets/logo.png" alt="MidiKbd Control Studio" id="main-logo" style="height: 32px; width: auto;">
+            <span id="header-device-status" data-i18n="web.status_waiting" style="font-size: 0.8em; color: #888; font-weight: normal;">○ En attente...</span>
+        </div>
 
-            <div id="global-video-info" style="flex: 1; text-align: center; display: none; align-items: center; justify-content: center; gap: 15px; min-width: 0;">
-                <span id="global-video-title" style="font-weight: bold; font-size: 1.05em; color: white; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; max-width: 30vw;">Titre de la vidéo</span>
+        <!-- COL 2: Media Cover (Full Height) -->
+        <img id="global-video-cover" src="" style="height: 80px; width: auto; min-width: 80px; max-width: 140px; border-radius: 4px; object-fit: cover; display: none; border: 1px solid #444; flex-shrink: 0;">
+
+        <!-- COL 3: Center Column (2 Rows) -->
+        <div id="header-center-column" style="display: flex; flex-direction: column; flex: 1; justify-content: center; align-items: center; min-width: 0; gap: 8px;">
+            
+            <!-- Row 1: Title | BPM | Scale -->
+            <div id="global-video-info" style="display: none; align-items: center; justify-content: center; gap: 15px; width: 100%; min-width: 0;">
+                <span id="global-video-title" style="font-weight: bold; font-size: 1.05em; color: white; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; max-width: 35vw;">Titre de la vidéo</span>
                 <div style="display: flex; gap: 8px; font-size: 0.85em; color: var(--accent); align-items: center; white-space: nowrap;">
                     <span id="global-video-bpm" class="metadata-badge" style="display: none;">🎵 <span class="val"></span> BPM</span>
                     <div id="header-smart-scale-pill" onclick="toggleFretboard()" title="Ouvrir le Manche" style="cursor:pointer; display:flex; align-items:center; gap:5px;">
@@ -36,31 +43,32 @@
                 </div>
             </div>
 
-            <div class="status-bar" style="display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 320px; justify-content: flex-end;">
-                <button id="btn-remote-native" class="btn-icon" onclick="toggleNativeRemote()" data-i18n-title="web.btn_remote" title="Télécommande"><i class="ph ph-device-mobile"></i></button>
-                <button id="btn-toggle-metronome" class="btn-icon" onclick="toggleMetronomeUI()" title="Métronome"><i class="ph ph-metronome"></i></button>
-                <button id="btn-toggle-drum-machine" class="btn-icon" onclick="openDrumModal()" title="Boîte-Rythmes"><i class="ph ph-speaker-hifi"></i></button>
-                <button id="btn-toggle-fretboard" class="btn-icon" onclick="toggleFretboard()" title="Gammes"><i class="ph ph-grid-nine"></i></button>
-                <button id="btn-global-cue-add" class="btn-icon" onclick="openCueModal()" title="Repère" style="color:#888;"><i class="ph ph-flag"></i></button>
-                
-                <div class="header-separator" style="width:1px; height:18px; background:#444; margin:0 5px;"></div>
-                
-                <button id="btn-toggle-theater" class="btn-icon" onclick="toggleTheaterMode()" title="Théâtre"><i class="ph ph-corners-out"></i></button>
-                <span id="active-profile" style="white-space: nowrap; font-size: 0.8em; color: #ccc;">Profil : Global</span>
-                <button id="btn-settings" class="btn-icon" onclick="openSettingsModal()" title="Paramètres"><i class="ph ph-gear"></i></button>
+            <!-- Row 2: Interconnection Links -->
+            <div id="header-bottom-row" style="display: none; align-items: center; justify-content: center; width: 100%; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 4px;">
+                 <div id="header-interconnection-links" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; font-size: 0.9em; min-height: 24px; flex: 1; max-width: 80vw;">
+                     <!-- Injected by JS -->
+                 </div>
             </div>
+
         </div>
 
-        <!-- ROW 2: Interconnection Links (Centered, full width) -->
-        <div id="header-bottom-row" style="display: none; flex: 1; align-items: center; justify-content: center; border-top: 1px solid rgba(255,255,255,0.05);">
-
-             <img id="global-video-cover" src="" style="height: 38px; width: auto; border-radius: 3px; object-fit: cover; display: none; border: 1px solid #333; margin-right: 15px;">
-             <div id="header-interconnection-links" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; font-size: 0.9em; min-height: 24px; flex: 1; max-width: 80vw;">
-                 <!-- Injected by JS -->
-             </div>
+        <!-- COL 4: Status Bar / Buttons -->
+        <div class="status-bar" style="display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 300px; justify-content: flex-end; flex-shrink: 0;">
+            <button id="btn-remote-native" class="btn-icon" onclick="toggleNativeRemote()" data-i18n-title="web.btn_remote" title="Télécommande"><i class="ph ph-device-mobile"></i></button>
+            <button id="btn-toggle-metronome" class="btn-icon" onclick="toggleMetronomeUI()" title="Métronome"><i class="ph ph-metronome"></i></button>
+            <button id="btn-toggle-drum-machine" class="btn-icon" onclick="openDrumModal()" title="Boîte-Rythmes"><i class="ph ph-speaker-hifi"></i></button>
+            <button id="btn-toggle-fretboard" class="btn-icon" onclick="toggleFretboard()" title="Gammes"><i class="ph ph-grid-nine"></i></button>
+            <button id="btn-global-cue-add" class="btn-icon" onclick="openCueModal()" title="Repère" style="color:#888;"><i class="ph ph-flag"></i></button>
+            
+            <div class="header-separator" style="width:1px; height:18px; background:#444; margin:0 5px;"></div>
+            
+            <button id="btn-toggle-theater" class="btn-icon" onclick="toggleTheaterMode()" title="Théâtre"><i class="ph ph-corners-out"></i></button>
+            <span id="active-profile" style="white-space: nowrap; font-size: 0.8em; color: #ccc;">Profil : Global</span>
+            <button id="btn-settings" class="btn-icon" onclick="openSettingsModal()" title="Paramètres"><i class="ph ph-gear"></i></button>
         </div>
 
     </header>
+
 
 
     <!-- MAIN LAYOUT -->

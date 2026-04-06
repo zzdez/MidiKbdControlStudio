@@ -245,17 +245,20 @@ function initAudioContext() {
     }
 }
 
-// --- HEADER VISIBILITY HELPER (V55: Support 2-row layout) ---
+// --- HEADER VISIBILITY HELPER (V56: Robust 3-column / 2-row layout) ---
 function updateHeaderVisibility(show) {
     const info = document.getElementById("global-video-info");
     const bottom = document.getElementById("header-bottom-row");
     const cover = document.getElementById("global-video-cover");
+    const center = document.getElementById("header-center-column");
     
     const displayVal = show ? "flex" : "none";
     if (info) info.style.display = displayVal;
     if (bottom) bottom.style.display = displayVal;
+    if (center) center.style.display = displayVal;
     if (cover) cover.style.display = show ? "block" : "none";
 }
+
 
 function togglePitchEngine(enabled) {
     logToBackend("[PITCH] Toggle: " + enabled);
@@ -3742,8 +3745,9 @@ async function playLocal(index) {
         updateHeaderVisibility(true);
         globalTitle.innerText = file.title || "Multitrack";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
-
         updateHeaderScaleDisplay(file);
+        updateInterconnectionUI(file); // FIX: Load Links for Multitrack
+
 
         videoContainer.style.display = "none";
         audioContainer.style.display = "none";
