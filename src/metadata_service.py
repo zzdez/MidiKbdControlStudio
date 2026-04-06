@@ -401,13 +401,24 @@ class MetadataService:
             sidecar_path = os.path.join(path, "airstep_meta.json")
             import json
             
-            # Clean cover_data from main JSON to keep file small (it's in folder.jpg or DB)
-            meta_to_save = {k: v for k, v in data.items() if k not in ["cover_data", "stems", "is_multitrack", "duration"]}
+            # --- 1. LOAD EXISTING SIDECAR ---
+            sidecar_data = {}
+            if os.path.exists(sidecar_path):
+                try:
+                    with open(sidecar_path, "r", encoding="utf-8") as f:
+                        sidecar_data = json.load(f)
+                except: pass
+            
+            # --- 2. MERGE WITH NEW DATA ---
+            for key, value in data.items():
+                if key not in ["cover_data", "stems", "is_multitrack", "duration", "chapters"]:
+                    sidecar_data[key] = value
             
             try:
-                # 1. Update JSON
+                # 3. SAVE JSON
                 with open(sidecar_path, "w", encoding="utf-8") as f:
-                    json.dump(meta_to_save, f, indent=4)
+                    json.dump(sidecar_data, f, indent=4)
+
                 
                 # 2. Handle Cover if provided
                 if "cover_data" in data and data["cover_data"]:

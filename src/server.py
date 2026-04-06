@@ -1419,6 +1419,7 @@ async def update_local_file(index: int, item: Dict):
             current["target_pitch"] = item.get("target_pitch", current.get("target_pitch", ""))
             current["autoplay"] = item.get("autoplay", current.get("autoplay", False))
             current["autoreplay"] = item.get("autoreplay", current.get("autoreplay", False))
+            current["linked_ids"] = item.get("linked_ids", current.get("linked_ids", []))
             
             # --- RELOCATION / PATH UPDATE LOGIC ---
             new_path = item.get("path")

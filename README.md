@@ -39,7 +39,7 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
 - **Lecteur Audio Local (Simple & Multipistes)**
     - Support MP3, WAV, FLAC, M4A, OGG.
     - **Support Multipistes (Stems) :** Jouez vos morceaux décomposés (basse, batterie, guitare, etc.) en parfaite synchronisation.
-    - **UI Harmonisée & Professionnelle :** Unification visuelle totale (codes couleurs, bordures, alignement pixel-perfect) entre les graphiques et les commandes. Hauteur des barres de transport standardisée à **55px**.
+    - **UI Harmonisée & Professionnelle :** Unification visuelle totale (codes couleurs, bordures, alignement pixel-perfect) entre les graphiques et les commandes. Hauteur des barres de transport standardisée à **55px**, Header Cockpit à **80px** avec pochette média pleine hauteur.
     - **Waveform Interactive :** WaveSurfer.js synchronisé avec menu contextuel de colorisation dynamique des pistes.
     - Option de Pitch Shifting et contrôle de vitesse (pour les pistes simples).
 *   **Fretboard Interactif & Gammes :**
@@ -85,7 +85,8 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     *   **Smart Close :** Fermez la remote sans être dérangé par la fenêtre principale (qui reste dans le Tray).
     *   **Feedback Visuel Unifié :** Les boutons clignotent que l'action vienne du MIDI, du Clavier (HID) ou du clic souris.
 *   **Persistance Sidecar JSON :**
-    *   Toutes vos modifications (BPM, Tonalité Originale, Tonalité Média, Pitch, Notes) sont désormais sauvegardées dans un petit fichier `.json` à côté de vos médias locaux.
+    *   Toutes vos modifications (BPM, Tonalité Originale, Tonalité Média, Pitch, Notes, **Liens d'interconnexion**) sont désormais sauvegardées dans un petit fichier `.json` à côté de vos médias locaux.
+    *   **Moteur de Fusion Intelligente** : Les métadonnées existantes sont préservées lors des mises à jour, garantissant une intégrité totale de votre base de données locale.
     *   Vos métadonnées vous suivent partout, même si vous déplacez vos dossiers.
 *   **Éditeur de Médias Unifié :**
     *   **Interface Unique** : Fusion totale des outils d'édition. Les médias YouTube, Audios/Vidéos locaux et Multipistes partagent désormais la même structure technique (`media-modal`), garantissant une expérience fluide et une maintenance simplifiée.

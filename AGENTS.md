@@ -226,7 +226,24 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
     *   **UI Grid Harmonisée** : Refonte de la modale multipiste pour intégrer les nouveaux champs de métadonnées et un affichage du poster optimisé.
     *   **Gestion des Sliders** : Utilisation de `writing-mode: vertical-lr` pour les sliders de volume et position de sous-titres, avec feedback en pourcentage (%) temps réel.
 
-### 21. Évolution V15 : Harmonisation UI YouTube & Notes Unifiées
+### 21. Évolution V14 : Header Cockpit V14 & Interconnexion
+*   **Structure à 3 Colonnes (Horizontal)** :
+    - **Col 1 (Logo/Statut)** : Statut de connexion et logo.
+    - **Col 2 (Media Cover)** : Affichage de la pochette en **80px pleine hauteur**.
+    - **Col 3 (Info/Links)** : Colonne centrale à deux lignes :
+        - Ligne 1 : Titre, BPM, Gamme/Badge.
+        - Ligne 2 : Icônes d'interconnexion (Songsterr, Spotify, etc.).
+*   **Moteur d'Affichage Dynamique** : Appel systématique à `updateInterconnectionUI` lors de l'initialisation des médias (y compris multipistes) pour peupler la deuxième ligne.
+
+### 22. Évolution V15 : Persistance Sidecar Hardening (Merge Logic)
+*   **Sidecar Merge (`metadata_service.py`)** :
+    - Passage d'un mode "Overwrite" à un mode "Merge" pour `airstep_meta.json`.
+    - Le service charge désormais le JSON existant avant de le mettre à jour avec les nouveaux champs (Titre, BPM, Gamme, `linked_ids`).
+*   **Stabilisation API (`server.py`)** :
+    - Correction de la propagation du champ `linked_ids` dans `update_local_file` (`PUT /api/local/{index}`).
+*   **Fallback d'Indexation (`app.js`)** :
+    - La fonction `getLinkedItem` intègre désormais un fallback automatique vers l'index tableau si `originalIndex` est manquant ou désynchronisé, garantissant l'affichage des icônes d'interconnexion.
+Évolution V15 : Harmonisation UI YouTube & Notes Unifiées
 *   **Refonte Modale YouTube (`media-modal`) :**
     *   **Compactage Global** : Application de la classe `.edit-form` pour forcer une hauteur de champ de 22px et une police de 11px, assurant une parité visuelle stricte avec les modales locales.
     *   **Zone Titre Sous-Poster** : Déplacement du titre sous l'image pour un meilleur équilibre visuel et ajout du bouton "Notes & Desc" avec `flex-shrink: 0` pour éviter tout chevauchement.

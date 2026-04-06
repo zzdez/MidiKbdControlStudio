@@ -1153,11 +1153,20 @@ function isMatch(item, artist, title) {
 function getLinkedItem(uid) {
     const [type, idxStr] = uid.split(':');
     const idx = parseInt(idxStr);
-    if (type === 'set') return currentTrackList.find(t => t.originalIndex === idx);
-    if (type === 'lib') return localFiles.find(f => f.originalIndex === idx);
-    if (type === 'web') return webLinks.find(w => w.originalIndex === idx);
+    
+    // Safety: check if list exists before searching
+    const findIn = (list, i) => {
+        if (!list || list.length === 0) return null;
+        // Search by originalIndex FIRST, then fallback to direct array index if possible
+        return list.find(t => t.originalIndex === i) || (i >= 0 && i < list.length ? list[i] : null);
+    };
+    
+    if (type === 'set') return findIn(currentTrackList, idx);
+    if (type === 'lib') return findIn(localFiles, idx);
+    if (type === 'web') return findIn(webLinks, idx);
     return null;
 }
+
 
 function getIcon(url) {
     if (!url) return '';
