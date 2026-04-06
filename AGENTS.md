@@ -428,13 +428,11 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     - **Correction Structurelle HTML** : Résolution des erreurs de balises `<dialog>` orphelines qui bloquaient le rendu du navigateur.
     - **Bandeau de Relocalisation** : Réintégration propre des fonctions Copier/Déplacer dans la modale d'édition unifiée.
 
-### 40. Évolution V54 : Stabilisation du Media Training (Anti-Rebond & Logique)
-*   **Moteur "Debounce" (`app.js`)** :
-    *   **Protection contre l'emballement** : Ajout d'un verrou de sécurité de 500ms dans `MediaTrainingManager` pour empêcher le multi-déclenchement des cycles lors des bonds temporels (`seek`).
-    *   **Synchronisation en "Live"** : La fonction `updateParam` synchronise désormais instantanément le BPM cible et la vitesse de lecture si l'utilisateur modifie l'interface en cours d'entraînement.
-*   **Logique d'Apprentissage Progressive** :
-    *   **Inversion des Valeurs par Défaut** : Le système pré-remplit désormais intelligemment les champs : **Cible** = 100% du BPM original du morceau, **Départ** = 75% du BPM original. Cela favorise un apprentissage réaliste du tempo réel.
-    *   **Cycles par défaut** : Passage de 4 à 1 cycle par défaut pour une progression plus agile.
-*   **Fiabilisation de la Détection (Helper `getActiveTrack`)** :
-    *   Centralisation de la récupération des métadonnées. Correction d'un bug de portée sur `localFiles` qui empêchait la lecture du BPM sur les projets multipistes.
-    *   Logs détaillés en console pour le suivi précis du ratio de vitesse (`CurrentBpm / RefBpm`).
+
+### 40. Évolution V22 : Synchronisation Universelle & Persistance des Médias Liés
+*   **Moteur de Synchronisation ✨ (Universal Tag) :**
+    - **Détection des Liens Locaux** : La recherche universelle identifie désormais si un média (Audio/Vidéo) est déjà lié à l'élément en cours d'édition. Elle propose une suggestion prioritaire "Média Lié" qui extrait les métadonnées directement de la bibliothèque locale.
+    - **Persistance des Pochettes Web** : Renforcement du flux de données pour les Web Links. La variable `window.currentWebLinkCover` capture désormais fidèlement les chemins de fichiers locaux (`original_cover_path`) lors d'une synchronisation avec un média existant, garantissant que la pochette est préservée après redémarrage.
+*   **Robustesse du Frontend (`app.js`) :**
+    - **Protection contre les Crashs** : Isolation de `applyUniversalMetadata` dans un bloc `try/catch` global avec des vérifications d'existence systématiques pour chaque champ (ID-safe).
+    - **Récupération de Secours** : Implémentation d'une logique de "Last Resort" dans `saveWebLink` qui, si la variable globale est vide, tente d'extraire la pochette directement depuis l'élément `<img>` de la modale en décodant l'URL du proxy.

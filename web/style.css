@@ -649,6 +649,11 @@ button:hover {
     100% { opacity: 1; }
 }
 
+@keyframes pulse-glow {
+    0% { transform: scale(1); box-shadow: 0 0 5px rgba(187, 134, 252, 0.2); }
+    100% { transform: scale(1.05); box-shadow: 0 0 20px rgba(187, 134, 252, 0.6); }
+}
+
 /* MODAL STYLES */
 dialog {
     background-color: #1e1e1e;

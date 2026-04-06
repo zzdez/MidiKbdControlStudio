@@ -730,10 +730,15 @@ async function loadWebLinks() {
         const res = await fetch("/api/web_links");
         if (res.ok) {
             const rawList = await res.json();
+            console.log("[LOAD_WEB] Items loaded:", rawList.length, rawList);
             webLinks = rawList.map((link, idx) => ({ ...link, originalIndex: idx }));
             currentWebLinkTrackList = [...webLinks];
         }
-    } catch (e) { console.error("Web Links load error:", e); }
+    } catch (e) {
+        console.error("Web Links load error:", e);
+        logToBackend("[LOAD_WEB] ERROR: " + e.message);
+    }
+    console.log("[LOAD_WEB] Rendering links...");
     renderWebLinks();
 }
 
@@ -760,10 +765,17 @@ function renderWebLinks() {
         const realIndex = link.originalIndex;
         const tr = document.createElement("tr");
         
-        const favIcon = getIcon(link.url);
         let iconHtml = `<i class="ph ph-globe" style="font-size:1.2em; color:var(--accent);"></i>`;
-        if (favIcon) {
-            iconHtml = `<img src="${favIcon}" style="width:20px; height:20px; border-radius:4px; vertical-align:middle;">`;
+        
+        // V60: Prioritize Cover Art over Favicon if present
+        if (link.cover) {
+            const coverUrl = link.cover.startsWith('http') ? link.cover : `/api/cover?path=${encodeURIComponent(link.cover)}&t=${Date.now()}`;
+            iconHtml = `<img src="${coverUrl}" style="width:24px; height:24px; border-radius:4px; vertical-align:middle; object-fit:cover; border:1px solid rgba(255,255,255,0.1);">`;
+        } else {
+            const favIcon = getIcon(link.url);
+            if (favIcon) {
+                iconHtml = `<img src="${favIcon}" style="width:20px; height:20px; border-radius:4px; vertical-align:middle;">`;
+            }
         }
 
         tr.innerHTML = `
@@ -781,6 +793,9 @@ function renderWebLinks() {
 
 function openWebLinkModal(index = -1) {
     currentWebLinkIndex = index;
+    // V55: Initialize linked IDs for session
+    currentEditingLinkedIds = (index === -1) ? [] : (webLinks[index].linked_ids || []);
+    
     const modal = document.getElementById("modal-web-link");
     const titleEl = document.getElementById("web-link-modal-title");
 
@@ -878,6 +893,20 @@ function removeWebLinkCover() {
 }
 
 async function saveWebLink() {
+    // V55: Last resort recovery of cover from UI if global is null
+    let coverToSave = window.currentWebLinkCover;
+    if (!coverToSave) {
+        const uiImg = document.getElementById("web-link-art-img");
+        if (uiImg && uiImg.style.display !== "none" && uiImg.src && !uiImg.src.endsWith('/')) {
+            const src = uiImg.src;
+            if (src.includes("/api/cover?path=")) {
+                coverToSave = decodeURIComponent(src.split("path=")[1].split("&")[0]);
+            } else if (src.startsWith("http")) {
+                coverToSave = src;
+            }
+        }
+    }
+
     const payload = {
         title: document.getElementById("web-link-title").value,
         artist: document.getElementById("web-link-artist").value,
@@ -886,30 +915,47 @@ async function saveWebLink() {
         category: document.getElementById("web-link-category").value,
         genre: document.getElementById("web-link-genre").value,
         notes: document.getElementById("web-link-notes").value,
-        // New fields
-        volume: document.getElementById("web-link-vol").value / 100,
-        bpm: document.getElementById("web-link-bpm").value ? parseInt(document.getElementById("web-link-bpm").value) : null,
-        key: document.getElementById("web-link-key").value,
-        scale: document.getElementById("web-link-scale").value,
-        tuning: document.getElementById("web-link-tuning").value,
-        cover: window.currentWebLinkCover,
-        linked_ids: (currentWebLinkIndex !== -1 && webLinks[currentWebLinkIndex]) ? (webLinks[currentWebLinkIndex].linked_ids || []) : []
+        volume: document.getElementById("web-link-vol") ? parseInt(document.getElementById("web-link-vol").value) : 100,
+        bpm: document.getElementById("web-link-bpm")?.value || null,
+        metadata: {
+            key: document.getElementById("web-link-key")?.value || null,
+            scale: document.getElementById("web-link-scale")?.value || null,
+            tuning: document.getElementById("web-link-tuning")?.value || "standard"
+        },
+        cover: coverToSave || null,
+        linked_ids: currentEditingLinkedIds
     };
+
+    console.log("[SAVE_WEB] Final Payload:", payload);
+    console.warn("[SAVE_WEB] window.currentWebLinkCover before save:", window.currentWebLinkCover);
+    logToBackend(`[SAVE_WEB] Payload Cover: ${payload.cover} | Global: ${window.currentWebLinkCover}`);
 
     const method = currentWebLinkIndex === -1 ? "POST" : "PUT";
     const url = currentWebLinkIndex === -1 ? "/api/web_links" : `/api/web_links/${currentWebLinkIndex}`;
 
+    console.log("[SAVE_WEB] Method:", method, "URL:", url);
     try {
         const res = await fetch(url, {
             method: method,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
+        
         if (res.ok) {
+            console.log("[SAVE_WEB] SUCCESS");
             closeWebLinkModal();
             loadWebLinks();
+        } else {
+            const errBody = await res.text();
+            console.error("[SAVE_WEB] SERVER ERROR:", res.status, errBody);
+            logToBackend("[SAVE_WEB] SERVER ERROR: " + res.status + " " + errBody);
+            alert("Erreur lors de la sauvegarde: " + res.status + " " + errBody);
         }
-    } catch (e) { console.error("Save Web Link error:", e); }
+    } catch (e) {
+        console.error("[SAVE_WEB] NETWORK ERROR:", e);
+        logToBackend("[SAVE_WEB] NETWORK ERROR: " + e.message);
+        alert("Erreur réseau: " + e.message);
+    }
 }
 
 async function deleteWebLink(index) {
@@ -5780,6 +5826,9 @@ function openUniversalTagModal(context) {
     } else if (context === 'edit') {
         title = document.getElementById("edit-title").value;
         artist = document.getElementById("edit-artist").value;
+    } else if (context === 'web-link') {
+        title = document.getElementById("web-link-title").value;
+        artist = document.getElementById("web-link-artist").value;
     }
 
     document.getElementById("utag-search-title").value = title;
@@ -5795,121 +5844,198 @@ async function performUniversalSearch() {
     const query = (artist ? artist + " " : "") + title;
 
     const container = document.getElementById("utag-results-container");
-    container.innerHTML = `<div style='color:var(--accent); display:flex; align-items:center; justify-content:center; gap:10px; padding:20px;'>
-                                <i class='ph ph-circle-notch ph-spin' style='font-size:1.5em;'></i> 
-                                <span>Recherche enrichie...</span>
-                           </div>`;
+    container.innerHTML = ""; // V54: Clear once at START
+
+    const loadingDiv = document.createElement("div");
+    loadingDiv.id = "utag-loading-indicator";
+    loadingDiv.style = 'color:var(--accent); display:flex; align-items:center; justify-content:center; gap:10px; padding:20px;';
+    loadingDiv.innerHTML = `<i class='ph ph-circle-notch ph-spin' style='font-size:1.5em;'></i> <span>Recherche enrichie...</span>`;
+    container.appendChild(loadingDiv);
 
     try {
+        // 0. CHECK FOR LINKED MEDIA (V54)
+        // ... (existing sourceItem picking logic)
+        const container = document.getElementById("utag-results-container");
+        
+        // 0. CHECK FOR LINKED MEDIA (V54)
+        // Find current object being edited
+        let sourceItem = null;
+        if (activeUniversalContext === 'local') sourceItem = localFiles[editingLocalIndex];
+        else if (activeUniversalContext === 'mt') sourceItem = localFiles[editingLocalIndex];
+        else if (activeUniversalContext === 'edit') sourceItem = currentTrackList.find(t => t.originalIndex === editingIndex);
+        else if (activeUniversalContext === 'web-link') sourceItem = (currentWebLinkIndex !== -1) ? webLinks[currentWebLinkIndex] : { linked_ids: currentEditingLinkedIds };
+
+        if (sourceItem && sourceItem.linked_ids && sourceItem.linked_ids.length > 0) {
+            sourceItem.linked_ids.forEach(uid => {
+                const linked = getLinkedItem(uid);
+                if (linked) {
+                    const res = {
+                        title: linked.title,
+                        artist: linked.artist,
+                        album: linked.album || "Média Lié",
+                        year: linked.year || "",
+                        bpm: linked.bpm,
+                        key: linked.key,
+                        cover_url: linked.cover ? (linked.cover.startsWith('http') ? linked.cover : `/api/cover?path=${encodeURIComponent(linked.cover)}`) : null,
+                        original_cover_path: linked.cover, // V54: Keep original path for internal sync
+                        is_linked_suggestion: true
+                    };
+                    renderUniversalResultItem(res, true);
+                }
+            });
+        }
+
         const res = await fetch(`/api/metadata/search?q=${encodeURIComponent(query)}`);
         const results = await res.json();
-        container.innerHTML = "";
+        
+        // Remove loading indicator JUST before showing API results
+        const indicator = document.getElementById("utag-loading-indicator");
+        if (indicator) indicator.remove();
 
-        if (results.length === 0) {
+        if (results.length === 0 && container.children.length === 0) {
             container.innerHTML = "<div style='padding:20px; text-align:center; color:#888;'>Aucun résultat trouvé. Essayez de simplifier le titre.</div>";
             return;
         }
 
         results.forEach(item => {
-            const div = document.createElement("div");
-            div.className = "api-result-item";
-            div.style.margin = "5px";
-            
-            let thumb = "<span style='font-size:24px;'>🎵</span>";
-            if (item.cover_url) {
-                thumb = `<img src="${item.cover_url}" style="width:40px; height:40px; border-radius:4px; object-fit:cover;">`;
-            }
-
-            let metaInfo = `${item.artist} - ${item.album} (${item.year})`;
-            if (item.bpm || item.key) {
-                metaInfo += `<br><span style="color:var(--accent); font-size:0.85em;">`;
-                if (item.bpm) metaInfo += `🎵 ${item.bpm} BPM `;
-                if (item.key) metaInfo += `🎹 Key: ${item.key}`;
-                metaInfo += `</span>`;
-            }
-
-            div.innerHTML = `
-                ${thumb}
-                <div style="flex:1;">
-                    <div style="font-weight:bold; font-size:0.95em;">${item.title}</div>
-                    <div style="font-size:0.8em; color:#bbb;">${metaInfo}</div>
-                </div>
-                <button class="btn-primary" style="padding:4px 8px; font-size:0.8em;">Appliquer</button>
-            `;
-
-            div.onclick = () => applyUniversalMetadata(item);
-            container.appendChild(div);
+            renderUniversalResultItem(item);
         });
     } catch (e) {
         container.innerHTML = "<div style='color:red; padding:20px;'>Erreur lors de la recherche.</div>";
     }
 }
 
+function renderUniversalResultItem(item, isLinkedSync = false) {
+    const container = document.getElementById("utag-results-container");
+    const div = document.createElement("div");
+    div.className = "api-result-item";
+    div.style.margin = "5px";
+    if (isLinkedSync) {
+        div.style.border = "1px solid var(--accent)";
+        div.style.background = "rgba(187,134,252,0.1)";
+    }
+    
+    let thumb = "<span style='font-size:24px;'>🎵</span>";
+    if (item.cover_url) {
+        thumb = `<img src="${item.cover_url}" style="width:40px; height:40px; border-radius:4px; object-fit:cover;">`;
+    }
+
+    let metaInfo = `${item.artist} - ${item.album} (${item.year || ""})`;
+    if (item.bpm || item.key) {
+        metaInfo += `<br><span style="color:var(--accent); font-size:0.85em;">`;
+        if (item.bpm) metaInfo += `🎵 ${item.bpm} BPM `;
+        if (item.key) metaInfo += `🎹 Key: ${item.key}`;
+        metaInfo += `</span>`;
+    }
+
+    div.innerHTML = `
+        ${thumb}
+        <div style="flex:1; min-width:0;">
+            <div style="font-weight:bold; font-size:0.95em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</div>
+            <div style="font-size:0.8em; color:#bbb; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${metaInfo}</div>
+        </div>
+        <button class="btn-primary" style="padding:4px 8px; font-size:0.8em; min-width:80px; background:${isLinkedSync ? 'var(--accent)' : ''}">
+            ${isLinkedSync ? 'SYNC LINK' : 'Appliquer'}
+        </button>
+    `;
+
+    div.onclick = (e) => {
+        console.log("[UTAG] Result clicked:", item.title);
+        applyUniversalMetadata(item);
+    };
+    container.appendChild(div);
+}
+
 function applyUniversalMetadata(item) {
-    const applyTitle = document.getElementById("utag-apply-title").checked;
-    const applyArtist = document.getElementById("utag-apply-artist").checked;
-    const applyBpmKey = document.getElementById("utag-apply-bpm-key").checked;
-    const applyPochette = document.getElementById("utag-apply-pochette").checked;
-    const applyTags = document.getElementById("utag-apply-tags").checked;
+    try {
+        console.warn("[UTAG] applyUniversalMetadata CALLED with item:", item);
+        logToBackend(`[UTAG] applyUniversalMetadata CALLED. ctx=${activeUniversalContext}`);
 
-    const ctx = activeUniversalContext;
+        const applyTitle = document.getElementById("utag-apply-title")?.checked;
+        const applyArtist = document.getElementById("utag-apply-artist")?.checked;
+        const applyBpmKey = document.getElementById("utag-apply-bpm-key")?.checked;
+        const applyPochette = document.getElementById("utag-apply-pochette")?.checked;
+        const applyTags = document.getElementById("utag-apply-tags")?.checked;
 
-    if (applyTitle) document.getElementById(`${ctx}-title`).value = item.title || "";
-    if (applyArtist) {
-        const artInput = document.getElementById(`${ctx}-artist`);
-        if (artInput) artInput.value = item.artist || "";
-    }
+        const ctx = activeUniversalContext;
+        console.log("[UTAG] Context is:", ctx);
 
-    if (applyBpmKey) {
-        const bpmInput = document.getElementById(`${ctx}-bpm`);
-        const keyInput = document.getElementById(`${ctx}-key`);
-        if (bpmInput && item.bpm) {
-            bpmInput.value = item.bpm;
-            bpmInput.dispatchEvent(new Event('input', { bubbles: true }));
+        // 1. Text Fields
+        if (applyTitle) {
+            const el = document.getElementById(`${ctx}-title`);
+            if (el) el.value = item.title || "";
         }
-        if (keyInput && item.key) {
-            keyInput.value = item.key;
-            keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+        if (applyArtist) {
+            const el = document.getElementById(`${ctx}-artist`);
+            if (el) el.value = item.artist || "";
         }
-    }
-
-    if (applyTags) {
-        const albInput = document.getElementById(`${ctx}-album`);
-        const genreInput = document.getElementById(`${ctx}-genre`);
-        const yearInput = document.getElementById(`${ctx}-year`);
-        if (albInput) albInput.value = item.album || "";
-        if (genreInput) genreInput.value = item.genre || "";
-        if (yearInput) yearInput.value = item.year || "";
-    }
-
-    if (applyPochette && item.cover_url) {
-        currentCoverData = item.cover_url;
-        let imgId = "";
-        let placeholderId = "";
-        let deleteBtnId = "";
-
-        if (ctx === 'local') { imgId = "local-art-img"; placeholderId = "local-art-placeholder"; deleteBtnId = "btn-delete-cover"; }
-        else if (ctx === 'mt') { imgId = "mt-art-img"; placeholderId = "mt-art-placeholder"; deleteBtnId = "btn-mt-delete-cover"; }
-        else if (ctx === 'edit') { imgId = "preview-thumbnail"; deleteBtnId = "btn-edit-delete-cover"; } // Edit has different structure
-
-        const img = document.getElementById(imgId);
-        if (img) {
-            img.src = item.cover_url;
-            img.style.display = "block";
-            // If it's the center preview in edit modal, it might be a div with background
-            if (ctx === 'edit') {
-                img.style.backgroundImage = `url(${item.cover_url})`;
-                img.style.backgroundSize = "cover";
-                img.innerHTML = ""; // Clear the emoji
+        if (applyBpmKey) {
+            const bpmEl = document.getElementById(`${ctx}-bpm`);
+            const keyEl = document.getElementById(`${ctx}-key`);
+            if (bpmEl && item.bpm !== undefined) {
+                bpmEl.value = item.bpm || "";
+                bpmEl.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (keyEl && item.key !== undefined) {
+                keyEl.value = item.key || "";
+                keyEl.dispatchEvent(new Event('input', { bubbles: true }));
             }
         }
-        const placeholder = document.getElementById(placeholderId);
-        if (placeholder) placeholder.style.display = "none";
-        const delBtn = document.getElementById(deleteBtnId);
-        if (delBtn) delBtn.style.display = "flex";
-    }
+        if (applyTags) {
+            const albEl = document.getElementById(`${ctx}-album`);
+            const genEl = document.getElementById(`${ctx}-genre`);
+            const yeaEl = document.getElementById(`${ctx}-year`);
+            if (albEl) albEl.value = item.album || "";
+            if (genEl) genEl.value = item.genre || "";
+            if (yeaEl) yeaEl.value = item.year || "";
+        }
 
-    document.getElementById("modal-universal-tag").close();
+        // 2. Pochette
+        if (applyPochette && (item.cover_url || item.original_cover_path)) {
+            console.log("[UTAG] Processing cover...");
+            let imgId = "", placeholderId = "", deleteBtnId = "";
+
+            if (ctx === 'local') { imgId = "local-art-img"; placeholderId = "local-art-placeholder"; deleteBtnId = "btn-delete-cover"; }
+            else if (ctx === 'mt') { imgId = "mt-art-img"; placeholderId = "mt-art-placeholder"; deleteBtnId = "btn-mt-delete-cover"; }
+            else if (ctx === 'edit') { imgId = "preview-thumbnail"; deleteBtnId = "btn-edit-delete-cover"; }
+            else if (ctx === 'web-link') { 
+                imgId = "web-link-art-img"; 
+                placeholderId = "web-link-art-placeholder"; 
+                deleteBtnId = "btn-web-link-delete-cover"; 
+                
+                // IMPORTANT: Update the global variable used for save
+                window.currentWebLinkCover = item.original_cover_path || item.cover_url;
+                console.warn("[UTAG] Global currentWebLinkCover set to:", window.currentWebLinkCover);
+            }
+
+            const img = document.getElementById(imgId);
+            if (img) {
+                const displayUrl = item.cover_url || (item.original_cover_path ? `/api/cover?path=${encodeURIComponent(item.original_cover_path)}` : "");
+                img.src = displayUrl;
+                img.style.display = "block";
+                if (ctx === 'edit') {
+                    img.style.backgroundImage = `url(${displayUrl})`;
+                    img.style.backgroundSize = "cover";
+                    img.innerHTML = "";
+                }
+                console.log("[UTAG] UI updated for img:", imgId);
+            }
+
+            const placeholder = document.getElementById(placeholderId);
+            if (placeholder) placeholder.style.setProperty('display', 'none', 'important');
+            
+            const delBtn = document.getElementById(deleteBtnId);
+            if (delBtn) delBtn.style.display = "flex";
+        }
+
+        document.getElementById("modal-universal-tag").close();
+        console.log("[UTAG] SUCCESS: Metadata applied.");
+
+    } catch (err) {
+        console.error("[UTAG] CRITICAL ERROR in applyUniversalMetadata:", err);
+        logToBackend(`[UTAG] CRITICAL ERROR: ${err.message}`);
+    }
+}
 }
 
 function removeLocalCover() {
@@ -9257,7 +9383,7 @@ function openMediaLinker(sourceType) {
     } else if (sourceType === 'library') {
         linkerSourceItem = localFiles[editingLocalIndex];
     } else if (sourceType === 'web_links') {
-        linkerSourceItem = webLinks[currentWebLinkIndex];
+        linkerSourceItem = (currentWebLinkIndex === -1) ? { linked_ids: currentEditingLinkedIds } : webLinks[currentWebLinkIndex];
     }
 
     if (!linkerSourceItem) return;
@@ -9431,6 +9557,67 @@ async function toggleMediaLink(targetType, targetIndex) {
                 action: isNowLinked ? 'link' : 'unlink'
             })
         });
+
+        // 3. AUTO-SYNC METADATA (V53)
+        // If we are linking (not unlinking) and we have a source/target, try to fill missing gaps
+        if (isNowLinked) {
+            const targetItem = getLinkedItem(targetUid);
+            if (targetItem && linkerSourceItem) {
+                const fields = ['title', 'artist', 'bpm', 'key', 'scale', 'tuning', 'category', 'genre', 'cover'];
+                let changedFields = [];
+                
+                fields.forEach(f => {
+                    const sVal = linkerSourceItem[f];
+                    const tVal = targetItem[f];
+                    
+                    // Special for title: Only sync if current is empty or matches url
+                    if (f === 'title') {
+                        const curTitle = document.getElementById("web-link-title")?.value || "";
+                        if (!curTitle || curTitle === linkerSourceItem.url) {
+                            linkerSourceItem.title = tVal;
+                            changedFields.push('title');
+                        }
+                    } else if ((!sVal || sVal === "" || sVal === 0) && tVal) {
+                        linkerSourceItem[f] = tVal;
+                        changedFields.push(f);
+                    }
+                });
+                
+                if (changedFields.length > 0) {
+                    console.log("[Auto-Sync] Metadata synced from target to source:", changedFields);
+                    logToBackend("[Auto-Sync] Implemented fields: " + changedFields.join(', '));
+                    // Update UI if a modal is open
+                    if (linkerSourceType === 'web_links') {
+                        // Refresh Web Modal fields
+                        changedFields.forEach(f => {
+                            const el = document.getElementById(`web-link-${f}`);
+                            if (el) {
+                                el.value = linkerSourceItem[f] || "";
+                                // Visual Flash Effect
+                                el.style.transition = "background 0.2s, box-shadow 0.2s";
+                                el.style.background = "rgba(187,134,252,0.3)";
+                                el.style.boxShadow = "0 0 10px var(--accent)";
+                                setTimeout(() => {
+                                    el.style.background = "";
+                                    el.style.boxShadow = "";
+                                }, 1500);
+                            }
+                        });
+                        
+                        if (changedFields.includes('cover') && linkerSourceItem.cover) {
+                            window.currentWebLinkCover = linkerSourceItem.cover;
+                            const img = document.getElementById("web-link-art-img");
+                            img.src = linkerSourceItem.cover.startsWith('http') ? linkerSourceItem.cover : `/api/cover?path=${encodeURIComponent(linkerSourceItem.cover)}`;
+                            img.style.display = "block";
+                            document.getElementById("web-link-art-placeholder").style.display = "none";
+                            document.getElementById("btn-web-link-delete-cover").style.display = "flex"; // Show delete btn
+                            img.style.animation = "pulse-glow 1s infinite alternate";
+                            setTimeout(() => img.style.animation = "", 3000);
+                        }
+                    }
+                }
+            }
+        }
     } catch (e) {
         console.error("Bidirectional link error:", e);
     }

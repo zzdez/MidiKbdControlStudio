@@ -24,11 +24,16 @@ from utils import get_app_dir, get_data_dir, to_portable_path, resolve_portable_
 from i18n import _
 
 # Configure Logging
+log_path = os.path.join(os.getcwd(), 'midikbd_debug.log')
+print(f"DIAGNOSTIC: Logging to {log_path}")
 logging.basicConfig(
-    filename=os.path.join(get_app_dir(), 'midikbd_debug.log'),
+    filename=log_path,
     level=logging.WARNING,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+logging.warning(f"=== SERVER STARTING AT {os.getcwd()} ===")
+logging.warning(f"APP_DIR: {get_app_dir()}")
+logging.warning(f"DATA_DIR: {get_data_dir()}")
 
 from config_manager import ConfigManager
 from library_manager import LibraryManager
@@ -44,6 +49,12 @@ SETLIST_FILE = os.path.join(get_data_dir(), "setlist.json")
 APPS_FILE = os.path.join(get_data_dir(), "apps.json")
 LOCAL_LIB_FILE = os.path.join(get_data_dir(), "local_lib.json")
 WEB_LINKS_FILE = os.path.join(get_data_dir(), "web_links.json")
+try:
+    _abs_web = os.path.abspath(WEB_LINKS_FILE)
+    logging.warning(f"[INIT] WEB_LINKS_FILE is at: {_abs_web}")
+    if not os.path.exists(os.path.dirname(_abs_web)):
+        os.makedirs(os.path.dirname(_abs_web), exist_ok=True)
+except: pass
 DRUM_SETTINGS_FILE = os.path.join(get_data_dir(), "drum_settings.json")
 
 app.add_middleware(
@@ -83,6 +94,13 @@ if os.path.exists(user_sounds_dir):
 server_loop = None
 config_manager = ConfigManager()
 music_api_client = MusicAPI(config_manager)
+
+@app.post("/api/debug_log")
+async def debug_log(data: Dict):
+    """Mirror frontend logs to backend terminal/file."""
+    msg = data.get("msg", "")
+    logging.warning(f"[BROWSER] {msg}")
+    return {"status": "ok"}
 
 @app.on_event("startup")
 async def startup_event():
@@ -321,6 +339,25 @@ async def stream_file(request: Request, path: str):
     import mimetypes
     mime_type, _ = mimetypes.guess_type(decoded_path)
     return FileResponse(decoded_path, media_type=mime_type, filename=os.path.basename(decoded_path))
+
+@app.get("/api/cover")
+async def get_cover_image(path: str):
+    """Alias for streaming specifically covers with optional caching support."""
+    try:
+        decoded_path = urllib.parse.unquote(path)
+        resolved = resolve_portable_path(decoded_path)
+        logging.info(f"[COVER] Requested: {path} -> Decoded: {decoded_path} -> Resolved: {resolved}")
+        
+        if not os.path.exists(resolved):
+            logging.error(f"[COVER] File not found: {resolved}")
+            raise HTTPException(status_code=404, detail=f"Cover not found: {resolved}")
+        
+        import mimetypes
+        mime_type, _ = mimetypes.guess_type(resolved)
+        return FileResponse(resolved, media_type=mime_type)
+    except Exception as e:
+        logging.error(f"[COVER] Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/status")
 async def get_status():
@@ -695,84 +732,7 @@ async def edit_setlist_item(index: int, item: Dict):
         print(f"Edit Setlist Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- WEB LINKS ROUTES ---
-
-@app.get("/api/web_links")
-async def get_web_links():
-    if os.path.exists(WEB_LINKS_FILE):
-        try:
-            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return []
-    return []
-
-@app.post("/api/web_links")
-async def add_web_link(item: Dict):
-    try:
-        items = []
-        if os.path.exists(WEB_LINKS_FILE):
-            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
-                items = json.load(f)
-        
-        # Ensure default values
-        new_item = {
-            "title": item.get("title", "Sans titre"),
-            "artist": item.get("artist", ""),
-            "url": item.get("url", ""),
-            "type": item.get("type", "other"), # songsterr, moises, spotify, lesson, other
-            "category": item.get("category", "Général"),
-            "genre": item.get("genre", "Divers"),
-            "user_notes": item.get("user_notes", "")
-        }
-        
-        items.append(new_item)
-        with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
-            json.dump(items, f, indent=4)
-        return items
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.put("/api/web_links/{index}")
-async def update_web_link(index: int, item: Dict):
-    try:
-        items = []
-        if os.path.exists(WEB_LINKS_FILE):
-            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
-                items = json.load(f)
-        
-        if 0 <= index < len(items):
-            # Partial update or full replace
-            curr = items[index]
-            curr["title"] = item.get("title", curr.get("title"))
-            curr["artist"] = item.get("artist", curr.get("artist"))
-            curr["url"] = item.get("url", curr.get("url"))
-            curr["type"] = item.get("type", curr.get("type"))
-            curr["category"] = item.get("category", curr.get("category"))
-            curr["genre"] = item.get("genre", curr.get("genre"))
-            curr["user_notes"] = item.get("user_notes", curr.get("user_notes"))
-            
-            with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
-                json.dump(items, f, indent=4)
-        return items
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.delete("/api/web_links/{index}")
-async def delete_web_link(index: int):
-    try:
-        items = []
-        if os.path.exists(WEB_LINKS_FILE):
-            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
-                items = json.load(f)
-        
-        if 0 <= index < len(items):
-            items.pop(index)
-            with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
-                json.dump(items, f, indent=4)
-        return items
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# [REMOVED DUPLICATE WEB LINKS ROUTES]
 
 # --- APPS LAUNCHER ---
 @app.get("/api/apps")
@@ -2677,6 +2637,7 @@ async def get_web_links():
 @app.post("/api/web_links")
 async def add_web_link(item: Dict):
     try:
+        logging.warning(f"[SAVE_WEB] Attempting to ADD: {item.get('title')} (Content: {list(item.keys())})")
         links = []
         if os.path.exists(WEB_LINKS_FILE):
             with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
@@ -2684,24 +2645,46 @@ async def add_web_link(item: Dict):
         links.append(item)
         with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
             json.dump(links, f, indent=4)
+        logging.warning(f"[SAVE_WEB] Successfully ADDED. Total links: {len(links)}")
         return {"status": "ok"}
     except Exception as e:
+        logging.error(f"[SAVE_WEB] ADD Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/web_links/{index}")
 async def update_web_link(index: int, item: Dict):
     try:
-        if os.path.exists(WEB_LINKS_FILE):
-            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
+        abs_path = os.path.abspath(WEB_LINKS_FILE)
+        logging.warning(f"[SAVE_WEB] PUT index {index}. Payload cover: {item.get('cover')}")
+        
+        links = []
+        if os.path.exists(abs_path):
+            with open(abs_path, "r", encoding="utf-8") as f:
                 links = json.load(f)
-            if 0 <= index < len(links):
-                links[index] = item
-                with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
-                    json.dump(links, f, indent=4)
-                return {"status": "ok"}
-        raise HTTPException(status_code=404, detail="Link not found")
+        else:
+            logging.error(f"[SAVE_WEB] File {abs_path} NOT FOUND during PUT!")
+        
+        if 0 <= index < len(links):
+            # Preserve existing cover if new one is null but we had one? 
+            # Non, si l'user a fait "Supprimer la pochette", on respecte le null.
+            links[index] = item
+            
+            with open(abs_path, "w", encoding="utf-8") as f:
+                json.dump(links, f, indent=4)
+                f.flush()
+                # os.fsync(f.fileno()) # Supprimé pour compatibilité plus large
+            
+            logging.warning(f"[SAVE_WEB] Write successful. Re-verifying...")
+            with open(abs_path, "r", encoding="utf-8") as f:
+                check = json.load(f)
+                logging.warning(f"[SAVE_WEB] VERIFIED: Index {index} cover is now: {check[index].get('cover')}")
+            
+            return {"status": "ok"}
+        
+        return {"status": "error", "message": f"Index {index} out of range ({len(links)})"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"[SAVE_WEB] CRITICAL UPDATE ERROR: {str(e)}")
+        return {"status": "error", "message": str(e)}
 
 @app.delete("/api/web_links/{index}")
 async def delete_web_link_api(index: int):
@@ -2786,7 +2769,7 @@ async def link_bidirectional(data: Dict):
         action = data.get("action", "link")  # 'link' or 'unlink'
 
         files = {
-            "setlist": YOUTUBE_LIB_FILE,
+            "setlist": SETLIST_FILE,
             "library": LOCAL_LIB_FILE,
             "web_links": WEB_LINKS_FILE
         }
@@ -2801,6 +2784,11 @@ async def link_bidirectional(data: Dict):
         def save_db(t, content):
             with open(files[t], "w", encoding="utf-8") as f:
                 json.dump(content, f, indent=4)
+
+        # Si l'index est -1, on ne peut pas établir de liaison physique car l'item n'existe pas encore.
+        # L'Auto-Sync aura quand même lieu en mémoire côté frontend.
+        if source_index == -1 or target_index == -1:
+            return {"status": "ok", "synced": True, "message": "Memory sync only (new item)"}
 
         db_s = get_db(source_type)
         db_t = get_db(target_type)
