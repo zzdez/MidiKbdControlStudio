@@ -108,6 +108,7 @@ let currentWebLinkTrackList = [];
 let currentDeviceName = "Aucun";
 let currentConnectionMode = "MIDO";
 let currentIsConnected = false;
+let lastEditContext = null; // 'setlist' or 'library'
 
 // --- HELPERS ---
 function formatTimeCustom(seconds) {
@@ -1810,6 +1811,7 @@ function openAddModal() {
 
 function openEditModal(index) {
     editingIndex = index;
+    lastEditContext = 'setlist';
     // Find track by original index in the current (possibly sorted) list
     const track = currentTrackList.find(t => t.originalIndex === index);
     if (!track) return;
@@ -5478,6 +5480,7 @@ async function confirmImport(action) {
 
 function openEditLocalModal(index) {
     editingLocalIndex = index;
+    lastEditContext = 'library';
     const item = localFiles[index];
     
     // Reveal sidebar if in theater mode to give context to editing
@@ -5590,6 +5593,7 @@ function closeLocalModal() {
 // --- MULTITRACK MODAL LOGIC ---
 function openMultitrackModal(index) {
     editingLocalIndex = index;
+    lastEditContext = 'library';
     const item = localFiles[index];
     if (!item) return;
 
@@ -9554,7 +9558,10 @@ function openMediaLinker(sourceType) {
         linkerSourceItem = (currentWebLinkIndex === -1) ? { linked_ids: currentEditingLinkedIds } : webLinks[currentWebLinkIndex];
     }
 
-    if (!linkerSourceItem) return;
+    if (!linkerSourceItem) {
+        console.warn("[LINKER] No source item found for:", sourceType, "indices:", editingIndex, editingLocalIndex);
+        return;
+    }
 
     currentEditingLinkedIds = linkerSourceItem.linked_ids || [];
     
@@ -9564,6 +9571,14 @@ function openMediaLinker(sourceType) {
     renderExistingLinks();
 
     document.getElementById("modal-media-linker").showModal();
+}
+
+function openMediaLinkerFromEdit() {
+    if (!lastEditContext) {
+        console.warn("[LINKER] No edit context set");
+        return;
+    }
+    openMediaLinker(lastEditContext);
 }
 
 function closeMediaLinkerModal() {
