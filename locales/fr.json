@@ -534,6 +534,7 @@
         "lbl_linked_items": "Éléments déjà liés :",
         "lbl_link_this": "Lier ce média",
         "btn_universal_tag": "Lier & Synchroniser ✨",
-        "modal_universal_tag_title": "Magie Musicale ✨ (Lien & Infos)"
+        "modal_universal_tag_title": "Magie Musicale ✨ (Lien & Infos)",
+        "msg_save_success": "Lien Web sauvegardé avec succès !"
     }
 }

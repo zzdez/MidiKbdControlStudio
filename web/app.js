@@ -234,6 +234,44 @@ function logToBackend(msg) {
     }).catch(e => console.error("Log Send Error:", e));
 }
 
+/**
+ * Airstep V55: Global Toast Notification System
+ * type: 'success', 'error', 'info', 'warning'
+ */
+function showToast(message, type = "info") {
+    console.log(`[TOAST] [${type.toUpperCase()}] ${message}`);
+    const existing = document.getElementById("airstep-toast-container");
+    let container = existing;
+    
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "airstep-toast-container";
+        container.style.cssText = "position:fixed; top:20px; right:20px; z-index:10000; display:flex; flex-direction:column; gap:10px; pointer-events:none;";
+        document.body.appendChild(container);
+    }
+    
+    const toast = document.createElement("div");
+    toast.style.cssText = `
+        padding: 12px 24px; border-radius: 8px; 
+        color: white; font-weight: bold; min-width: 200px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+        background: ${type === 'success' ? '#03dac6' : (type === 'error' ? '#cf6679' : (type === 'warning' ? '#ffb74d' : '#bb86fc'))};
+        transform: translateX(100%); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        pointer-events: auto; font-family: 'Segoe UI', sans-serif;
+    `;
+    toast.innerText = message;
+    container.appendChild(toast);
+    
+    // Trigger animation
+    setTimeout(() => toast.style.transform = "translateX(0)", 10);
+    
+    // Cleanup
+    setTimeout(() => {
+        toast.style.transform = "translateX(120%)";
+        setTimeout(() => toast.remove(), 500);
+    }, 4000);
+}
+
 function initAudioContext() {
     logToBackend("[PITCH] initAudioContext triggered");
     if (!audioCtx) {
@@ -911,6 +949,13 @@ function removeWebLinkCover() {
 async function saveWebLink() {
     // V55: Last resort recovery of cover from UI if global is null
     let coverToSave = window.currentWebLinkCover;
+    
+    // V55: SECURITY - Never save a directory path as a cover (e.g. Multitrack folders)
+    if (coverToSave && !coverToSave.startsWith("http") && !coverToSave.startsWith("data:")) {
+        console.warn("[SAVE_WEB] Filtered out folder path from cover:", coverToSave);
+        coverToSave = null;
+    }
+
     if (!coverToSave) {
         const uiImg = document.getElementById("web-link-art-img");
         if (uiImg && uiImg.style.display !== "none" && uiImg.src && !uiImg.src.endsWith('/')) {
@@ -958,8 +1003,14 @@ async function saveWebLink() {
         });
         
         if (res.ok) {
-            console.log("[SAVE_WEB] SUCCESS");
-            closeWebLinkModal();
+            const data = await res.json();
+            console.log("[SAVE_WEB] SUCCESS", data);
+            
+            // i18n Fix: The key is flat, not nested under 'web'
+            showToast(t("msg_save_success"), "success");
+            
+            const modalEl = document.getElementById("modal-web-link");
+            if (modalEl && modalEl.close) modalEl.close();
             loadWebLinks();
         } else {
             const errBody = await res.text();

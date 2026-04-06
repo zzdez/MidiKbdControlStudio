@@ -394,6 +394,10 @@ class MetadataService:
             return []
 
     def write_file_metadata(self, path, data):
+        """Writes metadata to a file's id3 tags or a sidecar .json file."""
+        from utils import resolve_portable_path
+        path = resolve_portable_path(path)
+        
         logging.info(f"Attempting to write metadata for: {path}")
         
         # --- MULTITRACK (DIRECTORY) CASE ---

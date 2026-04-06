@@ -2650,39 +2650,114 @@ async def relocate_bulk(data: dict):
                 errors.append(f"{os.path.basename(m['new_path'])}: {res.get('message')}")
         except Exception as e: 
             errors.append(f"Erreur fatale index {m['index']}: {str(e)}")
+        return {"status": status, "success_count": success_count, "total": len(mappings), "errors": errors, "message": main_msg}
+
+def sync_web_link_bidirectional(source_uid, linked_ids):
+    """
+    Synchronise les liaisons bidirectionnelles pour un média source (souvent un lien Web).
+    source_uid: l'UID du média (ex: 'web:5')
+    linked_ids: la nouvelle liste complète des UIDs cibles à lier.
+    """
+    logging.warning(f"[SYNC_LINK] Synchronisation des liens pour {source_uid} -> {linked_ids}")
+    
+    file_map = {
+        'lib': LOCAL_LIB_FILE,
+        'set': SETLIST_FILE,
+        'web': WEB_LINKS_FILE
+    }
+    
+    # 1. Parcourir chaque base de données
+    for prefix, path in file_map.items():
+        if not os.path.exists(path):
+            continue
             
-    # Success if AT LEAST one file was handled.
-    # Otherwise return error with the reason of the FIRST error for clarity.
-    status = "ok" if success_count > 0 else "error"
-    main_msg = "" if status == "ok" else (errors[0] if errors else "Inconnu")
-    return {"status": status, "success_count": success_count, "total": len(mappings), "errors": errors, "message": main_msg}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                db = json.load(f)
+        except Exception as e:
+            logging.error(f"[SYNC_LINK] Erreur lecture {path}: {e}")
+            continue
+
+        file_changed = False
+        
+        for i, item in enumerate(db):
+            uid = f"{prefix}:{i}"
+            
+            # Cas A: L'item est dans la nouvelle liste de liens -> il DOIT pointer vers source_uid
+            if uid in linked_ids:
+                if "linked_ids" not in item: item["linked_ids"] = []
+                if source_uid not in item["linked_ids"]:
+                    item["linked_ids"].append(source_uid)
+                    file_changed = True
+                    logging.warning(f"[SYNC_LINK] Lien AJOUTÉ : {uid} -> {source_uid}")
+                    # Synchro Sidecar pour les fichiers locaux
+                    if prefix in ['lib', 'set'] and "path" in item:
+                        metadata_service.write_file_metadata(item["path"], {"linked_ids": item["linked_ids"]})
+            
+            # Cas B: L'item n'est plus dans la liste -> il ne doit PLUS pointer vers source_uid
+            else:
+                if "linked_ids" in item and source_uid in item["linked_ids"]:
+                    item["linked_ids"].remove(source_uid)
+                    file_changed = True
+                    logging.warning(f"[SYNC_LINK] Lien RETIRÉ : {uid} -> {source_uid}")
+                    # Synchro Sidecar pour les fichiers locaux
+                    if prefix in ['lib', 'set'] and "path" in item:
+                        metadata_service.write_file_metadata(item["path"], {"linked_ids": item["linked_ids"]})
+
+        # Sauvegarde si nécessaire
+        if file_changed:
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(db, f, indent=4)
+                    f.flush()
+                logging.warning(f"[SYNC_LINK] Fichier {path} mis à jour.")
+                
+                # V55: Rafraîchir les managers pour que le backend soit à jour en mémoire
+                if prefix == 'lib' and 'library_manager' in globals():
+                    globals()['library_manager'].load_library()
+            except Exception as e:
+                logging.error(f"[SYNC_LINK] Erreur écriture {path}: {e}")
 
 @app.get("/api/web_links")
 async def get_web_links():
-    if os.path.exists(WEB_LINKS_FILE):
-        try:
+    try:
+        if os.path.exists(WEB_LINKS_FILE):
             with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except:
-            return []
-    return []
+        return []
+    except Exception as e:
+        logging.error(f"Error loading web links: {e}")
+        return []
 
 @app.post("/api/web_links")
 async def add_web_link(item: Dict):
     try:
-        logging.warning(f"[SAVE_WEB] Attempting to ADD: {item.get('title')} (Content: {list(item.keys())})")
+        logging.warning(f"[SAVE_WEB] Tentative d'AJOUT : {item.get('title')} (Champs: {list(item.keys())})")
         links = []
         if os.path.exists(WEB_LINKS_FILE):
             with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
                 links = json.load(f)
+        
         links.append(item)
+        new_index = len(links) - 1
+        
         with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
             json.dump(links, f, indent=4)
-        logging.warning(f"[SAVE_WEB] Successfully ADDED. Total links: {len(links)}")
-        return {"status": "ok"}
+        
+        logging.warning(f"[SAVE_WEB] Ajout réussi à l'index {new_index}. Synchronisation des liens...")
+        
+        # Synchronisation Bidirectionnelle
+        sync_web_link_bidirectional(f"web:{new_index}", item.get("linked_ids", []))
+        
+        # Re-vérification de la persistance
+        with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
+            check = json.load(f)
+            logging.warning(f"[SAVE_WEB] VÉRIFICATION : Index {new_index} cover={check[new_index].get('cover')} | links={check[new_index].get('linked_ids')}")
+
+        return {"status": "ok", "index": new_index}
     except Exception as e:
-        logging.error(f"[SAVE_WEB] ADD Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"[SAVE_WEB] Erreur ADD : {str(e)}")
+        return {"status": "error", "message": str(e)}
 
 @app.put("/api/web_links/{index}")
 async def update_web_link(index: int, item: Dict):
@@ -2695,28 +2770,30 @@ async def update_web_link(index: int, item: Dict):
             with open(abs_path, "r", encoding="utf-8") as f:
                 links = json.load(f)
         else:
-            logging.error(f"[SAVE_WEB] File {abs_path} NOT FOUND during PUT!")
+            logging.error(f"[SAVE_WEB] Fichier {abs_path} NON TROUVÉ lors du PUT !")
         
         if 0 <= index < len(links):
-            # Preserve existing cover if new one is null but we had one? 
-            # Non, si l'user a fait "Supprimer la pochette", on respecte le null.
             links[index] = item
             
             with open(abs_path, "w", encoding="utf-8") as f:
                 json.dump(links, f, indent=4)
                 f.flush()
-                # os.fsync(f.fileno()) # Supprimé pour compatibilité plus large
             
-            logging.warning(f"[SAVE_WEB] Write successful. Re-verifying...")
+            logging.warning(f"[SAVE_WEB] Mise à jour réussie. Synchronisation des liens...")
+            
+            # Synchronisation Bidirectionnelle
+            sync_web_link_bidirectional(f"web:{index}", item.get("linked_ids", []))
+            
+            logging.warning(f"[SAVE_WEB] Re-vérification...")
             with open(abs_path, "r", encoding="utf-8") as f:
                 check = json.load(f)
-                logging.warning(f"[SAVE_WEB] VERIFIED: Index {index} cover is now: {check[index].get('cover')}")
+                logging.warning(f"[SAVE_WEB] VÉRIFICATION : Index {index} cover={check[index].get('cover')} | links={check[index].get('linked_ids')}")
             
             return {"status": "ok"}
         
-        return {"status": "error", "message": f"Index {index} out of range ({len(links)})"}
+        return {"status": "error", "message": f"Index {index} hors limites ({len(links)})"}
     except Exception as e:
-        logging.error(f"[SAVE_WEB] CRITICAL UPDATE ERROR: {str(e)}")
+        logging.error(f"[SAVE_WEB] Erreur UPDATE critique : {str(e)}")
         return {"status": "error", "message": str(e)}
 
 @app.delete("/api/web_links/{index}")
