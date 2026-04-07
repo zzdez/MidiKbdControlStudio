@@ -118,13 +118,24 @@ class MetadataService:
             # --- SIDECAR JSON LOADING ---
             sidecar_path = os.path.join(path, "airstep_meta.json")
             sidecar_data = {}
-            if os.path.exists(sidecar_path):
-                import json
+            has_sidecar = os.path.exists(sidecar_path)
+            
+            import json
+            if has_sidecar:
                 try:
                     with open(sidecar_path, "r", encoding="utf-8") as f:
                         sidecar_data = json.load(f)
                 except Exception as e:
                     logging.error(f"Error reading sidecar JSON: {e}")
+
+            # V57: Generate stable UID if missing
+            if not sidecar_data.get("uid"):
+                import uuid
+                sidecar_data["uid"] = f"lib_{uuid.uuid4().hex[:8]}"
+                try:
+                    with open(sidecar_path, "w", encoding="utf-8") as f:
+                        json.dump(sidecar_data, f, indent=4)
+                except: pass
 
             # Scan for audio files in the top level of the directory
             for f in os.listdir(path):
@@ -141,6 +152,7 @@ class MetadataService:
                 except: pass
 
             return {
+                "uid": sidecar_data.get("uid"),
                 "title": sidecar_data.get("title", title),
                 "artist": sidecar_data.get("artist", ""),
                 "album": sidecar_data.get("album", "Stems"),
@@ -235,11 +247,21 @@ class MetadataService:
 
             # Merging with Sidecar JSON if available (priority to sidecar for extended fields)
             sidecar_path = path + ".json"
+            sidecar_data = {}
             if os.path.exists(sidecar_path):
                 try:
                     import json
                     with open(sidecar_path, "r", encoding="utf-8") as f:
                         sidecar_data = json.load(f)
+
+                        # V57: UID support for single files
+                        if not sidecar_data.get("uid"):
+                            import uuid
+                            sidecar_data["uid"] = f"lib_{uuid.uuid4().hex[:8]}"
+                            try:
+                                with open(sidecar_path, "w", encoding="utf-8") as f_save:
+                                    json.dump(sidecar_data, f_save, indent=4)
+                            except: pass
 
                         # Apply sidecar overrides
                         if sidecar_data.get("title"): res["title"] = sidecar_data["title"]
@@ -249,6 +271,7 @@ class MetadataService:
                         if sidecar_data.get("year"): res["year"] = sidecar_data["year"]
 
                         # Add Extended metadata that Mutagen doesn't reliably map
+                        res["uid"] = sidecar_data.get("uid")
                         res["bpm"] = sidecar_data.get("bpm", "")
                         res["key"] = sidecar_data.get("key", "")
                         res["scale"] = sidecar_data.get("scale", "")
@@ -272,6 +295,13 @@ class MetadataService:
                 except Exception as e:
                     logging.error(f"Error reading single file sidecar JSON: {e}")
 
+            # V57: Add default UID if still missing (might happen if no sidecar exists yet)
+            if not res.get("uid"):
+                import uuid
+                res["uid"] = f"lib_{uuid.uuid4().hex[:8]}"
+                # Note: We don't force write it here for non-sidecar files to avoid creating 
+                # .json files for EVERYTHING. But if write_file_metadata is called, it will persist.
+                
             return res
 
         except Exception as e:
@@ -414,26 +444,29 @@ class MetadataService:
                 except: pass
             
             # --- 2. MERGE WITH NEW DATA ---
+            # V57: Exclude transitories and bloat
             for key, value in data.items():
-                if key not in ["cover_data", "stems", "is_multitrack", "duration", "chapters"]:
+                if key not in ["cover_data", "cover_url", "stems", "is_multitrack", "duration", "chapters"]:
                     sidecar_data[key] = value
             
             try:
-                # 3. SAVE JSON
-                with open(sidecar_path, "w", encoding="utf-8") as f:
-                    json.dump(sidecar_data, f, indent=4)
-
-                
-                # 2. Handle Cover if provided
+                # 3. Handle Cover if provided
                 if "cover_data" in data and data["cover_data"]:
                     cover_data_bin, mime = self._resolve_cover_bin(data["cover_data"])
                     if cover_data_bin:
                         dest_img = os.path.join(path, "folder.jpg")
                         if cover_data_bin == "DELETE":
                             if os.path.exists(dest_img): os.remove(dest_img)
+                            sidecar_data["cover"] = ""
                         else:
                             with open(dest_img, "wb") as img_f:
                                 img_f.write(cover_data_bin)
+                            from utils import to_portable_path
+                            sidecar_data["cover"] = to_portable_path(dest_img)
+
+                # 4. SAVE JSON (Sidecar)
+                with open(sidecar_path, "w", encoding="utf-8") as f:
+                    json.dump(sidecar_data, f, indent=4)
                 
                 return True
             except Exception as e:

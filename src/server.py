@@ -1253,12 +1253,29 @@ async def parse_drum_midi_endpoint(data: Dict):
 
 @app.get("/api/local/files")
 async def get_local_files():
+    file_map = {
+        'lib': LOCAL_LIB_FILE,
+        'set': SETLIST_FILE,
+        'web': WEB_LINKS_FILE
+    }
     if os.path.exists(LOCAL_LIB_FILE):
         try:
             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
                 items = json.load(f)
 
+            changed = False
             for item in items:
+                # V57: Force generating UID if missing in the JSON but path exists
+                if not item.get("uid") and "path" in item:
+                    try:
+                        abs_p = resolve_portable_path(item["path"])
+                        if os.path.exists(abs_p):
+                            # scan_file_metadata now auto-generates AND saves to sidecar
+                            meta = metadata_service.scan_file_metadata(abs_p)
+                            item["uid"] = meta.get("uid")
+                            changed = True
+                    except: pass
+
                 if "path" in item:
                     try:
                         resolved = resolve_portable_path(item["path"])
@@ -1272,6 +1289,14 @@ async def get_local_files():
                     item["autoplay"] = bool(item["autoplay"])
                 if "autoreplay" in item and item["autoreplay"] is not None:
                     item["autoreplay"] = bool(item["autoreplay"])
+
+            # V57: Migrate legacy links
+            if migrate_legacy_links(items, file_map):
+                changed = True
+
+            if changed:
+                with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                    json.dump(items, f, indent=4)
 
             return items
         except:
@@ -2207,8 +2232,13 @@ async def edit_local_file(index: int, item: Dict):
 
             # Update other fields...
             for key in ["title", "artist", "genre", "category", "bpm", "key", "scale", "instrument", "tuning", "user_notes", "linked_ids"]:
-                if key in item: current[key] = item[key]
+                if key in item: 
+                    current[key] = item[key]
             
+            # V57: Trigger Bidirectional Sync on Edit if linked_ids changed
+            if "uid" in current and "linked_ids" in current:
+                sync_web_link_bidirectional(current["uid"], current["linked_ids"])
+
             # --- PERSISTENCE (V55: Sidecar First) ---
             try:
                 abs_p = resolve_portable_path(current.get("path", ""))
@@ -2801,6 +2831,43 @@ async def relocate_bulk(data: dict):
     status = "ok" if not errors else "partial"
     return {"status": status, "success_count": success_count, "total": len(mappings), "errors": errors, "message": main_msg}
 
+def migrate_legacy_links(db_items, file_map):
+    """
+    V57: Migre les liens de type 'type:index' vers des UIDs stables.
+    """
+    changed = False
+    # Pre-map UIDs by type and original index for fast lookup
+    uid_map = {} # { 'lib:0': 'uid_123', ... }
+    for prefix, path in file_map.items():
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    for i, it in enumerate(data):
+                        uid = it.get("uid")
+                        if uid:
+                            uid_map[f"{prefix}:{i}"] = uid
+            except: pass
+
+    for item in db_items:
+        links = item.get("linked_ids", [])
+        new_links = []
+        item_changed = False
+        for l in links:
+            if ":" in l and not "_" in l: # Legacy format 'type:index'
+                if l in uid_map:
+                    new_links.append(uid_map[l])
+                    item_changed = True
+                    changed = True
+                else:
+                    # Keep it if not found, maybe it will be resolved later
+                    new_links.append(l)
+            else:
+                new_links.append(l)
+        if item_changed:
+            item["linked_ids"] = list(set(new_links)) # Unique
+    return changed
+
 def sync_web_link_bidirectional(source_uid, linked_uids):
     """
     V55: Synchronise les liaisons bidirectionnelles en utilisant des UIDs stables.
@@ -2889,10 +2956,22 @@ def sync_web_link_bidirectional(source_uid, linked_uids):
 
 @app.get("/api/web_links")
 async def get_web_links():
+    file_map = {
+        'lib': LOCAL_LIB_FILE,
+        'set': SETLIST_FILE,
+        'web': WEB_LINKS_FILE
+    }
     try:
         if os.path.exists(WEB_LINKS_FILE):
             with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                links = json.load(f)
+            
+            # V57: Migrate legacy links
+            if migrate_legacy_links(links, file_map):
+                with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(links, f, indent=4)
+            
+            return links
         return []
     except Exception as e:
         logging.error(f"Error loading web links: {e}")

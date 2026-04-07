@@ -649,12 +649,14 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     - **Protection contre les Crashs** : Isolation de `applyUniversalMetadata` dans un bloc `try/catch` global avec des vérifications d'existence systématiques pour chaque champ (ID-safe).
     - **Restauration de Secours** : Implémentation d'une logique de "Last Resort" dans `saveWebLink` qui, si la variable globale est vide, tente d'extraire la pochette directement depuis l'élément `<img>` de la modale en décodant l'URL du proxy.
 
-### 41. Évolution V55 : Interconnexion Granulaire & Hardening Persistence
-*   **Header Cockpit V2 (`app.js`) :**
-    - **Zone Dynamique** : Création de la ligne `#header-bottom-row` affichant les icônes `ph-film-strip`, `ph-music-notes`, `ph-layers-intersect`.
-    - **Gestion Visibilité** : Affichage conditionnel (`display: flex` / `none`) piloté par `updateInterconnectionUI` pour chaque changement de média (YouTube, Local, Web).
-*   **Indicateurs Visuels (Badges) :**
-    - **`.link-badge` CSS** : Conception d'un indicateur compact avec compteur (Badge Flottant) intégré aux fonctions de rendu des bibliothèques (`renderSetlist`, `renderWebLinks`).
-*   **Persistance Critique (`server.py`) :**
-    - **Data Integrity (Hardening)** : Ajout systématique de `f.flush()` et `os.fsync(f.fileno())` dans tous les endpoints modifiant les fichiers JSON (`link_bidirectional`, `save_db`, `add_web_link`). Garantit la persistance même en cas de fermeture brutale ou de corruption de pile de cache OS.
-    - **Bidirectional Sync** : Automatisation de la mise à jour des UIDs sources et cibles dans `web_links.json`, `local_lib.json` et `setlist.json`.
+### 41. Évolution V57 : Persistance Blindée via UIDs & Nettoyage Métadonnées
+*   **Système d'UID Stables (`metadata_service.py` & `server.py`)** :
+    - Abandon définitif des index de tableau pour les liaisons (`linked_ids`). Chaque média reçoit un UID unique (`lib_xxxx` ou `web_xxxx`) persisté dans son sidecar `airstep_meta.json`.
+    - **Migration à la volée** : Les fonctions `get_local_files` et `get_web_links` convertissent automatiquement les anciens liens `type:index` vers les nouveaux UIDs lors du chargement.
+*   **Optimisation du Stockage (Sidecar Hardening)** :
+    - La fonction `write_file_metadata` supprime désormais systématiquement les données binaires (Base64) du JSON avant l'écriture, forçant le stockage de la pochette dans un fichier `folder.jpg` physique. Cela évite les fichiers JSON de plusieurs mégaoctets et les corruptions.
+*   **Synchronisation Bidirectionnelle Automatique** :
+    - Toute modification d'un lien dans un média (Local ou Web) déclenche via `sync_web_link_bidirectional` la mise à jour du média cible, garantissant un maillage parfait et incassable.
+*   **Fiabilisation Frontend (`app.js`)** :
+    - Initialisation systématique de `currentEditingLinkedIds` à l'ouverture des modales.
+    - Correction de `applyUniversalMetadata` pour assurer que `currentCoverData` est correctement mis à jour lors d'un tagging automatique, permettant la persistence immédiate de la pochette choisie.

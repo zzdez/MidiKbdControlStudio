@@ -2009,6 +2009,10 @@ function openEditModal(index) {
 
     // Thumbnail & Aspect Ratio
     const thumbContainer = document.getElementById("preview-thumbnail");
+    
+    // V57: Initialize linked IDs
+    currentEditingLinkedIds = track.linked_ids || [];
+
     thumbContainer.classList.remove("wide-art", "square-art");
 
     const btnDel = document.getElementById("btn-edit-delete-cover");
@@ -5798,6 +5802,9 @@ function openMultitrackModal(index) {
     document.getElementById("mt-target-pitch").value = item.target_pitch || "";
     document.getElementById("mt-target-profile").value = item.target_profile || "Auto";
 
+    // V57: Initialize linked IDs
+    currentEditingLinkedIds = item.linked_ids || [];
+
     let volVal = (item.volume !== undefined) ? item.volume : 100;
     document.getElementById("mt-modal-volume").value = volVal;
     const mvp = document.getElementById("mt-modal-volume-percent");
@@ -5870,7 +5877,7 @@ async function saveMultitrackItem() {
         volume: parseInt(document.getElementById("mt-modal-volume").value, 10) || 100,
         autoplay: document.getElementById("mt-autoplay").checked,
         autoreplay: document.getElementById("mt-autoreplay").checked,
-        linked_ids: (editingLocalIndex !== null && localFiles[editingLocalIndex]) ? (localFiles[editingLocalIndex].linked_ids || []) : []
+        linked_ids: currentEditingLinkedIds
     };
 
     const res = await fetch(`/api/local/${editingLocalIndex}`, {
@@ -5939,7 +5946,7 @@ async function saveLocalItem() {
         volume: parseInt(document.getElementById("edit-volume").value, 10) || 100,
         autoplay: document.getElementById("edit-autoplay").checked,
         autoreplay: document.getElementById("edit-autoreplay").checked,
-        linked_ids: (editingLocalIndex !== null && localFiles[editingLocalIndex]) ? (localFiles[editingLocalIndex].linked_ids || []) : []
+        linked_ids: currentEditingLinkedIds
     };
 
     const res = await fetch(`/api/local/${editingLocalIndex}`, {
@@ -6343,6 +6350,12 @@ function applyUniversalMetadata(item) {
                 // V55: If no cover_url but original_cover_path is present, use it
                 window.currentWebLinkCover = item.original_cover_path || item.cover_url;
                 console.warn("[UTAG] Global currentWebLinkCover set to:", window.currentWebLinkCover);
+            }
+
+            // V57: Update currentCoverData for local types
+            if (ctx === 'local' || ctx === 'mt' || ctx === 'edit') {
+                currentCoverData = item.cover_url || item.original_cover_path;
+                console.warn("[UTAG] Global currentCoverData set to:", currentCoverData);
             }
 
             const img = document.getElementById(imgId);
