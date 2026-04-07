@@ -107,14 +107,12 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     *   **Scan Multi-Lecteurs** : Capacité de scanner la racine de tous les disques physiques pour localiser vos médias perdus en quelques secondes.
     *   **Re-scan des Stems** : Pour les projets multipistes, le système reconstruit instantanément les liens de chaque piste après un déplacement.
     *   **Portabilité Totale** : Utilisation systématique du token `${APP_DIR}`, garantissant que votre bibliothèque vous suit partout, même sur une clé USB.
-    *   **Réparation de Masse & Gestionnaire de Bibliothèque (✨ Nouveau ✨)** : 
-        1. **Source** : Identifiez où se trouvent les médias (favoris ou parcourir).
-        2. **Action** : Choisissez entre Lier, Copier ou Déplacer.
-        3. **Destination** : Indiquez le dossier cible ou laissez le programme **Ranger Automatiquement par Artiste**.
-        *   **Auto-Routage par Artiste** : Le système crée dynamiquement une arborescence propre (`Medias/Videos/Artiste/`) en extrayant les métadonnées. Fini les dossiers "vrac" !
-        *   **Relocalisation Groupée** : Appliquez les réparations sur toute votre sélection ou l'intégralité de la bibliothèque en un clic.
-        *   **Déménagement Unitaire** : Boutons "Copier" et "Déplacer" intégrés directement dans les fiches d'édition pour une gestion agile fichier par fichier.
-        *   **Sidecars Intelligents** : Vos sous-titres et métadonnées JSON suivent automatiquement le média lors d'un déplacement physique.
+    *   **Sidecars Intelligents** : Vos sous-titres et métadonnées JSON suivent automatiquement le média lors d'un déplacement physique.
+*   **Interconnexion de Médias (Maillage Intelligent) :**
+    - **Ponts Automatiques** : Liez n'importe quel morceau à sa version YouTube, son fichier MP3 local, son projet Multipiste ou des sites Web tiers (Songsterr, Moises, Spotify).
+    - **Header Cockpit Dynamique** : Des icônes interactives (Vidéo, Audio, Multipiste, Web) apparaissent instantanément dans le panneau de contrôle dès qu'une liaison est configurée.
+    - **Visualisation de Bibliothèque** : Affichage d'un badge bleu "ID-Link" et d'un compteur dans toutes les listes de recherche pour identifier immédiatement les médias interconnectés.
+    - **Blindage de Persistance** : Utilisation de `os.fsync()` pour garantir l'intégrité physique de vos liens sur le disque dur.
 
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)

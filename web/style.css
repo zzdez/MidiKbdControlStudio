@@ -70,6 +70,44 @@ header {
     display: none;
 }
 
+/* LINK BADGES (V55) */
+.link-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9em;
+    padding: 2px 4px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+    color: #555;
+    vertical-align: middle;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.link-badge.active {
+    color: var(--accent);
+    background: rgba(187,134,252,0.15);
+    border: 1px solid rgba(187,134,252,0.3);
+}
+
+.link-badge .count {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--accent);
+    color: #000;
+    font-size: 0.7em;
+    font-weight: bold;
+    min-width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px;
+}
+
 .btn-icon-small {
     background: transparent;
     border: none;

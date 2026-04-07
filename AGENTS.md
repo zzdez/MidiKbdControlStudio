@@ -452,4 +452,14 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     - **Persistance des Pochettes Web** : Renforcement du flux de données pour les Web Links. La variable `window.currentWebLinkCover` capture désormais fidèlement les chemins de fichiers locaux (`original_cover_path`) lors d'une synchronisation avec un média existant, garantissant que la pochette est préservée après redémarrage.
 *   **Robustesse du Frontend (`app.js`) :**
     - **Protection contre les Crashs** : Isolation de `applyUniversalMetadata` dans un bloc `try/catch` global avec des vérifications d'existence systématiques pour chaque champ (ID-safe).
-    - **Récupération de Secours** : Implémentation d'une logique de "Last Resort" dans `saveWebLink` qui, si la variable globale est vide, tente d'extraire la pochette directement depuis l'élément `<img>` de la modale en décodant l'URL du proxy.
+    - **Restauration de Secours** : Implémentation d'une logique de "Last Resort" dans `saveWebLink` qui, si la variable globale est vide, tente d'extraire la pochette directement depuis l'élément `<img>` de la modale en décodant l'URL du proxy.
+
+### 41. Évolution V55 : Interconnexion Granulaire & Hardening Persistence
+*   **Header Cockpit V2 (`app.js`) :**
+    - **Zone Dynamique** : Création de la ligne `#header-bottom-row` affichant les icônes `ph-film-strip`, `ph-music-notes`, `ph-layers-intersect`.
+    - **Gestion Visibilité** : Affichage conditionnel (`display: flex` / `none`) piloté par `updateInterconnectionUI` pour chaque changement de média (YouTube, Local, Web).
+*   **Indicateurs Visuels (Badges) :**
+    - **`.link-badge` CSS** : Conception d'un indicateur compact avec compteur (Badge Flottant) intégré aux fonctions de rendu des bibliothèques (`renderSetlist`, `renderWebLinks`).
+*   **Persistance Critique (`server.py`) :**
+    - **Data Integrity (Hardening)** : Ajout systématique de `f.flush()` et `os.fsync(f.fileno())` dans tous les endpoints modifiant les fichiers JSON (`link_bidirectional`, `save_db`, `add_web_link`). Garantit la persistance même en cas de fermeture brutale ou de corruption de pile de cache OS.
+    - **Bidirectional Sync** : Automatisation de la mise à jour des UIDs sources et cibles dans `web_links.json`, `local_lib.json` et `setlist.json`.

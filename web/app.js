@@ -833,10 +833,19 @@ function renderWebLinks() {
         }
 
 
+        // V55: Show Link Indicator
+        const linkCount = (link.linked_ids || []).length;
+        const linkIndicator = linkCount > 0 
+            ? `<span class="link-badge active" style="margin-right:8px;" title="${linkCount} liens actifs"><i class="ph ph-link-simple"></i>${linkCount > 1 ? `<span class="count">${linkCount}</span>` : ""}</span>`
+            : `<span class="link-badge" style="margin-right:8px; opacity:0.3;"><i class="ph ph-link-simple"></i></span>`;
+
         tr.innerHTML = `
             <td style="text-align:center;">${iconHtml}</td>
             <td>${link.artist || ""}</td>
-            <td style="cursor:pointer; color:var(--accent);" onclick="playWebLink(${realIndex})">${link.title || link.url}</td>
+            <td style="cursor:pointer; color:var(--accent);" onclick="playWebLink(${realIndex})">
+                ${linkIndicator}
+                ${link.title || link.url}
+            </td>
             <td style="text-align:right;">
                 <button class="btn-action" onclick="openWebLinkModal(${realIndex})" title="${t("web.btn_edit")}">✎</button>
                 <button class="btn-action" onclick="deleteWebLink(${realIndex})" style="color:#cf6679;" title="${t("web.btn_delete")}">×</button>
@@ -1384,11 +1393,16 @@ function renderSetlist(list) {
             iconImg = `<i class="ph ph-warning-circle" style="margin-right:8px; vertical-align:middle;" title="Fichier introuvable"></i>`;
         }
 
+        const linkCount = (track.linked_ids || []).length;
+        const linkIndicator = linkCount > 0 
+            ? `<span class="link-badge active" style="margin-right:8px;" title="${linkCount} liens actifs"><i class="ph ph-link-simple"></i>${linkCount > 1 ? `<span class="count">${linkCount}</span>` : ""}</span>`
+            : `<span class="link-badge" style="margin-right:8px; opacity:0.3;"><i class="ph ph-link-simple"></i></span>`;
+
         // Swapped Columns: Artist | Title (with icon) | Category
         tr.innerHTML = `
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.artist || ""}</td>
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">
-                ${iconImg}${track.title || track.url}
+                ${linkIndicator}${iconImg}${track.title || track.url}
             </td>
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.category || ""}</td>
             <td style="text-align:right;">
@@ -9922,5 +9936,15 @@ async function toggleMediaLink(targetType, targetIndex) {
 
     if (isPlayingSource) {
         updateInterconnectionUI(linkerSourceItem);
+    }
+
+    // V55: Force reload of all web links to keep frontend sync with the newly saved JSON (F5/Refresh protection)
+    if (linkerSourceType === 'web_links' || targetType === 'web_links') {
+        await loadWebLinks(); // This re-renders and re-populates webLinks array
+    }
+
+    // V55: Explicitly sync the Web Link Modal session list to prevent overwriting on Save
+    if (linkerSourceType === 'web_links') {
+        currentEditingLinkedIds = [...linkerSourceItem.linked_ids];
     }
 }

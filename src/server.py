@@ -2710,6 +2710,7 @@ def sync_web_link_bidirectional(source_uid, linked_ids):
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(db, f, indent=4)
                     f.flush()
+                    os.fsync(f.fileno())
                 logging.warning(f"[SYNC_LINK] Fichier {path} mis à jour.")
                 
                 # V55: Rafraîchir les managers pour que le backend soit à jour en mémoire
@@ -2778,6 +2779,7 @@ async def update_web_link(index: int, item: Dict):
             with open(abs_path, "w", encoding="utf-8") as f:
                 json.dump(links, f, indent=4)
                 f.flush()
+                os.fsync(f.fileno())
             
             logging.warning(f"[SAVE_WEB] Mise à jour réussie. Synchronisation des liens...")
             
@@ -2898,6 +2900,8 @@ async def link_bidirectional(data: Dict):
         def save_db(t, content):
             with open(files[t], "w", encoding="utf-8") as f:
                 json.dump(content, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
 
         # Si l'index est -1, on ne peut pas établir de liaison physique car l'item n'existe pas encore.
         # L'Auto-Sync aura quand même lieu en mémoire côté frontend.
