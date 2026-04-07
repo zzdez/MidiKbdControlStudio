@@ -1075,6 +1075,12 @@ function sortWebLinks(key) {
 }
 
 // --- INTERCONNECTION ENGINE ---
+function getLocalType(item) {
+    if (item.is_multitrack) return 'multitrack';
+    if (item.path && item.path.match(/\.(mp4|mkv|mov|avi|webm|m4v)$/i)) return 'video';
+    return 'audio';
+}
+
 function updateInterconnectionUI(activeItem) {
     const container = document.getElementById("header-interconnection-links");
     if (!container) return;
@@ -1084,7 +1090,9 @@ function updateInterconnectionUI(activeItem) {
 
     const matches = {
         youtube: [],
-        local: [],
+        audio_local: [],
+        video_local: [],
+        multitrack_local: [],
         songsterr: [],
         moises: [],
         spotify: [],
@@ -1093,6 +1101,11 @@ function updateInterconnectionUI(activeItem) {
     };
 
     const currentUID = `${window.currentSource.substring(0, 3)}:${window.currentPlayingIndex}`;
+    const headerBottomRow = document.getElementById("header-bottom-row");
+    const globalInfoRow = document.getElementById("global-video-info");
+
+    if (globalInfoRow) globalInfoRow.style.display = "flex";
+
 
     // 0. Manual Links (Priority)
     if (activeItem.linked_ids && activeItem.linked_ids.length > 0) {
@@ -1102,7 +1115,12 @@ function updateInterconnectionUI(activeItem) {
             
             // Determine category
             if (uid.startsWith('set')) matches.youtube.push(item);
-            else if (uid.startsWith('lib')) matches.local.push(item);
+            else if (uid.startsWith('lib')) {
+                const type = getLocalType(item);
+                if (type === 'video') matches.video_local.push(item);
+                else if (type === 'multitrack') matches.multitrack_local.push(item);
+                else matches.audio_local.push(item);
+            }
             else if (uid.startsWith('web')) {
                 const type = item.type || 'other';
                 if (matches[type]) matches[type].push(item);
@@ -1111,8 +1129,7 @@ function updateInterconnectionUI(activeItem) {
         });
     }
 
-    // 1. Auto Search (if no manual link of the same type exists ?) 
-    // Actually, we can mix them.
+    // 1. Auto Search
     const artist = (activeItem.artist || "").toLowerCase().trim();
     const title = (activeItem.title || "").toLowerCase().trim();
 
@@ -1132,7 +1149,11 @@ function updateInterconnectionUI(activeItem) {
                 const uid = `lib:${idx}`;
                 if (activeItem.linked_ids && activeItem.linked_ids.includes(uid)) return; // Already added
                 if (isMatch(f, artist, title) && idx !== (window.currentSource === 'library' ? window.currentPlayingIndex : -1)) {
-                    matches.local.push({ ...f, originalIndex: idx });
+                    const type = getLocalType(f);
+                    const itemToAdd = { ...f, originalIndex: idx };
+                    if (type === 'video') matches.video_local.push(itemToAdd);
+                    else if (type === 'multitrack') matches.multitrack_local.push(itemToAdd);
+                    else matches.audio_local.push(itemToAdd);
                 }
             });
         }
@@ -1144,8 +1165,9 @@ function updateInterconnectionUI(activeItem) {
                 if (activeItem.linked_ids && activeItem.linked_ids.includes(uid)) return; // Already added
                 if (isMatch(w, artist, title) && idx !== (window.currentSource === 'web_links' ? window.currentPlayingIndex : -1)) {
                     const type = w.type || 'other';
-                    if (matches[type]) matches[type].push({ ...w, originalIndex: idx });
-                    else matches.other.push({ ...w, originalIndex: idx });
+                    const itemToAdd = { ...w, originalIndex: idx };
+                    if (matches[type]) matches[type].push(itemToAdd);
+                    else matches.other.push(itemToAdd);
                 }
             });
         }
@@ -1159,7 +1181,8 @@ function updateInterconnectionUI(activeItem) {
             btn.style.color = color;
             
             // SPECIAL: Web Links show Real Favicons
-            if (type !== 'youtube' && type !== 'local' && list[0].url) {
+            const isLocalOrYT = ['youtube', 'audio_local', 'video_local', 'multitrack_local'].includes(type);
+            if (!isLocalOrYT && list[0].url) {
                 const iconUrl = getIcon(list[0].url);
                 if (iconUrl) {
                     btn.innerHTML = `<img src="${iconUrl}" style="width:18px; height:18px; border-radius:3px; vertical-align:middle;">`;
@@ -1170,23 +1193,100 @@ function updateInterconnectionUI(activeItem) {
                 btn.innerHTML = `<i class="${iconClass}"></i>`;
             }
 
-            btn.title = `${titlePrefix} (${list.length} match${list.length > 1 ? 'es' : ''})`;
+            // Multiple matches indicator
+            if (list.length > 1) {
+                const badge = document.createElement("span");
+                badge.style = "position:absolute; top:-5px; right:-5px; background:var(--accent); color:var(--bg-color); font-size:9px; font-weight:bold; border-radius:50%; width:14px; height:14px; display:flex; align-items:center; justify-content:center; border:1px solid var(--bg-color);";
+                badge.innerText = list.length;
+                btn.style.position = "relative";
+                btn.appendChild(badge);
+            }
+
+            btn.title = `${titlePrefix} (${list.length} item${list.length > 1 ? 's' : ''})`;
             btn.onclick = () => {
-                if (type === 'youtube') playTrackAt(list[0].originalIndex);
-                else if (type === 'local') playLocal(list[0].originalIndex);
-                else playWebLink(list[0].originalIndex);
+                if (list.length === 1) {
+                    const item = list[0];
+                    if (type === 'youtube') playTrackAt(item.originalIndex);
+                    else if (type.endsWith('_local')) playLocal(item.originalIndex);
+                    else playWebLink(item.originalIndex);
+                } else {
+                    openInterconnectionChoice(type, list);
+                }
             };
             container.appendChild(btn);
         }
     };
 
     renderIcon('youtube', matches.youtube, 'ph ph-youtube-logo', '#ff0000', 'YouTube');
-    renderIcon('local', matches.local, 'ph ph-music-note', '#03dac6', 'Local');
+    renderIcon('audio_local', matches.audio_local, 'ph ph-music-notes', '#03dac6', t('web.lbl_interconnect_audio') || 'Audio');
+    renderIcon('video_local', matches.video_local, 'ph ph-film-strip', '#ffb86c', t('web.lbl_interconnect_video') || 'Video');
+    renderIcon('multitrack_local', matches.multitrack_local, 'ph ph-stack-simple', '#bb86fc', t('web.lbl_interconnect_multitrack') || 'Multitrack');
     renderIcon('songsterr', matches.songsterr, 'ph ph-guitar', '#f39c12', 'Songsterr');
     renderIcon('moises', matches.moises, 'ph ph-scissors', '#9b59b6', 'Moises');
     renderIcon('spotify', matches.spotify, 'ph ph-spotify-logo', '#1db954', 'Spotify');
     renderIcon('lesson', matches.lesson, 'ph ph-graduation-cap', '#3498db', 'Lesson');
     renderIcon('other', matches.other, 'ph ph-globe', '#999', 'Autre');
+
+    // Show/Hide the entire row based on matches (V53)
+    if (headerBottomRow) {
+        const hasMatches = Object.values(matches).some(m => m.length > 0);
+        headerBottomRow.style.display = hasMatches ? "flex" : "none";
+    }
+}
+
+function openInterconnectionChoice(type, list) {
+    const dialog = document.getElementById("modal-interconnection-choice");
+    const listContainer = document.getElementById("interconnection-choice-list");
+    if (!dialog || !listContainer) return;
+
+    listContainer.innerHTML = "";
+    
+    // Icon mapping for the modal
+    const icons = {
+        youtube: 'ph ph-youtube-logo',
+        audio_local: 'ph ph-music-notes',
+        video_local: 'ph ph-film-strip',
+        multitrack_local: 'ph ph-stack-simple',
+        songsterr: 'ph ph-guitar',
+        moises: 'ph ph-scissors',
+        spotify: 'ph ph-spotify-logo',
+        lesson: 'ph ph-graduation-cap',
+        other: 'ph ph-globe'
+    };
+    const iconClass = icons[type] || 'ph ph-link';
+
+    list.forEach(item => {
+        const btn = document.createElement("button");
+        btn.className = "btn-secondary";
+        btn.style = "width:100%; display:flex; align-items:center; gap:12px; padding:12px; text-align:left; border-radius:8px; background:rgba(255,255,255,0.03);";
+        
+        let coverHtml = "";
+        if (type.endsWith('_local')) {
+            coverHtml = `<img src="/api/local/art/${item.originalIndex}" style="width:40px; height:25px; object-fit:cover; border-radius:4px; background:#222;" onerror="this.style.display='none'">`;
+        } else if (type === 'youtube') {
+            coverHtml = `<img src="https://img.youtube.com/vi/${item.url.split('v=')[1]?.split('&')[0]}/default.jpg" style="width:40px; height:25px; object-fit:cover; border-radius:4px;" onerror="this.style.display='none'">`;
+        }
+
+        btn.innerHTML = `
+            ${coverHtml}
+            <div style="flex:1; overflow:hidden;">
+                <div style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</div>
+                <div style="font-size:0.8em; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.artist || ""}</div>
+            </div>
+            <i class="ph ph-caret-right" style="color:var(--accent);"></i>
+        `;
+
+        btn.onclick = () => {
+            dialog.close();
+            if (type === 'youtube') playTrackAt(item.originalIndex);
+            else if (type.endsWith('_local')) playLocal(item.originalIndex);
+            else playWebLink(item.originalIndex);
+        };
+
+        listContainer.appendChild(btn);
+    });
+
+    dialog.showModal();
 }
 
 function isMatch(item, artist, title) {
@@ -3675,6 +3775,9 @@ async function playLocal(index) {
     // Sync UI Highlight immediately
     if (typeof refreshSetlistHighlights === "function") refreshSetlistHighlights();
 
+    // Trigger Interconnection UI for all local types (V53)
+    updateInterconnectionUI(file);
+
     // Helper
     const getProfile = (item, def) => (item.target_profile && item.target_profile !== "Auto") ? item.target_profile : def;
 
@@ -3808,7 +3911,6 @@ async function playLocal(index) {
         globalTitle.innerText = file.title || "Multitrack";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
         updateHeaderScaleDisplay(file);
-        updateInterconnectionUI(file); // FIX: Load Links for Multitrack
 
 
         videoContainer.style.display = "none";
@@ -9659,7 +9761,12 @@ function matchQuery(item, q) {
 
 function getTypeIcon(res) {
     if (res.type === 'setlist') return 'ph ph-youtube-logo';
-    if (res.type === 'library') return 'ph ph-file-audio';
+    if (res.type === 'library') {
+        const type = getLocalType(res.item);
+        if (type === 'video') return 'ph ph-film-strip';
+        if (type === 'multitrack') return 'ph ph-stack-simple';
+        return 'ph ph-music-notes';
+    }
     
     // Web Links
     const type = res.item.type || 'other';
@@ -9807,4 +9914,13 @@ async function toggleMediaLink(targetType, targetIndex) {
 
     renderLinkerResults(document.getElementById("linker-search-input").value);
     renderExistingLinks();
+
+    // 4. Update Header UI immediately if the source is the one currently playing (V53)
+    const isPlayingSource = (linkerSourceType === 'setlist' && window.currentSource === 'setlist' && editingIndex === window.currentPlayingIndex) ||
+                            (linkerSourceType === 'library' && window.currentSource === 'library' && editingLocalIndex === window.currentPlayingIndex) ||
+                            (linkerSourceType === 'web_links' && window.currentSource === 'web_links' && currentWebLinkIndex === window.currentPlayingIndex);
+
+    if (isPlayingSource) {
+        updateInterconnectionUI(linkerSourceItem);
+    }
 }

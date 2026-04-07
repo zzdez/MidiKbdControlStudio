@@ -535,6 +535,10 @@
         "lbl_link_this": "Lier ce média",
         "btn_universal_tag": "Lier & Synchroniser ✨",
         "modal_universal_tag_title": "Magie Musicale ✨ (Lien & Infos)",
-        "msg_save_success": "Lien Web sauvegardé avec succès !"
+        "msg_save_success": "Lien Web sauvegardé avec succès !",
+        "modal_choice_title": "Choisir un média",
+        "lbl_interconnect_audio": "Audio",
+        "lbl_interconnect_video": "Vidéo",
+        "lbl_interconnect_multitrack": "Multipiste"
     }
 }

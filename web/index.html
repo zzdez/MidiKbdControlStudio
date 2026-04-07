@@ -2911,6 +2911,20 @@
         </div>
     </dialog>
 
+    <!-- Modal: Interconnection Choice (Multiple matches) -->
+    <dialog id="modal-interconnection-choice" class="modal-modern" style="width: 400px; max-width: 90vw;">
+        <div class="modal-header">
+            <h2 data-i18n="web.modal_choice_title">Choisir un média</h2>
+            <button class="btn-close-modal" onclick="document.getElementById('modal-interconnection-choice').close()">×</button>
+        </div>
+        <div class="modal-body" style="padding: 15px 20px;">
+            <p id="interconnection-choice-desc" style="font-size: 0.9em; color: #888; margin-bottom: 15px;">Plusieurs médias de ce type sont disponibles :</p>
+            <div id="interconnection-choice-list" style="display:flex; flex-direction:column; gap:10px; max-height: 400px; overflow-y: auto;">
+                <!-- Buttons will be injected here -->
+            </div>
+        </div>
+    </dialog>
+
     <div id="sidebar-hover-trigger"></div>
 </body>
 
