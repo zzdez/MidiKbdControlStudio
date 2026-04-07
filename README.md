@@ -110,9 +110,11 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     *   **Sidecars Intelligents** : Vos sous-titres et métadonnées JSON suivent automatiquement le média lors d'un déplacement physique.
 *   **Interconnexion de Médias (Maillage Intelligent) :**
     - **Ponts Automatiques** : Liez n'importe quel morceau à sa version YouTube, son fichier MP3 local, son projet Multipiste ou des sites Web tiers (Songsterr, Moises, Spotify).
+    - **Persistence Blindée (V57)** : Migration vers des **UIDs stables** (identifiants uniques). Vos liens ne sont plus brisés si vous déplacez un fichier ou changez l'ordre de votre bibliothèque.
+    - **Startup Self-Healing** : Un moteur de nettoyage automatique au démarrage répare les liens orphelins et garantit la symétrie entre vos bases de données.
+    - **Démarrage Synchrone** : Architecture optimisée pour éliminer les "Race Conditions". Vos icônes d'interconnexion (Songsterr, etc.) apparaissent instantanément après chaque rafraîchissement (F5).
     - **Header Cockpit Dynamique** : Des icônes interactives (Vidéo, Audio, Multipiste, Web) apparaissent instantanément dans le panneau de contrôle dès qu'une liaison est configurée.
-    - **Visualisation de Bibliothèque** : Affichage d'un badge bleu "ID-Link" et d'un compteur dans toutes les listes de recherche pour identifier immédiatement les médias interconnectés.
-    - **Blindage de Persistance** : Utilisation de `os.fsync()` pour garantir l'intégrité physique de vos liens sur le disque dur.
+    - **Visualisation de Bibliothèque** : Affichage d'un badge bleu "ID-Link" et d'un compteur filtré (affichage des liens valides uniquement) dans toutes les listes.
 
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)

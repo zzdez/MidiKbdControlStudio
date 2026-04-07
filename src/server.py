@@ -42,13 +42,15 @@ from download_service import DownloadService
 from music_api import MusicAPI
 
 app = FastAPI()
-library_manager = LibraryManager()
-metadata_service = MetadataService()
-download_service = DownloadService()
 SETLIST_FILE = os.path.join(get_data_dir(), "setlist.json")
 APPS_FILE = os.path.join(get_data_dir(), "apps.json")
 LOCAL_LIB_FILE = os.path.join(get_data_dir(), "local_lib.json")
 WEB_LINKS_FILE = os.path.join(get_data_dir(), "web_links.json")
+
+library_manager = LibraryManager(LOCAL_LIB_FILE) # V55: Force same file as server
+metadata_service = MetadataService()
+download_service = DownloadService()
+
 try:
     _abs_web = os.path.abspath(WEB_LINKS_FILE)
     logging.warning(f"[INIT] WEB_LINKS_FILE is at: {_abs_web}")
@@ -106,6 +108,9 @@ async def debug_log(data: Dict):
 async def startup_event():
     global server_loop
     server_loop = asyncio.get_running_loop()
+    # V55: Periodic maintenance
+    heal_bidirectional_links()
+
 
 class ConnectionManager:
     def __init__(self):
@@ -132,14 +137,156 @@ def broadcast_sync(message: str):
         asyncio.run_coroutine_threadsafe(manager.broadcast(message), server_loop)
 
 # --- HELPERS ---
+import uuid
+
+def ensure_uids(items: List[Dict], prefix: str):
+    """V55: Ensures all items have a stable unique ID."""
+    changed = False
+    for item in items:
+        if "uid" not in item or not item["uid"]:
+            item["uid"] = f"{prefix}_{uuid.uuid4().hex[:8]}"
+            changed = True
+    return changed
+
+def heal_bidirectional_links():
+    """
+    V56: Aggressive bidirectional link sanity check.
+    Ensures that if A points to B, B also points to A.
+    Removes legacy indices, duplicates, and orphans.
+    """
+    logging.warning("[HEAL] Starting aggressive bidirectional link sanity check...")
+    try:
+        # 1. Load all DBs
+        dbs = {}
+        for key, path in [('lib', LOCAL_LIB_FILE), ('set', SETLIST_FILE), ('web', WEB_LINKS_FILE)]:
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    dbs[key] = json.load(f)
+            else:
+                dbs[key] = []
+
+        # 2. Ensure UIDs for everyone
+        modified_keys = set()
+        if ensure_uids(dbs['lib'], 'lib'): modified_keys.add('lib')
+        if ensure_uids(dbs['set'], 'set'): modified_keys.add('set')
+        if ensure_uids(dbs['web'], 'web'): modified_keys.add('web')
+
+        # 3. Consistency check
+        uid_map = {}
+        for k, items in dbs.items():
+            for it in items:
+                if "uid" in it: uid_map[it["uid"]] = (k, it)
+
+        # 4. Clean & Migrate
+        for k, items in dbs.items():
+            for it in items:
+                my_uid = it.get("uid")
+                linked = it.get("linked_ids", [])
+                new_linked = []
+                link_changed = False
+
+                for target_id in linked:
+                    # Case 1: Legacy index-based link (lib:5) -> Migrate to UID
+                    if ":" in target_id and "_" not in target_id:
+                        try:
+                            t_prefix, t_idx_str = target_id.split(':')
+                            t_idx = int(t_idx_str)
+                            db_k = 'lib' if t_prefix == 'lib' else ('set' if t_prefix == 'set' else 'web')
+                            if 0 <= t_idx < len(dbs[db_k]):
+                                stable_uid = dbs[db_k][t_idx].get("uid")
+                                if stable_uid and stable_uid not in new_linked:
+                                    new_linked.append(stable_uid)
+                                    link_changed = True
+                                    logging.warning(f"[HEAL] Migrated {target_id} to {stable_uid}")
+                        except: pass
+                        continue
+
+                    # Case 2: Orphaned or Invalid UID
+                    if target_id not in uid_map:
+                        logging.warning(f"[HEAL] Removing orphan link {target_id} from {it.get('title')}")
+                        link_changed = True
+                        continue
+
+                    # Case 3: Valid UID
+                    if target_id not in new_linked:
+                        new_linked.append(target_id)
+                    else:
+                        link_changed = True # Deduplication
+
+                if link_changed:
+                    it["linked_ids"] = new_linked
+                    modified_keys.add(k)
+
+                # Ensure Symmetry (Backlinks)
+                for target_uid in it.get("linked_ids", []):
+                    if target_uid in uid_map:
+                        t_type, t_obj = uid_map[target_uid]
+                        if "linked_ids" not in t_obj: t_obj["linked_ids"] = []
+                        if my_uid not in t_obj["linked_ids"]:
+                            t_obj["linked_ids"].append(my_uid)
+                            modified_keys.add(t_type)
+                            logging.warning(f"[HEAL] Symmetry: Linked {target_uid} back to {my_uid}")
+
+        # 5. Save and Flush
+        for k in modified_keys:
+            path = LOCAL_LIB_FILE if k == 'lib' else (SETLIST_FILE if k == 'set' else WEB_LINKS_FILE)
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(dbs[k], f, indent=4)
+                    f.flush()
+                    os.fsync(f.fileno())
+                logging.warning(f"[HEAL] DB {k} cleaned and physically saved.")
+            except Exception as e:
+                logging.error(f"[HEAL] Error saving {k}: {e}")
+
+        # 6. Sidecar Refresh
+        # We only do this for the 'lib' and 'set' items that have a path and changed linked_ids
+        for it in dbs['lib'] + dbs['set']:
+            if it.get("path") and "uid" in it:
+                try:
+                    abs_p = resolve_portable_path(it["path"])
+                    if abs_p and os.path.exists(abs_p):
+                        metadata_service.write_file_metadata(abs_p, {"linked_ids": it.get("linked_ids", [])})
+                except: pass
+
+        logging.warning("[HEAL] Deep cleanup complete.")
+    except Exception as e:
+        logging.error(f"[HEAL] Critical failure: {e}")
+            
+    except Exception as e:
+        logging.error(f"[HEAL] Error during link healing: {e}")
+
 def extract_youtube_id(url: str):
+
     regex = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
     match = re.search(regex, url)
     if match:
         return match.group(1)
     return None
 
+@app.get("/api/debug/persistence")
+async def debug_persistence():
+    """V55: Returns exact absolute paths for diagnostics."""
+    import socket
+    return {
+        "status": "ok",
+        "hostname": socket.gethostname(),
+        "cwd": os.getcwd(),
+        "app_dir": get_app_dir(),
+        "data_dir": get_data_dir(),
+        "files": {
+            "local_lib": os.path.abspath(LOCAL_LIB_FILE),
+            "web_links": os.path.abspath(WEB_LINKS_FILE),
+            "setlist": os.path.abspath(SETLIST_FILE)
+        },
+        "exisis": {
+             "local_lib": os.path.exists(LOCAL_LIB_FILE),
+             "web_links": os.path.exists(WEB_LINKS_FILE)
+        }
+    }
+
 def fetch_youtube_details(video_id: str, api_key: str):
+
     """Fetches full details for a specific video ID."""
     if not api_key: return None
     url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet&id={video_id}&key={api_key}"
@@ -2650,15 +2797,17 @@ async def relocate_bulk(data: dict):
                 errors.append(f"{os.path.basename(m['new_path'])}: {res.get('message')}")
         except Exception as e: 
             errors.append(f"Erreur fatale index {m['index']}: {str(e)}")
-        return {"status": status, "success_count": success_count, "total": len(mappings), "errors": errors, "message": main_msg}
+    main_msg = f"Traitement terminé : {success_count}/{len(mappings)} réussis."
+    status = "ok" if not errors else "partial"
+    return {"status": status, "success_count": success_count, "total": len(mappings), "errors": errors, "message": main_msg}
 
-def sync_web_link_bidirectional(source_uid, linked_ids):
+def sync_web_link_bidirectional(source_uid, linked_uids):
     """
-    Synchronise les liaisons bidirectionnelles pour un média source (souvent un lien Web).
-    source_uid: l'UID du média (ex: 'web:5')
-    linked_ids: la nouvelle liste complète des UIDs cibles à lier.
+    V55: Synchronise les liaisons bidirectionnelles en utilisant des UIDs stables.
+    source_uid: l'UID permanent (ex: 'web_abc123')
+    linked_uids: la liste des UIDs cibles.
     """
-    logging.warning(f"[SYNC_LINK] Synchronisation des liens pour {source_uid} -> {linked_ids}")
+    logging.warning(f"[SYNC_LINK] Début Synchronisation UID : {source_uid} -> {linked_uids}")
     
     file_map = {
         'lib': LOCAL_LIB_FILE,
@@ -2680,29 +2829,48 @@ def sync_web_link_bidirectional(source_uid, linked_ids):
 
         file_changed = False
         
-        for i, item in enumerate(db):
-            uid = f"{prefix}:{i}"
+        for item in db:
+            uid = item.get("uid")
+            if not uid: continue # Skip items without UID (should be rare after heal)
             
+            # Ne pas se synchroniser avec soi-même
+            if uid == source_uid:
+                continue
+
             # Cas A: L'item est dans la nouvelle liste de liens -> il DOIT pointer vers source_uid
-            if uid in linked_ids:
+            if uid in linked_uids:
                 if "linked_ids" not in item: item["linked_ids"] = []
                 if source_uid not in item["linked_ids"]:
                     item["linked_ids"].append(source_uid)
                     file_changed = True
-                    logging.warning(f"[SYNC_LINK] Lien AJOUTÉ : {uid} -> {source_uid}")
-                    # Synchro Sidecar pour les fichiers locaux
-                    if prefix in ['lib', 'set'] and "path" in item:
-                        metadata_service.write_file_metadata(item["path"], {"linked_ids": item["linked_ids"]})
+                    logging.warning(f"[SYNC_LINK] LIEN ÉTABLI : {uid} <-> {source_uid}")
+                    
+                    # Persistance physique (Sidecar) pour les fichiers locaux
+                    if "path" in item:
+                        try:
+                            abs_p = resolve_portable_path(item["path"])
+                            if abs_p and os.path.exists(abs_p):
+                                metadata_service.write_file_metadata(abs_p, {"linked_ids": item["linked_ids"]})
+                        except Exception as pe:
+                            logging.error(f"[SYNC_LINK] Erreur sidecar {uid}: {pe}")
             
             # Cas B: L'item n'est plus dans la liste -> il ne doit PLUS pointer vers source_uid
+            # MAIS ATTENTION : On ne nettoie que si la source_uid est bien du type attendu
+            # (pour éviter de supprimer par erreur des liens existants d'autres sources)
             else:
                 if "linked_ids" in item and source_uid in item["linked_ids"]:
                     item["linked_ids"].remove(source_uid)
                     file_changed = True
-                    logging.warning(f"[SYNC_LINK] Lien RETIRÉ : {uid} -> {source_uid}")
-                    # Synchro Sidecar pour les fichiers locaux
-                    if prefix in ['lib', 'set'] and "path" in item:
-                        metadata_service.write_file_metadata(item["path"], {"linked_ids": item["linked_ids"]})
+                    logging.warning(f"[SYNC_LINK] LIEN SUPPRIMÉ : {uid} <-x-> {source_uid}")
+                    
+                    # Persistance physique (Sidecar) pour les fichiers locaux
+                    if "path" in item:
+                        try:
+                            abs_p = resolve_portable_path(item["path"])
+                            if abs_p and os.path.exists(abs_p):
+                                metadata_service.write_file_metadata(abs_p, {"linked_ids": item["linked_ids"]})
+                        except Exception as pe:
+                             logging.error(f"[SYNC_LINK] Erreur sidecar cleanup {uid}: {pe}")
 
         # Sauvegarde si nécessaire
         if file_changed:
@@ -2711,13 +2879,13 @@ def sync_web_link_bidirectional(source_uid, linked_ids):
                     json.dump(db, f, indent=4)
                     f.flush()
                     os.fsync(f.fileno())
-                logging.warning(f"[SYNC_LINK] Fichier {path} mis à jour.")
+                logging.warning(f"[SYNC_LINK] Fichier {prefix} mis à jour et flushede sur disque.")
                 
-                # V55: Rafraîchir les managers pour que le backend soit à jour en mémoire
-                if prefix == 'lib' and 'library_manager' in globals():
-                    globals()['library_manager'].load_library()
+                # Recharger le manager pour lib
+                if prefix == 'lib' and library_manager:
+                    library_manager.load_library()
             except Exception as e:
-                logging.error(f"[SYNC_LINK] Erreur écriture {path}: {e}")
+                logging.error(f"[SYNC_LINK] Erreur sauvegarde {prefix}: {e}")
 
 @app.get("/api/web_links")
 async def get_web_links():
@@ -2733,7 +2901,7 @@ async def get_web_links():
 @app.post("/api/web_links")
 async def add_web_link(item: Dict):
     try:
-        logging.warning(f"[SAVE_WEB] Tentative d'AJOUT : {item.get('title')} (Champs: {list(item.keys())})")
+        logging.warning(f"[SAVE_WEB] Tentative d'AJOUT : {item.get('title')}")
         links = []
         if os.path.exists(WEB_LINKS_FILE):
             with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
@@ -2742,61 +2910,59 @@ async def add_web_link(item: Dict):
         links.append(item)
         new_index = len(links) - 1
         
+        # Ensure UID before sync
+        if not item.get("uid"): 
+            item["uid"] = f"web_{uuid.uuid4().hex[:8]}"
+            links[new_index] = item
+
+        # On sauvegarde AVANT la synchro
         with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
             json.dump(links, f, indent=4)
+            f.flush()
+            os.fsync(f.fileno())
         
-        logging.warning(f"[SAVE_WEB] Ajout réussi à l'index {new_index}. Synchronisation des liens...")
+        logging.warning(f"[SAVE_WEB] Ajout avec UID {item['uid']}. Synchro liens...")
         
-        # Synchronisation Bidirectionnelle
-        sync_web_link_bidirectional(f"web:{new_index}", item.get("linked_ids", []))
-        
-        # Re-vérification de la persistance
-        with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
-            check = json.load(f)
-            logging.warning(f"[SAVE_WEB] VÉRIFICATION : Index {new_index} cover={check[new_index].get('cover')} | links={check[new_index].get('linked_ids')}")
+        # Synchronisation Bidirectionnelle utilisant UID
+        sync_web_link_bidirectional(item["uid"], item.get("linked_ids", []))
 
+        
         return {"status": "ok", "index": new_index}
     except Exception as e:
         logging.error(f"[SAVE_WEB] Erreur ADD : {str(e)}")
         return {"status": "error", "message": str(e)}
 
+
 @app.put("/api/web_links/{index}")
 async def update_web_link(index: int, item: Dict):
     try:
-        abs_path = os.path.abspath(WEB_LINKS_FILE)
-        logging.warning(f"[SAVE_WEB] PUT index {index}. Payload cover: {item.get('cover')}")
+        logging.warning(f"[SAVE_WEB] PUT index {index}. Links count: {len(item.get('linked_ids', []))}")
         
         links = []
-        if os.path.exists(abs_path):
-            with open(abs_path, "r", encoding="utf-8") as f:
+        if os.path.exists(WEB_LINKS_FILE):
+            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
                 links = json.load(f)
-        else:
-            logging.error(f"[SAVE_WEB] Fichier {abs_path} NON TROUVÉ lors du PUT !")
         
         if 0 <= index < len(links):
             links[index] = item
             
-            with open(abs_path, "w", encoding="utf-8") as f:
+            # On sauvegarde AVANT la synchro
+            with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
                 json.dump(links, f, indent=4)
                 f.flush()
                 os.fsync(f.fileno())
             
-            logging.warning(f"[SAVE_WEB] Mise à jour réussie. Synchronisation des liens...")
-            
-            # Synchronisation Bidirectionnelle
-            sync_web_link_bidirectional(f"web:{index}", item.get("linked_ids", []))
-            
-            logging.warning(f"[SAVE_WEB] Re-vérification...")
-            with open(abs_path, "r", encoding="utf-8") as f:
-                check = json.load(f)
-                logging.warning(f"[SAVE_WEB] VÉRIFICATION : Index {index} cover={check[index].get('cover')} | links={check[index].get('linked_ids')}")
+            # Synchronisation Bidirectionnelle utilisant UID
+            sync_web_link_bidirectional(item.get("uid"), item.get("linked_ids", []))
+
             
             return {"status": "ok"}
         
-        return {"status": "error", "message": f"Index {index} hors limites ({len(links)})"}
+        return {"status": "error", "message": f"Index {index} hors limites"}
     except Exception as e:
-        logging.error(f"[SAVE_WEB] Erreur UPDATE critique : {str(e)}")
+        logging.error(f"[SAVE_WEB] Erreur UPDATE : {str(e)}")
         return {"status": "error", "message": str(e)}
+
 
 @app.delete("/api/web_links/{index}")
 async def delete_web_link_api(index: int):
@@ -2914,42 +3080,44 @@ async def link_bidirectional(data: Dict):
         if source_index < 0 or source_index >= len(db_s): return {"status": "error", "message": "Source out of range"}
         if target_index < 0 or target_index >= len(db_t): return {"status": "error", "message": "Target out of range"}
 
-        s_uid = f"{source_type[:3]}:{source_index}"
-        t_uid = f"{target_type[:3]}:{target_index}"
+        item_s = db_s[source_index]
+        item_t = db_t[target_index]
+
+        # Get stable UIDs
+        s_uid = item_s.get("uid")
+        t_uid = item_t.get("uid")
+
+        if not s_uid or not t_uid:
+             return {"status": "error", "message": "Stable UIDs missing on items"}
 
         # 1. Mise à jour Source
-        if "linked_ids" not in db_s[source_index]: db_s[source_index]["linked_ids"] = []
+        if "linked_ids" not in item_s: item_s["linked_ids"] = []
         if action == "link":
-            if t_uid not in db_s[source_index]["linked_ids"]: db_s[source_index]["linked_ids"].append(t_uid)
+            if t_uid not in item_s["linked_ids"]: item_s["linked_ids"].append(t_uid)
         else:
-            if t_uid in db_s[source_index]["linked_ids"]: db_s[source_index]["linked_ids"].remove(t_uid)
+            if t_uid in item_s["linked_ids"]: item_s["linked_ids"].remove(t_uid)
         
         # 2. Mise à jour Cible
-        if "linked_ids" not in db_t[target_index]: db_t[target_index]["linked_ids"] = []
+        if "linked_ids" not in item_t: item_t["linked_ids"] = []
         if action == "link":
-            if s_uid not in db_t[target_index]["linked_ids"]: db_t[target_index]["linked_ids"].append(s_uid)
+            if s_uid not in item_t["linked_ids"]: item_t["linked_ids"].append(s_uid)
         else:
-            if s_uid in db_t[target_index]["linked_ids"]: db_t[target_index]["linked_ids"].remove(s_uid)
+            if s_uid in item_t["linked_ids"]: item_t["linked_ids"].remove(s_uid)
 
         save_db(source_type, db_s)
-        # Si même DB (ex: YT vers YT), on a déjà sauvé. Sinon, sauver la cible.
         if source_type != target_type:
             save_db(target_type, db_t)
-
-        # --- PERSISTENCE (V55: Sidecar / Physical persistence) ---
-        def sync_physical(item_type, item):
-            if item_type == "library":
+            
+        # 3. Physical Persistence (Sidecar)
+        for it, t in [(item_s, source_type), (item_t, target_type)]:
+            if t in ["library", "setlist"] and it.get("path"):
                 try:
-                    path = item.get("path")
-                    if path:
-                        abs_p = resolve_portable_path(path)
-                        if abs_p and os.path.exists(abs_p):
-                            metadata_service.write_file_metadata(abs_p, item)
+                    p = it["path"]
+                    abs_p = resolve_portable_path(p)
+                    if abs_p and os.path.exists(abs_p):
+                        metadata_service.write_file_metadata(abs_p, {"linked_ids": it["linked_ids"]})
                 except Exception as pe:
-                    logging.error(f"Persistence Error in link_bidirectional for {item.get('title')}: {pe}")
-
-        sync_physical(source_type, db_s[source_index])
-        sync_physical(target_type, db_t[target_index])
+                    logging.error(f"[LINK_BIDIR] Error sidecar {it.get('uid')}: {pe}")
 
         return {"status": "ok"}
 

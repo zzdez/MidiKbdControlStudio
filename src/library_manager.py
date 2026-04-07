@@ -8,7 +8,10 @@ from utils import get_app_dir, get_data_dir, to_portable_path, resolve_portable_
 
 class LibraryManager:
     def __init__(self, library_file="library.json"):
-        self.library_file = os.path.join(get_data_dir(), library_file)
+        if os.path.isabs(library_file):
+            self.library_file = library_file
+        else:
+            self.library_file = os.path.join(get_data_dir(), library_file)
         self.data = []
         self.callback_force_profile = None # Injected callback
         self.load_library()

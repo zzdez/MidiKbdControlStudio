@@ -784,17 +784,33 @@ async function loadWebLinks() {
         const res = await fetch("/api/web_links");
         if (res.ok) {
             const rawList = await res.json();
-            console.log("[LOAD_WEB] Items loaded:", rawList.length, rawList);
+            console.log("[LOAD_WEB] Items loaded:", rawList.length);
             webLinks = rawList.map((link, idx) => ({ ...link, originalIndex: idx }));
             currentWebLinkTrackList = [...webLinks];
         }
     } catch (e) {
         console.error("Web Links load error:", e);
-        logToBackend("[LOAD_WEB] ERROR: " + e.message);
     }
-    console.log("[LOAD_WEB] Rendering links...");
     renderWebLinks();
+    refreshInterconnections(); // V55: Wake up header UI after loading
 }
+
+/**
+ * V55: Force refresh of the interconnection UI in the header
+ * Based on the currently active media.
+ */
+function refreshInterconnections() {
+    let activeItem = null;
+    if (window.currentSource === 'setlist') activeItem = currentTrackList[window.currentPlayingIndex];
+    else if (window.currentSource === 'library') activeItem = localFiles[window.currentPlayingIndex];
+    else if (window.currentSource === 'web_links') activeItem = webLinks[window.currentPlayingIndex];
+    
+    if (activeItem) {
+        console.log("[UI] Refreshing Interconnections for current media...");
+        updateInterconnectionUI(activeItem);
+    }
+}
+
 
 function renderWebLinks() {
     const tbody = document.getElementById("web-links-body");
@@ -833,8 +849,9 @@ function renderWebLinks() {
         }
 
 
-        // V55: Show Link Indicator
-        const linkCount = (link.linked_ids || []).length;
+        // V56: Only count resolvable links
+        const validLinks = (link.linked_ids || []).filter(uid => getLinkedItem(uid) !== null);
+        const linkCount = validLinks.length;
         const linkIndicator = linkCount > 0 
             ? `<span class="link-badge active" style="margin-right:8px;" title="${linkCount} liens actifs"><i class="ph ph-link-simple"></i>${linkCount > 1 ? `<span class="count">${linkCount}</span>` : ""}</span>`
             : `<span class="link-badge" style="margin-right:8px; opacity:0.3;"><i class="ph ph-link-simple"></i></span>`;
@@ -978,6 +995,9 @@ async function saveWebLink() {
         }
     }
 
+    console.log("[SAVE_WEB] Starting save for index:", currentWebLinkIndex, "Payload linked_ids:", currentEditingLinkedIds);
+    logToBackend(`[SAVE_WEB] User clicked Save. Linked_ids count: ${currentEditingLinkedIds.length}`);
+
     const payload = {
         title: document.getElementById("web-link-title").value,
         artist: document.getElementById("web-link-artist").value,
@@ -1092,10 +1112,8 @@ function getLocalType(item) {
 
 function updateInterconnectionUI(activeItem) {
     const container = document.getElementById("header-interconnection-links");
-    if (!container) return;
+    if (!container || !activeItem) return;
     container.innerHTML = "";
-
-    if (!activeItem) return;
 
     const matches = {
         youtube: [],
@@ -1109,7 +1127,7 @@ function updateInterconnectionUI(activeItem) {
         other: []
     };
 
-    const currentUID = `${window.currentSource.substring(0, 3)}:${window.currentPlayingIndex}`;
+    const currentUID = activeItem.uid || `${window.currentSource.substring(0, 3)}:${window.currentPlayingIndex}`;
     const headerBottomRow = document.getElementById("header-bottom-row");
     const globalInfoRow = document.getElementById("global-video-info");
 
@@ -1145,18 +1163,22 @@ function updateInterconnectionUI(activeItem) {
     if (artist || title) {
         // Search in YouTube Setlist
         currentTrackList.forEach((t, idx) => {
-            const uid = `set:${idx}`;
-            if (activeItem.linked_ids && activeItem.linked_ids.includes(uid)) return; // Already added
+            const legacyUid = `set:${idx}`;
+            const stableUid = t.uid || legacyUid;
+            if (activeItem.linked_ids && (activeItem.linked_ids.includes(legacyUid) || activeItem.linked_ids.includes(stableUid))) return; // Already added
+            
             if (isMatch(t, artist, title) && idx !== (window.currentSource === 'setlist' ? window.currentPlayingIndex : -1)) {
-                matches.youtube.push(t);
+                matches.youtube.push({ ...t, originalIndex: idx });
             }
         });
 
         // Search in Local Files
         if (typeof localFiles !== 'undefined') {
             localFiles.forEach((f, idx) => {
-                const uid = `lib:${idx}`;
-                if (activeItem.linked_ids && activeItem.linked_ids.includes(uid)) return; // Already added
+                const legacyUid = `lib:${idx}`;
+                const stableUid = f.uid || legacyUid;
+                if (activeItem.linked_ids && (activeItem.linked_ids.includes(legacyUid) || activeItem.linked_ids.includes(stableUid))) return; // Already added
+                
                 if (isMatch(f, artist, title) && idx !== (window.currentSource === 'library' ? window.currentPlayingIndex : -1)) {
                     const type = getLocalType(f);
                     const itemToAdd = { ...f, originalIndex: idx };
@@ -1170,8 +1192,10 @@ function updateInterconnectionUI(activeItem) {
         // Search in Web Links
         if (typeof webLinks !== 'undefined') {
             webLinks.forEach((w, idx) => {
-                const uid = `web:${idx}`;
-                if (activeItem.linked_ids && activeItem.linked_ids.includes(uid)) return; // Already added
+                const legacyUid = `web:${idx}`;
+                const stableUid = w.uid || legacyUid;
+                if (activeItem.linked_ids && (activeItem.linked_ids.includes(legacyUid) || activeItem.linked_ids.includes(stableUid))) return; // Already added
+                
                 if (isMatch(w, artist, title) && idx !== (window.currentSource === 'web_links' ? window.currentPlayingIndex : -1)) {
                     const type = w.type || 'other';
                     const itemToAdd = { ...w, originalIndex: idx };
@@ -1312,13 +1336,22 @@ function isMatch(item, artist, title) {
 }
 
 function getLinkedItem(uid) {
+    if (!uid) return null;
+    
+    // V55: Stable UID support (prefix_hash)
+    if (uid.includes('_')) {
+        const prefix = uid.split('_')[0]; // 'lib', 'set', 'web'
+        const list = (prefix === 'lib' ? localFiles : (prefix === 'set' ? currentTrackList : webLinks));
+        if (!list) return null;
+        return list.find(it => it.uid === uid) || null;
+    }
+
+    // Legacy: prefix:index support
     const [type, idxStr] = uid.split(':');
     const idx = parseInt(idxStr);
     
-    // Safety: check if list exists before searching
     const findIn = (list, i) => {
         if (!list || list.length === 0) return null;
-        // Search by originalIndex FIRST, then fallback to direct array index if possible
         return list.find(t => t.originalIndex === i) || (i >= 0 && i < list.length ? list[i] : null);
     };
     
@@ -1393,7 +1426,9 @@ function renderSetlist(list) {
             iconImg = `<i class="ph ph-warning-circle" style="margin-right:8px; vertical-align:middle;" title="Fichier introuvable"></i>`;
         }
 
-        const linkCount = (track.linked_ids || []).length;
+        // V56: Only count resolvable links
+        const validLinks = (track.linked_ids || []).filter(uid => getLinkedItem(uid) !== null);
+        const linkCount = validLinks.length;
         const linkIndicator = linkCount > 0 
             ? `<span class="link-badge active" style="margin-right:8px;" title="${linkCount} liens actifs"><i class="ph ph-link-simple"></i>${linkCount > 1 ? `<span class="count">${linkCount}</span>` : ""}</span>`
             : `<span class="link-badge" style="margin-right:8px; opacity:0.3;"><i class="ph ph-link-simple"></i></span>`;
@@ -3374,17 +3409,28 @@ async function loadLocalFiles() {
         await loadBlockedTags(); // Load blocked list first
 
         const res = await fetch("/api/local/files");
-        const rawLocal = await res.json();
-        // Assign originalIndex for safe referencing during relocation/edit
-        localFiles = rawLocal.map((f, idx) => ({ ...f, originalIndex: idx }));
-    } catch (e) { localFiles = []; }
+        if (res.ok) {
+            const rawLocal = await res.json();
+            console.log("[LOAD_LOCAL] Items loaded:", rawLocal.length);
+            // V56: Diagnostic check for UIDs
+            const missingUids = rawLocal.filter(f => !f.uid).length;
+            if (missingUids > 0) console.warn(`[V56] ${missingUids} items missing UIDs. Healer might not have run yet.`);
+            
+            localFiles = rawLocal.map((f, idx) => ({ ...f, originalIndex: idx }));
+        }
+    } catch (e) { 
+        console.error("Local files load error:", e);
+        localFiles = []; 
+    }
 
     // Initialize Custom Autocompletes
     setupCustomAutocomplete("edit-category", "suggestions-category", "category");
     setupCustomAutocomplete("edit-genre", "suggestions-genre", "genre");
 
     renderLocalFiles();
+    refreshInterconnections(); // V55: Wake up header UI after loading
 }
+
 
 function renderLocalFiles() {
     const tbody = document.getElementById("local-body");
@@ -3434,13 +3480,21 @@ function renderLocalFiles() {
 
         if (isMissing) tr.classList.add('track-missing');
 
+        // V56: Only count resolvable links
+        const validLinks = (file.linked_ids || []).filter(uid => getLinkedItem(uid) !== null);
+        const linkCount = validLinks.length;
+        const linkIndicator = linkCount > 0 
+            ? `<span class="link-badge active" style="margin-right:8px;" title="${linkCount} liens actifs"><i class="ph ph-link-simple"></i>${linkCount > 1 ? `<span class="count">${linkCount}</span>` : ""}</span>`
+            : `<span class="link-badge" style="margin-right:8px; opacity:0.3;"><i class="ph ph-link-simple"></i></span>`;
+
         tr.innerHTML = `
             <td>${file.artist || ""}</td>
             <td style="cursor:pointer;" onclick="playLocal(${realIndex})">
-                ${iconHtml}
+                ${linkIndicator}${iconHtml}
                 ${file.title}
             </td>
             <td>${file.category || "Général"}</td>
+
             <td style="text-align:right;">
                 <button class="btn-action" onclick="${file.is_multitrack ? 'openMultitrackModal' : 'openEditLocalModal'}(${realIndex})">✎</button>
                 <button class="btn-action" onclick="deleteLocalFile(${realIndex})" style="color:#cf6679;">×</button>
@@ -5932,57 +5986,63 @@ function sortLocal(key) {
 
 // loadYouTubeAPI(); // Fix: Removed undefined call. API loaded via HTML script tag.
 // --- INITIALIZATION ---
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("DOM Loaded");
+document.addEventListener("DOMContentLoaded", async () => {
+    console.log("DOM Loaded - Starting V57 Orchestration");
 
-    // Initialize WebSockets
-    if (typeof connectVideoWebSocket === 'function') {
-        connectVideoWebSocket();
-    } else {
-        console.error("connectVideoWebSocket function not found!");
-    }
+    // 1. Initial State from LocalStorage (Sync)
+    try {
+        const savedLang = localStorage.getItem("preferred_lang") || "fr";
+        await loadTranslations(savedLang);
+    } catch(e) {}
 
-    // CHECK CAPABILITIES
+    // 2. Initialize WebSockets
+    if (typeof connectVideoWebSocket === 'function') connectVideoWebSocket();
+
+    // 3. CHECK CAPABILITIES & YT
     checkSystemCapabilities();
-
-    // CHECK YOUTUBE API MANUALLY
-    // If API loaded before we attached the callback, we must init manually.
     if (window.YT && window.YT.Player && typeof onYouTubeIframeAPIReady === "function") {
-        console.log("YouTube API already loaded. Forcing manual init.");
-        try {
-            onYouTubeIframeAPIReady();
-        } catch (e) { console.error("Manual YT Init Error:", e); }
+        try { onYouTubeIframeAPIReady(); } catch (e) {}
     }
 
-    // Initialize Universal Loop Selection (One time)
     setupUniversalLoopSelection();
-
     setupSliderReset(document.getElementById("mt-modal-volume"), "volume");
 
-    // Sidebar Hover Logic
+    // 4. SYNC DATA LOAD (The Core of V57 Fix)
+    console.log("[INIT] Waiting for critical data (Setlist, Library, WebLinks)...");
+    try {
+        // We wait for all 3 main sources to be in memory
+        await Promise.all([
+            loadSetlist(),
+            loadLocalFiles(),
+            loadWebLinks()
+        ]);
+        console.log("[INIT] All critical data loaded. Ready for UI.");
+    } catch (e) {
+        console.error("[INIT] Data load failure during startup:", e);
+    }
+
+    // 5. REFRESH UI FOR ACTIVE MEDIA
+    // Now that libraries are full, refreshInterconnections can find 'web_...' UIDs
+    setTimeout(() => {
+        refreshInterconnections();
+        console.log("[INIT] Startup UI sync complete.");
+    }, 100);
+
+    // Sidebar Hover Logic (remains same)
     const hoverTrigger = document.getElementById('sidebar-hover-trigger');
     const sidebar = document.querySelector('.sidebar-zone');
     if (hoverTrigger && sidebar) {
         hoverTrigger.addEventListener('mouseenter', () => {
-            // Uniquement si le mode survol est actif ET que la sidebar est officiellement masquée (Theater Mode)
             if (currentSettings && currentSettings.sidebar_hover_trigger && isTheaterMode) {
-                console.log("[DEBUG] Sidebar Hover Triggered");
                 sidebar.classList.add('hover-active');
             }
         });
         sidebar.addEventListener('mouseleave', () => {
-            // Toujours retirer le mode hover quand on quitte la zone
             if (sidebar.classList.contains('hover-active')) {
-                console.log("[DEBUG] Sidebar Hover Left");
                 sidebar.classList.remove('hover-active');
             }
         });
     }
-
-    // Initial Loads
-    setTimeout(() => {
-        if (!localFiles || localFiles.length === 0) loadLocalFiles();
-    }, 1000);
 });
 
 function handleLocalCover(input) {
@@ -9747,8 +9807,9 @@ function renderLinkerResults(query) {
         const iconUrl = (resType === 'web_links' || resType === 'web') ? getIcon(res.item.url) : null;
         
         const typeIcon = getTypeIcon(res);
-        const uid = `${res.type.substring(0,3)}:${res.index}`;
-        const isLinked = currentEditingLinkedIds.includes(uid);
+        // V56: Use stable UID for detection in the modal, fallback to legacy only if necessary
+        const itemUid = res.item.uid || `${res.type.substring(0,3)}:${res.index}`;
+        const isLinked = currentEditingLinkedIds.includes(itemUid);
 
         div.innerHTML = `
             <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
@@ -9809,33 +9870,67 @@ function renderExistingLinks() {
 
     currentEditingLinkedIds.forEach(uid => {
         const item = getLinkedItem(uid);
-        if (!item) return;
+        if (!item) {
+            console.warn("[LINKER] Unresolvable UID in existing links:", uid);
+            return;
+        }
 
-        const prefix = uid.substring(0, 3).toUpperCase();
-        const [typeCode, idx] = uid.split(':');
+        // V55: Determine type and name from UID safely
+        const prefix = uid.includes('_') ? uid.split('_')[0] : uid.split(':')[0];
+        const displayPrefix = prefix.toUpperCase();
+        
+        let typeLabel = "library";
+        let actualIndex = item.originalIndex; // Default for lib and web
+        
+        if (prefix === 'set') {
+            typeLabel = "setlist";
+            // For setlist, we must find the index in currentTrackList if originalIndex is missing
+            actualIndex = currentTrackList.findIndex(it => it.uid === uid || it === item);
+        } else if (prefix === 'web') {
+            typeLabel = "web_links";
+        }
 
         const badge = document.createElement("div");
         badge.style = "background:rgba(255,255,255,0.05); border:1px solid #444; padding:2px 8px; border-radius:12px; font-size:0.8em; display:flex; align-items:center; gap:5px;";
         
-        const favIcon = typeCode === 'web' ? getIcon(item.url) : null;
-        const iconHtml = favIcon ? `<img src="${favIcon}" style="width:14px; height:14px; border-radius:2px;">` : `<span style="font-weight:bold; color:var(--accent); font-size:0.7em;">${prefix}</span>`;
+        const favIcon = (prefix === 'web' && item.url) ? getIcon(item.url) : null;
+        const iconHtml = favIcon ? `<img src="${favIcon}" style="width:14px; height:14px; border-radius:2px;">` : `<span style="font-weight:bold; color:var(--accent); font-size:0.7em;">${displayPrefix}</span>`;
 
         badge.innerHTML = `
             ${iconHtml}
             <span style="max-width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</span>
-            <span style="cursor:pointer; font-weight:bold; color:#ff4444; margin-left:5px;" onclick="toggleMediaLink('${typeCode === 'set' ? 'setlist' : (typeCode === 'lib' ? 'library' : 'web_links')}', ${idx})">×</span>
+            <span style="cursor:pointer; font-weight:bold; color:#ff4444; margin-left:5px;" onclick="toggleMediaLink('${typeLabel}', ${actualIndex})">×</span>
         `;
         container.appendChild(badge);
     });
 }
 
 async function toggleMediaLink(targetType, targetIndex) {
-    const targetPrefix = targetType.substring(0, 3);
-    const targetUid = `${targetPrefix}:${targetIndex}`;
+    if (targetIndex === undefined || targetIndex === null) {
+        console.error("[LINK] Cannot toggle link with undefined index.");
+        return;
+    }
+
+    const targetList = (targetType === 'library' ? localFiles : (targetType === 'setlist' ? currentTrackList : webLinks));
+    const targetItem = targetList[targetIndex];
+    if (!targetItem) return;
+
+    // Use stable UID for memory tracking
+    const targetUid = targetItem.uid || `${targetType.substring(0, 3)}:${targetIndex}`;
     
-    const sourcePrefix = linkerSourceType.substring(0, 3);
-    const sourceIndex = (linkerSourceType === 'setlist') ? editingIndex : (linkerSourceType === 'library' ? editingLocalIndex : currentWebLinkIndex);
-    const sourceUid = `${sourcePrefix}:${sourceIndex}`;
+    // Identifiy source
+    let sourceUid = "";
+    let sourceIndex = -1;
+    if (linkerSourceType === 'setlist') {
+         sourceIndex = editingIndex;
+         sourceUid = currentTrackList[editingIndex]?.uid || `set:${editingIndex}`;
+    } else if (linkerSourceType === 'library') {
+         sourceIndex = editingLocalIndex;
+         sourceUid = localFiles[editingLocalIndex]?.uid || `lib:${editingLocalIndex}`;
+    } else {
+         sourceIndex = currentWebLinkIndex;
+         sourceUid = webLinks[currentWebLinkIndex]?.uid || `web:${currentWebLinkIndex}`;
+    }
 
     // 1. Update source memory
     if (currentEditingLinkedIds.includes(targetUid)) {
@@ -9940,11 +10035,16 @@ async function toggleMediaLink(targetType, targetIndex) {
 
     // V55: Force reload of all web links to keep frontend sync with the newly saved JSON (F5/Refresh protection)
     if (linkerSourceType === 'web_links' || targetType === 'web_links') {
+        console.log("[SYNC_LINK] Triggering loadWebLinks to refresh memory...");
         await loadWebLinks(); // This re-renders and re-populates webLinks array
     }
 
     // V55: Explicitly sync the Web Link Modal session list to prevent overwriting on Save
-    if (linkerSourceType === 'web_links') {
-        currentEditingLinkedIds = [...linkerSourceItem.linked_ids];
+    if (linkerSourceType === 'web_links' && currentWebLinkIndex !== -1) {
+        // Since loadWebLinks replaced the array, we must re-bind linkerSourceItem to the new object in the array
+        linkerSourceItem = webLinks[currentWebLinkIndex];
+        currentEditingLinkedIds = [...(linkerSourceItem.linked_ids || [])];
+        console.log("[SYNC_LINK] Re-aligned linkerSourceItem and currentEditingLinkedIds after reload:", currentEditingLinkedIds);
     }
+
 }
