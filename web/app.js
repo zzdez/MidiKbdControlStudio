@@ -1500,8 +1500,12 @@ function setupCustomAutocomplete(inputId, boxId, field) {
     const showSuggestions = () => {
         const currentVal = input.value.toLowerCase();
 
-        // 1. Get all unique values from library
-        const allValues = new Set(localFiles.map(t => t[field] || "").filter(v => v));
+        // 1. Get all unique values from all sources (Local, Setlist, Web)
+        const allValues = new Set([
+            ...localFiles.map(t => t[field] || ""),
+            ...currentTrackList.map(t => t[field] || ""),
+            ...(typeof webLinks !== 'undefined' ? webLinks.map(t => t[field] || "") : [])
+        ].filter(v => v));
 
         // 2. Filter: Match input AND Not Blocked
         const matches = Array.from(allValues).filter(v => {
@@ -1519,6 +1523,11 @@ function setupCustomAutocomplete(inputId, boxId, field) {
         matches.forEach(val => {
             const div = document.createElement("div");
             div.className = "suggestion-item";
+            div.onclick = () => {
+                input.value = val;
+                box.style.display = "none";
+                input.focus();
+            };
 
             const textSpan = document.createElement("span");
             textSpan.innerText = val;
@@ -2000,6 +2009,10 @@ function openEditModal(index) {
     document.getElementById("edit-original-pitch").value = track.original_pitch || "";
     document.getElementById("edit-target-pitch").value = track.target_pitch || "";
 
+    // V58: Dynamic button text
+    const saveBtn = document.querySelector(".btn-primary[onclick='saveItem()']");
+    if (saveBtn) saveBtn.innerText = t("web.btn_save_web_lib");
+
     syncPlaybackSettingsToModals(track);
 
     // Legacy support: if description exists but not youtube_description, assume it was generic description (or user note?)
@@ -2429,6 +2442,11 @@ async function saveItem() {
     const artist = document.getElementById("edit-artist").value;
     const channel = document.getElementById("edit-channel").value;
     const url = document.getElementById("edit-url").value;
+
+    // V58: Context redirection
+    if (lastEditContext === 'library') {
+        return saveLocalItem();
+    }
 
     // Use defaults if empty
     const category = document.getElementById("edit-category").value || t("web.default_category");
@@ -5672,8 +5690,13 @@ function openEditLocalModal(index) {
     document.getElementById("edit-artist").value = item.artist || "";
     
     const urlField = document.getElementById("edit-url");
-    urlField.value = ""; // URL empty for local, path shown below
-    urlField.parentElement.style.display = "none"; // Hide URL field for local
+    urlField.value = item.url || ""; // Restore URL if known from previous download
+    urlField.parentElement.style.display = item.url ? "block" : "none"; // Show only if url exists or keep hidden for local? 
+    // User requested to see it if possible: "Je pense que ce serait bien... que le lien original soit renseigné".
+    
+    // V58: Dynamic button text
+    const saveBtn = document.querySelector(".btn-primary[onclick='saveItem()']");
+    if (saveBtn) saveBtn.innerText = t("web.btn_save");
     document.getElementById("edit-category").value = item.category || "Général";
     document.getElementById("edit-genre").value = item.genre || "Divers";
     document.getElementById("edit-target-profile").value = item.target_profile || "Auto";
@@ -5946,6 +5969,7 @@ async function saveLocalItem() {
         volume: parseInt(document.getElementById("edit-volume").value, 10) || 100,
         autoplay: document.getElementById("edit-autoplay").checked,
         autoreplay: document.getElementById("edit-autoreplay").checked,
+        url: document.getElementById("edit-url").value, // V58: Preserve URL
         linked_ids: currentEditingLinkedIds
     };
 

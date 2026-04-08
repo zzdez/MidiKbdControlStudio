@@ -394,11 +394,16 @@ async def block_tag(data: Dict):
     if not field or not value:
         raise HTTPException(status_code=400, detail="Missing field or value")
     
-    if value not in current_blocked[field]:
-        current_blocked[field].append(value)
-        config_manager.set("blocked_tags", current_blocked)
+    # Securely retrieve and update tags from config
+    all_blocked = config_manager.get("blocked_tags", {})
+    if field not in all_blocked:
+        all_blocked[field] = []
         
-    return {"status": "ok", "blocked": current_blocked}
+    if value not in all_blocked[field]:
+        all_blocked[field].append(value)
+        config_manager.set("blocked_tags", all_blocked)
+        
+    return {"status": "ok", "blocked": all_blocked}
 
 @app.post("/api/profile/active")
 async def set_active_profile(data: Dict):
@@ -1569,6 +1574,7 @@ async def update_local_file(index: int, item: Dict):
             current = items[index]
             # Update fields
             current["title"] = item.get("title", current["title"])
+            current["url"] = item.get("url", current.get("url", ""))
             current["artist"] = item.get("artist", current.get("artist", ""))
             current["album"] = item.get("album", current.get("album", ""))
             current["genre"] = item.get("genre", current.get("genre", ""))
@@ -2589,6 +2595,7 @@ async def dl_start(data: Dict):
                 # scan_file_metadata only gets physical tags. We want to keep what user entered.
                 original_meta = data.get("metadata", {})
                 if original_meta:
+                    if "url" in original_meta: file_data["url"] = original_meta["url"]
                     if "category" in original_meta: file_data["category"] = original_meta["category"]
                     if "user_notes" in original_meta: file_data["user_notes"] = original_meta["user_notes"]
                     if "target_profile" in original_meta: file_data["target_profile"] = original_meta["target_profile"]
@@ -2621,6 +2628,15 @@ async def dl_start(data: Dict):
     # V57: Ensure target_folder is resolved if it was a portable path from UI
     if "target_folder" in data:
         data["target_folder"] = resolve_portable_path(data["target_folder"])
+        
+        # V58: Automatic artist subfolder creation (V58 Requirement)
+        meta = data.get("metadata", {})
+        artist = meta.get("artist", "").strip()
+        if artist and artist.lower() not in ["divers", "unknown", "inconnu", ""]:
+            import re
+            safe_artist = re.sub(r'[\\/:*?"<>|]', '_', artist)
+            data["target_folder"] = os.path.join(data["target_folder"], safe_artist)
+            logging.info(f"[DL] Routing to artist folder: {data['target_folder']}")
 
     # Run in Thread
     t = threading.Thread(target=download_service.download, args=(data, progress_cb, completion_cb))
@@ -3098,7 +3114,7 @@ async def find_artist_folder(name: str):
     
     # Secure Name (same as relocation logic)
     import re
-    safe_name = re.sub(r'[\\/*?Source: server.py:"<>|]', '_', name.strip())
+    safe_name = re.sub(r'[\\/:*?"<>|]', '_', name.strip())
     
     from config_manager import ConfigManager
     config = ConfigManager()
