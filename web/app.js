@@ -904,8 +904,10 @@ function openWebLinkModal(index = -1) {
         document.getElementById("web-link-key").value = "";
         document.getElementById("web-link-scale").value = "";
         document.getElementById("web-link-tuning").value = "standard";
+        currentEditingLinkedIds = []; // V58: Initialize for new link
     } else {
         const link = webLinks[index];
+        currentEditingLinkedIds = link.linked_ids || []; // V58: Initialize for edit
         titleEl.innerText = t("web.modal_web_link_title_edit", "Modifier le Lien Web");
         document.getElementById("web-link-title").value = link.title || "";
         document.getElementById("web-link-artist").value = link.artist || "";
@@ -933,6 +935,7 @@ function openWebLinkModal(index = -1) {
             document.getElementById("btn-web-link-delete-cover").style.display = "flex";
         }
     }
+    renderModalLinkedItems(); // V58: Display linked items in web link modal
     modal.showModal();
 }
 
@@ -2072,6 +2075,7 @@ function openEditModal(index) {
     } else {
         subSettings.style.display = "none";
     }
+    renderModalLinkedItems(); // V58: Display linked items in main edit modal
 }
 
 function closeModal() {
@@ -2493,7 +2497,7 @@ async function saveItem() {
         subtitle_pos_y: 100 - parseInt(document.getElementById("edit-sub-pos").value || 20, 10),
         autoplay: document.getElementById("edit-autoplay").checked,
         autoreplay: document.getElementById("edit-autoreplay").checked,
-        linked_ids: (editingIndex !== null && currentTrackList[editingIndex]) ? (currentTrackList[editingIndex].linked_ids || []) : []
+        linked_ids: currentEditingLinkedIds // V58: Use active modal state instead of old track list data
     };
 
     if (editingIndex !== null) {
@@ -5674,6 +5678,7 @@ function openEditLocalModal(index) {
     editingLocalIndex = index;
     lastEditContext = 'library';
     const item = localFiles[index];
+    currentEditingLinkedIds = item.linked_ids || []; // V58: Initialize links for local edit
     
     // Reveal sidebar if in theater mode to give context to editing
     if (isTheaterMode && typeof toggleTheaterMode === 'function') {
@@ -5764,6 +5769,7 @@ function openEditLocalModal(index) {
     }
 
     syncPlaybackSettingsToModals(item);
+    renderModalLinkedItems(); // V58: Display linked items in local edit modal
 
     // Load Art
     currentCoverData = null;
@@ -5827,6 +5833,7 @@ function openMultitrackModal(index) {
 
     // V57: Initialize linked IDs
     currentEditingLinkedIds = item.linked_ids || [];
+    renderModalLinkedItems(); // V58: Display linked items in multitrack modal
 
     let volVal = (item.volume !== undefined) ? item.volume : 100;
     document.getElementById("mt-modal-volume").value = volVal;
@@ -9942,6 +9949,57 @@ function renderExistingLinks() {
     });
 }
 
+/**
+ * V58: Unified rendering of linked items across all edit modals (Main, Multitrack, WebLink)
+ */
+function renderModalLinkedItems() {
+    // We try to fill all potential display areas
+    const containers = [
+        document.getElementById("edit-linked-items-display"),
+        document.getElementById("mt-linked-items-display"), // Future-proofing multitrack modal if needed
+        document.getElementById("web-link-linked-items-display") // Future-proofing web modal if needed
+    ];
+
+    containers.forEach(container => {
+        if (!container) return;
+        container.innerHTML = "";
+
+        if (!currentEditingLinkedIds || currentEditingLinkedIds.length === 0) {
+            container.style.display = "none";
+            return;
+        }
+
+        container.style.display = "flex";
+        
+        currentEditingLinkedIds.forEach(uid => {
+            const item = getLinkedItem(uid);
+            if (!item) return;
+
+            const badge = document.createElement("div");
+            badge.className = "link-pill"; // Assuming this class exists or we use inline style
+            badge.style = "background:rgba(187,134,252,0.1); border:1px solid rgba(187,134,252,0.3); padding:3px 10px; border-radius:15px; font-size:0.75em; color:#bb86fc; display:flex; align-items:center; gap:5px; cursor:pointer;";
+            badge.title = item.artist ? `${item.artist} - ${item.title}` : item.title;
+            
+            // Icon logic (YouTube vs others)
+            let iconClass = "ph ph-link";
+            if (uid.startsWith('set')) iconClass = "ph ph-youtube-logo";
+            else if (uid.startsWith('lib')) {
+                const type = (typeof getLocalType === 'function') ? getLocalType(item) : 'audio';
+                if (type === 'video') iconClass = "ph ph-film-strip";
+                else if (type === 'multitrack') iconClass = "ph ph-stack-simple";
+                else iconClass = "ph ph-music-notes";
+            } else if (uid.startsWith('web')) {
+                iconClass = "ph ph-globe";
+            }
+
+            badge.innerHTML = `<i class="${iconClass}"></i> <span style="max-width:110px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</span>`;
+            
+            // Ability to open the linked media directly? Maybe too complex for now, just visual is enough
+            container.appendChild(badge);
+        });
+    });
+}
+
 async function toggleMediaLink(targetType, targetIndex) {
     if (targetIndex === undefined || targetIndex === null) {
         console.error("[LINK] Cannot toggle link with undefined index.");
@@ -9978,6 +10036,10 @@ async function toggleMediaLink(targetType, targetIndex) {
     
     // Update the item being edited directly
     linkerSourceItem.linked_ids = currentEditingLinkedIds;
+    
+    // Refresh displays
+    renderExistingLinks();
+    renderModalLinkedItems(); // V58: Refresh the visual confirmation in the background modal
 
     // 2. Update target (Backend call for immediate bidirectional link)
     const isNowLinked = currentEditingLinkedIds.includes(targetUid);

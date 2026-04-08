@@ -12,6 +12,8 @@ from tkinter import filedialog
 import urllib.parse
 import shutil
 import time
+import hashlib
+import uuid
 import logging
 import base64
 from concurrent.futures import ThreadPoolExecutor
@@ -96,6 +98,12 @@ if os.path.exists(user_sounds_dir):
 server_loop = None
 config_manager = ConfigManager()
 music_api_client = MusicAPI(config_manager)
+
+def generate_stable_setlist_uid(url):
+    """V58: Generates a stable UID based on URL for setlist items (YouTube/Web)"""
+    if not url: return f"set_{uuid.uuid4().hex[:8]}"
+    h = hashlib.md5(url.encode('utf-8')).hexdigest()[:8]
+    return f"set_{h}"
 
 @app.post("/api/debug_log")
 async def debug_log(data: Dict):
@@ -726,7 +734,9 @@ async def add_to_setlist(item: Dict):
             "thumbnail": item.get("thumbnail", ""),
             "youtube_description": item.get("youtube_description", ""),
             "target_profile": target_profile,
-            "user_notes": item.get("user_notes", "")
+            "user_notes": item.get("user_notes", ""),
+            "uid": item.get("uid") or generate_stable_setlist_uid(url), # V58: Ensure stable UID
+            "linked_ids": item.get("linked_ids", []) # V58: Persist links
         }
 
         items = []
@@ -839,7 +849,9 @@ async def update_setlist_item(index: int, item: Dict):
                 "loops": item.get("loops", items[index].get("loops", [])),
                 "audio_cues": item.get("audio_cues", items[index].get("audio_cues", [])),
                 "autoplay": item.get("autoplay", items[index].get("autoplay", False)),
-                "autoreplay": item.get("autoreplay", items[index].get("autoreplay", False))
+                "autoreplay": item.get("autoreplay", items[index].get("autoreplay", False)),
+                "uid": item.get("uid") or items[index].get("uid") or generate_stable_setlist_uid(url), # V58: Persist or generate stable UID
+                "linked_ids": item.get("linked_ids", items[index].get("linked_ids", [])) # V58: Persist links
             }
 
             items[index] = updated_item

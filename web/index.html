@@ -1325,6 +1325,9 @@
             <textarea id="youtube-desc-input" style="display:none;"></textarea>
             <textarea id="user-notes-input" style="display:none;"></textarea>
 
+            <!-- Zone: Linked Items Display (Visual confirmation) -->
+            <div id="edit-linked-items-display" style="display:flex; flex-wrap:wrap; gap:8px; margin: 5px 0 15px 0; padding: 0 5px;"></div>
+
             <!-- Zone 3: Metadata Grid -->
             <div class="zone-metadata">
                 <div class="row-inputs">
@@ -1560,7 +1563,8 @@
                                 ✨
                             </button>
                         </div>
-
+                        <!-- V58: Display linked items in Web Link modal -->
+                        <div id="web-link-linked-items-display" style="display:flex; flex-wrap:wrap; gap:8px; margin-top: 5px;"></div>
                     </div>
                     <div class="col">
                         <label data-i18n="web.lbl_artist">Artiste</label>
