@@ -1845,7 +1845,7 @@ async def relocate_apply(data: dict):
         # 2. Handle Copy / Move to Internal Folders
         if action in ['copy', 'move']:
             # Determine Target Subfolder
-            target_folder = data.get("target_folder")
+            target_folder = resolve_portable_path(data.get("target_folder"))
             create_artist_folder = data.get("create_artist_folder", False)
 
             # Pre-calculate safe artist name
@@ -2574,7 +2574,8 @@ async def dl_start(data: Dict):
             try:
                 # Refresh Metadata from file to be sure
                 file_data = metadata_service.scan_file_metadata(path)
-                file_data["path"] = path
+                # V57: Always convert to portable path for DB storage
+                file_data["path"] = to_portable_path(path)
                 file_data["added_at"] = time.time()
 
                 # Inject Chapters from Download Service
@@ -2610,12 +2611,16 @@ async def dl_start(data: Dict):
                 with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
                     json.dump(items, f, indent=4)
 
-                broadcast_sync(json.dumps({"type": "dl_complete", "path": path}))
+                broadcast_sync(json.dumps({"type": "dl_complete", "path": to_portable_path(path)}))
             except Exception as e:
                 logging.error(f"Post-DL Library Error: {e}")
                 broadcast_sync(json.dumps({"type": "dl_error", "error": "Library Update Failed"}))
         else:
              broadcast_sync(json.dumps({"type": "dl_error", "error": result}))
+
+    # V57: Ensure target_folder is resolved if it was a portable path from UI
+    if "target_folder" in data:
+        data["target_folder"] = resolve_portable_path(data["target_folder"])
 
     # Run in Thread
     t = threading.Thread(target=download_service.download, args=(data, progress_cb, completion_cb))
@@ -2643,8 +2648,11 @@ async def get_managed_folders():
     from config_manager import ConfigManager
     config = ConfigManager()
     folders = config.get("media_folders", [])
-    print(f"[DEBUG API] Sending managed folders to UI: {folders}")
-    return {"status": "ok", "folders": folders}
+    # V57: Always resolve for UI delivery to prevent literal ${APP_DIR} in dropdowns
+    from utils import resolve_portable_path
+    resolved_folders = [resolve_portable_path(f) for f in folders]
+    print(f"[DEBUG API] Sending managed folders to UI: {resolved_folders}")
+    return {"status": "ok", "folders": resolved_folders}
 
 @app.post("/api/open_settings")
 async def api_open_settings(request: Request):
@@ -2774,7 +2782,7 @@ async def relocate_bulk(data: dict):
     """
     action = data.get("action", "link")
     mappings = data.get("mappings", [])
-    target_folder = data.get("target_folder", "") # Can be a path or 'AUTO'
+    target_folder = resolve_portable_path(data.get("target_folder", "")) # Can be a path or 'AUTO'
     
     success_count = 0
     errors = []
