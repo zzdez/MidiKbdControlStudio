@@ -2029,6 +2029,7 @@ function openEditModal(index) {
     
     const urlField = document.getElementById("edit-url");
     urlField.value = track.url;
+    checkDownloadAvailability(track.url); // V58: Restore download options visibility
     urlField.parentElement.style.display = "block"; // Show URL for YouTube
     document.getElementById("yt-local-path-container").style.display = "none"; // Hide local path for YouTube
     document.getElementById("search-zone-container").style.display = "block"; // Ensure search zone is available for YouTube
@@ -2633,11 +2634,15 @@ async function saveItem() {
     }
 
     // V58: Trigger Offline Access (Download) if checked
-    if (document.getElementById("chk-action-offline").checked) {
-        startDownload(); // This is async but we don't wait for completion to close modal
+    const isOffline = document.getElementById("chk-action-offline").checked;
+    if (isOffline) {
+        startDownload(); // This is async but we don't wait for completion
     }
 
-    closeModal();
+    // Only close immediately if NOT downloading, otherwise keep open for progress
+    if (!isOffline) {
+        closeModal();
+    }
     loadSetlist();
 }
 
