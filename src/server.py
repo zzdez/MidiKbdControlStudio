@@ -1316,7 +1316,10 @@ async def get_local_files():
                     json.dump(items, f, indent=4)
 
             return items
-        except:
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] get_local_files failed: {e}")
+            traceback.print_exc()
             return []
     return []
 
