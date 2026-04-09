@@ -1,0 +1,44 @@
+[
+    {
+        "title": "LOCKDOWN ROCK: \u201cLive Wire\u201d ft. Tommy Henriksen",
+        "artist": "",
+        "url": "https://www.songsterr.com/a/wsa/metallica-master-of-puppets-tab-s455118",
+        "type": "other",
+        "category": "G\u00e9n\u00e9ral",
+        "genre": "Divers",
+        "notes": "",
+        "volume": 100,
+        "bpm": null,
+        "metadata": {
+            "key": null,
+            "scale": null,
+            "tuning": "standard"
+        },
+        "cover": "${APP_DIR}/Medias/Videos/LOCKDOWN ROCK\uff1a \u201cLive Wire\u201d ft. Tommy Henriksen.mp4",
+        "linked_ids": [
+            "lib_c7e3742f"
+        ],
+        "uid": "web_ad377046"
+    },
+    {
+        "title": "Back In Black",
+        "artist": "AC/DC",
+        "url": "https://www.songsterr.com/a/wsa/ac-dc-back-in-black-tab-s1024",
+        "type": "other",
+        "category": "Multipistes",
+        "genre": "Hard Rock",
+        "notes": "",
+        "volume": 100,
+        "bpm": "94",
+        "metadata": {
+            "key": "E",
+            "scale": "minor_pentatonic",
+            "tuning": "standard"
+        },
+        "cover": "${APP_DIR}/Medias/Multipistes/Back In Black-E minor-94bpm-440hz",
+        "linked_ids": [
+            "lib:5"
+        ],
+        "uid": "web_414d3d0d"
+    }
+]

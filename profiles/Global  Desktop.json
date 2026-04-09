@@ -1,25 +1,25 @@
 {
     "name": "Global / Desktop",
-    "app_context": "",
+    "app_context": "MIDI-KBD Control Studio",
     "window_title_filter": "",
     "mappings": [
         {
-            "name": "Test Pedalier bouton virtuel",
-            "midi_cc": -1,
+            "name": "test midi to midi",
+            "midi_cc": 50,
             "midi_channel": 16,
             "trigger_value": "any",
             "action_type": "midi",
-            "action_value": "MIDI ch1 cc64 v127",
+            "action_value": "MIDI ch1 cc100 v127",
             "action_scan_code": null,
             "action_modifiers": [],
             "action_modifier_scan_codes": [],
             "output_channel": 1,
-            "output_cc": 64,
+            "output_cc": 100,
             "output_value": 127,
             "custom_icon": null
         },
         {
-            "name": "Test Reaper Record",
+            "name": "test 3",
             "midi_cc": -2,
             "midi_channel": 16,
             "trigger_value": "any",
@@ -31,22 +31,8 @@
             "output_channel": 1,
             "output_cc": 100,
             "output_value": 127,
-            "custom_icon": "●"
-        },
-        {
-            "name": "test pedalier",
-            "midi_cc": 50,
-            "midi_channel": 16,
-            "trigger_value": "any",
-            "action_type": "midi",
-            "action_value": "MIDI ch1 cc64 v127",
-            "action_scan_code": null,
-            "action_modifiers": [],
-            "action_modifier_scan_codes": [],
-            "output_channel": 1,
-            "output_cc": 64,
-            "output_value": 127,
             "custom_icon": "■"
         }
-    ]
+    ],
+    "shortcuts_text": ""
 }

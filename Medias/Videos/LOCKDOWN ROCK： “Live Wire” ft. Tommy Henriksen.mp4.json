@@ -1,0 +1,31 @@
+{
+    "title": "LOCKDOWN ROCK: \u201cLive Wire\u201d ft. Tommy Henriksen",
+    "artist": "",
+    "album": "",
+    "category": "G\u00e9n\u00e9ral",
+    "genre": "Divers",
+    "year": "",
+    "bpm": "",
+    "key": "",
+    "media_key": "",
+    "scale": "",
+    "original_pitch": "",
+    "target_pitch": "",
+    "user_notes": "",
+    "loops": [],
+    "audio_cues": [],
+    "volume": 100,
+    "autoplay": false,
+    "autoreplay": false,
+    "subtitle_pos_y": 80,
+    "path": "${APP_DIR}/Medias/Videos/LOCKDOWN ROCK\uff1a \u201cLive Wire\u201d ft. Tommy Henriksen.mp4",
+    "added_at": 1774959888.2186556,
+    "is_missing": false,
+    "linked_ids": [
+        "web_296da862",
+        null,
+        "web_fcb50cbd",
+        "web_ad377046",
+        "lib_b75f4dd4"
+    ]
+}

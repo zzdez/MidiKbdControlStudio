@@ -1,0 +1,102 @@
+{
+    "masterVolume": 1,
+    "autoplay": false,
+    "autoreplay": false,
+    "tracks": [
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Back In Black-E minor-94bpm-440hz/Back In Black-bass-E minor-94bpm-440hz.mp3",
+            "name": "Back In Black-bass-E minor-94bpm-440hz",
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#bb86fc"
+        },
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Back In Black-E minor-94bpm-440hz/Back In Black-drums-E minor-94bpm-440hz.mp3",
+            "name": "Back In Black-drums-E minor-94bpm-440hz",
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#03dac6"
+        },
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Back In Black-E minor-94bpm-440hz/Back In Black-lead-E minor-94bpm-440hz.mp3",
+            "name": "Back In Black-lead-E minor-94bpm-440hz",
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#cf6679"
+        },
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Back In Black-E minor-94bpm-440hz/Back In Black-metronome-E minor-94bpm-440hz.mp3",
+            "name": "Back In Black-metronome-E minor-94bpm-440hz",
+            "mute": true,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#ffb86c"
+        },
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Back In Black-E minor-94bpm-440hz/Back In Black-other-E minor-94bpm-440hz.mp3",
+            "name": "Back In Black-other-E minor-94bpm-440hz",
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#8be9fd"
+        },
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Back In Black-E minor-94bpm-440hz/Back In Black-rhythm-E minor-94bpm-440hz.mp3",
+            "name": "Back In Black-rhythm-E minor-94bpm-440hz",
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#50fa7b"
+        },
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Back In Black-E minor-94bpm-440hz/Back In Black-vocals-E minor-94bpm-440hz.mp3",
+            "name": "Back In Black-vocals-E minor-94bpm-440hz",
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#ff79c6"
+        }
+    ],
+    "title": "Back In Black",
+    "artist": "AC/DC",
+    "album": "Back In Black",
+    "genre": "Hard Rock",
+    "category": "Multipistes",
+    "year": "1980",
+    "bpm": "94",
+    "key": "E",
+    "media_key": "E",
+    "scale": "minor_pentatonic",
+    "tuning": "standard",
+    "original_pitch": "440",
+    "target_pitch": "440",
+    "target_profile": "Auto",
+    "user_notes": "",
+    "volume": 100,
+    "linked_ids": [],
+    "uid": "lib_d4fe000d"
+}

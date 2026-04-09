@@ -1,0 +1,84 @@
+{
+    "masterVolume": 1,
+    "autoplay": false,
+    "autoreplay": false,
+    "tracks": [
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Still Loving You-Eb major-103bpm-430hz/Still Loving You-bass-Eb major-103bpm-430hz.mp3",
+            "name": "Still Loving You-bass-Eb major-103bpm-430hz",
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#bb86fc"
+        },
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Still Loving You-Eb major-103bpm-430hz/Still Loving You-drums-Eb major-103bpm-430hz.mp3",
+            "name": "Still Loving You-drums-Eb major-103bpm-430hz",
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#03dac6"
+        },
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Still Loving You-Eb major-103bpm-430hz/Still Loving You-lead-Eb major-103bpm-430hz.mp3",
+            "name": "Still Loving You-lead-Eb major-103bpm-430hz",
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#cf6679"
+        },
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Still Loving You-Eb major-103bpm-430hz/Still Loving You-metronome-Eb major-103bpm-430hz.mp3",
+            "name": "Still Loving You-metronome-Eb major-103bpm-430hz",
+            "mute": true,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#ffb86c"
+        },
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Still Loving You-Eb major-103bpm-430hz/Still Loving You-other-Eb major-103bpm-430hz.mp3",
+            "name": "Still Loving You-other-Eb major-103bpm-430hz",
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#8be9fd"
+        },
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Still Loving You-Eb major-103bpm-430hz/Still Loving You-rhythm-Eb major-103bpm-430hz.mp3",
+            "name": "Still Loving You-rhythm-Eb major-103bpm-430hz",
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#50fa7b"
+        },
+        {
+            "path": "${APP_DIR}/Medias/Multipistes/Still Loving You-Eb major-103bpm-430hz/Still Loving You-vocals-Eb major-103bpm-430hz.mp3",
+            "name": "Still Loving You-vocals-Eb major-103bpm-430hz",
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "hidden_mute": false,
+            "volume": 1,
+            "pan": 0,
+            "color": "#ff79c6"
+        }
+    ]
+}

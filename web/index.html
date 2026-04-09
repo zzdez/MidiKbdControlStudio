@@ -1242,7 +1242,7 @@
             <hr class="separator">
 
             <!-- Zone 2: Media Stack (Sliders | Image | Switches) -->
-            <div class="modal-media-stack" style="margin-top:10px;">
+            <div class="modal-media-stack" style="margin-top:5px;">
                 <!-- Volume (Left) -->
                 <div class="vertical-slider-container">
                     <span class="slider-label">VOL</span>
@@ -1298,7 +1298,7 @@
             </div>
 
             <!-- NEW Zone: Back Button + Title (Under Poster) -->
-            <div class="zone-title" style="display:flex; gap:10px; align-items:flex-end; margin-top:10px;">
+            <div class="zone-title" style="display:flex; gap:10px; align-items:flex-end; margin-top:5px;">
                 <button id="btn-back-search" class="btn-secondary" onclick="resetSearchMode()" style="display:none;"
                     data-i18n-title="web.btn_back_search" title="Retour Recherche">
                     🔍
@@ -1326,7 +1326,7 @@
             <textarea id="user-notes-input" style="display:none;"></textarea>
 
             <!-- Zone: Linked Items Display (Visual confirmation) -->
-            <div id="edit-linked-items-display" style="display:flex; flex-wrap:wrap; gap:8px; margin: 5px 0 15px 0; padding: 0 5px;"></div>
+            <div id="edit-linked-items-display" style="display:flex; flex-wrap:wrap; gap:8px; margin: 3px 0 8px 0; padding: 0 5px;"></div>
 
             <!-- Zone 3: Metadata Grid -->
             <div class="zone-metadata">
@@ -1445,48 +1445,80 @@
                 </div>
             </div>
 
-            <!-- DOWNLOAD OPTIONS (Hidden) -->
+            <!-- DESTINATION ACTIONS (NEW V58) -->
+            <div class="actions-selector"
+                style="margin-top:5px; padding:10px; background:rgba(255,255,255,0.03); border-radius:6px; border:1px solid #333;">
+                <h4 style="margin:0 0 10px 0; font-size:11px; color:#666; text-transform:uppercase; letter-spacing:1px;"
+                    data-i18n="web.lbl_actions_to_perform">Actions à effectuer</h4>
+
+                <div class="row-inputs" style="align-items: center; gap: 20px;">
+                    <!-- Action A: Link -->
+                    <div class="col" style="flex: none;">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#eee; font-size: 0.85em; margin:0;">
+                            <input type="checkbox" id="chk-action-link" checked
+                                style="width:16px; height:16px; accent-color:var(--accent);">
+                            <i class="ph ph-youtube-logo" style="font-size:18px; color:#ff0000;"></i>
+                            <span data-i18n="web.lbl_action_setlist">Ajouter aux Favoris</span>
+                        </label>
+                    </div>
+
+                    <!-- Action B: Offline -->
+                    <div id="action-offline-container" class="col" style="display:none; flex: none;">
+                        <div style="display:flex; align-items:center; gap:15px;">
+                            <label id="lbl-action-offline" style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#eee; font-size: 0.85em; margin:0;">
+                                <input type="checkbox" id="chk-action-offline"
+                                    style="width:16px; height:16px; accent-color:var(--accent);">
+                                <i class="ph ph-download-simple" style="font-size:18px; color:var(--accent);"></i>
+                                <span data-i18n="web.lbl_action_offline">Mode Hors-ligne</span>
+                            </label>
+                            
+                            <a id="btn-offline-help-new"
+                                href="https://github.com/zzdez/MidiKbdControlStudio/blob/main/README.md#offline-mode"
+                                target="_blank" class="btn-text"
+                                style="font-size:11px; color:#3498db; text-decoration:underline; display:flex; align-items:center; gap:5px; font-weight:500;">
+                                <i class="ph ph-info" style="font-size:15px;"></i>
+                                <span data-i18n="web.lbl_offline_required">Mode Offline : Logiciels requis</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OFFLINE SETTINGS (Hidden) -->
             <div id="dl-options-container"
-                style="display:none; background:#1a1a1a; padding:8px 15px; margin-top:10px; border-radius:6px; border:1px solid #333;">
-                <h4 style="margin:0 0 6px 0; color:var(--accent); display:flex; align-items:center; gap:10px;">
-                    <i class="ph ph-download-simple"></i> <span data-i18n="web.lbl_local_download">Téléchargement
-                        Local</span>
+                style="display:none; background:rgba(0,0,0,0.2); padding:10px 15px; margin-top:0; border-radius:0 0 6px 6px; border:1px solid #333; border-top:none;">
+                <h4 style="margin:5px 0 10px 0; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:8px;">
+                    <i class="ph ph-sliders"></i> <span data-i18n="web.title_offline_settings">Paramètres Hors-ligne</span>
                 </h4>
 
                 <div class="row-inputs">
-                    <div class="col">
-                        <label data-i18n="web.lbl_format_quality">Format & Qualité</label>
-                        <select id="dl-format">
+                    <div class="col" style="flex: 1.5;">
+                        <label style="font-size:0.85em; color:#888;" data-i18n="web.lbl_format_quality">Format & Qualité</label>
+                        <select id="dl-format" style="font-size:0.9em; padding:4px 8px; min-height:32px;">
                             <!-- Populated dynamically -->
                         </select>
                     </div>
-                    <div class="col">
-                        <label data-i18n="web.lbl_dest_folder">Dossier de Destination</label>
-                        <select id="dl-folder"></select>
+                    <div class="col" style="flex: 1;">
+                        <label style="font-size:0.85em; color:#888;" data-i18n="web.lbl_dest_folder">Dossier de Destination</label>
+                        <select id="dl-folder" style="font-size:0.9em; padding:4px 8px; min-height:32px;"></select>
                     </div>
                 </div>
 
-                <div class="row-inputs" style="align-items:center; margin-top:10px;">
-                    <div style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-                        <input type="checkbox" id="dl-subs" checked style="width:18px; height:18px; cursor:pointer;">
-                        <label for="dl-subs" style="margin:0; cursor:pointer;"
-                            data-i18n="web.lbl_download_subs">Télécharger les Sous-titres
-                            (SRT)</label>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-left:20px;">
-                        <input type="checkbox" id="dl-autoclose" style="width:18px; height:18px; cursor:pointer;">
-                        <label for="dl-autoclose" style="margin:0; cursor:pointer; color:var(--accent);"
-                            data-i18n="web.lbl_close_after_dl">Fermer
-                            après téléchargement</label>
-                    </div>
+                <div class="row-inputs" style="align-items:center; margin-top:10px; gap:25px;">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.85em; color:#ccc; margin:0;">
+                        <input type="checkbox" id="dl-subs" checked style="width:16px; height:16px; accent-color:var(--accent);">
+                        <span data-i18n="web.lbl_download_subs">Sous-titres (SRT)</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.85em; color:#ccc; margin:0;">
+                        <input type="checkbox" id="dl-autoclose" style="width:16px; height:16px; accent-color:var(--accent);">
+                        <span data-i18n="web.lbl_auto_close_dl" style="color:var(--accent); opacity:0.8;">Fermeture Auto</span>
+                    </label>
                 </div>
+            </div>
+
 
                 <div style="display:flex; gap:15px; margin-top:12px; align-items:center;">
-                    <button class="btn-primary" onclick="startDownload()" style="background:var(--accent);"
-                        data-i18n="web.btn_start_dl">
-                        <i class="ph ph-download"></i> Lancer
-                    </button>
-                    <div id="dl-status" style="font-size:11px; color:#ccc; flex:1; text-align:right;"
+                    <div id="dl-status" style="font-size:11px; color:#ccc; flex:1; text-align:left;"
                         data-i18n="web.status_ready">Prêt</div>
                 </div>
 
@@ -1496,26 +1528,15 @@
                     <div id="dl-progress-bar"
                         style="width:0%; height:100%; background:var(--accent); transition:width 0.2s ease;"></div>
                 </div>
-            </div>
 
         </div>
 
         <div class="modal-footer">
             <button class="btn-secondary" onclick="previewItem()" data-i18n="web.btn_preview">Prévisualiser</button>
 
-            <!-- Dynamic Download / Offline Options -->
-            <button id="btn-show-dl" class="btn-secondary" onclick="toggleDownloadOptions()"
-                style="display:none; margin-left:10px;" data-i18n="web.btn_offline_add">⬇️ Ajout Hors ligne</button>
-            <a id="btn-offline-help"
-                href="https://github.com/zzdez/MidiKbdControlStudio/blob/main/README.md#offline-mode" target="_blank"
-                class="btn-text" style="display:none; margin-left:10px; color:#aaa; text-decoration:none;">
-                Options hors ligne ↗
-            </a>
-
             <div style="flex:1"></div>
             <button class="btn-text" onclick="closeModal()" data-i18n="web.btn_cancel">Annuler</button>
-            <button class="btn-primary" onclick="saveItem()" data-i18n="web.btn_save_web_lib">Ajouter à la Bibliothèque
-                Web</button>
+            <button id="btn-save-item" class="btn-primary" onclick="saveItem()" data-i18n="web.btn_save_web_lib">Ajouter à la Bibliothèque Web</button>
         </div>
     </dialog>
 

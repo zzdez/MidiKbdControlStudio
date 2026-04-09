@@ -190,21 +190,12 @@ async function checkSystemCapabilities() {
 }
 
 function applyCapabilities() {
-    const btnDl = document.getElementById('btn-show-dl');
-    const btnHelp = document.getElementById('btn-offline-help');
-
     // Also check smart import button if it exists
     const smartImportBtn = document.getElementById('btn-smart-import');
 
-    if (!systemCapabilities.can_download) {
-        // Hide Download features
-        if (btnDl) btnDl.style.display = 'none';
+    if (systemCapabilities && !systemCapabilities.can_download) {
         if (smartImportBtn) smartImportBtn.style.display = 'none';
-
-        // Show Alternative (only if logic requires it, usually controlled by specific context)
-        // For the modal, it's controlled by checkDownloadAvailability, but global checks help.
-    } else {
-        // Restore defaults if needed, though usually handled by visibility toggles
+        // Note: The YouTube modal Offline toggle is specifically handled by checkDownloadAvailability(url)
     }
 
     // Show Disclaimer in Settings if limited
@@ -2054,10 +2045,15 @@ function openEditModal(index) {
 
     // Hide Search Zone in Edit Mode (Save Space)
     document.getElementById("search-zone-container").classList.add("hidden");
-    document.getElementById("btn-back-search").style.display = "block"; // Start with "Back" button visible to allow new search
-
-    // Check if URL is valid for download
+    document.getElementById("btn-back-search").style.display = "block"; // Start with "Back" button visible to allow new search    
+    
     checkDownloadAvailability(track.url);
+
+    // V58: Reset Actions Selector
+    document.getElementById("chk-action-link").checked = true;
+    document.getElementById("chk-action-offline").checked = false;
+    document.getElementById("dl-options-container").style.display = "none";
+    updateYouTubeSaveButton();
 
     // SUBTITLES LOGIC for YouTube
     const subSettings = document.getElementById("edit-subtitle-settings");
@@ -2297,31 +2293,79 @@ async function checkDLStatus() {
 }
 
 function checkDownloadAvailability(url) {
-    const btnDl = document.getElementById("btn-show-dl");
-    const btnHelp = document.getElementById("btn-offline-help");
+    const actionContainer = document.getElementById("action-offline-container");
+    const lblOffline = document.getElementById("lbl-action-offline");
+    const btnHelp = document.getElementById("btn-offline-help-new");
+    if (!actionContainer) return;
 
     const isYoutube = url && (url.includes("youtube.com") || url.includes("youtu.be"));
-
+    
     if (isYoutube) {
-        if (systemCapabilities && systemCapabilities.can_download) {
-            // Capability Present: Show Button, Hide Help
-            if (btnDl) btnDl.style.display = "inline-block";
+        actionContainer.style.display = "flex";
+        
+        // Logic: Show help ONLY if tools are missing
+        const canDownload = (systemCapabilities && systemCapabilities.can_download);
+        
+        if (canDownload) {
+            if (lblOffline) lblOffline.style.display = "flex";
             if (btnHelp) btnHelp.style.display = "none";
         } else {
-            // Capability Missing: Hide Button, Show Help
-            if (btnDl) btnDl.style.display = "none";
-            if (btnHelp) btnHelp.style.display = "inline-block";
+            if (lblOffline) {
+                lblOffline.style.display = "none";
+                document.getElementById("chk-action-offline").checked = false;
+            }
+            if (btnHelp) btnHelp.style.display = "flex";
         }
     } else {
-        // Not YouTube: Hide Both
-        if (btnDl) btnDl.style.display = "none";
-        if (btnHelp) btnHelp.style.display = "none";
+        actionContainer.style.display = "none";
+    }
+}
+
+function updateYouTubeSaveButton() {
+    const btn = document.getElementById("btn-save-item");
+    if (!btn) return;
+
+    const linkChecked = document.getElementById("chk-action-link").checked;
+    const offlineChecked = document.getElementById("chk-action-offline").checked;
+    const isEdit = (editingIndex !== null);
+
+    if (isEdit && !offlineChecked) {
+        btn.innerText = t("web.btn_update_info");
+        return;
+    }
+
+    if (linkChecked && offlineChecked) {
+        btn.innerText = t("web.btn_save_both");
+    } else if (offlineChecked) {
+        btn.innerText = t("web.btn_save_offline");
+    } else {
+        btn.innerText = t("web.btn_save_link");
     }
 }
 
 async function toggleDownloadOptions() {
+    // Legacy function replaced by checkbox listener
+    const chk = document.getElementById("chk-action-offline");
+    if (chk) {
+        chk.checked = !chk.checked;
+        showDownloadOptions(chk.checked);
+        updateYouTubeSaveButton();
+    }
+}
+
+async function showDownloadOptions(forceState = null) {
     const container = document.getElementById("dl-options-container");
-    if (container.style.display === "block") {
+    if (!container) return;
+
+    if (forceState === false) {
+        container.style.display = "none";
+        return;
+    }
+
+    const isVisible = container.style.display === "block";
+    const newState = (forceState === true) ? true : !isVisible;
+
+    if (!newState) {
         container.style.display = "none";
         return;
     }
@@ -2329,8 +2373,6 @@ async function toggleDownloadOptions() {
     container.style.display = "block";
 
     // Auto-scroll to bottom of modal to show options
-    // Auto-scroll to bottom of modal to show options
-    // Use requestAnimationFrame to ensure DOM verify
     requestAnimationFrame(() => {
         container.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
@@ -2502,11 +2544,13 @@ async function saveItem() {
 
     if (editingIndex !== null) {
         // UPDATE
-        await fetch(`/api/setlist/${editingIndex}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
+        if (document.getElementById("chk-action-link").checked) {
+            await fetch(`/api/setlist/${editingIndex}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+        }
 
         // Only update live UI if the currently playing track is the one we just edited
         if (currentActivePlayer === 'youtube' && window.currentPlayingIndex === editingIndex) {
@@ -2515,11 +2559,18 @@ async function saveItem() {
         }
     } else {
         // CREATE
-        await fetch("/api/setlist", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
+        if (document.getElementById("chk-action-link").checked) {
+            await fetch("/api/setlist", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+        }
+    }
+
+    // V58: Trigger Offline Access (Download) if checked
+    if (document.getElementById("chk-action-offline").checked) {
+        startDownload(); // This is async but we don't wait for completion to close modal
     }
 
     closeModal();
@@ -5713,6 +5764,12 @@ function openEditLocalModal(index) {
     document.getElementById("edit-original-pitch").value = item.original_pitch || "";
     document.getElementById("edit-target-pitch").value = item.target_pitch || "";
 
+    // V58: Hide Action Selector for local files
+    const actionSel = document.querySelector(".actions-selector");
+    if (actionSel) actionSel.style.display = "none";
+    const dlOpt = document.getElementById("dl-options-container");
+    if (dlOpt) dlOpt.style.display = "none";
+
     // Specific local display elements
     document.getElementById("local-path-display").innerText = item.path;
     document.getElementById("yt-local-path-container").style.display = "flex";
@@ -6065,6 +6122,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         refreshInterconnections();
         console.log("[INIT] Startup UI sync complete.");
     }, 100);
+
+    // V58: Action Selector Listeners
+    const chkLink = document.getElementById("chk-action-link");
+    const chkOffline = document.getElementById("chk-action-offline");
+    if (chkLink) {
+        chkLink.addEventListener("change", updateYouTubeSaveButton);
+    }
+    if (chkOffline) {
+        chkOffline.addEventListener("change", () => {
+            showDownloadOptions(chkOffline.checked);
+            updateYouTubeSaveButton();
+        });
+    }
 
     // Sidebar Hover Logic (remains same)
     const hoverTrigger = document.getElementById('sidebar-hover-trigger');
