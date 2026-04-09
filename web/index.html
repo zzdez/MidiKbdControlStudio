@@ -1579,10 +1579,13 @@
                     <div class="col" style="flex:2;">
                         <div style="display:flex; gap:10px;">
                             <input type="text" id="web-link-title" placeholder="Ex: Tablature Solo" style="flex:1;">
-                            <button class="btn-secondary" onclick="openUniversalTagModal('web-link')"
-                                title="Lier & Synchroniser ✨" data-i18n-title="web.btn_universal_tag">
-                                ✨
+                            <button class="btn-secondary" onclick="openMediaLinkerFromEdit()"
+                                title="Lier un média" data-i18n-title="web.btn_link_media">
+                                <i class="ph ph-link-simple"></i>
                             </button>
+                            <button class="btn-secondary" onclick="openUniversalTagModal('web-link')"
+                                title="Rechercher des métadonnées" data-i18n-title="web.hint_autotag">🔍
+                                Auto-Tag</button>
                         </div>
                         <!-- V58: Display linked items in Web Link modal -->
                         <div id="web-link-linked-items-display" style="display:flex; flex-wrap:wrap; gap:8px; margin-top: 5px;"></div>

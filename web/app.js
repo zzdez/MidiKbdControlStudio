@@ -867,6 +867,7 @@ function openWebLinkModal(index = -1) {
     currentWebLinkIndex = index;
     // V55: Initialize linked IDs for session
     currentEditingLinkedIds = (index === -1) ? [] : (webLinks[index].linked_ids || []);
+    lastEditContext = 'web_links';
     
     const modal = document.getElementById("modal-web-link");
     const titleEl = document.getElementById("web-link-modal-title");
@@ -1330,7 +1331,7 @@ function isMatch(item, artist, title) {
 }
 
 function getLinkedItem(uid) {
-    if (!uid) return null;
+    if (!uid || typeof uid !== 'string') return null; // V58: Safety check against null/undefined
     
     // V55: Stable UID support (prefix_hash)
     if (uid.includes('_')) {
@@ -1925,6 +1926,12 @@ function resetMediaModalUI() {
     
     const localPathContainer = document.getElementById("yt-local-path-container");
     if (localPathContainer) localPathContainer.style.display = "none";
+
+    // 4. Reset Linked Items display (V58)
+    const linkedDisplay = document.getElementById("edit-linked-items-display");
+    if (linkedDisplay) linkedDisplay.innerHTML = "";
+    const linkedDisplayWeb = document.getElementById("web-link-linked-items-display");
+    if (linkedDisplayWeb) linkedDisplayWeb.innerHTML = "";
 }
 
 // --- MODAL & EDIT LOGIC ---
@@ -1999,12 +2006,15 @@ function openEditModal(index) {
     const track = currentTrackList.find(t => t.originalIndex === index);
     if (!track) return;
 
+    currentEditingLinkedIds = track.linked_ids || []; // V58: Initialize links
+    
     // Reveal sidebar if in theater mode to give context to editing
     if (isTheaterMode && typeof toggleTheaterMode === 'function') {
         toggleTheaterMode(false);
     }
 
     document.getElementById("media-modal").showModal();
+    renderModalLinkedItems(); // V58: Show links
     
     // Auto-scroll in background
     setTimeout(scrollToActiveTrack, 200);
@@ -10050,7 +10060,10 @@ function renderExistingLinks() {
         return;
     }
 
-    currentEditingLinkedIds.forEach(uid => {
+    // V58: Filter out invalid UIDs before processing to prevent crashes
+    const validUids = currentEditingLinkedIds.filter(id => id && typeof id === 'string');
+
+    validUids.forEach(uid => {
         const item = getLinkedItem(uid);
         if (!item) {
             console.warn("[LINKER] Unresolvable UID in existing links:", uid);

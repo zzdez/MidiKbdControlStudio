@@ -8,7 +8,8 @@
         "duration": 227.10857142857142,
         "path": "D:\\AirstepStudio\\Downloads\\David Gilmour - Castellorizon (Live In Gdansk Official Audio).mp3",
         "added_at": 1771920097.6848302,
-        "uid": "lib_3e298e08"
+        "uid": "lib_3e298e08",
+        "linked_ids": []
     },
     {
         "title": "Still Loving You-Eb major-103bpm-430hz",
@@ -48,7 +49,8 @@
         "instrument": "guitar_6",
         "audio_cues": [],
         "is_missing": false,
-        "uid": "lib_76a0228c"
+        "uid": "lib_76a0228c",
+        "linked_ids": []
     },
     {
         "title": "Install Nexus_Chcolatey.mp4",
@@ -108,7 +110,8 @@
         "subtitle_enabled": false,
         "instrument": "",
         "tuning": "standard",
-        "uid": "lib_cf35716f"
+        "uid": "lib_cf35716f",
+        "linked_ids": []
     },
     {
         "title": "LOCKDOWN ROCK: \u201cLive Wire\u201d ft. Tommy Henriksen",
@@ -137,7 +140,6 @@
         "is_missing": false,
         "linked_ids": [
             "web_296da862",
-            null,
             "web_fcb50cbd",
             "web_ad377046"
         ],
@@ -180,6 +182,7 @@
         "subtitle_enabled": false,
         "scale": "minor_pentatonic",
         "instrument": "",
-        "tuning": "standard"
+        "tuning": "standard",
+        "uid": "lib_1a3d77d7"
     }
 ]
