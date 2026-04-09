@@ -1898,9 +1898,39 @@ async function openNativeEditor() {
     await fetch("/api/open_native_editor", { method: "POST" });
 }
 
+function resetMediaModalUI() {
+    // 1. Reset Download UI
+    const dlStatus = document.getElementById("dl-status");
+    if (dlStatus) dlStatus.innerText = t("web.status_ready");
+
+    const dlBar = document.getElementById("dl-progress-bar");
+    if (dlBar) {
+        dlBar.style.width = "0%";
+        dlBar.style.background = "var(--accent)";
+    }
+
+    const chkOffline = document.getElementById("chk-action-offline");
+    if (chkOffline) chkOffline.checked = false;
+
+    const dlOptions = document.getElementById("dl-options-container");
+    if (dlOptions) dlOptions.style.display = "none";
+
+    // 2. Reset Cover Edit
+    const delCover = document.getElementById("btn-edit-delete-cover");
+    if (delCover) delCover.style.display = "none";
+
+    // 3. Reset Search/Local state
+    const results = document.getElementById("search-results");
+    if (results) results.innerHTML = "";
+    
+    const localPathContainer = document.getElementById("yt-local-path-container");
+    if (localPathContainer) localPathContainer.style.display = "none";
+}
+
 // --- MODAL & EDIT LOGIC ---
 
 function openAddModal() {
+    resetMediaModalUI();
     document.getElementById("media-modal").showModal();
     // Clear Form
     document.getElementById("yt-search-input").value = "";
@@ -1962,6 +1992,7 @@ function openAddModal() {
 }
 
 function openEditModal(index) {
+    resetMediaModalUI();
     editingIndex = index;
     lastEditContext = 'setlist';
     // Find track by original index in the current (possibly sorted) list
@@ -2397,7 +2428,12 @@ async function showDownloadOptions(forceState = null) {
         folders.forEach(f => {
             const opt = document.createElement("option");
             opt.value = f;
-            opt.innerText = f;
+            // V58: Clean display for internal folders
+            let displayPath = f;
+            if (f.startsWith("${APP_DIR}")) {
+                displayPath = f.replace("${APP_DIR}", "[App]");
+            }
+            opt.innerText = displayPath;
             folderSelect.appendChild(opt);
         });
     }
@@ -2405,6 +2441,21 @@ async function showDownloadOptions(forceState = null) {
     // 2. Populate Formats based on Capabilities
     const formatSelect = document.getElementById("dl-format");
     formatSelect.innerHTML = "";
+
+    // V58: Auto-select folder when format changes
+    formatSelect.onchange = () => {
+        const fmt = formatSelect.value;
+        const folders = Array.from(folderSelect.options);
+        let targetSub = "";
+        
+        if (fmt.startsWith("audio_")) targetSub = "Audios";
+        else if (fmt.startsWith("video_")) targetSub = "Videos";
+
+        if (targetSub) {
+            const bestMatch = folders.find(opt => opt.value.includes(targetSub));
+            if (bestMatch) folderSelect.value = bestMatch.value;
+        }
+    };
 
     const addOpt = (val, text, enabled = true) => {
         const o = document.createElement("option");
@@ -2434,6 +2485,9 @@ async function showDownloadOptions(forceState = null) {
     if (!ffmpegAvailable) {
         formatSelect.value = "video_auto";
     }
+
+    // Trigger initial auto-selection (V58)
+    if (formatSelect.onchange) formatSelect.onchange();
 }
 
 async function startDownload() {
@@ -3535,9 +3589,13 @@ function renderLocalFiles() {
 
     filtered.forEach((file, index) => {
         const realIndex = localFiles.indexOf(file);
+        if (!file.path) {
+            console.warn("[RENDER_LOCAL] Missing path for item:", file);
+        }
 
         // Icon Logic
-        const ext = file.path.split('.').pop().toLowerCase();
+        const path = file.path || "";
+        const ext = path.split('.').pop().toLowerCase();
         const isAudio = ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg'].includes(ext);
 
         // Phosphor Icons
@@ -5726,6 +5784,7 @@ async function confirmImport(action) {
 }
 
 function openEditLocalModal(index) {
+    resetMediaModalUI();
     editingLocalIndex = index;
     lastEditContext = 'library';
     const item = localFiles[index];
@@ -6056,7 +6115,16 @@ async function saveLocalItem() {
         }
     }
 
-    closeLocalModal();
+    // V58: Trigger Offline Access (Download) if checked
+    const isOffline = document.getElementById("chk-action-offline").checked;
+    if (isOffline) {
+        startDownload(); // Logic will handle its own closing/progress
+    }
+
+    // Only close immediately if NOT downloading, otherwise keep open for progress
+    if (!isOffline) {
+        closeLocalModal();
+    }
     loadLocalFiles();
 }
 
