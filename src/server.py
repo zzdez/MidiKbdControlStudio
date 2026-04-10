@@ -12,6 +12,8 @@ from tkinter import filedialog
 import urllib.parse
 import shutil
 import time
+import hashlib
+import uuid
 import logging
 import base64
 from concurrent.futures import ThreadPoolExecutor
@@ -24,11 +26,16 @@ from utils import get_app_dir, get_data_dir, to_portable_path, resolve_portable_
 from i18n import _
 
 # Configure Logging
+log_path = os.path.join(os.getcwd(), 'midikbd_debug.log')
+print(f"DIAGNOSTIC: Logging to {log_path}")
 logging.basicConfig(
-    filename=os.path.join(get_app_dir(), 'midikbd_debug.log'),
+    filename=log_path,
     level=logging.WARNING,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+logging.warning(f"=== SERVER STARTING AT {os.getcwd()} ===")
+logging.warning(f"APP_DIR: {get_app_dir()}")
+logging.warning(f"DATA_DIR: {get_data_dir()}")
 
 from config_manager import ConfigManager
 from library_manager import LibraryManager
@@ -37,13 +44,21 @@ from download_service import DownloadService
 from music_api import MusicAPI
 
 app = FastAPI()
-library_manager = LibraryManager()
-metadata_service = MetadataService()
-download_service = DownloadService()
 SETLIST_FILE = os.path.join(get_data_dir(), "setlist.json")
 APPS_FILE = os.path.join(get_data_dir(), "apps.json")
 LOCAL_LIB_FILE = os.path.join(get_data_dir(), "local_lib.json")
 WEB_LINKS_FILE = os.path.join(get_data_dir(), "web_links.json")
+
+library_manager = LibraryManager(LOCAL_LIB_FILE) # V55: Force same file as server
+metadata_service = MetadataService()
+download_service = DownloadService()
+
+try:
+    _abs_web = os.path.abspath(WEB_LINKS_FILE)
+    logging.warning(f"[INIT] WEB_LINKS_FILE is at: {_abs_web}")
+    if not os.path.exists(os.path.dirname(_abs_web)):
+        os.makedirs(os.path.dirname(_abs_web), exist_ok=True)
+except: pass
 DRUM_SETTINGS_FILE = os.path.join(get_data_dir(), "drum_settings.json")
 
 app.add_middleware(
@@ -84,10 +99,26 @@ server_loop = None
 config_manager = ConfigManager()
 music_api_client = MusicAPI(config_manager)
 
+def generate_stable_setlist_uid(url):
+    """V58: Generates a stable UID based on URL for setlist items (YouTube/Web)"""
+    if not url: return f"set_{uuid.uuid4().hex[:8]}"
+    h = hashlib.md5(url.encode('utf-8')).hexdigest()[:8]
+    return f"set_{h}"
+
+@app.post("/api/debug_log")
+async def debug_log(data: Dict):
+    """Mirror frontend logs to backend terminal/file."""
+    msg = data.get("msg", "")
+    logging.warning(f"[BROWSER] {msg}")
+    return {"status": "ok"}
+
 @app.on_event("startup")
 async def startup_event():
     global server_loop
     server_loop = asyncio.get_running_loop()
+    # V55: Periodic maintenance
+    heal_bidirectional_links()
+
 
 class ConnectionManager:
     def __init__(self):
@@ -114,14 +145,156 @@ def broadcast_sync(message: str):
         asyncio.run_coroutine_threadsafe(manager.broadcast(message), server_loop)
 
 # --- HELPERS ---
+import uuid
+
+def ensure_uids(items: List[Dict], prefix: str):
+    """V55: Ensures all items have a stable unique ID."""
+    changed = False
+    for item in items:
+        if "uid" not in item or not item["uid"]:
+            item["uid"] = f"{prefix}_{uuid.uuid4().hex[:8]}"
+            changed = True
+    return changed
+
+def heal_bidirectional_links():
+    """
+    V56: Aggressive bidirectional link sanity check.
+    Ensures that if A points to B, B also points to A.
+    Removes legacy indices, duplicates, and orphans.
+    """
+    logging.warning("[HEAL] Starting aggressive bidirectional link sanity check...")
+    try:
+        # 1. Load all DBs
+        dbs = {}
+        for key, path in [('lib', LOCAL_LIB_FILE), ('set', SETLIST_FILE), ('web', WEB_LINKS_FILE)]:
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    dbs[key] = json.load(f)
+            else:
+                dbs[key] = []
+
+        # 2. Ensure UIDs for everyone
+        modified_keys = set()
+        if ensure_uids(dbs['lib'], 'lib'): modified_keys.add('lib')
+        if ensure_uids(dbs['set'], 'set'): modified_keys.add('set')
+        if ensure_uids(dbs['web'], 'web'): modified_keys.add('web')
+
+        # 3. Consistency check
+        uid_map = {}
+        for k, items in dbs.items():
+            for it in items:
+                if "uid" in it: uid_map[it["uid"]] = (k, it)
+
+        # 4. Clean & Migrate
+        for k, items in dbs.items():
+            for it in items:
+                my_uid = it.get("uid")
+                linked = it.get("linked_ids", [])
+                new_linked = []
+                link_changed = False
+
+                for target_id in linked:
+                    # Case 1: Legacy index-based link (lib:5) -> Migrate to UID
+                    if ":" in target_id and "_" not in target_id:
+                        try:
+                            t_prefix, t_idx_str = target_id.split(':')
+                            t_idx = int(t_idx_str)
+                            db_k = 'lib' if t_prefix == 'lib' else ('set' if t_prefix == 'set' else 'web')
+                            if 0 <= t_idx < len(dbs[db_k]):
+                                stable_uid = dbs[db_k][t_idx].get("uid")
+                                if stable_uid and stable_uid not in new_linked:
+                                    new_linked.append(stable_uid)
+                                    link_changed = True
+                                    logging.warning(f"[HEAL] Migrated {target_id} to {stable_uid}")
+                        except: pass
+                        continue
+
+                    # Case 2: Orphaned or Invalid UID
+                    if target_id not in uid_map:
+                        logging.warning(f"[HEAL] Removing orphan link {target_id} from {it.get('title')}")
+                        link_changed = True
+                        continue
+
+                    # Case 3: Valid UID
+                    if target_id not in new_linked:
+                        new_linked.append(target_id)
+                    else:
+                        link_changed = True # Deduplication
+
+                if link_changed:
+                    it["linked_ids"] = new_linked
+                    modified_keys.add(k)
+
+                # Ensure Symmetry (Backlinks)
+                for target_uid in it.get("linked_ids", []):
+                    if target_uid in uid_map:
+                        t_type, t_obj = uid_map[target_uid]
+                        if "linked_ids" not in t_obj: t_obj["linked_ids"] = []
+                        if my_uid not in t_obj["linked_ids"]:
+                            t_obj["linked_ids"].append(my_uid)
+                            modified_keys.add(t_type)
+                            logging.warning(f"[HEAL] Symmetry: Linked {target_uid} back to {my_uid}")
+
+        # 5. Save and Flush
+        for k in modified_keys:
+            path = LOCAL_LIB_FILE if k == 'lib' else (SETLIST_FILE if k == 'set' else WEB_LINKS_FILE)
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(dbs[k], f, indent=4)
+                    f.flush()
+                    os.fsync(f.fileno())
+                logging.warning(f"[HEAL] DB {k} cleaned and physically saved.")
+            except Exception as e:
+                logging.error(f"[HEAL] Error saving {k}: {e}")
+
+        # 6. Sidecar Refresh
+        # We only do this for the 'lib' and 'set' items that have a path and changed linked_ids
+        for it in dbs['lib'] + dbs['set']:
+            if it.get("path") and "uid" in it:
+                try:
+                    abs_p = resolve_portable_path(it["path"])
+                    if abs_p and os.path.exists(abs_p):
+                        metadata_service.write_file_metadata(abs_p, {"linked_ids": it.get("linked_ids", [])})
+                except: pass
+
+        logging.warning("[HEAL] Deep cleanup complete.")
+    except Exception as e:
+        logging.error(f"[HEAL] Critical failure: {e}")
+            
+    except Exception as e:
+        logging.error(f"[HEAL] Error during link healing: {e}")
+
 def extract_youtube_id(url: str):
+
     regex = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
     match = re.search(regex, url)
     if match:
         return match.group(1)
     return None
 
+@app.get("/api/debug/persistence")
+async def debug_persistence():
+    """V55: Returns exact absolute paths for diagnostics."""
+    import socket
+    return {
+        "status": "ok",
+        "hostname": socket.gethostname(),
+        "cwd": os.getcwd(),
+        "app_dir": get_app_dir(),
+        "data_dir": get_data_dir(),
+        "files": {
+            "local_lib": os.path.abspath(LOCAL_LIB_FILE),
+            "web_links": os.path.abspath(WEB_LINKS_FILE),
+            "setlist": os.path.abspath(SETLIST_FILE)
+        },
+        "exisis": {
+             "local_lib": os.path.exists(LOCAL_LIB_FILE),
+             "web_links": os.path.exists(WEB_LINKS_FILE)
+        }
+    }
+
 def fetch_youtube_details(video_id: str, api_key: str):
+
     """Fetches full details for a specific video ID."""
     if not api_key: return None
     url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet&id={video_id}&key={api_key}"
@@ -229,11 +402,16 @@ async def block_tag(data: Dict):
     if not field or not value:
         raise HTTPException(status_code=400, detail="Missing field or value")
     
-    if value not in current_blocked[field]:
-        current_blocked[field].append(value)
-        config_manager.set("blocked_tags", current_blocked)
+    # Securely retrieve and update tags from config
+    all_blocked = config_manager.get("blocked_tags", {})
+    if field not in all_blocked:
+        all_blocked[field] = []
         
-    return {"status": "ok", "blocked": current_blocked}
+    if value not in all_blocked[field]:
+        all_blocked[field].append(value)
+        config_manager.set("blocked_tags", all_blocked)
+        
+    return {"status": "ok", "blocked": all_blocked}
 
 @app.post("/api/profile/active")
 async def set_active_profile(data: Dict):
@@ -321,6 +499,48 @@ async def stream_file(request: Request, path: str):
     import mimetypes
     mime_type, _ = mimetypes.guess_type(decoded_path)
     return FileResponse(decoded_path, media_type=mime_type, filename=os.path.basename(decoded_path))
+
+@app.get("/api/cover")
+async def get_cover_image(path: str):
+    """Alias for streaming specifically covers with optional caching support."""
+    try:
+        decoded_path = urllib.parse.unquote(path)
+        resolved = resolve_portable_path(decoded_path)
+        logging.info(f"[COVER] Requested: {path} -> Decoded: {decoded_path} -> Resolved: {resolved}")
+        
+        if not os.path.exists(resolved):
+            logging.error(f"[COVER] File not found: {resolved}")
+            raise HTTPException(status_code=404, detail=f"Cover not found: {resolved}")
+        import mimetypes
+        mime_type, _ = mimetypes.guess_type(resolved)
+        
+        # V55: If the file is not an image (e.g. .mp3, .m4v or a DIRECTORY), try to extract embedded art
+        if os.path.isdir(resolved) or (mime_type and not mime_type.startswith("image/")):
+            logging.info(f"[COVER] Not an image or is directory ({mime_type}), attempting extraction for: {resolved}")
+
+            try:
+                data, extracted_mime = metadata_service.get_file_cover(resolved)
+                if data:
+                    logging.info(f"[COVER] Successfully extracted art ({extracted_mime}) from {resolved}")
+                    return Response(content=data, media_type=extracted_mime)
+            except Exception as ex:
+                logging.error(f"[COVER] Extraction failed for {resolved}: {ex}")
+
+        # Safety Fallback: Don't attempt to serve a directory via FileResponse
+        if os.path.isdir(resolved):
+            logging.warning(f"[COVER] Path is a directory and no art was extracted: {resolved}")
+            raise HTTPException(status_code=404, detail="No cover found for this directory")
+
+        # Default: serve the file
+        if mime_type is None:
+            mime_type = "application/octet-stream"
+            
+        return FileResponse(resolved, media_type=mime_type)
+
+    except Exception as e:
+        logging.error(f"[COVER] Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/status")
 async def get_status():
@@ -514,7 +734,9 @@ async def add_to_setlist(item: Dict):
             "thumbnail": item.get("thumbnail", ""),
             "youtube_description": item.get("youtube_description", ""),
             "target_profile": target_profile,
-            "user_notes": item.get("user_notes", "")
+            "user_notes": item.get("user_notes", ""),
+            "uid": item.get("uid") or generate_stable_setlist_uid(url), # V58: Ensure stable UID
+            "linked_ids": item.get("linked_ids", []) # V58: Persist links
         }
 
         items = []
@@ -627,7 +849,9 @@ async def update_setlist_item(index: int, item: Dict):
                 "loops": item.get("loops", items[index].get("loops", [])),
                 "audio_cues": item.get("audio_cues", items[index].get("audio_cues", [])),
                 "autoplay": item.get("autoplay", items[index].get("autoplay", False)),
-                "autoreplay": item.get("autoreplay", items[index].get("autoreplay", False))
+                "autoreplay": item.get("autoreplay", items[index].get("autoreplay", False)),
+                "uid": item.get("uid") or items[index].get("uid") or generate_stable_setlist_uid(url), # V58: Persist or generate stable UID
+                "linked_ids": item.get("linked_ids", items[index].get("linked_ids", [])) # V58: Persist links
             }
 
             items[index] = updated_item
@@ -695,84 +919,7 @@ async def edit_setlist_item(index: int, item: Dict):
         print(f"Edit Setlist Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- WEB LINKS ROUTES ---
-
-@app.get("/api/web_links")
-async def get_web_links():
-    if os.path.exists(WEB_LINKS_FILE):
-        try:
-            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return []
-    return []
-
-@app.post("/api/web_links")
-async def add_web_link(item: Dict):
-    try:
-        items = []
-        if os.path.exists(WEB_LINKS_FILE):
-            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
-                items = json.load(f)
-        
-        # Ensure default values
-        new_item = {
-            "title": item.get("title", "Sans titre"),
-            "artist": item.get("artist", ""),
-            "url": item.get("url", ""),
-            "type": item.get("type", "other"), # songsterr, moises, spotify, lesson, other
-            "category": item.get("category", "Général"),
-            "genre": item.get("genre", "Divers"),
-            "user_notes": item.get("user_notes", "")
-        }
-        
-        items.append(new_item)
-        with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
-            json.dump(items, f, indent=4)
-        return items
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.put("/api/web_links/{index}")
-async def update_web_link(index: int, item: Dict):
-    try:
-        items = []
-        if os.path.exists(WEB_LINKS_FILE):
-            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
-                items = json.load(f)
-        
-        if 0 <= index < len(items):
-            # Partial update or full replace
-            curr = items[index]
-            curr["title"] = item.get("title", curr.get("title"))
-            curr["artist"] = item.get("artist", curr.get("artist"))
-            curr["url"] = item.get("url", curr.get("url"))
-            curr["type"] = item.get("type", curr.get("type"))
-            curr["category"] = item.get("category", curr.get("category"))
-            curr["genre"] = item.get("genre", curr.get("genre"))
-            curr["user_notes"] = item.get("user_notes", curr.get("user_notes"))
-            
-            with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
-                json.dump(items, f, indent=4)
-        return items
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.delete("/api/web_links/{index}")
-async def delete_web_link(index: int):
-    try:
-        items = []
-        if os.path.exists(WEB_LINKS_FILE):
-            with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
-                items = json.load(f)
-        
-        if 0 <= index < len(items):
-            items.pop(index)
-            with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
-                json.dump(items, f, indent=4)
-        return items
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# [REMOVED DUPLICATE WEB LINKS ROUTES]
 
 # --- APPS LAUNCHER ---
 @app.get("/api/apps")
@@ -1123,12 +1270,29 @@ async def parse_drum_midi_endpoint(data: Dict):
 
 @app.get("/api/local/files")
 async def get_local_files():
+    file_map = {
+        'lib': LOCAL_LIB_FILE,
+        'set': SETLIST_FILE,
+        'web': WEB_LINKS_FILE
+    }
     if os.path.exists(LOCAL_LIB_FILE):
         try:
             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
                 items = json.load(f)
 
+            changed = False
             for item in items:
+                # V57: Force generating UID if missing in the JSON but path exists
+                if not item.get("uid") and "path" in item:
+                    try:
+                        abs_p = resolve_portable_path(item["path"])
+                        if os.path.exists(abs_p):
+                            # scan_file_metadata now auto-generates AND saves to sidecar
+                            meta = metadata_service.scan_file_metadata(abs_p)
+                            item["uid"] = meta.get("uid")
+                            changed = True
+                    except: pass
+
                 if "path" in item:
                     try:
                         resolved = resolve_portable_path(item["path"])
@@ -1143,8 +1307,19 @@ async def get_local_files():
                 if "autoreplay" in item and item["autoreplay"] is not None:
                     item["autoreplay"] = bool(item["autoreplay"])
 
+            # V57: Migrate legacy links
+            if migrate_legacy_links(items, file_map):
+                changed = True
+
+            if changed:
+                with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                    json.dump(items, f, indent=4)
+
             return items
-        except:
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] get_local_files failed: {e}")
+            traceback.print_exc()
             return []
     return []
 
@@ -1414,6 +1589,7 @@ async def update_local_file(index: int, item: Dict):
             current = items[index]
             # Update fields
             current["title"] = item.get("title", current["title"])
+            current["url"] = item.get("url", current.get("url", ""))
             current["artist"] = item.get("artist", current.get("artist", ""))
             current["album"] = item.get("album", current.get("album", ""))
             current["genre"] = item.get("genre", current.get("genre", ""))
@@ -1436,6 +1612,7 @@ async def update_local_file(index: int, item: Dict):
             current["target_pitch"] = item.get("target_pitch", current.get("target_pitch", ""))
             current["autoplay"] = item.get("autoplay", current.get("autoplay", False))
             current["autoreplay"] = item.get("autoreplay", current.get("autoreplay", False))
+            current["linked_ids"] = item.get("linked_ids", current.get("linked_ids", []))
             
             # --- RELOCATION / PATH UPDATE LOGIC ---
             new_path = item.get("path")
@@ -1689,7 +1866,7 @@ async def relocate_apply(data: dict):
         # 2. Handle Copy / Move to Internal Folders
         if action in ['copy', 'move']:
             # Determine Target Subfolder
-            target_folder = data.get("target_folder")
+            target_folder = resolve_portable_path(data.get("target_folder"))
             create_artist_folder = data.get("create_artist_folder", False)
 
             # Pre-calculate safe artist name
@@ -2075,11 +2252,25 @@ async def edit_local_file(index: int, item: Dict):
                     current["is_missing"] = False
 
             # Update other fields...
-            for key in ["title", "artist", "genre", "category", "bpm", "key", "scale", "instrument", "tuning", "user_notes"]:
-                if key in item: current[key] = item[key]
+            for key in ["title", "artist", "genre", "category", "bpm", "key", "scale", "instrument", "tuning", "user_notes", "linked_ids"]:
+                if key in item: 
+                    current[key] = item[key]
             
+            # V57: Trigger Bidirectional Sync on Edit if linked_ids changed
+            if "uid" in current and "linked_ids" in current:
+                sync_web_link_bidirectional(current["uid"], current["linked_ids"])
+
+            # --- PERSISTENCE (V55: Sidecar First) ---
+            try:
+                abs_p = resolve_portable_path(current.get("path", ""))
+                if abs_p and os.path.exists(abs_p):
+                    metadata_service.write_file_metadata(abs_p, current)
+            except Exception as pe:
+                logging.error(f"Persistence Error in edit_local_file: {pe}")
+
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=4)
+
             return {"status": "ok", "items": items}
         return {"status": "error", "message": "Index missing"}
     except Exception as e:
@@ -2404,7 +2595,8 @@ async def dl_start(data: Dict):
             try:
                 # Refresh Metadata from file to be sure
                 file_data = metadata_service.scan_file_metadata(path)
-                file_data["path"] = path
+                # V57: Always convert to portable path for DB storage
+                file_data["path"] = to_portable_path(path)
                 file_data["added_at"] = time.time()
 
                 # Inject Chapters from Download Service
@@ -2418,6 +2610,7 @@ async def dl_start(data: Dict):
                 # scan_file_metadata only gets physical tags. We want to keep what user entered.
                 original_meta = data.get("metadata", {})
                 if original_meta:
+                    if "url" in original_meta: file_data["url"] = original_meta["url"]
                     if "category" in original_meta: file_data["category"] = original_meta["category"]
                     if "user_notes" in original_meta: file_data["user_notes"] = original_meta["user_notes"]
                     if "target_profile" in original_meta: file_data["target_profile"] = original_meta["target_profile"]
@@ -2440,12 +2633,25 @@ async def dl_start(data: Dict):
                 with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
                     json.dump(items, f, indent=4)
 
-                broadcast_sync(json.dumps({"type": "dl_complete", "path": path}))
+                broadcast_sync(json.dumps({"type": "dl_complete", "path": to_portable_path(path)}))
             except Exception as e:
                 logging.error(f"Post-DL Library Error: {e}")
                 broadcast_sync(json.dumps({"type": "dl_error", "error": "Library Update Failed"}))
         else:
              broadcast_sync(json.dumps({"type": "dl_error", "error": result}))
+
+    # V57: Ensure target_folder is resolved if it was a portable path from UI
+    if "target_folder" in data:
+        data["target_folder"] = resolve_portable_path(data["target_folder"])
+        
+        # V58: Automatic artist subfolder creation (V58 Requirement)
+        meta = data.get("metadata", {})
+        artist = meta.get("artist", "").strip()
+        if artist and artist.lower() not in ["divers", "unknown", "inconnu", ""]:
+            import re
+            safe_artist = re.sub(r'[\\/:*?"<>|]', '_', artist)
+            data["target_folder"] = os.path.join(data["target_folder"], safe_artist)
+            logging.info(f"[DL] Routing to artist folder: {data['target_folder']}")
 
     # Run in Thread
     t = threading.Thread(target=download_service.download, args=(data, progress_cb, completion_cb))
@@ -2473,8 +2679,11 @@ async def get_managed_folders():
     from config_manager import ConfigManager
     config = ConfigManager()
     folders = config.get("media_folders", [])
-    print(f"[DEBUG API] Sending managed folders to UI: {folders}")
-    return {"status": "ok", "folders": folders}
+    # V57: Always resolve for UI delivery to prevent literal ${APP_DIR} in dropdowns
+    from utils import resolve_portable_path
+    resolved_folders = [resolve_portable_path(f) for f in folders]
+    print(f"[DEBUG API] Sending managed folders to UI: {resolved_folders}")
+    return {"status": "ok", "folders": resolved_folders}
 
 @app.post("/api/open_settings")
 async def api_open_settings(request: Request):
@@ -2604,7 +2813,7 @@ async def relocate_bulk(data: dict):
     """
     action = data.get("action", "link")
     mappings = data.get("mappings", [])
-    target_folder = data.get("target_folder", "") # Can be a path or 'AUTO'
+    target_folder = resolve_portable_path(data.get("target_folder", "")) # Can be a path or 'AUTO'
     
     success_count = 0
     errors = []
@@ -2657,51 +2866,221 @@ async def relocate_bulk(data: dict):
                 errors.append(f"{os.path.basename(m['new_path'])}: {res.get('message')}")
         except Exception as e: 
             errors.append(f"Erreur fatale index {m['index']}: {str(e)}")
-            
-    # Success if AT LEAST one file was handled.
-    # Otherwise return error with the reason of the FIRST error for clarity.
-    status = "ok" if success_count > 0 else "error"
-    main_msg = "" if status == "ok" else (errors[0] if errors else "Inconnu")
+    main_msg = f"Traitement terminé : {success_count}/{len(mappings)} réussis."
+    status = "ok" if not errors else "partial"
     return {"status": status, "success_count": success_count, "total": len(mappings), "errors": errors, "message": main_msg}
+
+def migrate_legacy_links(db_items, file_map):
+    """
+    V57: Migre les liens de type 'type:index' vers des UIDs stables.
+    """
+    changed = False
+    # Pre-map UIDs by type and original index for fast lookup
+    uid_map = {} # { 'lib:0': 'uid_123', ... }
+    for prefix, path in file_map.items():
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    for i, it in enumerate(data):
+                        uid = it.get("uid")
+                        if uid:
+                            uid_map[f"{prefix}:{i}"] = uid
+            except: pass
+
+    for item in db_items:
+        links = item.get("linked_ids", [])
+        new_links = []
+        item_changed = False
+        for l in links:
+            if ":" in l and not "_" in l: # Legacy format 'type:index'
+                if l in uid_map:
+                    new_links.append(uid_map[l])
+                    item_changed = True
+                    changed = True
+                else:
+                    # Keep it if not found, maybe it will be resolved later
+                    new_links.append(l)
+            else:
+                new_links.append(l)
+        if item_changed:
+            item["linked_ids"] = list(set(new_links)) # Unique
+    return changed
+
+def sync_web_link_bidirectional(source_uid, linked_uids):
+    """
+    V55: Synchronise les liaisons bidirectionnelles en utilisant des UIDs stables.
+    source_uid: l'UID permanent (ex: 'web_abc123')
+    linked_uids: la liste des UIDs cibles.
+    """
+    logging.warning(f"[SYNC_LINK] Début Synchronisation UID : {source_uid} -> {linked_uids}")
+    
+    file_map = {
+        'lib': LOCAL_LIB_FILE,
+        'set': SETLIST_FILE,
+        'web': WEB_LINKS_FILE
+    }
+    
+    # 1. Parcourir chaque base de données
+    for prefix, path in file_map.items():
+        if not os.path.exists(path):
+            continue
+            
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                db = json.load(f)
+        except Exception as e:
+            logging.error(f"[SYNC_LINK] Erreur lecture {path}: {e}")
+            continue
+
+        file_changed = False
+        
+        for item in db:
+            uid = item.get("uid")
+            if not uid: continue # Skip items without UID (should be rare after heal)
+            
+            # Ne pas se synchroniser avec soi-même
+            if uid == source_uid:
+                continue
+
+            # Cas A: L'item est dans la nouvelle liste de liens -> il DOIT pointer vers source_uid
+            if uid in linked_uids:
+                if "linked_ids" not in item: item["linked_ids"] = []
+                if source_uid not in item["linked_ids"]:
+                    item["linked_ids"].append(source_uid)
+                    file_changed = True
+                    logging.warning(f"[SYNC_LINK] LIEN ÉTABLI : {uid} <-> {source_uid}")
+                    
+                    # Persistance physique (Sidecar) pour les fichiers locaux
+                    if "path" in item:
+                        try:
+                            abs_p = resolve_portable_path(item["path"])
+                            if abs_p and os.path.exists(abs_p):
+                                metadata_service.write_file_metadata(abs_p, {"linked_ids": item["linked_ids"]})
+                        except Exception as pe:
+                            logging.error(f"[SYNC_LINK] Erreur sidecar {uid}: {pe}")
+            
+            # Cas B: L'item n'est plus dans la liste -> il ne doit PLUS pointer vers source_uid
+            # MAIS ATTENTION : On ne nettoie que si la source_uid est bien du type attendu
+            # (pour éviter de supprimer par erreur des liens existants d'autres sources)
+            else:
+                if "linked_ids" in item and source_uid in item["linked_ids"]:
+                    item["linked_ids"].remove(source_uid)
+                    file_changed = True
+                    logging.warning(f"[SYNC_LINK] LIEN SUPPRIMÉ : {uid} <-x-> {source_uid}")
+                    
+                    # Persistance physique (Sidecar) pour les fichiers locaux
+                    if "path" in item:
+                        try:
+                            abs_p = resolve_portable_path(item["path"])
+                            if abs_p and os.path.exists(abs_p):
+                                metadata_service.write_file_metadata(abs_p, {"linked_ids": item["linked_ids"]})
+                        except Exception as pe:
+                             logging.error(f"[SYNC_LINK] Erreur sidecar cleanup {uid}: {pe}")
+
+        # Sauvegarde si nécessaire
+        if file_changed:
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(db, f, indent=4)
+                    f.flush()
+                    os.fsync(f.fileno())
+                logging.warning(f"[SYNC_LINK] Fichier {prefix} mis à jour et flushede sur disque.")
+                
+                # Recharger le manager pour lib
+                if prefix == 'lib' and library_manager:
+                    library_manager.load_library()
+            except Exception as e:
+                logging.error(f"[SYNC_LINK] Erreur sauvegarde {prefix}: {e}")
 
 @app.get("/api/web_links")
 async def get_web_links():
-    if os.path.exists(WEB_LINKS_FILE):
-        try:
+    file_map = {
+        'lib': LOCAL_LIB_FILE,
+        'set': SETLIST_FILE,
+        'web': WEB_LINKS_FILE
+    }
+    try:
+        if os.path.exists(WEB_LINKS_FILE):
             with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return []
-    return []
+                links = json.load(f)
+            
+            # V57: Migrate legacy links
+            if migrate_legacy_links(links, file_map):
+                with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(links, f, indent=4)
+            
+            return links
+        return []
+    except Exception as e:
+        logging.error(f"Error loading web links: {e}")
+        return []
 
 @app.post("/api/web_links")
 async def add_web_link(item: Dict):
     try:
+        logging.warning(f"[SAVE_WEB] Tentative d'AJOUT : {item.get('title')}")
         links = []
         if os.path.exists(WEB_LINKS_FILE):
             with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
                 links = json.load(f)
+        
         links.append(item)
+        new_index = len(links) - 1
+        
+        # Ensure UID before sync
+        if not item.get("uid"): 
+            item["uid"] = f"web_{uuid.uuid4().hex[:8]}"
+            links[new_index] = item
+
+        # On sauvegarde AVANT la synchro
         with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
             json.dump(links, f, indent=4)
-        return {"status": "ok"}
+            f.flush()
+            os.fsync(f.fileno())
+        
+        logging.warning(f"[SAVE_WEB] Ajout avec UID {item['uid']}. Synchro liens...")
+        
+        # Synchronisation Bidirectionnelle utilisant UID
+        sync_web_link_bidirectional(item["uid"], item.get("linked_ids", []))
+
+        
+        return {"status": "ok", "index": new_index}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"[SAVE_WEB] Erreur ADD : {str(e)}")
+        return {"status": "error", "message": str(e)}
+
 
 @app.put("/api/web_links/{index}")
 async def update_web_link(index: int, item: Dict):
     try:
+        logging.warning(f"[SAVE_WEB] PUT index {index}. Links count: {len(item.get('linked_ids', []))}")
+        
+        links = []
         if os.path.exists(WEB_LINKS_FILE):
             with open(WEB_LINKS_FILE, "r", encoding="utf-8") as f:
                 links = json.load(f)
-            if 0 <= index < len(links):
-                links[index] = item
-                with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
-                    json.dump(links, f, indent=4)
-                return {"status": "ok"}
-        raise HTTPException(status_code=404, detail="Link not found")
+        
+        if 0 <= index < len(links):
+            links[index] = item
+            
+            # On sauvegarde AVANT la synchro
+            with open(WEB_LINKS_FILE, "w", encoding="utf-8") as f:
+                json.dump(links, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
+            
+            # Synchronisation Bidirectionnelle utilisant UID
+            sync_web_link_bidirectional(item.get("uid"), item.get("linked_ids", []))
+
+            
+            return {"status": "ok"}
+        
+        return {"status": "error", "message": f"Index {index} hors limites"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"[SAVE_WEB] Erreur UPDATE : {str(e)}")
+        return {"status": "error", "message": str(e)}
+
 
 @app.delete("/api/web_links/{index}")
 async def delete_web_link_api(index: int):
@@ -2750,7 +3129,7 @@ async def find_artist_folder(name: str):
     
     # Secure Name (same as relocation logic)
     import re
-    safe_name = re.sub(r'[\\/*?Source: server.py:"<>|]', '_', name.strip())
+    safe_name = re.sub(r'[\\/:*?"<>|]', '_', name.strip())
     
     from config_manager import ConfigManager
     config = ConfigManager()
@@ -2785,8 +3164,12 @@ async def link_bidirectional(data: Dict):
         target_index = data.get("target_index")
         action = data.get("action", "link")  # 'link' or 'unlink'
 
+        if not source_type or not target_type:
+            return {"status": "error", "message": "Missing types"}
+
+
         files = {
-            "setlist": YOUTUBE_LIB_FILE,
+            "setlist": SETLIST_FILE,
             "library": LOCAL_LIB_FILE,
             "web_links": WEB_LINKS_FILE
         }
@@ -2801,6 +3184,13 @@ async def link_bidirectional(data: Dict):
         def save_db(t, content):
             with open(files[t], "w", encoding="utf-8") as f:
                 json.dump(content, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
+
+        # Si l'index est -1, on ne peut pas établir de liaison physique car l'item n'existe pas encore.
+        # L'Auto-Sync aura quand même lieu en mémoire côté frontend.
+        if source_index == -1 or target_index == -1:
+            return {"status": "ok", "synced": True, "message": "Memory sync only (new item)"}
 
         db_s = get_db(source_type)
         db_t = get_db(target_type)
@@ -2808,29 +3198,47 @@ async def link_bidirectional(data: Dict):
         if source_index < 0 or source_index >= len(db_s): return {"status": "error", "message": "Source out of range"}
         if target_index < 0 or target_index >= len(db_t): return {"status": "error", "message": "Target out of range"}
 
-        s_uid = f"{source_type[:3]}:{source_index}"
-        t_uid = f"{target_type[:3]}:{target_index}"
+        item_s = db_s[source_index]
+        item_t = db_t[target_index]
+
+        # Get stable UIDs
+        s_uid = item_s.get("uid")
+        t_uid = item_t.get("uid")
+
+        if not s_uid or not t_uid:
+             return {"status": "error", "message": "Stable UIDs missing on items"}
 
         # 1. Mise à jour Source
-        if "linked_ids" not in db_s[source_index]: db_s[source_index]["linked_ids"] = []
+        if "linked_ids" not in item_s: item_s["linked_ids"] = []
         if action == "link":
-            if t_uid not in db_s[source_index]["linked_ids"]: db_s[source_index]["linked_ids"].append(t_uid)
+            if t_uid not in item_s["linked_ids"]: item_s["linked_ids"].append(t_uid)
         else:
-            if t_uid in db_s[source_index]["linked_ids"]: db_s[source_index]["linked_ids"].remove(t_uid)
+            if t_uid in item_s["linked_ids"]: item_s["linked_ids"].remove(t_uid)
         
         # 2. Mise à jour Cible
-        if "linked_ids" not in db_t[target_index]: db_t[target_index]["linked_ids"] = []
+        if "linked_ids" not in item_t: item_t["linked_ids"] = []
         if action == "link":
-            if s_uid not in db_t[target_index]["linked_ids"]: db_t[target_index]["linked_ids"].append(s_uid)
+            if s_uid not in item_t["linked_ids"]: item_t["linked_ids"].append(s_uid)
         else:
-            if s_uid in db_t[target_index]["linked_ids"]: db_t[target_index]["linked_ids"].remove(s_uid)
+            if s_uid in item_t["linked_ids"]: item_t["linked_ids"].remove(s_uid)
 
         save_db(source_type, db_s)
-        # Si même DB (ex: YT vers YT), on a déjà sauvé. Sinon, sauver la cible.
         if source_type != target_type:
             save_db(target_type, db_t)
+            
+        # 3. Physical Persistence (Sidecar)
+        for it, t in [(item_s, source_type), (item_t, target_type)]:
+            if t in ["library", "setlist"] and it.get("path"):
+                try:
+                    p = it["path"]
+                    abs_p = resolve_portable_path(p)
+                    if abs_p and os.path.exists(abs_p):
+                        metadata_service.write_file_metadata(abs_p, {"linked_ids": it["linked_ids"]})
+                except Exception as pe:
+                    logging.error(f"[LINK_BIDIR] Error sidecar {it.get('uid')}: {pe}")
 
         return {"status": "ok"}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

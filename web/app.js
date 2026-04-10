@@ -108,6 +108,7 @@ let currentWebLinkTrackList = [];
 let currentDeviceName = "Aucun";
 let currentConnectionMode = "MIDO";
 let currentIsConnected = false;
+let lastEditContext = null; // 'setlist' or 'library'
 
 // --- HELPERS ---
 function formatTimeCustom(seconds) {
@@ -189,21 +190,12 @@ async function checkSystemCapabilities() {
 }
 
 function applyCapabilities() {
-    const btnDl = document.getElementById('btn-show-dl');
-    const btnHelp = document.getElementById('btn-offline-help');
-
     // Also check smart import button if it exists
     const smartImportBtn = document.getElementById('btn-smart-import');
 
-    if (!systemCapabilities.can_download) {
-        // Hide Download features
-        if (btnDl) btnDl.style.display = 'none';
+    if (systemCapabilities && !systemCapabilities.can_download) {
         if (smartImportBtn) smartImportBtn.style.display = 'none';
-
-        // Show Alternative (only if logic requires it, usually controlled by specific context)
-        // For the modal, it's controlled by checkDownloadAvailability, but global checks help.
-    } else {
-        // Restore defaults if needed, though usually handled by visibility toggles
+        // Note: The YouTube modal Offline toggle is specifically handled by checkDownloadAvailability(url)
     }
 
     // Show Disclaimer in Settings if limited
@@ -234,6 +226,44 @@ function logToBackend(msg) {
     }).catch(e => console.error("Log Send Error:", e));
 }
 
+/**
+ * Airstep V55: Global Toast Notification System
+ * type: 'success', 'error', 'info', 'warning'
+ */
+function showToast(message, type = "info") {
+    console.log(`[TOAST] [${type.toUpperCase()}] ${message}`);
+    const existing = document.getElementById("airstep-toast-container");
+    let container = existing;
+    
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "airstep-toast-container";
+        container.style.cssText = "position:fixed; top:20px; right:20px; z-index:10000; display:flex; flex-direction:column; gap:10px; pointer-events:none;";
+        document.body.appendChild(container);
+    }
+    
+    const toast = document.createElement("div");
+    toast.style.cssText = `
+        padding: 12px 24px; border-radius: 8px; 
+        color: white; font-weight: bold; min-width: 200px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+        background: ${type === 'success' ? '#03dac6' : (type === 'error' ? '#cf6679' : (type === 'warning' ? '#ffb74d' : '#bb86fc'))};
+        transform: translateX(100%); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        pointer-events: auto; font-family: 'Segoe UI', sans-serif;
+    `;
+    toast.innerText = message;
+    container.appendChild(toast);
+    
+    // Trigger animation
+    setTimeout(() => toast.style.transform = "translateX(0)", 10);
+    
+    // Cleanup
+    setTimeout(() => {
+        toast.style.transform = "translateX(120%)";
+        setTimeout(() => toast.remove(), 500);
+    }, 4000);
+}
+
 function initAudioContext() {
     logToBackend("[PITCH] initAudioContext triggered");
     if (!audioCtx) {
@@ -244,6 +274,21 @@ function initAudioContext() {
         audioCtx.resume().then(() => logToBackend("[PITCH] AudioContext Resumed"));
     }
 }
+
+// --- HEADER VISIBILITY HELPER (V56: Robust 3-column / 2-row layout) ---
+function updateHeaderVisibility(show) {
+    const info = document.getElementById("global-video-info");
+    const bottom = document.getElementById("header-bottom-row");
+    const cover = document.getElementById("global-video-cover");
+    const center = document.getElementById("header-center-column");
+    
+    const displayVal = show ? "flex" : "none";
+    if (info) info.style.display = displayVal;
+    if (bottom) bottom.style.display = displayVal;
+    if (center) center.style.display = displayVal;
+    if (cover) cover.style.display = show ? "block" : "none";
+}
+
 
 function togglePitchEngine(enabled) {
     logToBackend("[PITCH] Toggle: " + enabled);
@@ -730,12 +775,33 @@ async function loadWebLinks() {
         const res = await fetch("/api/web_links");
         if (res.ok) {
             const rawList = await res.json();
+            console.log("[LOAD_WEB] Items loaded:", rawList.length);
             webLinks = rawList.map((link, idx) => ({ ...link, originalIndex: idx }));
             currentWebLinkTrackList = [...webLinks];
         }
-    } catch (e) { console.error("Web Links load error:", e); }
+    } catch (e) {
+        console.error("Web Links load error:", e);
+    }
     renderWebLinks();
+    refreshInterconnections(); // V55: Wake up header UI after loading
 }
+
+/**
+ * V55: Force refresh of the interconnection UI in the header
+ * Based on the currently active media.
+ */
+function refreshInterconnections() {
+    let activeItem = null;
+    if (window.currentSource === 'setlist') activeItem = currentTrackList[window.currentPlayingIndex];
+    else if (window.currentSource === 'library') activeItem = localFiles[window.currentPlayingIndex];
+    else if (window.currentSource === 'web_links') activeItem = webLinks[window.currentPlayingIndex];
+    
+    if (activeItem) {
+        console.log("[UI] Refreshing Interconnections for current media...");
+        updateInterconnectionUI(activeItem);
+    }
+}
+
 
 function renderWebLinks() {
     const tbody = document.getElementById("web-links-body");
@@ -760,16 +826,34 @@ function renderWebLinks() {
         const realIndex = link.originalIndex;
         const tr = document.createElement("tr");
         
-        let iconClass = "ph ph-globe";
-        if (link.type === "songsterr") iconClass = "ph ph-music-note";
-        if (link.type === "moises") iconClass = "ph ph-scissors";
-        if (link.type === "spotify") iconClass = "ph ph-spotify-logo";
-        if (link.type === "lesson") iconClass = "ph ph-graduation-cap";
+        let iconHtml = `<i class="ph ph-globe" style="font-size:1.2em; color:var(--accent);"></i>`;
+        
+        // V55: Show Site Icon (Favicon) for Web Links by default (Priority)
+        const favIcon = getIcon(link.url);
+        const isYoutube = link.url && (link.url.includes('youtube.com') || link.url.includes('youtu.be'));
+
+        if (favIcon && !isYoutube) {
+             iconHtml = `<img src="${favIcon}" style="width:20px; height:20px; border-radius:4px; vertical-align:middle;">`;
+        } else if (link.cover) {
+            const coverUrl = link.cover.startsWith('http') ? link.cover : `/api/cover?path=${encodeURIComponent(link.cover)}&t=${Date.now()}`;
+            iconHtml = `<img src="${coverUrl}" style="width:24px; height:24px; border-radius:4px; vertical-align:middle; object-fit:cover; border:1px solid rgba(255,255,255,0.1);">`;
+        }
+
+
+        // V56: Only count resolvable links
+        const validLinks = (link.linked_ids || []).filter(uid => getLinkedItem(uid) !== null);
+        const linkCount = validLinks.length;
+        const linkIndicator = linkCount > 0 
+            ? `<span class="link-badge active" style="margin-right:8px;" title="${linkCount} liens actifs"><i class="ph ph-link-simple"></i>${linkCount > 1 ? `<span class="count">${linkCount}</span>` : ""}</span>`
+            : `<span class="link-badge" style="margin-right:8px; opacity:0.3;"><i class="ph ph-link-simple"></i></span>`;
 
         tr.innerHTML = `
-            <td style="text-align:center;"><i class="${iconClass}" style="font-size:1.2em; color:var(--accent);"></i></td>
+            <td style="text-align:center;">${iconHtml}</td>
             <td>${link.artist || ""}</td>
-            <td style="cursor:pointer; color:var(--accent);" onclick="playWebLink(${realIndex})">${link.title || link.url}</td>
+            <td style="cursor:pointer; color:var(--accent);" onclick="playWebLink(${realIndex})">
+                ${linkIndicator}
+                ${link.title || link.url}
+            </td>
             <td style="text-align:right;">
                 <button class="btn-action" onclick="openWebLinkModal(${realIndex})" title="${t("web.btn_edit")}">✎</button>
                 <button class="btn-action" onclick="deleteWebLink(${realIndex})" style="color:#cf6679;" title="${t("web.btn_delete")}">×</button>
@@ -781,6 +865,10 @@ function renderWebLinks() {
 
 function openWebLinkModal(index = -1) {
     currentWebLinkIndex = index;
+    // V55: Initialize linked IDs for session
+    currentEditingLinkedIds = (index === -1) ? [] : (webLinks[index].linked_ids || []);
+    lastEditContext = 'web_links';
+    
     const modal = document.getElementById("modal-web-link");
     const titleEl = document.getElementById("web-link-modal-title");
 
@@ -808,8 +896,10 @@ function openWebLinkModal(index = -1) {
         document.getElementById("web-link-key").value = "";
         document.getElementById("web-link-scale").value = "";
         document.getElementById("web-link-tuning").value = "standard";
+        currentEditingLinkedIds = []; // V58: Initialize for new link
     } else {
         const link = webLinks[index];
+        currentEditingLinkedIds = link.linked_ids || []; // V58: Initialize for edit
         titleEl.innerText = t("web.modal_web_link_title_edit", "Modifier le Lien Web");
         document.getElementById("web-link-title").value = link.title || "";
         document.getElementById("web-link-artist").value = link.artist || "";
@@ -837,6 +927,7 @@ function openWebLinkModal(index = -1) {
             document.getElementById("btn-web-link-delete-cover").style.display = "flex";
         }
     }
+    renderModalLinkedItems(); // V58: Display linked items in web link modal
     modal.showModal();
 }
 
@@ -878,6 +969,30 @@ function removeWebLinkCover() {
 }
 
 async function saveWebLink() {
+    // V55: Last resort recovery of cover from UI if global is null
+    let coverToSave = window.currentWebLinkCover;
+    
+    // V55: SECURITY - Never save a directory path as a cover (e.g. Multitrack folders)
+    if (coverToSave && !coverToSave.startsWith("http") && !coverToSave.startsWith("data:")) {
+        console.warn("[SAVE_WEB] Filtered out folder path from cover:", coverToSave);
+        coverToSave = null;
+    }
+
+    if (!coverToSave) {
+        const uiImg = document.getElementById("web-link-art-img");
+        if (uiImg && uiImg.style.display !== "none" && uiImg.src && !uiImg.src.endsWith('/')) {
+            const src = uiImg.src;
+            if (src.includes("/api/cover?path=")) {
+                coverToSave = decodeURIComponent(src.split("path=")[1].split("&")[0]);
+            } else if (src.startsWith("http")) {
+                coverToSave = src;
+            }
+        }
+    }
+
+    console.log("[SAVE_WEB] Starting save for index:", currentWebLinkIndex, "Payload linked_ids:", currentEditingLinkedIds);
+    logToBackend(`[SAVE_WEB] User clicked Save. Linked_ids count: ${currentEditingLinkedIds.length}`);
+
     const payload = {
         title: document.getElementById("web-link-title").value,
         artist: document.getElementById("web-link-artist").value,
@@ -886,30 +1001,53 @@ async function saveWebLink() {
         category: document.getElementById("web-link-category").value,
         genre: document.getElementById("web-link-genre").value,
         notes: document.getElementById("web-link-notes").value,
-        // New fields
-        volume: document.getElementById("web-link-vol").value / 100,
-        bpm: document.getElementById("web-link-bpm").value ? parseInt(document.getElementById("web-link-bpm").value) : null,
-        key: document.getElementById("web-link-key").value,
-        scale: document.getElementById("web-link-scale").value,
-        tuning: document.getElementById("web-link-tuning").value,
-        cover: window.currentWebLinkCover,
-        linked_ids: (currentWebLinkIndex !== -1 && webLinks[currentWebLinkIndex]) ? (webLinks[currentWebLinkIndex].linked_ids || []) : []
+        volume: document.getElementById("web-link-vol") ? parseInt(document.getElementById("web-link-vol").value) : 100,
+        bpm: document.getElementById("web-link-bpm")?.value || null,
+        metadata: {
+            key: document.getElementById("web-link-key")?.value || null,
+            scale: document.getElementById("web-link-scale")?.value || null,
+            tuning: document.getElementById("web-link-tuning")?.value || "standard"
+        },
+        cover: coverToSave || null,
+        linked_ids: currentEditingLinkedIds
     };
+
+    console.log("[SAVE_WEB] Final Payload:", payload);
+    console.warn("[SAVE_WEB] window.currentWebLinkCover before save:", window.currentWebLinkCover);
+    logToBackend(`[SAVE_WEB] Payload Cover: ${payload.cover} | Global: ${window.currentWebLinkCover}`);
 
     const method = currentWebLinkIndex === -1 ? "POST" : "PUT";
     const url = currentWebLinkIndex === -1 ? "/api/web_links" : `/api/web_links/${currentWebLinkIndex}`;
 
+    console.log("[SAVE_WEB] Method:", method, "URL:", url);
     try {
         const res = await fetch(url, {
             method: method,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
+        
         if (res.ok) {
-            closeWebLinkModal();
+            const data = await res.json();
+            console.log("[SAVE_WEB] SUCCESS", data);
+            
+            // i18n Fix: The key is flat, not nested under 'web'
+            showToast(t("msg_save_success"), "success");
+            
+            const modalEl = document.getElementById("modal-web-link");
+            if (modalEl && modalEl.close) modalEl.close();
             loadWebLinks();
+        } else {
+            const errBody = await res.text();
+            console.error("[SAVE_WEB] SERVER ERROR:", res.status, errBody);
+            logToBackend("[SAVE_WEB] SERVER ERROR: " + res.status + " " + errBody);
+            alert("Erreur lors de la sauvegarde: " + res.status + " " + errBody);
         }
-    } catch (e) { console.error("Save Web Link error:", e); }
+    } catch (e) {
+        console.error("[SAVE_WEB] NETWORK ERROR:", e);
+        logToBackend("[SAVE_WEB] NETWORK ERROR: " + e.message);
+        alert("Erreur réseau: " + e.message);
+    }
 }
 
 async function deleteWebLink(index) {
@@ -961,16 +1099,22 @@ function sortWebLinks(key) {
 }
 
 // --- INTERCONNECTION ENGINE ---
+function getLocalType(item) {
+    if (item.is_multitrack) return 'multitrack';
+    if (item.path && item.path.match(/\.(mp4|mkv|mov|avi|webm|m4v)$/i)) return 'video';
+    return 'audio';
+}
+
 function updateInterconnectionUI(activeItem) {
     const container = document.getElementById("header-interconnection-links");
-    if (!container) return;
+    if (!container || !activeItem) return;
     container.innerHTML = "";
-
-    if (!activeItem) return;
 
     const matches = {
         youtube: [],
-        local: [],
+        audio_local: [],
+        video_local: [],
+        multitrack_local: [],
         songsterr: [],
         moises: [],
         spotify: [],
@@ -978,7 +1122,12 @@ function updateInterconnectionUI(activeItem) {
         other: []
     };
 
-    const currentUID = `${window.currentSource.substring(0, 3)}:${window.currentPlayingIndex}`;
+    const currentUID = activeItem.uid || `${window.currentSource.substring(0, 3)}:${window.currentPlayingIndex}`;
+    const headerBottomRow = document.getElementById("header-bottom-row");
+    const globalInfoRow = document.getElementById("global-video-info");
+
+    if (globalInfoRow) globalInfoRow.style.display = "flex";
+
 
     // 0. Manual Links (Priority)
     if (activeItem.linked_ids && activeItem.linked_ids.length > 0) {
@@ -988,7 +1137,12 @@ function updateInterconnectionUI(activeItem) {
             
             // Determine category
             if (uid.startsWith('set')) matches.youtube.push(item);
-            else if (uid.startsWith('lib')) matches.local.push(item);
+            else if (uid.startsWith('lib')) {
+                const type = getLocalType(item);
+                if (type === 'video') matches.video_local.push(item);
+                else if (type === 'multitrack') matches.multitrack_local.push(item);
+                else matches.audio_local.push(item);
+            }
             else if (uid.startsWith('web')) {
                 const type = item.type || 'other';
                 if (matches[type]) matches[type].push(item);
@@ -997,28 +1151,35 @@ function updateInterconnectionUI(activeItem) {
         });
     }
 
-    // 1. Auto Search (if no manual link of the same type exists ?) 
-    // Actually, we can mix them.
+    // 1. Auto Search
     const artist = (activeItem.artist || "").toLowerCase().trim();
     const title = (activeItem.title || "").toLowerCase().trim();
 
     if (artist || title) {
         // Search in YouTube Setlist
         currentTrackList.forEach((t, idx) => {
-            const uid = `set:${idx}`;
-            if (activeItem.linked_ids && activeItem.linked_ids.includes(uid)) return; // Already added
+            const legacyUid = `set:${idx}`;
+            const stableUid = t.uid || legacyUid;
+            if (activeItem.linked_ids && (activeItem.linked_ids.includes(legacyUid) || activeItem.linked_ids.includes(stableUid))) return; // Already added
+            
             if (isMatch(t, artist, title) && idx !== (window.currentSource === 'setlist' ? window.currentPlayingIndex : -1)) {
-                matches.youtube.push(t);
+                matches.youtube.push({ ...t, originalIndex: idx });
             }
         });
 
         // Search in Local Files
         if (typeof localFiles !== 'undefined') {
             localFiles.forEach((f, idx) => {
-                const uid = `lib:${idx}`;
-                if (activeItem.linked_ids && activeItem.linked_ids.includes(uid)) return; // Already added
+                const legacyUid = `lib:${idx}`;
+                const stableUid = f.uid || legacyUid;
+                if (activeItem.linked_ids && (activeItem.linked_ids.includes(legacyUid) || activeItem.linked_ids.includes(stableUid))) return; // Already added
+                
                 if (isMatch(f, artist, title) && idx !== (window.currentSource === 'library' ? window.currentPlayingIndex : -1)) {
-                    matches.local.push({ ...f, originalIndex: idx });
+                    const type = getLocalType(f);
+                    const itemToAdd = { ...f, originalIndex: idx };
+                    if (type === 'video') matches.video_local.push(itemToAdd);
+                    else if (type === 'multitrack') matches.multitrack_local.push(itemToAdd);
+                    else matches.audio_local.push(itemToAdd);
                 }
             });
         }
@@ -1026,12 +1187,15 @@ function updateInterconnectionUI(activeItem) {
         // Search in Web Links
         if (typeof webLinks !== 'undefined') {
             webLinks.forEach((w, idx) => {
-                const uid = `web:${idx}`;
-                if (activeItem.linked_ids && activeItem.linked_ids.includes(uid)) return; // Already added
+                const legacyUid = `web:${idx}`;
+                const stableUid = w.uid || legacyUid;
+                if (activeItem.linked_ids && (activeItem.linked_ids.includes(legacyUid) || activeItem.linked_ids.includes(stableUid))) return; // Already added
+                
                 if (isMatch(w, artist, title) && idx !== (window.currentSource === 'web_links' ? window.currentPlayingIndex : -1)) {
                     const type = w.type || 'other';
-                    if (matches[type]) matches[type].push({ ...w, originalIndex: idx });
-                    else matches.other.push({ ...w, originalIndex: idx });
+                    const itemToAdd = { ...w, originalIndex: idx };
+                    if (matches[type]) matches[type].push(itemToAdd);
+                    else matches.other.push(itemToAdd);
                 }
             });
         }
@@ -1043,24 +1207,114 @@ function updateInterconnectionUI(activeItem) {
             const btn = document.createElement("button");
             btn.className = "btn-icon-small";
             btn.style.color = color;
-            btn.innerHTML = `<i class="${iconClass}"></i>`;
-            btn.title = `${titlePrefix} (${list.length} match${list.length > 1 ? 'es' : ''})`;
+            
+            // SPECIAL: Web Links show Real Favicons
+            const isLocalOrYT = ['youtube', 'audio_local', 'video_local', 'multitrack_local'].includes(type);
+            if (!isLocalOrYT && list[0].url) {
+                const iconUrl = getIcon(list[0].url);
+                if (iconUrl) {
+                    btn.innerHTML = `<img src="${iconUrl}" style="width:18px; height:18px; border-radius:3px; vertical-align:middle;">`;
+                } else {
+                    btn.innerHTML = `<i class="${iconClass}"></i>`;
+                }
+            } else {
+                btn.innerHTML = `<i class="${iconClass}"></i>`;
+            }
+
+            // Multiple matches indicator
+            if (list.length > 1) {
+                const badge = document.createElement("span");
+                badge.style = "position:absolute; top:-5px; right:-5px; background:var(--accent); color:var(--bg-color); font-size:9px; font-weight:bold; border-radius:50%; width:14px; height:14px; display:flex; align-items:center; justify-content:center; border:1px solid var(--bg-color);";
+                badge.innerText = list.length;
+                btn.style.position = "relative";
+                btn.appendChild(badge);
+            }
+
+            btn.title = `${titlePrefix} (${list.length} item${list.length > 1 ? 's' : ''})`;
             btn.onclick = () => {
-                // Determine action based on type
-                if (type === 'youtube') playTrackAt(list[0].originalIndex);
-                else if (type === 'local') playLocal(list[0].originalIndex);
-                else playWebLink(list[0].originalIndex);
+                if (list.length === 1) {
+                    const item = list[0];
+                    if (type === 'youtube') playTrackAt(item.originalIndex);
+                    else if (type.endsWith('_local')) playLocal(item.originalIndex);
+                    else playWebLink(item.originalIndex);
+                } else {
+                    openInterconnectionChoice(type, list);
+                }
             };
             container.appendChild(btn);
         }
     };
 
     renderIcon('youtube', matches.youtube, 'ph ph-youtube-logo', '#ff0000', 'YouTube');
-    renderIcon('local', matches.local, 'ph ph-music-note', '#03dac6', 'Local');
+    renderIcon('audio_local', matches.audio_local, 'ph ph-music-notes', '#03dac6', t('web.lbl_interconnect_audio') || 'Audio');
+    renderIcon('video_local', matches.video_local, 'ph ph-film-strip', '#ffb86c', t('web.lbl_interconnect_video') || 'Video');
+    renderIcon('multitrack_local', matches.multitrack_local, 'ph ph-stack-simple', '#bb86fc', t('web.lbl_interconnect_multitrack') || 'Multitrack');
     renderIcon('songsterr', matches.songsterr, 'ph ph-guitar', '#f39c12', 'Songsterr');
     renderIcon('moises', matches.moises, 'ph ph-scissors', '#9b59b6', 'Moises');
     renderIcon('spotify', matches.spotify, 'ph ph-spotify-logo', '#1db954', 'Spotify');
     renderIcon('lesson', matches.lesson, 'ph ph-graduation-cap', '#3498db', 'Lesson');
+    renderIcon('other', matches.other, 'ph ph-globe', '#999', 'Autre');
+
+    // Show/Hide the entire row based on matches (V53)
+    if (headerBottomRow) {
+        const hasMatches = Object.values(matches).some(m => m.length > 0);
+        headerBottomRow.style.display = hasMatches ? "flex" : "none";
+    }
+}
+
+function openInterconnectionChoice(type, list) {
+    const dialog = document.getElementById("modal-interconnection-choice");
+    const listContainer = document.getElementById("interconnection-choice-list");
+    if (!dialog || !listContainer) return;
+
+    listContainer.innerHTML = "";
+    
+    // Icon mapping for the modal
+    const icons = {
+        youtube: 'ph ph-youtube-logo',
+        audio_local: 'ph ph-music-notes',
+        video_local: 'ph ph-film-strip',
+        multitrack_local: 'ph ph-stack-simple',
+        songsterr: 'ph ph-guitar',
+        moises: 'ph ph-scissors',
+        spotify: 'ph ph-spotify-logo',
+        lesson: 'ph ph-graduation-cap',
+        other: 'ph ph-globe'
+    };
+    const iconClass = icons[type] || 'ph ph-link';
+
+    list.forEach(item => {
+        const btn = document.createElement("button");
+        btn.className = "btn-secondary";
+        btn.style = "width:100%; display:flex; align-items:center; gap:12px; padding:12px; text-align:left; border-radius:8px; background:rgba(255,255,255,0.03);";
+        
+        let coverHtml = "";
+        if (type.endsWith('_local')) {
+            coverHtml = `<img src="/api/local/art/${item.originalIndex}" style="width:40px; height:25px; object-fit:cover; border-radius:4px; background:#222;" onerror="this.style.display='none'">`;
+        } else if (type === 'youtube') {
+            coverHtml = `<img src="https://img.youtube.com/vi/${item.url.split('v=')[1]?.split('&')[0]}/default.jpg" style="width:40px; height:25px; object-fit:cover; border-radius:4px;" onerror="this.style.display='none'">`;
+        }
+
+        btn.innerHTML = `
+            ${coverHtml}
+            <div style="flex:1; overflow:hidden;">
+                <div style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</div>
+                <div style="font-size:0.8em; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.artist || ""}</div>
+            </div>
+            <i class="ph ph-caret-right" style="color:var(--accent);"></i>
+        `;
+
+        btn.onclick = () => {
+            dialog.close();
+            if (type === 'youtube') playTrackAt(item.originalIndex);
+            else if (type.endsWith('_local')) playLocal(item.originalIndex);
+            else playWebLink(item.originalIndex);
+        };
+
+        listContainer.appendChild(btn);
+    });
+
+    dialog.showModal();
 }
 
 function isMatch(item, artist, title) {
@@ -1077,13 +1331,31 @@ function isMatch(item, artist, title) {
 }
 
 function getLinkedItem(uid) {
+    if (!uid || typeof uid !== 'string') return null; // V58: Safety check against null/undefined
+    
+    // V55: Stable UID support (prefix_hash)
+    if (uid.includes('_')) {
+        const prefix = uid.split('_')[0]; // 'lib', 'set', 'web'
+        const list = (prefix === 'lib' ? localFiles : (prefix === 'set' ? currentTrackList : webLinks));
+        if (!list) return null;
+        return list.find(it => it.uid === uid) || null;
+    }
+
+    // Legacy: prefix:index support
     const [type, idxStr] = uid.split(':');
     const idx = parseInt(idxStr);
-    if (type === 'set') return currentTrackList.find(t => t.originalIndex === idx);
-    if (type === 'lib') return localFiles.find(f => f.originalIndex === idx);
-    if (type === 'web') return webLinks.find(w => w.originalIndex === idx);
+    
+    const findIn = (list, i) => {
+        if (!list || list.length === 0) return null;
+        return list.find(t => t.originalIndex === i) || (i >= 0 && i < list.length ? list[i] : null);
+    };
+    
+    if (type === 'set') return findIn(currentTrackList, idx);
+    if (type === 'lib') return findIn(localFiles, idx);
+    if (type === 'web') return findIn(webLinks, idx);
     return null;
 }
+
 
 function getIcon(url) {
     if (!url) return '';
@@ -1149,11 +1421,18 @@ function renderSetlist(list) {
             iconImg = `<i class="ph ph-warning-circle" style="margin-right:8px; vertical-align:middle;" title="Fichier introuvable"></i>`;
         }
 
+        // V56: Only count resolvable links
+        const validLinks = (track.linked_ids || []).filter(uid => getLinkedItem(uid) !== null);
+        const linkCount = validLinks.length;
+        const linkIndicator = linkCount > 0 
+            ? `<span class="link-badge active" style="margin-right:8px;" title="${linkCount} liens actifs"><i class="ph ph-link-simple"></i>${linkCount > 1 ? `<span class="count">${linkCount}</span>` : ""}</span>`
+            : `<span class="link-badge" style="margin-right:8px; opacity:0.3;"><i class="ph ph-link-simple"></i></span>`;
+
         // Swapped Columns: Artist | Title (with icon) | Category
         tr.innerHTML = `
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.artist || ""}</td>
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">
-                ${iconImg}${track.title || track.url}
+                ${linkIndicator}${iconImg}${track.title || track.url}
             </td>
             <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.category || ""}</td>
             <td style="text-align:right;">
@@ -1216,8 +1495,12 @@ function setupCustomAutocomplete(inputId, boxId, field) {
     const showSuggestions = () => {
         const currentVal = input.value.toLowerCase();
 
-        // 1. Get all unique values from library
-        const allValues = new Set(localFiles.map(t => t[field] || "").filter(v => v));
+        // 1. Get all unique values from all sources (Local, Setlist, Web)
+        const allValues = new Set([
+            ...localFiles.map(t => t[field] || ""),
+            ...currentTrackList.map(t => t[field] || ""),
+            ...(typeof webLinks !== 'undefined' ? webLinks.map(t => t[field] || "") : [])
+        ].filter(v => v));
 
         // 2. Filter: Match input AND Not Blocked
         const matches = Array.from(allValues).filter(v => {
@@ -1235,6 +1518,11 @@ function setupCustomAutocomplete(inputId, boxId, field) {
         matches.forEach(val => {
             const div = document.createElement("div");
             div.className = "suggestion-item";
+            div.onclick = () => {
+                input.value = val;
+                box.style.display = "none";
+                input.focus();
+            };
 
             const textSpan = document.createElement("span");
             textSpan.innerText = val;
@@ -1611,9 +1899,45 @@ async function openNativeEditor() {
     await fetch("/api/open_native_editor", { method: "POST" });
 }
 
+function resetMediaModalUI() {
+    // 1. Reset Download UI
+    const dlStatus = document.getElementById("dl-status");
+    if (dlStatus) dlStatus.innerText = t("web.status_ready");
+
+    const dlBar = document.getElementById("dl-progress-bar");
+    if (dlBar) {
+        dlBar.style.width = "0%";
+        dlBar.style.background = "var(--accent)";
+    }
+
+    const chkOffline = document.getElementById("chk-action-offline");
+    if (chkOffline) chkOffline.checked = false;
+
+    const dlOptions = document.getElementById("dl-options-container");
+    if (dlOptions) dlOptions.style.display = "none";
+
+    // 2. Reset Cover Edit
+    const delCover = document.getElementById("btn-edit-delete-cover");
+    if (delCover) delCover.style.display = "none";
+
+    // 3. Reset Search/Local state
+    const results = document.getElementById("search-results");
+    if (results) results.innerHTML = "";
+    
+    const localPathContainer = document.getElementById("yt-local-path-container");
+    if (localPathContainer) localPathContainer.style.display = "none";
+
+    // 4. Reset Linked Items display (V58)
+    const linkedDisplay = document.getElementById("edit-linked-items-display");
+    if (linkedDisplay) linkedDisplay.innerHTML = "";
+    const linkedDisplayWeb = document.getElementById("web-link-linked-items-display");
+    if (linkedDisplayWeb) linkedDisplayWeb.innerHTML = "";
+}
+
 // --- MODAL & EDIT LOGIC ---
 
 function openAddModal() {
+    resetMediaModalUI();
     document.getElementById("media-modal").showModal();
     // Clear Form
     document.getElementById("yt-search-input").value = "";
@@ -1675,17 +1999,22 @@ function openAddModal() {
 }
 
 function openEditModal(index) {
+    resetMediaModalUI();
     editingIndex = index;
+    lastEditContext = 'setlist';
     // Find track by original index in the current (possibly sorted) list
     const track = currentTrackList.find(t => t.originalIndex === index);
     if (!track) return;
 
+    currentEditingLinkedIds = track.linked_ids || []; // V58: Initialize links
+    
     // Reveal sidebar if in theater mode to give context to editing
     if (isTheaterMode && typeof toggleTheaterMode === 'function') {
         toggleTheaterMode(false);
     }
 
     document.getElementById("media-modal").showModal();
+    renderModalLinkedItems(); // V58: Show links
     
     // Auto-scroll in background
     setTimeout(scrollToActiveTrack, 200);
@@ -1700,6 +2029,7 @@ function openEditModal(index) {
     
     const urlField = document.getElementById("edit-url");
     urlField.value = track.url;
+    checkDownloadAvailability(track.url); // V58: Restore download options visibility
     urlField.parentElement.style.display = "block"; // Show URL for YouTube
     document.getElementById("yt-local-path-container").style.display = "none"; // Hide local path for YouTube
     document.getElementById("search-zone-container").style.display = "block"; // Ensure search zone is available for YouTube
@@ -1715,6 +2045,10 @@ function openEditModal(index) {
     document.getElementById("edit-original-pitch").value = track.original_pitch || "";
     document.getElementById("edit-target-pitch").value = track.target_pitch || "";
 
+    // V58: Dynamic button text
+    const saveBtn = document.querySelector(".btn-primary[onclick='saveItem()']");
+    if (saveBtn) saveBtn.innerText = t("web.btn_save_web_lib");
+
     syncPlaybackSettingsToModals(track);
 
     // Legacy support: if description exists but not youtube_description, assume it was generic description (or user note?)
@@ -1724,6 +2058,10 @@ function openEditModal(index) {
 
     // Thumbnail & Aspect Ratio
     const thumbContainer = document.getElementById("preview-thumbnail");
+    
+    // V57: Initialize linked IDs
+    currentEditingLinkedIds = track.linked_ids || [];
+
     thumbContainer.classList.remove("wide-art", "square-art");
 
     const btnDel = document.getElementById("btn-edit-delete-cover");
@@ -1749,10 +2087,15 @@ function openEditModal(index) {
 
     // Hide Search Zone in Edit Mode (Save Space)
     document.getElementById("search-zone-container").classList.add("hidden");
-    document.getElementById("btn-back-search").style.display = "block"; // Start with "Back" button visible to allow new search
-
-    // Check if URL is valid for download
+    document.getElementById("btn-back-search").style.display = "block"; // Start with "Back" button visible to allow new search    
+    
     checkDownloadAvailability(track.url);
+
+    // V58: Reset Actions Selector
+    document.getElementById("chk-action-link").checked = true;
+    document.getElementById("chk-action-offline").checked = false;
+    document.getElementById("dl-options-container").style.display = "none";
+    updateYouTubeSaveButton();
 
     // SUBTITLES LOGIC for YouTube
     const subSettings = document.getElementById("edit-subtitle-settings");
@@ -1770,6 +2113,7 @@ function openEditModal(index) {
     } else {
         subSettings.style.display = "none";
     }
+    renderModalLinkedItems(); // V58: Display linked items in main edit modal
 }
 
 function closeModal() {
@@ -1991,31 +2335,79 @@ async function checkDLStatus() {
 }
 
 function checkDownloadAvailability(url) {
-    const btnDl = document.getElementById("btn-show-dl");
-    const btnHelp = document.getElementById("btn-offline-help");
+    const actionContainer = document.getElementById("action-offline-container");
+    const lblOffline = document.getElementById("lbl-action-offline");
+    const btnHelp = document.getElementById("btn-offline-help-new");
+    if (!actionContainer) return;
 
     const isYoutube = url && (url.includes("youtube.com") || url.includes("youtu.be"));
-
+    
     if (isYoutube) {
-        if (systemCapabilities && systemCapabilities.can_download) {
-            // Capability Present: Show Button, Hide Help
-            if (btnDl) btnDl.style.display = "inline-block";
+        actionContainer.style.display = "flex";
+        
+        // Logic: Show help ONLY if tools are missing
+        const canDownload = (systemCapabilities && systemCapabilities.can_download);
+        
+        if (canDownload) {
+            if (lblOffline) lblOffline.style.display = "flex";
             if (btnHelp) btnHelp.style.display = "none";
         } else {
-            // Capability Missing: Hide Button, Show Help
-            if (btnDl) btnDl.style.display = "none";
-            if (btnHelp) btnHelp.style.display = "inline-block";
+            if (lblOffline) {
+                lblOffline.style.display = "none";
+                document.getElementById("chk-action-offline").checked = false;
+            }
+            if (btnHelp) btnHelp.style.display = "flex";
         }
     } else {
-        // Not YouTube: Hide Both
-        if (btnDl) btnDl.style.display = "none";
-        if (btnHelp) btnHelp.style.display = "none";
+        actionContainer.style.display = "none";
+    }
+}
+
+function updateYouTubeSaveButton() {
+    const btn = document.getElementById("btn-save-item");
+    if (!btn) return;
+
+    const linkChecked = document.getElementById("chk-action-link").checked;
+    const offlineChecked = document.getElementById("chk-action-offline").checked;
+    const isEdit = (editingIndex !== null);
+
+    if (isEdit && !offlineChecked) {
+        btn.innerText = t("web.btn_update_info");
+        return;
+    }
+
+    if (linkChecked && offlineChecked) {
+        btn.innerText = t("web.btn_save_both");
+    } else if (offlineChecked) {
+        btn.innerText = t("web.btn_save_offline");
+    } else {
+        btn.innerText = t("web.btn_save_link");
     }
 }
 
 async function toggleDownloadOptions() {
+    // Legacy function replaced by checkbox listener
+    const chk = document.getElementById("chk-action-offline");
+    if (chk) {
+        chk.checked = !chk.checked;
+        showDownloadOptions(chk.checked);
+        updateYouTubeSaveButton();
+    }
+}
+
+async function showDownloadOptions(forceState = null) {
     const container = document.getElementById("dl-options-container");
-    if (container.style.display === "block") {
+    if (!container) return;
+
+    if (forceState === false) {
+        container.style.display = "none";
+        return;
+    }
+
+    const isVisible = container.style.display === "block";
+    const newState = (forceState === true) ? true : !isVisible;
+
+    if (!newState) {
         container.style.display = "none";
         return;
     }
@@ -2023,8 +2415,6 @@ async function toggleDownloadOptions() {
     container.style.display = "block";
 
     // Auto-scroll to bottom of modal to show options
-    // Auto-scroll to bottom of modal to show options
-    // Use requestAnimationFrame to ensure DOM verify
     requestAnimationFrame(() => {
         container.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
@@ -2049,7 +2439,12 @@ async function toggleDownloadOptions() {
         folders.forEach(f => {
             const opt = document.createElement("option");
             opt.value = f;
-            opt.innerText = f;
+            // V58: Clean display for internal folders
+            let displayPath = f;
+            if (f.startsWith("${APP_DIR}")) {
+                displayPath = f.replace("${APP_DIR}", "[App]");
+            }
+            opt.innerText = displayPath;
             folderSelect.appendChild(opt);
         });
     }
@@ -2057,6 +2452,21 @@ async function toggleDownloadOptions() {
     // 2. Populate Formats based on Capabilities
     const formatSelect = document.getElementById("dl-format");
     formatSelect.innerHTML = "";
+
+    // V58: Auto-select folder when format changes
+    formatSelect.onchange = () => {
+        const fmt = formatSelect.value;
+        const folders = Array.from(folderSelect.options);
+        let targetSub = "";
+        
+        if (fmt.startsWith("audio_")) targetSub = "Audios";
+        else if (fmt.startsWith("video_")) targetSub = "Videos";
+
+        if (targetSub) {
+            const bestMatch = folders.find(opt => opt.value.includes(targetSub));
+            if (bestMatch) folderSelect.value = bestMatch.value;
+        }
+    };
 
     const addOpt = (val, text, enabled = true) => {
         const o = document.createElement("option");
@@ -2086,6 +2496,9 @@ async function toggleDownloadOptions() {
     if (!ffmpegAvailable) {
         formatSelect.value = "video_auto";
     }
+
+    // Trigger initial auto-selection (V58)
+    if (formatSelect.onchange) formatSelect.onchange();
 }
 
 async function startDownload() {
@@ -2141,6 +2554,11 @@ async function saveItem() {
     const channel = document.getElementById("edit-channel").value;
     const url = document.getElementById("edit-url").value;
 
+    // V58: Context redirection
+    if (lastEditContext === 'library') {
+        return saveLocalItem();
+    }
+
     // Use defaults if empty
     const category = document.getElementById("edit-category").value || t("web.default_category");
     const genre = document.getElementById("edit-genre").value || t("web.default_genre");
@@ -2186,16 +2604,18 @@ async function saveItem() {
         subtitle_pos_y: 100 - parseInt(document.getElementById("edit-sub-pos").value || 20, 10),
         autoplay: document.getElementById("edit-autoplay").checked,
         autoreplay: document.getElementById("edit-autoreplay").checked,
-        linked_ids: (editingIndex !== null && currentTrackList[editingIndex]) ? (currentTrackList[editingIndex].linked_ids || []) : []
+        linked_ids: currentEditingLinkedIds // V58: Use active modal state instead of old track list data
     };
 
     if (editingIndex !== null) {
         // UPDATE
-        await fetch(`/api/setlist/${editingIndex}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
+        if (document.getElementById("chk-action-link").checked) {
+            await fetch(`/api/setlist/${editingIndex}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+        }
 
         // Only update live UI if the currently playing track is the one we just edited
         if (currentActivePlayer === 'youtube' && window.currentPlayingIndex === editingIndex) {
@@ -2204,14 +2624,25 @@ async function saveItem() {
         }
     } else {
         // CREATE
-        await fetch("/api/setlist", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
+        if (document.getElementById("chk-action-link").checked) {
+            await fetch("/api/setlist", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+        }
     }
 
-    closeModal();
+    // V58: Trigger Offline Access (Download) if checked
+    const isOffline = document.getElementById("chk-action-offline").checked;
+    if (isOffline) {
+        startDownload(); // This is async but we don't wait for completion
+    }
+
+    // Only close immediately if NOT downloading, otherwise keep open for progress
+    if (!isOffline) {
+        closeModal();
+    }
     loadSetlist();
 }
 
@@ -2542,7 +2973,8 @@ function playTrack(track) {
         currentActivePlayer = 'youtube'; // Important for logic tracking
 
         // GLOBAL HEADER
-        document.getElementById("global-video-info").style.display = "flex";
+        updateHeaderVisibility(true);
+
         globalTitle.innerText = track.title || track.url;
         if (track.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = track.bpm; } else { globalBpm.style.display = "none"; }
         updateHeaderScaleDisplay(track);
@@ -2601,7 +3033,8 @@ function playTrack(track) {
         // Generic / Direct URL (could be any iframeable content)
         setMode("GENERIC", getProfile(track, "Web Generic")); // Fallback
 
-        document.getElementById("global-video-info").style.display = "none";
+        updateHeaderVisibility(false);
+
 
         // SMART EMBED CONVERSION
         // Automatically convert known platforms to Embed URL
@@ -3122,17 +3555,28 @@ async function loadLocalFiles() {
         await loadBlockedTags(); // Load blocked list first
 
         const res = await fetch("/api/local/files");
-        const rawLocal = await res.json();
-        // Assign originalIndex for safe referencing during relocation/edit
-        localFiles = rawLocal.map((f, idx) => ({ ...f, originalIndex: idx }));
-    } catch (e) { localFiles = []; }
+        if (res.ok) {
+            const rawLocal = await res.json();
+            console.log("[LOAD_LOCAL] Items loaded:", rawLocal.length);
+            // V56: Diagnostic check for UIDs
+            const missingUids = rawLocal.filter(f => !f.uid).length;
+            if (missingUids > 0) console.warn(`[V56] ${missingUids} items missing UIDs. Healer might not have run yet.`);
+            
+            localFiles = rawLocal.map((f, idx) => ({ ...f, originalIndex: idx }));
+        }
+    } catch (e) { 
+        console.error("Local files load error:", e);
+        localFiles = []; 
+    }
 
     // Initialize Custom Autocompletes
     setupCustomAutocomplete("edit-category", "suggestions-category", "category");
     setupCustomAutocomplete("edit-genre", "suggestions-genre", "genre");
 
     renderLocalFiles();
+    refreshInterconnections(); // V55: Wake up header UI after loading
 }
+
 
 function renderLocalFiles() {
     const tbody = document.getElementById("local-body");
@@ -3160,9 +3604,13 @@ function renderLocalFiles() {
 
     filtered.forEach((file, index) => {
         const realIndex = localFiles.indexOf(file);
+        if (!file.path) {
+            console.warn("[RENDER_LOCAL] Missing path for item:", file);
+        }
 
         // Icon Logic
-        const ext = file.path.split('.').pop().toLowerCase();
+        const path = file.path || "";
+        const ext = path.split('.').pop().toLowerCase();
         const isAudio = ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg'].includes(ext);
 
         // Phosphor Icons
@@ -3182,13 +3630,21 @@ function renderLocalFiles() {
 
         if (isMissing) tr.classList.add('track-missing');
 
+        // V56: Only count resolvable links
+        const validLinks = (file.linked_ids || []).filter(uid => getLinkedItem(uid) !== null);
+        const linkCount = validLinks.length;
+        const linkIndicator = linkCount > 0 
+            ? `<span class="link-badge active" style="margin-right:8px;" title="${linkCount} liens actifs"><i class="ph ph-link-simple"></i>${linkCount > 1 ? `<span class="count">${linkCount}</span>` : ""}</span>`
+            : `<span class="link-badge" style="margin-right:8px; opacity:0.3;"><i class="ph ph-link-simple"></i></span>`;
+
         tr.innerHTML = `
             <td>${file.artist || ""}</td>
             <td style="cursor:pointer;" onclick="playLocal(${realIndex})">
-                ${iconHtml}
+                ${linkIndicator}${iconHtml}
                 ${file.title}
             </td>
             <td>${file.category || "Général"}</td>
+
             <td style="text-align:right;">
                 <button class="btn-action" onclick="${file.is_multitrack ? 'openMultitrackModal' : 'openEditLocalModal'}(${realIndex})">✎</button>
                 <button class="btn-action" onclick="deleteLocalFile(${realIndex})" style="color:#cf6679;">×</button>
@@ -3537,6 +3993,9 @@ async function playLocal(index) {
     // Sync UI Highlight immediately
     if (typeof refreshSetlistHighlights === "function") refreshSetlistHighlights();
 
+    // Trigger Interconnection UI for all local types (V53)
+    updateInterconnectionUI(file);
+
     // Helper
     const getProfile = (item, def) => (item.target_profile && item.target_profile !== "Auto") ? item.target_profile : def;
 
@@ -3666,10 +4125,11 @@ async function playLocal(index) {
         console.log("[DEBUG JS] Envoi demande setMode (MULTITRACK) avec profil :", target);
         setMode("AUDIO", target);
         
-        document.getElementById("global-video-info").style.display = "flex";
+        updateHeaderVisibility(true);
         globalTitle.innerText = file.title || "Multitrack";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
         updateHeaderScaleDisplay(file);
+
 
         videoContainer.style.display = "none";
         audioContainer.style.display = "none";
@@ -4187,7 +4647,8 @@ async function playLocal(index) {
         console.log("[DEBUG JS] Envoi demande setMode (AUDIO) avec profil :", target);
         setMode("AUDIO", target); // Context Switch
         
-        document.getElementById("global-video-info").style.display = "flex";
+        updateHeaderVisibility(true);
+
         globalTitle.innerText = file.title || "Audio";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
         updateHeaderScaleDisplay(file);
@@ -4276,7 +4737,8 @@ async function playLocal(index) {
         console.log("[DEBUG JS] Envoi demande setMode (VIDEO) avec profil :", target);
         setMode("VIDEO", target); // Context Switch
 
-        document.getElementById("global-video-info").style.display = "flex";
+        updateHeaderVisibility(true);
+
         globalTitle.innerText = file.title || "Video";
         if (file.bpm) { globalBpm.style.display = "inline"; globalBpm.querySelector(".val").innerText = file.bpm; } else { globalBpm.style.display = "none"; }
         updateHeaderScaleDisplay(file);
@@ -5337,8 +5799,11 @@ async function confirmImport(action) {
 }
 
 function openEditLocalModal(index) {
+    resetMediaModalUI();
     editingLocalIndex = index;
+    lastEditContext = 'library';
     const item = localFiles[index];
+    currentEditingLinkedIds = item.linked_ids || []; // V58: Initialize links for local edit
     
     // Reveal sidebar if in theater mode to give context to editing
     if (isTheaterMode && typeof toggleTheaterMode === 'function') {
@@ -5355,8 +5820,13 @@ function openEditLocalModal(index) {
     document.getElementById("edit-artist").value = item.artist || "";
     
     const urlField = document.getElementById("edit-url");
-    urlField.value = ""; // URL empty for local, path shown below
-    urlField.parentElement.style.display = "none"; // Hide URL field for local
+    urlField.value = item.url || ""; // Restore URL if known from previous download
+    urlField.parentElement.style.display = item.url ? "block" : "none"; // Show only if url exists or keep hidden for local? 
+    // User requested to see it if possible: "Je pense que ce serait bien... que le lien original soit renseigné".
+    
+    // V58: Dynamic button text
+    const saveBtn = document.querySelector(".btn-primary[onclick='saveItem()']");
+    if (saveBtn) saveBtn.innerText = t("web.btn_save");
     document.getElementById("edit-category").value = item.category || "Général";
     document.getElementById("edit-genre").value = item.genre || "Divers";
     document.getElementById("edit-target-profile").value = item.target_profile || "Auto";
@@ -5367,6 +5837,12 @@ function openEditLocalModal(index) {
     document.getElementById("edit-tuning").value = item.tuning || "standard";
     document.getElementById("edit-original-pitch").value = item.original_pitch || "";
     document.getElementById("edit-target-pitch").value = item.target_pitch || "";
+
+    // V58: Hide Action Selector for local files
+    const actionSel = document.querySelector(".actions-selector");
+    if (actionSel) actionSel.style.display = "none";
+    const dlOpt = document.getElementById("dl-options-container");
+    if (dlOpt) dlOpt.style.display = "none";
 
     // Specific local display elements
     document.getElementById("local-path-display").innerText = item.path;
@@ -5424,6 +5900,7 @@ function openEditLocalModal(index) {
     }
 
     syncPlaybackSettingsToModals(item);
+    renderModalLinkedItems(); // V58: Display linked items in local edit modal
 
     // Load Art
     currentCoverData = null;
@@ -5450,6 +5927,7 @@ function closeLocalModal() {
 // --- MULTITRACK MODAL LOGIC ---
 function openMultitrackModal(index) {
     editingLocalIndex = index;
+    lastEditContext = 'library';
     const item = localFiles[index];
     if (!item) return;
 
@@ -5483,6 +5961,10 @@ function openMultitrackModal(index) {
     document.getElementById("mt-original-pitch").value = item.original_pitch || "";
     document.getElementById("mt-target-pitch").value = item.target_pitch || "";
     document.getElementById("mt-target-profile").value = item.target_profile || "Auto";
+
+    // V57: Initialize linked IDs
+    currentEditingLinkedIds = item.linked_ids || [];
+    renderModalLinkedItems(); // V58: Display linked items in multitrack modal
 
     let volVal = (item.volume !== undefined) ? item.volume : 100;
     document.getElementById("mt-modal-volume").value = volVal;
@@ -5556,7 +6038,7 @@ async function saveMultitrackItem() {
         volume: parseInt(document.getElementById("mt-modal-volume").value, 10) || 100,
         autoplay: document.getElementById("mt-autoplay").checked,
         autoreplay: document.getElementById("mt-autoreplay").checked,
-        linked_ids: (editingLocalIndex !== null && localFiles[editingLocalIndex]) ? (localFiles[editingLocalIndex].linked_ids || []) : []
+        linked_ids: currentEditingLinkedIds
     };
 
     const res = await fetch(`/api/local/${editingLocalIndex}`, {
@@ -5625,7 +6107,8 @@ async function saveLocalItem() {
         volume: parseInt(document.getElementById("edit-volume").value, 10) || 100,
         autoplay: document.getElementById("edit-autoplay").checked,
         autoreplay: document.getElementById("edit-autoreplay").checked,
-        linked_ids: (editingLocalIndex !== null && localFiles[editingLocalIndex]) ? (localFiles[editingLocalIndex].linked_ids || []) : []
+        url: document.getElementById("edit-url").value, // V58: Preserve URL
+        linked_ids: currentEditingLinkedIds
     };
 
     const res = await fetch(`/api/local/${editingLocalIndex}`, {
@@ -5647,7 +6130,16 @@ async function saveLocalItem() {
         }
     }
 
-    closeLocalModal();
+    // V58: Trigger Offline Access (Download) if checked
+    const isOffline = document.getElementById("chk-action-offline").checked;
+    if (isOffline) {
+        startDownload(); // Logic will handle its own closing/progress
+    }
+
+    // Only close immediately if NOT downloading, otherwise keep open for progress
+    if (!isOffline) {
+        closeLocalModal();
+    }
     loadLocalFiles();
 }
 
@@ -5672,57 +6164,76 @@ function sortLocal(key) {
 
 // loadYouTubeAPI(); // Fix: Removed undefined call. API loaded via HTML script tag.
 // --- INITIALIZATION ---
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("DOM Loaded");
+document.addEventListener("DOMContentLoaded", async () => {
+    console.log("DOM Loaded - Starting V57 Orchestration");
 
-    // Initialize WebSockets
-    if (typeof connectVideoWebSocket === 'function') {
-        connectVideoWebSocket();
-    } else {
-        console.error("connectVideoWebSocket function not found!");
-    }
+    // 1. Initial State from LocalStorage (Sync)
+    try {
+        const savedLang = localStorage.getItem("preferred_lang") || "fr";
+        await loadTranslations(savedLang);
+    } catch(e) {}
 
-    // CHECK CAPABILITIES
+    // 2. Initialize WebSockets
+    if (typeof connectVideoWebSocket === 'function') connectVideoWebSocket();
+
+    // 3. CHECK CAPABILITIES & YT
     checkSystemCapabilities();
-
-    // CHECK YOUTUBE API MANUALLY
-    // If API loaded before we attached the callback, we must init manually.
     if (window.YT && window.YT.Player && typeof onYouTubeIframeAPIReady === "function") {
-        console.log("YouTube API already loaded. Forcing manual init.");
-        try {
-            onYouTubeIframeAPIReady();
-        } catch (e) { console.error("Manual YT Init Error:", e); }
+        try { onYouTubeIframeAPIReady(); } catch (e) {}
     }
 
-    // Initialize Universal Loop Selection (One time)
     setupUniversalLoopSelection();
-
     setupSliderReset(document.getElementById("mt-modal-volume"), "volume");
 
-    // Sidebar Hover Logic
+    // 4. SYNC DATA LOAD (The Core of V57 Fix)
+    console.log("[INIT] Waiting for critical data (Setlist, Library, WebLinks)...");
+    try {
+        // We wait for all 3 main sources to be in memory
+        await Promise.all([
+            loadSetlist(),
+            loadLocalFiles(),
+            loadWebLinks()
+        ]);
+        console.log("[INIT] All critical data loaded. Ready for UI.");
+    } catch (e) {
+        console.error("[INIT] Data load failure during startup:", e);
+    }
+
+    // 5. REFRESH UI FOR ACTIVE MEDIA
+    // Now that libraries are full, refreshInterconnections can find 'web_...' UIDs
+    setTimeout(() => {
+        refreshInterconnections();
+        console.log("[INIT] Startup UI sync complete.");
+    }, 100);
+
+    // V58: Action Selector Listeners
+    const chkLink = document.getElementById("chk-action-link");
+    const chkOffline = document.getElementById("chk-action-offline");
+    if (chkLink) {
+        chkLink.addEventListener("change", updateYouTubeSaveButton);
+    }
+    if (chkOffline) {
+        chkOffline.addEventListener("change", () => {
+            showDownloadOptions(chkOffline.checked);
+            updateYouTubeSaveButton();
+        });
+    }
+
+    // Sidebar Hover Logic (remains same)
     const hoverTrigger = document.getElementById('sidebar-hover-trigger');
     const sidebar = document.querySelector('.sidebar-zone');
     if (hoverTrigger && sidebar) {
         hoverTrigger.addEventListener('mouseenter', () => {
-            // Uniquement si le mode survol est actif ET que la sidebar est officiellement masquée (Theater Mode)
             if (currentSettings && currentSettings.sidebar_hover_trigger && isTheaterMode) {
-                console.log("[DEBUG] Sidebar Hover Triggered");
                 sidebar.classList.add('hover-active');
             }
         });
         sidebar.addEventListener('mouseleave', () => {
-            // Toujours retirer le mode hover quand on quitte la zone
             if (sidebar.classList.contains('hover-active')) {
-                console.log("[DEBUG] Sidebar Hover Left");
                 sidebar.classList.remove('hover-active');
             }
         });
     }
-
-    // Initial Loads
-    setTimeout(() => {
-        if (!localFiles || localFiles.length === 0) loadLocalFiles();
-    }, 1000);
 });
 
 function handleLocalCover(input) {
@@ -5768,6 +6279,9 @@ function openUniversalTagModal(context) {
     } else if (context === 'edit') {
         title = document.getElementById("edit-title").value;
         artist = document.getElementById("edit-artist").value;
+    } else if (context === 'web-link') {
+        title = document.getElementById("web-link-title").value;
+        artist = document.getElementById("web-link-artist").value;
     }
 
     document.getElementById("utag-search-title").value = title;
@@ -5783,121 +6297,290 @@ async function performUniversalSearch() {
     const query = (artist ? artist + " " : "") + title;
 
     const container = document.getElementById("utag-results-container");
-    container.innerHTML = `<div style='color:var(--accent); display:flex; align-items:center; justify-content:center; gap:10px; padding:20px;'>
-                                <i class='ph ph-circle-notch ph-spin' style='font-size:1.5em;'></i> 
-                                <span>Recherche enrichie...</span>
-                           </div>`;
+    container.innerHTML = ""; // V54: Clear once at START
+
+    const loadingDiv = document.createElement("div");
+    loadingDiv.id = "utag-loading-indicator";
+    loadingDiv.style = 'color:var(--accent); display:flex; align-items:center; justify-content:center; gap:10px; padding:20px;';
+    loadingDiv.innerHTML = `<i class='ph ph-circle-notch ph-spin' style='font-size:1.5em;'></i> <span>Recherche enrichie...</span>`;
+    container.appendChild(loadingDiv);
 
     try {
+        // 0. CHECK FOR LINKED MEDIA (V54)
+        // ... (existing sourceItem picking logic)
+        const container = document.getElementById("utag-results-container");
+        
+        // 0. CHECK FOR LINKED MEDIA (V54)
+        // Find current object being edited
+        let sourceItem = null;
+        if (activeUniversalContext === 'local') sourceItem = localFiles[editingLocalIndex];
+        else if (activeUniversalContext === 'mt') sourceItem = localFiles[editingLocalIndex];
+        else if (activeUniversalContext === 'edit') sourceItem = currentTrackList.find(t => t.originalIndex === editingIndex);
+        else if (activeUniversalContext === 'web-link') sourceItem = (currentWebLinkIndex !== -1) ? webLinks[currentWebLinkIndex] : { linked_ids: currentEditingLinkedIds };
+
+        if (sourceItem && sourceItem.linked_ids && sourceItem.linked_ids.length > 0) {
+            sourceItem.linked_ids.forEach(uid => {
+                const linked = getLinkedItem(uid);
+                if (linked) {
+                    const res = {
+                        title: linked.title,
+                        artist: linked.artist,
+                        album: linked.album || "Média Lié",
+                        year: linked.year || "",
+                        bpm: linked.bpm,
+                        key: linked.key,
+                        cover_url: linked.cover ? (linked.cover.startsWith('http') ? linked.cover : `/api/cover?path=${encodeURIComponent(linked.cover)}`) : null,
+                        original_cover_path: linked.cover, // V54: Keep original path for internal sync
+                        url: linked.url, // V55: Pass URL for icon rendering
+                        is_linked_suggestion: true
+                    };
+                    renderUniversalResultItem(res, true);
+
+                }
+            });
+        }
+
+        // 1. SMART LOCAL SEARCH (V55: Unified Search & Link)
+        const q = title.toLowerCase().trim();
+        const artistQ = artist ? artist.toLowerCase().trim() : "";
+        
+        if (q.length > 2) {
+            const localMatches = localFiles.filter(item => {
+                const itemTitle = (item.title || "").toLowerCase();
+                const itemArtist = (item.artist || "").toLowerCase();
+                // Check if already linked
+                const itemUid = `lib:${item.originalIndex}`;
+                if (sourceItem && sourceItem.linked_ids && sourceItem.linked_ids.includes(itemUid)) return false;
+                
+                return itemTitle.includes(q) || (artistQ && itemArtist.includes(artistQ));
+            });
+
+            if (localMatches.length > 0) {
+                localMatches.forEach(item => {
+                    const res = {
+                        title: item.title,
+                        artist: item.artist,
+                        album: item.album || "Bibliothèque Locale",
+                        year: item.year || "",
+                        bpm: item.bpm,
+                        key: item.key,
+                        original_cover_path: item.cover || item.path, // V55: Fallback to path for extraction if no specific cover file
+                        uid: `lib:${item.originalIndex}`,
+                        is_local_match: true
+                    };
+
+                    renderUniversalResultItem(res, false, true);
+                });
+            }
+        }
+
+
         const res = await fetch(`/api/metadata/search?q=${encodeURIComponent(query)}`);
         const results = await res.json();
-        container.innerHTML = "";
+        
+        // Remove loading indicator JUST before showing API results
+        const indicator = document.getElementById("utag-loading-indicator");
+        if (indicator) indicator.remove();
 
-        if (results.length === 0) {
+        if (results.length === 0 && container.children.length === 0) {
             container.innerHTML = "<div style='padding:20px; text-align:center; color:#888;'>Aucun résultat trouvé. Essayez de simplifier le titre.</div>";
             return;
         }
 
         results.forEach(item => {
-            const div = document.createElement("div");
-            div.className = "api-result-item";
-            div.style.margin = "5px";
-            
-            let thumb = "<span style='font-size:24px;'>🎵</span>";
-            if (item.cover_url) {
-                thumb = `<img src="${item.cover_url}" style="width:40px; height:40px; border-radius:4px; object-fit:cover;">`;
-            }
-
-            let metaInfo = `${item.artist} - ${item.album} (${item.year})`;
-            if (item.bpm || item.key) {
-                metaInfo += `<br><span style="color:var(--accent); font-size:0.85em;">`;
-                if (item.bpm) metaInfo += `🎵 ${item.bpm} BPM `;
-                if (item.key) metaInfo += `🎹 Key: ${item.key}`;
-                metaInfo += `</span>`;
-            }
-
-            div.innerHTML = `
-                ${thumb}
-                <div style="flex:1;">
-                    <div style="font-weight:bold; font-size:0.95em;">${item.title}</div>
-                    <div style="font-size:0.8em; color:#bbb;">${metaInfo}</div>
-                </div>
-                <button class="btn-primary" style="padding:4px 8px; font-size:0.8em;">Appliquer</button>
-            `;
-
-            div.onclick = () => applyUniversalMetadata(item);
-            container.appendChild(div);
+            renderUniversalResultItem(item);
         });
     } catch (e) {
         container.innerHTML = "<div style='color:red; padding:20px;'>Erreur lors de la recherche.</div>";
     }
 }
 
+function renderUniversalResultItem(item, isLinkedSync = false, isLocalMatch = false) {
+    const container = document.getElementById("utag-results-container");
+    const div = document.createElement("div");
+    div.className = "api-result-item";
+    div.style.margin = "5px";
+    
+    if (isLinkedSync) {
+        div.style.border = "1px solid var(--accent)";
+        div.style.background = "rgba(187,134,252,0.1)";
+    } else if (isLocalMatch) {
+        div.style.border = "1px solid #4CAF50";
+        div.style.background = "rgba(76,175,80,0.1)";
+    }
+    
+    let thumb = "<span style='font-size:24px;'>🎵</span>";
+    const coverToUse = item.cover_url || (item.original_cover_path ? `/api/cover?path=${encodeURIComponent(item.original_cover_path)}` : null);
+    
+    // V55: Show Site Icon (Favicon) for Web Links instead of song cover, for better recognition
+    if (item.url && !item.url.includes('youtube.com') && !item.url.includes('youtu.be')) {
+        const iconUrl = getIcon(item.url);
+        if (iconUrl) {
+            thumb = `<img src="${iconUrl}" style="width:32px; height:32px; border-radius:4px; margin: 4px;">`;
+        }
+    } else if (coverToUse) {
+        thumb = `<img src="${coverToUse}" style="width:40px; height:40px; border-radius:4px; object-fit:cover;">`;
+    }
+
+
+    let metaInfo = `${item.artist} - ${item.album} (${item.year || ""})`;
+    if (item.bpm || item.key) {
+        metaInfo += `<br><span style="color:var(--accent); font-size:0.85em;">`;
+        if (item.bpm) metaInfo += `🎵 ${item.bpm} BPM `;
+        if (item.key) metaInfo += `🎹 Key: ${item.key}`;
+        metaInfo += `</span>`;
+    }
+
+    let btnLabel = isLinkedSync ? 'SYNC LINK' : (isLocalMatch ? 'LINK & SYNC' : 'Appliquer');
+    let btnStyle = `padding:4px 8px; font-size:0.8em; min-width:80px;`;
+    if (isLinkedSync) btnStyle += `background:var(--accent);`;
+    else if (isLocalMatch) btnStyle += `background:#2E7D32;`;
+
+    div.innerHTML = `
+        ${thumb}
+        <div style="flex:1; min-width:0;">
+            <div style="font-weight:bold; font-size:0.95em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</div>
+            <div style="font-size:0.8em; color:#bbb; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${metaInfo}</div>
+        </div>
+        <button class="btn-primary" style="${btnStyle}">
+            ${btnLabel}
+        </button>
+    `;
+
+    div.onclick = (e) => {
+        console.log("[UTAG] Result clicked:", item.title);
+        applyUniversalMetadata(item);
+    };
+    container.appendChild(div);
+}
+
+
 function applyUniversalMetadata(item) {
-    const applyTitle = document.getElementById("utag-apply-title").checked;
-    const applyArtist = document.getElementById("utag-apply-artist").checked;
-    const applyBpmKey = document.getElementById("utag-apply-bpm-key").checked;
-    const applyPochette = document.getElementById("utag-apply-pochette").checked;
-    const applyTags = document.getElementById("utag-apply-tags").checked;
+    try {
+        console.warn("[UTAG] applyUniversalMetadata CALLED with item:", item);
+        logToBackend(`[UTAG] applyUniversalMetadata CALLED. ctx=${activeUniversalContext}`);
 
-    const ctx = activeUniversalContext;
+        const applyTitle = document.getElementById("utag-apply-title")?.checked;
+        const applyArtist = document.getElementById("utag-apply-artist")?.checked;
+        const applyBpmKey = document.getElementById("utag-apply-bpm-key")?.checked;
+        const applyPochette = document.getElementById("utag-apply-pochette")?.checked;
+        const applyTags = document.getElementById("utag-apply-tags")?.checked;
 
-    if (applyTitle) document.getElementById(`${ctx}-title`).value = item.title || "";
-    if (applyArtist) {
-        const artInput = document.getElementById(`${ctx}-artist`);
-        if (artInput) artInput.value = item.artist || "";
-    }
+        const ctx = activeUniversalContext;
+        console.log("[UTAG] Context is:", ctx);
 
-    if (applyBpmKey) {
-        const bpmInput = document.getElementById(`${ctx}-bpm`);
-        const keyInput = document.getElementById(`${ctx}-key`);
-        if (bpmInput && item.bpm) {
-            bpmInput.value = item.bpm;
-            bpmInput.dispatchEvent(new Event('input', { bubbles: true }));
+        // 1. Text Fields
+        if (applyTitle) {
+            const el = document.getElementById(`${ctx}-title`);
+            if (el) el.value = item.title || "";
         }
-        if (keyInput && item.key) {
-            keyInput.value = item.key;
-            keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+        if (applyArtist) {
+            const el = document.getElementById(`${ctx}-artist`);
+            if (el) el.value = item.artist || "";
         }
-    }
-
-    if (applyTags) {
-        const albInput = document.getElementById(`${ctx}-album`);
-        const genreInput = document.getElementById(`${ctx}-genre`);
-        const yearInput = document.getElementById(`${ctx}-year`);
-        if (albInput) albInput.value = item.album || "";
-        if (genreInput) genreInput.value = item.genre || "";
-        if (yearInput) yearInput.value = item.year || "";
-    }
-
-    if (applyPochette && item.cover_url) {
-        currentCoverData = item.cover_url;
-        let imgId = "";
-        let placeholderId = "";
-        let deleteBtnId = "";
-
-        if (ctx === 'local') { imgId = "local-art-img"; placeholderId = "local-art-placeholder"; deleteBtnId = "btn-delete-cover"; }
-        else if (ctx === 'mt') { imgId = "mt-art-img"; placeholderId = "mt-art-placeholder"; deleteBtnId = "btn-mt-delete-cover"; }
-        else if (ctx === 'edit') { imgId = "preview-thumbnail"; deleteBtnId = "btn-edit-delete-cover"; } // Edit has different structure
-
-        const img = document.getElementById(imgId);
-        if (img) {
-            img.src = item.cover_url;
-            img.style.display = "block";
-            // If it's the center preview in edit modal, it might be a div with background
-            if (ctx === 'edit') {
-                img.style.backgroundImage = `url(${item.cover_url})`;
-                img.style.backgroundSize = "cover";
-                img.innerHTML = ""; // Clear the emoji
+        if (applyBpmKey) {
+            const bpmEl = document.getElementById(`${ctx}-bpm`);
+            const keyEl = document.getElementById(`${ctx}-key`);
+            if (bpmEl && item.bpm !== undefined) {
+                bpmEl.value = item.bpm || "";
+                bpmEl.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (keyEl && item.key !== undefined) {
+                keyEl.value = item.key || "";
+                keyEl.dispatchEvent(new Event('input', { bubbles: true }));
             }
         }
-        const placeholder = document.getElementById(placeholderId);
-        if (placeholder) placeholder.style.display = "none";
-        const delBtn = document.getElementById(deleteBtnId);
-        if (delBtn) delBtn.style.display = "flex";
-    }
+        if (applyTags) {
+            const albEl = document.getElementById(`${ctx}-album`);
+            const genEl = document.getElementById(`${ctx}-genre`);
+            const yeaEl = document.getElementById(`${ctx}-year`);
+            if (albEl) albEl.value = item.album || "";
+            if (genEl) genEl.value = item.genre || "";
+            if (yeaEl) yeaEl.value = item.year || "";
+        }
 
-    document.getElementById("modal-universal-tag").close();
+        // 3. AUTO-LINKING (V55: Unified Workflow)
+        if (item.uid && ctx === 'web-link') {
+            console.log("[UTAG] Auto-linking triggered for:", item.uid);
+            // Prepare linker state as if we opened openMediaLinker
+            const [typePrefix, index] = item.uid.split(':');
+            const targetType = typePrefix === 'lib' ? 'library' : (typePrefix === 'set' ? 'setlist' : 'web_links');
+            const targetIndex = parseInt(index);
+
+            linkerSourceType = 'web_links';
+            linkerSourceItem = (currentWebLinkIndex === -1) ? { linked_ids: currentEditingLinkedIds } : webLinks[currentWebLinkIndex];
+            
+            // Execute link (bidirectional)
+            toggleMediaLink(targetType, targetIndex).then(() => {
+                console.log("[UTAG] Link established successfully.");
+            });
+        }
+
+
+        // 2. Pochette
+        if (applyPochette && (item.cover_url || item.original_cover_path)) {
+            console.log("[UTAG] Processing cover...");
+            let imgId = "", placeholderId = "", deleteBtnId = "";
+
+            if (ctx === 'local') { imgId = "local-art-img"; placeholderId = "local-art-placeholder"; deleteBtnId = "btn-delete-cover"; }
+            else if (ctx === 'mt') { imgId = "mt-art-img"; placeholderId = "mt-art-placeholder"; deleteBtnId = "btn-mt-delete-cover"; }
+            else if (ctx === 'edit') { imgId = "preview-thumbnail"; deleteBtnId = "btn-edit-delete-cover"; }
+            else if (ctx === 'web-link') { 
+                imgId = "web-link-art-img"; 
+                placeholderId = "web-link-art-placeholder"; 
+                deleteBtnId = "btn-web-link-delete-cover"; 
+                
+                // IMPORTANT: Update the global variable used for save
+                // V55: If no cover_url but original_cover_path is present, use it
+                window.currentWebLinkCover = item.original_cover_path || item.cover_url;
+                console.warn("[UTAG] Global currentWebLinkCover set to:", window.currentWebLinkCover);
+            }
+
+            // V57: Update currentCoverData for local types
+            if (ctx === 'local' || ctx === 'mt' || ctx === 'edit') {
+                currentCoverData = item.cover_url || item.original_cover_path;
+                console.warn("[UTAG] Global currentCoverData set to:", currentCoverData);
+            }
+
+            const img = document.getElementById(imgId);
+            if (img) {
+                const displayUrl = item.cover_url || (item.original_cover_path ? `/api/cover?path=${encodeURIComponent(item.original_cover_path)}` : "");
+                img.src = displayUrl;
+                
+                // V55: Handle placeholder UI
+                if (placeholderId) {
+                    const p = document.getElementById(placeholderId);
+                    if (p) p.style.display = "none";
+                }
+                if (deleteBtnId) {
+                    const d = document.getElementById(deleteBtnId);
+                    if (d) d.style.display = "flex";
+                }
+
+                img.style.display = "block";
+                if (ctx === 'edit') {
+                    img.style.backgroundImage = `url(${displayUrl})`;
+                    img.style.backgroundSize = "cover";
+                    img.innerHTML = "";
+                }
+
+                console.log("[UTAG] UI updated for img:", imgId);
+            }
+
+            const placeholder = document.getElementById(placeholderId);
+            if (placeholder) placeholder.style.setProperty('display', 'none', 'important');
+            
+            const delBtn = document.getElementById(deleteBtnId);
+            if (delBtn) delBtn.style.display = "flex";
+        }
+
+        document.getElementById("modal-universal-tag").close();
+        console.log("[UTAG] SUCCESS: Metadata applied.");
+
+    } catch (err) {
+        console.error("[UTAG] CRITICAL ERROR in applyUniversalMetadata:", err);
+        logToBackend(`[UTAG] CRITICAL ERROR: ${err.message}`);
+    }
 }
 
 function removeLocalCover() {
@@ -9245,10 +9928,13 @@ function openMediaLinker(sourceType) {
     } else if (sourceType === 'library') {
         linkerSourceItem = localFiles[editingLocalIndex];
     } else if (sourceType === 'web_links') {
-        linkerSourceItem = webLinks[currentWebLinkIndex];
+        linkerSourceItem = (currentWebLinkIndex === -1) ? { linked_ids: currentEditingLinkedIds } : webLinks[currentWebLinkIndex];
     }
 
-    if (!linkerSourceItem) return;
+    if (!linkerSourceItem) {
+        console.warn("[LINKER] No source item found for:", sourceType, "indices:", editingIndex, editingLocalIndex);
+        return;
+    }
 
     currentEditingLinkedIds = linkerSourceItem.linked_ids || [];
     
@@ -9258,6 +9944,14 @@ function openMediaLinker(sourceType) {
     renderExistingLinks();
 
     document.getElementById("modal-media-linker").showModal();
+}
+
+function openMediaLinkerFromEdit() {
+    if (!lastEditContext) {
+        console.warn("[LINKER] No edit context set");
+        return;
+    }
+    openMediaLinker(lastEditContext);
 }
 
 function closeMediaLinkerModal() {
@@ -9300,25 +9994,71 @@ function renderLinkerResults(query) {
     }
 
     results.slice(0, 50).forEach(res => {
+        const item = res.item;
         const div = document.createElement("div");
         div.className = "linker-result-item";
-        div.style = "display:flex; align-items:center; gap:10px; padding:8px; background:rgba(255,255,255,0.05); border-radius:5px; cursor:pointer; transition:background 0.2s; margin-bottom:5px;";
-        div.onmouseover = () => div.style.background = "rgba(255,255,255,0.1)";
-        div.onmouseout = () => div.style.background = "rgba(255,255,255,0.05)";
         
-        const typeIcon = getTypeIcon(res);
-        const uid = `${res.type.substring(0,3)}:${res.index}`;
-        const isLinked = currentEditingLinkedIds.includes(uid);
+        // V58: Enrich Thumbnail/Icon resolution
+        let thumbContent = "";
+        let typeLabel = "";
+        let typeColorClass = "";
+        let typeIcon = "";
+
+        if (res.type === 'setlist') {
+            typeLabel = "YouTube";
+            typeColorClass = "type-label-youtube";
+            typeIcon = "ph ph-youtube-logo";
+            thumbContent = item.thumbnail ? `<img src="${item.thumbnail}">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:1.5em; color:#ff4444;"><i class="${typeIcon}"></i></div>`;
+        } else if (res.type === 'library') {
+            const lType = getLocalType(item);
+            if (lType === 'multitrack') {
+                typeLabel = t("web.type_multitrack", "Multipiste");
+                typeColorClass = "type-label-multitrack";
+                typeIcon = "ph ph-stack-simple";
+            } else if (lType === 'video') {
+                typeLabel = t("web.type_video", "Vidéo");
+                typeColorClass = "type-label-video";
+                typeIcon = "ph ph-film-strip";
+            } else {
+                typeLabel = t("web.type_audio", "Audio");
+                typeColorClass = "type-label-audio";
+                typeIcon = "ph ph-music-notes";
+            }
+            
+            // Try to resolve cover for local
+            const coverUrl = item.path ? `/api/cover?path=${encodeURIComponent(item.path)}` : null;
+            thumbContent = coverUrl ? `<img src="${coverUrl}" onerror="this.innerHTML='<i class=\'${typeIcon}\'></i>';">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:1.5em; opacity:0.5;"><i class="${typeIcon}"></i></div>`;
+        } else {
+            typeLabel = "Web";
+            typeColorClass = "type-label-web";
+            typeIcon = getIcon(item.url); // This returns a class
+            const cover = item.cover || getIcon(item.url); // Use favicon if no cover
+            if (cover && cover.startsWith('http')) {
+                thumbContent = `<img src="${cover}">`;
+            } else {
+                thumbContent = `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:1.5em; color:#f1c40f;"><i class="${getIcon(item.url)}"></i></div>`;
+            }
+        }
+
+        const itemUid = item.uid || `${res.type.substring(0,3)}:${res.index}`;
+        const isLinked = currentEditingLinkedIds.includes(itemUid);
 
         div.innerHTML = `
-            <i class="${typeIcon}" style="font-size:1.2em; color:var(--accent);"></i>
-            <div style="flex:1; min-width:0;">
-                <div style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${res.item.title || 'Sans titre'}</div>
-                <div style="font-size:0.85em; color:#888;">${res.item.artist || 'Artiste inconnu'}</div>
+            <div class="linker-thumb-container">
+                ${thumbContent}
+                <div class="type-badge"><i class="${typeIcon}"></i></div>
             </div>
-            <button class="btn-secondary" style="padding:4px 8px; font-size:0.8em; border-color:${isLinked ? '#ff4444' : '#444'}; color:${isLinked ? '#ff4444' : '#fff'};"
-                onclick="toggleMediaLink('${res.type}', ${res.index})">
-                ${isLinked ? 'Détacher' : t('web.lbl_link_this', 'Lier')}
+            <div class="linker-info">
+                <div class="linker-title">${item.title || item.url}</div>
+                <div class="linker-meta">
+                    <span class="linker-type-label ${typeColorClass}">${typeLabel}</span>
+                    <span>•</span>
+                    <span>${item.artist || "Artiste inconnu"}</span>
+                </div>
+            </div>
+            <button class="btn-secondary" style="padding:6px 12px; font-size:0.85em; border-radius:6px; border-color:${isLinked ? 'rgba(255,68,68,0.3)' : '#444'}; color:${isLinked ? '#ff4444' : '#fff'};"
+                onclick="event.stopPropagation(); toggleMediaLink('${res.type}', ${res.index})">
+                ${isLinked ? (translations[currentLang]?.web?.btn_unlink || 'Détacher') : (translations[currentLang]?.web?.btn_link || 'Lier')}
             </button>
         `;
         list.appendChild(div);
@@ -9326,14 +10066,18 @@ function renderLinkerResults(query) {
 }
 
 function matchQuery(item, q) {
-    if (!q) return false; // Show nothing if empty query? Or show all? The user might want to see all.
-    // Let's show all if q is empty for setlist/library? No, better search.
+    if (!q) return false;
     return (item.title || "").toLowerCase().includes(q) || (item.artist || "").toLowerCase().includes(q);
 }
 
 function getTypeIcon(res) {
     if (res.type === 'setlist') return 'ph ph-youtube-logo';
-    if (res.type === 'library') return 'ph ph-file-audio';
+    if (res.type === 'library') {
+        const type = getLocalType(res.item);
+        if (type === 'video') return 'ph ph-film-strip';
+        if (type === 'multitrack') return 'ph ph-stack-simple';
+        return 'ph ph-music-notes';
+    }
     
     // Web Links
     const type = res.item.type || 'other';
@@ -9360,31 +10104,123 @@ function renderExistingLinks() {
         return;
     }
 
-    currentEditingLinkedIds.forEach(uid => {
-        const item = getLinkedItem(uid);
-        if (!item) return;
+    // V58: Filter out invalid UIDs before processing to prevent crashes
+    const validUids = currentEditingLinkedIds.filter(id => id && typeof id === 'string');
 
-        const prefix = uid.substring(0, 3).toUpperCase();
-        const [typeCode, idx] = uid.split(':');
+    validUids.forEach(uid => {
+        const item = getLinkedItem(uid);
+        if (!item) {
+            console.warn("[LINKER] Unresolvable UID in existing links:", uid);
+            return;
+        }
+
+        // V55: Determine type and name from UID safely
+        const prefix = uid.includes('_') ? uid.split('_')[0] : uid.split(':')[0];
+        const displayPrefix = prefix.toUpperCase();
+        
+        let typeLabel = "library";
+        let actualIndex = item.originalIndex; // Default for lib and web
+        
+        if (prefix === 'set') {
+            typeLabel = "setlist";
+            // For setlist, we must find the index in currentTrackList if originalIndex is missing
+            actualIndex = currentTrackList.findIndex(it => it.uid === uid || it === item);
+        } else if (prefix === 'web') {
+            typeLabel = "web_links";
+        }
 
         const badge = document.createElement("div");
         badge.style = "background:rgba(255,255,255,0.05); border:1px solid #444; padding:2px 8px; border-radius:12px; font-size:0.8em; display:flex; align-items:center; gap:5px;";
+        
+        const favIcon = (prefix === 'web' && item.url) ? getIcon(item.url) : null;
+        const iconHtml = favIcon ? `<img src="${favIcon}" style="width:14px; height:14px; border-radius:2px;">` : `<span style="font-weight:bold; color:var(--accent); font-size:0.7em;">${displayPrefix}</span>`;
+
         badge.innerHTML = `
-            <span style="font-weight:bold; color:var(--accent); font-size:0.7em;">${prefix}</span>
+            ${iconHtml}
             <span style="max-width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</span>
-            <span style="cursor:pointer; font-weight:bold; color:#ff4444; margin-left:5px;" onclick="toggleMediaLink('${typeCode === 'set' ? 'setlist' : (typeCode === 'lib' ? 'library' : 'web_links')}', ${idx})">×</span>
+            <span style="cursor:pointer; font-weight:bold; color:#ff4444; margin-left:5px;" onclick="toggleMediaLink('${typeLabel}', ${actualIndex})">×</span>
         `;
         container.appendChild(badge);
     });
 }
 
+/**
+ * V58: Unified rendering of linked items across all edit modals (Main, Multitrack, WebLink)
+ */
+function renderModalLinkedItems() {
+    // We try to fill all potential display areas
+    const containers = [
+        document.getElementById("edit-linked-items-display"),
+        document.getElementById("mt-linked-items-display"), // Future-proofing multitrack modal if needed
+        document.getElementById("web-link-linked-items-display") // Future-proofing web modal if needed
+    ];
+
+    containers.forEach(container => {
+        if (!container) return;
+        container.innerHTML = "";
+
+        if (!currentEditingLinkedIds || currentEditingLinkedIds.length === 0) {
+            container.style.display = "none";
+            return;
+        }
+
+        container.style.display = "flex";
+        
+        currentEditingLinkedIds.forEach(uid => {
+            const item = getLinkedItem(uid);
+            if (!item) return;
+
+            const badge = document.createElement("div");
+            badge.className = "link-pill"; // Assuming this class exists or we use inline style
+            badge.style = "background:rgba(187,134,252,0.1); border:1px solid rgba(187,134,252,0.3); padding:3px 10px; border-radius:15px; font-size:0.75em; color:#bb86fc; display:flex; align-items:center; gap:5px; cursor:pointer;";
+            badge.title = item.artist ? `${item.artist} - ${item.title}` : item.title;
+            
+            // Icon logic (YouTube vs others)
+            let iconClass = "ph ph-link";
+            if (uid.startsWith('set')) iconClass = "ph ph-youtube-logo";
+            else if (uid.startsWith('lib')) {
+                const type = (typeof getLocalType === 'function') ? getLocalType(item) : 'audio';
+                if (type === 'video') iconClass = "ph ph-film-strip";
+                else if (type === 'multitrack') iconClass = "ph ph-stack-simple";
+                else iconClass = "ph ph-music-notes";
+            } else if (uid.startsWith('web')) {
+                iconClass = "ph ph-globe";
+            }
+
+            badge.innerHTML = `<i class="${iconClass}"></i> <span style="max-width:110px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</span>`;
+            
+            // Ability to open the linked media directly? Maybe too complex for now, just visual is enough
+            container.appendChild(badge);
+        });
+    });
+}
+
 async function toggleMediaLink(targetType, targetIndex) {
-    const targetPrefix = targetType.substring(0, 3);
-    const targetUid = `${targetPrefix}:${targetIndex}`;
+    if (targetIndex === undefined || targetIndex === null) {
+        console.error("[LINK] Cannot toggle link with undefined index.");
+        return;
+    }
+
+    const targetList = (targetType === 'library' ? localFiles : (targetType === 'setlist' ? currentTrackList : webLinks));
+    const targetItem = targetList[targetIndex];
+    if (!targetItem) return;
+
+    // Use stable UID for memory tracking
+    const targetUid = targetItem.uid || `${targetType.substring(0, 3)}:${targetIndex}`;
     
-    const sourcePrefix = linkerSourceType.substring(0, 3);
-    const sourceIndex = (linkerSourceType === 'setlist') ? editingIndex : (linkerSourceType === 'library' ? editingLocalIndex : currentWebLinkIndex);
-    const sourceUid = `${sourcePrefix}:${sourceIndex}`;
+    // Identifiy source
+    let sourceUid = "";
+    let sourceIndex = -1;
+    if (linkerSourceType === 'setlist') {
+         sourceIndex = editingIndex;
+         sourceUid = currentTrackList[editingIndex]?.uid || `set:${editingIndex}`;
+    } else if (linkerSourceType === 'library') {
+         sourceIndex = editingLocalIndex;
+         sourceUid = localFiles[editingLocalIndex]?.uid || `lib:${editingLocalIndex}`;
+    } else {
+         sourceIndex = currentWebLinkIndex;
+         sourceUid = webLinks[currentWebLinkIndex]?.uid || `web:${currentWebLinkIndex}`;
+    }
 
     // 1. Update source memory
     if (currentEditingLinkedIds.includes(targetUid)) {
@@ -9395,6 +10231,10 @@ async function toggleMediaLink(targetType, targetIndex) {
     
     // Update the item being edited directly
     linkerSourceItem.linked_ids = currentEditingLinkedIds;
+    
+    // Refresh displays
+    renderExistingLinks();
+    renderModalLinkedItems(); // V58: Refresh the visual confirmation in the background modal
 
     // 2. Update target (Backend call for immediate bidirectional link)
     const isNowLinked = currentEditingLinkedIds.includes(targetUid);
@@ -9410,10 +10250,95 @@ async function toggleMediaLink(targetType, targetIndex) {
                 action: isNowLinked ? 'link' : 'unlink'
             })
         });
+
+        // 3. AUTO-SYNC METADATA (V53)
+        // If we are linking (not unlinking) and we have a source/target, try to fill missing gaps
+        if (isNowLinked) {
+            const targetItem = getLinkedItem(targetUid);
+            if (targetItem && linkerSourceItem) {
+                const fields = ['title', 'artist', 'bpm', 'key', 'scale', 'tuning', 'category', 'genre', 'cover'];
+                let changedFields = [];
+                
+                fields.forEach(f => {
+                    const sVal = linkerSourceItem[f];
+                    const tVal = targetItem[f];
+                    
+                    // Special for title: Only sync if current is empty or matches url
+                    if (f === 'title') {
+                        const curTitle = document.getElementById("web-link-title")?.value || "";
+                        if (!curTitle || curTitle === linkerSourceItem.url) {
+                            linkerSourceItem.title = tVal;
+                            changedFields.push('title');
+                        }
+                    } else if ((!sVal || sVal === "" || sVal === 0) && tVal) {
+                        linkerSourceItem[f] = tVal;
+                        changedFields.push(f);
+                    }
+                });
+                
+                if (changedFields.length > 0) {
+                    console.log("[Auto-Sync] Metadata synced from target to source:", changedFields);
+                    logToBackend("[Auto-Sync] Implemented fields: " + changedFields.join(', '));
+                    // Update UI if a modal is open
+                    if (linkerSourceType === 'web_links') {
+                        // Refresh Web Modal fields
+                        changedFields.forEach(f => {
+                            const el = document.getElementById(`web-link-${f}`);
+                            if (el) {
+                                el.value = linkerSourceItem[f] || "";
+                                // Visual Flash Effect
+                                el.style.transition = "background 0.2s, box-shadow 0.2s";
+                                el.style.background = "rgba(187,134,252,0.3)";
+                                el.style.boxShadow = "0 0 10px var(--accent)";
+                                setTimeout(() => {
+                                    el.style.background = "";
+                                    el.style.boxShadow = "";
+                                }, 1500);
+                            }
+                        });
+                        
+                        if (changedFields.includes('cover') && linkerSourceItem.cover) {
+                            window.currentWebLinkCover = linkerSourceItem.cover;
+                            const img = document.getElementById("web-link-art-img");
+                            img.src = linkerSourceItem.cover.startsWith('http') ? linkerSourceItem.cover : `/api/cover?path=${encodeURIComponent(linkerSourceItem.cover)}`;
+                            img.style.display = "block";
+                            document.getElementById("web-link-art-placeholder").style.display = "none";
+                            document.getElementById("btn-web-link-delete-cover").style.display = "flex"; // Show delete btn
+                            img.style.animation = "pulse-glow 1s infinite alternate";
+                            setTimeout(() => img.style.animation = "", 3000);
+                        }
+                    }
+                }
+            }
+        }
     } catch (e) {
         console.error("Bidirectional link error:", e);
     }
 
     renderLinkerResults(document.getElementById("linker-search-input").value);
     renderExistingLinks();
+
+    // 4. Update Header UI immediately if the source is the one currently playing (V53)
+    const isPlayingSource = (linkerSourceType === 'setlist' && window.currentSource === 'setlist' && editingIndex === window.currentPlayingIndex) ||
+                            (linkerSourceType === 'library' && window.currentSource === 'library' && editingLocalIndex === window.currentPlayingIndex) ||
+                            (linkerSourceType === 'web_links' && window.currentSource === 'web_links' && currentWebLinkIndex === window.currentPlayingIndex);
+
+    if (isPlayingSource) {
+        updateInterconnectionUI(linkerSourceItem);
+    }
+
+    // V55: Force reload of all web links to keep frontend sync with the newly saved JSON (F5/Refresh protection)
+    if (linkerSourceType === 'web_links' || targetType === 'web_links') {
+        console.log("[SYNC_LINK] Triggering loadWebLinks to refresh memory...");
+        await loadWebLinks(); // This re-renders and re-populates webLinks array
+    }
+
+    // V55: Explicitly sync the Web Link Modal session list to prevent overwriting on Save
+    if (linkerSourceType === 'web_links' && currentWebLinkIndex !== -1) {
+        // Since loadWebLinks replaced the array, we must re-bind linkerSourceItem to the new object in the array
+        linkerSourceItem = webLinks[currentWebLinkIndex];
+        currentEditingLinkedIds = [...(linkerSourceItem.linked_ids || [])];
+        console.log("[SYNC_LINK] Re-aligned linkerSourceItem and currentEditingLinkedIds after reload:", currentEditingLinkedIds);
+    }
+
 }

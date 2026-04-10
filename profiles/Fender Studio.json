@@ -1,6 +1,6 @@
 {
     "name": "Fender Studio",
-    "app_context": "Studio",
+    "app_context": "MIDI-KBD Control Studio",
     "window_title_filter": "",
     "mappings": [
         {
@@ -9,84 +9,71 @@
             "midi_channel": 16,
             "trigger_value": "any",
             "action_type": "hotkey",
-            "action_value": "play/pause media",
-            "action_scan_code": -179,
+            "action_value": "k",
+            "action_scan_code": 37,
             "action_modifiers": [],
-            "action_modifier_scan_codes": []
+            "action_modifier_scan_codes": [],
+            "custom_icon": null
         },
         {
-            "name": "Retour au D\u00e9but",
-            "midi_cc": 55,
-            "midi_channel": 16,
-            "trigger_value": "any",
-            "action_type": "hotkey",
-            "action_value": ",",
-            "action_scan_code": 50,
-            "action_modifiers": [],
-            "action_modifier_scan_codes": []
-        },
-        {
-            "name": "Acc\u00e9l\u00e9rer",
-            "midi_cc": 58,
-            "midi_channel": 16,
-            "trigger_value": "any",
-            "action_type": "hotkey",
-            "action_value": "shift+.",
-            "action_scan_code": 51,
-            "action_modifiers": [
-                "shift"
-            ],
-            "action_modifier_scan_codes": [
-                54
-            ]
-        },
-        {
-            "name": "Ralentir",
-            "midi_cc": 50,
-            "midi_channel": 16,
-            "trigger_value": "any",
-            "action_type": "hotkey",
-            "action_value": "shift+?",
-            "action_scan_code": 50,
-            "action_modifiers": [
-                "shift"
-            ],
-            "action_modifier_scan_codes": [
-                54
-            ]
-        },
-        {
-            "name": "Avance 10s",
-            "midi_cc": 56,
-            "midi_channel": 16,
-            "trigger_value": "any",
-            "action_type": "hotkey",
-            "action_value": "+",
-            "action_scan_code": 78,
-            "action_modifiers": [],
-            "action_modifier_scan_codes": []
-        },
-        {
-            "name": "Retour 10s",
+            "name": "Reculer",
             "midi_cc": 52,
             "midi_channel": 16,
             "trigger_value": "any",
             "action_type": "hotkey",
-            "action_value": "-",
-            "action_scan_code": 74,
+            "action_value": "gauche",
+            "action_scan_code": 75,
             "action_modifiers": [],
-            "action_modifier_scan_codes": []
+            "action_modifier_scan_codes": [],
+            "custom_icon": "⏪"
         },
         {
-            "name": "Volume -",
-            "midi_cc": 80,
+            "name": "Avancer",
+            "midi_cc": 56,
             "midi_channel": 16,
             "trigger_value": "any",
             "action_type": "hotkey",
-            "action_value": "volume down",
-            "action_scan_code": -174,
+            "action_value": "droite",
+            "action_scan_code": 77,
             "action_modifiers": [],
-            "action_modifier_scan_codes": []
+            "action_modifier_scan_codes": [],
+            "custom_icon": "■"
+        },
+        {
+            "name": "Avance 5s",
+            "midi_cc": 56,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "droite",
+            "action_scan_code": 77,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": [],
+            "custom_icon": "⏩"
+        },
+        {
+            "name": "Retour 5s",
+            "midi_cc": 52,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "gauche",
+            "action_scan_code": 75,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": [],
+            "custom_icon": "⏪"
+        },
+        {
+            "name": "Diminuer la vitesse (-0.05x)",
+            "midi_cc": 50,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "bas",
+            "action_scan_code": 80,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": [],
+            "custom_icon": "⚡"
         },
         {
             "name": "Volume +",
@@ -164,6 +151,18 @@
             "action_scan_code": null,
             "action_modifiers": [],
             "action_modifier_scan_codes": []
+        },
+        {
+            "name": "Sans nom",
+            "midi_cc": 59,
+            "midi_channel": 16,
+            "trigger_value": "any",
+            "action_type": "hotkey",
+            "action_value": "backspace",
+            "action_scan_code": 14,
+            "action_modifiers": [],
+            "action_modifier_scan_codes": [],
+            "custom_icon": "↶"
         }
     ]
 }

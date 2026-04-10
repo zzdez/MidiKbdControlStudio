@@ -155,6 +155,9 @@ class DownloadService:
         download_subs = options.get('subs', False)
         meta = options.get('metadata', {})
 
+        from utils import resolve_portable_path
+        target_folder = resolve_portable_path(target_folder)
+
         if not os.path.exists(target_folder):
             os.makedirs(target_folder, exist_ok=True)
 

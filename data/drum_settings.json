@@ -1,0 +1,109 @@
+{
+    "bpm": 120,
+    "kit_id": "tr707",
+    "pattern_id": "imported_1774934423111",
+    "swing": 0,
+    "mixer": {
+        "master": {
+            "volume": 1,
+            "mute": false,
+            "solo": false
+        },
+        "kick": {
+            "volume": 1,
+            "tune": -3,
+            "decay": 0.5,
+            "pan": 0,
+            "mute": false,
+            "solo": false
+        },
+        "snare": {
+            "volume": 1,
+            "tune": 0,
+            "decay": 0.5,
+            "pan": 0,
+            "mute": false,
+            "solo": false
+        },
+        "hihat": {
+            "volume": 0.8,
+            "tune": 0,
+            "decay": 0.2,
+            "pan": 0.2,
+            "mute": false,
+            "solo": false
+        },
+        "openhat": {
+            "volume": 0.7,
+            "tune": 0,
+            "decay": 0.6,
+            "pan": 0.2,
+            "mute": false,
+            "solo": false
+        },
+        "clap": {
+            "volume": 0.9,
+            "tune": 0,
+            "decay": 0.4,
+            "pan": -0.2,
+            "mute": false,
+            "solo": false
+        },
+        "tom1": {
+            "volume": 0.9,
+            "tune": 0,
+            "decay": 0.6,
+            "pan": -0.3,
+            "mute": false,
+            "solo": false
+        },
+        "tom2": {
+            "volume": 0.9,
+            "tune": -2,
+            "decay": 0.7,
+            "pan": 0,
+            "mute": false,
+            "solo": false
+        },
+        "tom3": {
+            "volume": 0.9,
+            "tune": -4,
+            "decay": 0.8,
+            "pan": 0.3,
+            "mute": false,
+            "solo": false
+        },
+        "cymbal": {
+            "volume": 0.6,
+            "tune": 0,
+            "decay": 1.5,
+            "pan": -0.4,
+            "mute": false,
+            "solo": false
+        },
+        "cowbell": {
+            "volume": 0.7,
+            "tune": 0,
+            "decay": 0.3,
+            "pan": 0.1,
+            "mute": false,
+            "solo": false
+        },
+        "rim": {
+            "volume": 0.8,
+            "tune": 0,
+            "decay": 0.1,
+            "pan": -0.1,
+            "mute": false,
+            "solo": false
+        },
+        "bass": {
+            "volume": 1,
+            "tune": 0,
+            "decay": 0.15,
+            "pan": 0,
+            "mute": false,
+            "solo": false
+        }
+    }
+}

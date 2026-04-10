@@ -39,7 +39,7 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
 - **Lecteur Audio Local (Simple & Multipistes)**
     - Support MP3, WAV, FLAC, M4A, OGG.
     - **Support Multipistes (Stems) :** Jouez vos morceaux décomposés (basse, batterie, guitare, etc.) en parfaite synchronisation.
-    - **UI Harmonisée & Professionnelle :** Unification visuelle totale (codes couleurs, bordures, alignement pixel-perfect) entre les graphiques et les commandes. Hauteur des barres de transport standardisée à **55px**.
+    - **UI Harmonisée & Professionnelle :** Unification visuelle totale (codes couleurs, bordures, alignement pixel-perfect) entre les graphiques et les commandes. Hauteur des barres de transport standardisée à **55px**, Header Cockpit à **80px** avec pochette média pleine hauteur.
     - **Waveform Interactive :** WaveSurfer.js synchronisé avec menu contextuel de colorisation dynamique des pistes.
     - Option de Pitch Shifting et contrôle de vitesse (pour les pistes simples).
 *   **Fretboard Interactif & Gammes :**
@@ -85,7 +85,8 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     *   **Smart Close :** Fermez la remote sans être dérangé par la fenêtre principale (qui reste dans le Tray).
     *   **Feedback Visuel Unifié :** Les boutons clignotent que l'action vienne du MIDI, du Clavier (HID) ou du clic souris.
 *   **Persistance Sidecar JSON :**
-    *   Toutes vos modifications (BPM, Tonalité Originale, Tonalité Média, Pitch, Notes) sont désormais sauvegardées dans un petit fichier `.json` à côté de vos médias locaux.
+    *   Toutes vos modifications (BPM, Tonalité Originale, Tonalité Média, Pitch, Notes, **Liens d'interconnexion**) sont désormais sauvegardées dans un petit fichier `.json` à côté de vos médias locaux.
+    *   **Moteur de Fusion Intelligente** : Les métadonnées existantes sont préservées lors des mises à jour, garantissant une intégrité totale de votre base de données locale.
     *   Vos métadonnées vous suivent partout, même si vous déplacez vos dossiers.
 *   **Éditeur de Médias Unifié :**
     *   **Interface Unique** : Fusion totale des outils d'édition. Les médias YouTube, Audios/Vidéos locaux et Multipistes partagent désormais la même structure technique (`media-modal`), garantissant une expérience fluide et une maintenance simplifiée.
@@ -106,14 +107,15 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     *   **Scan Multi-Lecteurs** : Capacité de scanner la racine de tous les disques physiques pour localiser vos médias perdus en quelques secondes.
     *   **Re-scan des Stems** : Pour les projets multipistes, le système reconstruit instantanément les liens de chaque piste après un déplacement.
     *   **Portabilité Totale** : Utilisation systématique du token `${APP_DIR}`, garantissant que votre bibliothèque vous suit partout, même sur une clé USB.
-    *   **Réparation de Masse & Gestionnaire de Bibliothèque (✨ Nouveau ✨)** : 
-        1. **Source** : Identifiez où se trouvent les médias (favoris ou parcourir).
-        2. **Action** : Choisissez entre Lier, Copier ou Déplacer.
-        3. **Destination** : Indiquez le dossier cible ou laissez le programme **Ranger Automatiquement par Artiste**.
-        *   **Auto-Routage par Artiste** : Le système crée dynamiquement une arborescence propre (`Medias/Videos/Artiste/`) en extrayant les métadonnées. Fini les dossiers "vrac" !
-        *   **Relocalisation Groupée** : Appliquez les réparations sur toute votre sélection ou l'intégralité de la bibliothèque en un clic.
-        *   **Déménagement Unitaire** : Boutons "Copier" et "Déplacer" intégrés directement dans les fiches d'édition pour une gestion agile fichier par fichier.
-        *   **Sidecars Intelligents** : Vos sous-titres et métadonnées JSON suivent automatiquement le média lors d'un déplacement physique.
+    *   **Sidecars Intelligents** : Vos sous-titres et métadonnées JSON suivent automatiquement le média lors d'un déplacement physique.
+*   **Interconnexion de Médias (Maillage Intelligent) :**
+    - **Ponts Automatiques** : Liez n'importe quel morceau à sa version YouTube, son fichier MP3 local, son projet Multipiste ou des sites Web tiers (Songsterr, Moises, Spotify).
+    - **Persistence Blindée (V57)** : Migration vers des **UIDs stables** (identifiants uniques). Vos liens ne sont plus brisés si vous déplacez un fichier ou changez l'ordre de votre bibliothèque.
+    - **Startup Self-Healing** : Un moteur de nettoyage automatique au démarrage répare les liens orphelins et garantit la symétrie entre vos bases de données.
+    - **Nettoyage Métadonnées** : Les fichiers sidecar (`airstep_meta.json`) sont maintenant épurés des données binaires (Base64) pour garantir des performances optimales et une intégrité totale sur le long terme.
+    - **Démarrage Synchrone** : Architecture optimisée pour éliminer les "Race Conditions". Vos icônes d'interconnexion (Songsterr, etc.) apparaissent instantanément après chaque rafraîchissement (F5).
+    - **Header Cockpit Dynamique** : Des icônes interactives (Vidéo, Audio, Multipiste, Web) apparaissent instantanément dans le panneau de contrôle dès qu'une liaison est configurée.
+    - **Visualisation de Bibliothèque** : Affichage d'un badge bleu "ID-Link" et d'un compteur filtré (affichage des liens valides uniquement) dans toutes les listes.
 
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)
