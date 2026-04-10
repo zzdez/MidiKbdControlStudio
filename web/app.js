@@ -9994,31 +9994,71 @@ function renderLinkerResults(query) {
     }
 
     results.slice(0, 50).forEach(res => {
+        const item = res.item;
         const div = document.createElement("div");
         div.className = "linker-result-item";
-        div.style = "display:flex; align-items:center; gap:10px; padding:8px; background:rgba(255,255,255,0.05); border-radius:5px; cursor:pointer; transition:background 0.2s; margin-bottom:5px;";
-        div.onmouseover = () => div.style.background = "rgba(255,255,255,0.1)";
-        div.onmouseout = () => div.style.background = "rgba(255,255,255,0.05)";
         
-        const resType = res.type;
-        const iconUrl = (resType === 'web_links' || resType === 'web') ? getIcon(res.item.url) : null;
-        
-        const typeIcon = getTypeIcon(res);
-        // V56: Use stable UID for detection in the modal, fallback to legacy only if necessary
-        const itemUid = res.item.uid || `${res.type.substring(0,3)}:${res.index}`;
+        // V58: Enrich Thumbnail/Icon resolution
+        let thumbContent = "";
+        let typeLabel = "";
+        let typeColorClass = "";
+        let typeIcon = "";
+
+        if (res.type === 'setlist') {
+            typeLabel = "YouTube";
+            typeColorClass = "type-label-youtube";
+            typeIcon = "ph ph-youtube-logo";
+            thumbContent = item.thumbnail ? `<img src="${item.thumbnail}">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:1.5em; color:#ff4444;"><i class="${typeIcon}"></i></div>`;
+        } else if (res.type === 'library') {
+            const lType = getLocalType(item);
+            if (lType === 'multitrack') {
+                typeLabel = t("web.type_multitrack", "Multipiste");
+                typeColorClass = "type-label-multitrack";
+                typeIcon = "ph ph-stack-simple";
+            } else if (lType === 'video') {
+                typeLabel = t("web.type_video", "Vidéo");
+                typeColorClass = "type-label-video";
+                typeIcon = "ph ph-film-strip";
+            } else {
+                typeLabel = t("web.type_audio", "Audio");
+                typeColorClass = "type-label-audio";
+                typeIcon = "ph ph-music-notes";
+            }
+            
+            // Try to resolve cover for local
+            const coverUrl = item.path ? `/api/cover?path=${encodeURIComponent(item.path)}` : null;
+            thumbContent = coverUrl ? `<img src="${coverUrl}" onerror="this.innerHTML='<i class=\'${typeIcon}\'></i>';">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:1.5em; opacity:0.5;"><i class="${typeIcon}"></i></div>`;
+        } else {
+            typeLabel = "Web";
+            typeColorClass = "type-label-web";
+            typeIcon = getIcon(item.url); // This returns a class
+            const cover = item.cover || getIcon(item.url); // Use favicon if no cover
+            if (cover && cover.startsWith('http')) {
+                thumbContent = `<img src="${cover}">`;
+            } else {
+                thumbContent = `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:1.5em; color:#f1c40f;"><i class="${getIcon(item.url)}"></i></div>`;
+            }
+        }
+
+        const itemUid = item.uid || `${res.type.substring(0,3)}:${res.index}`;
         const isLinked = currentEditingLinkedIds.includes(itemUid);
 
         div.innerHTML = `
-            <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
-                ${iconUrl ? `<img src="${iconUrl}" style="width:20px; height:20px; border-radius:4px;">` : `<i class="${typeIcon}" style="font-size:1.2em; color:var(--accent);"></i>`}
-                <div style="flex:1; min-width:0;">
-                    <div style="font-weight:bold; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${res.item.title || res.item.url}</div>
-                    <div style="font-size:0.85em; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${res.item.artist || ""}</div>
+            <div class="linker-thumb-container">
+                ${thumbContent}
+                <div class="type-badge"><i class="${typeIcon}"></i></div>
+            </div>
+            <div class="linker-info">
+                <div class="linker-title">${item.title || item.url}</div>
+                <div class="linker-meta">
+                    <span class="linker-type-label ${typeColorClass}">${typeLabel}</span>
+                    <span>•</span>
+                    <span>${item.artist || "Artiste inconnu"}</span>
                 </div>
             </div>
-            <button class="btn-secondary" style="padding:4px 8px; font-size:0.8em; border-color:${isLinked ? '#ff4444' : '#444'}; color:${isLinked ? '#ff4444' : '#fff'};"
+            <button class="btn-secondary" style="padding:6px 12px; font-size:0.85em; border-radius:6px; border-color:${isLinked ? 'rgba(255,68,68,0.3)' : '#444'}; color:${isLinked ? '#ff4444' : '#fff'};"
                 onclick="event.stopPropagation(); toggleMediaLink('${res.type}', ${res.index})">
-                ${isLinked ? translations[currentLang]?.web?.btn_unlink || 'Détacher' : translations[currentLang]?.web?.btn_link || 'Lier'}
+                ${isLinked ? (translations[currentLang]?.web?.btn_unlink || 'Détacher') : (translations[currentLang]?.web?.btn_link || 'Lier')}
             </button>
         `;
         list.appendChild(div);
@@ -10026,8 +10066,7 @@ function renderLinkerResults(query) {
 }
 
 function matchQuery(item, q) {
-    if (!q) return false; // Show nothing if empty query? Or show all? The user might want to see all.
-    // Let's show all if q is empty for setlist/library? No, better search.
+    if (!q) return false;
     return (item.title || "").toLowerCase().includes(q) || (item.artist || "").toLowerCase().includes(q);
 }
 
