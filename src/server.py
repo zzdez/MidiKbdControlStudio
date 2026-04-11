@@ -2256,9 +2256,9 @@ async def edit_local_file(index: int, item: Dict):
                 if key in item: 
                     current[key] = item[key]
             
-            # V57: Trigger Bidirectional Sync on Edit if linked_ids changed
-            if "uid" in current and "linked_ids" in current:
-                sync_web_link_bidirectional(current["uid"], current["linked_ids"])
+            # V58: Trigger Mesh Sync on Edit
+            if "uid" in current:
+                harmonize_media_mesh(current["uid"])
 
             # --- PERSISTENCE (V55: Sidecar First) ---
             try:
@@ -2907,13 +2907,14 @@ def migrate_legacy_links(db_items, file_map):
             item["linked_ids"] = list(set(new_links)) # Unique
     return changed
 
-def sync_web_link_bidirectional(source_uid, linked_uids):
+def harmonize_media_mesh(seed_uid):
     """
-    V55: Synchronise les liaisons bidirectionnelles en utilisant des UIDs stables.
-    source_uid: l'UID permanent (ex: 'web_abc123')
-    linked_uids: la liste des UIDs cibles.
+    V59: Moteur de Maillage Exhaustif (Super-Synchroniseur).
+    1. Migration systématique des liens Legacy.
+    2. Découverte multidirectionnelle (Undirected Graph Discovery).
+    3. Harmonisation complète du groupe (Full Mesh).
     """
-    logging.warning(f"[SYNC_LINK] Début Synchronisation UID : {source_uid} -> {linked_uids}")
+    if not seed_uid: return
     
     file_map = {
         'lib': LOCAL_LIB_FILE,
@@ -2921,77 +2922,108 @@ def sync_web_link_bidirectional(source_uid, linked_uids):
         'web': WEB_LINKS_FILE
     }
     
-    # 1. Parcourir chaque base de données
+    # 1. Charger tout en mémoire + Construire Map des UIDs
+    databases = {}
+    uid_to_item = {} # {uid: (prefix, item)}
+    legacy_to_uid = {} # {"lib:5": "lib_abc..."}
+    
     for prefix, path in file_map.items():
-        if not os.path.exists(path):
-            continue
-            
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                db = json.load(f)
-        except Exception as e:
-            logging.error(f"[SYNC_LINK] Erreur lecture {path}: {e}")
-            continue
-
-        file_changed = False
-        
-        for item in db:
-            uid = item.get("uid")
-            if not uid: continue # Skip items without UID (should be rare after heal)
-            
-            # Ne pas se synchroniser avec soi-même
-            if uid == source_uid:
-                continue
-
-            # Cas A: L'item est dans la nouvelle liste de liens -> il DOIT pointer vers source_uid
-            if uid in linked_uids:
-                if "linked_ids" not in item: item["linked_ids"] = []
-                if source_uid not in item["linked_ids"]:
-                    item["linked_ids"].append(source_uid)
-                    file_changed = True
-                    logging.warning(f"[SYNC_LINK] LIEN ÉTABLI : {uid} <-> {source_uid}")
-                    
-                    # Persistance physique (Sidecar) pour les fichiers locaux
-                    if "path" in item:
-                        try:
-                            abs_p = resolve_portable_path(item["path"])
-                            if abs_p and os.path.exists(abs_p):
-                                metadata_service.write_file_metadata(abs_p, {"linked_ids": item["linked_ids"]})
-                        except Exception as pe:
-                            logging.error(f"[SYNC_LINK] Erreur sidecar {uid}: {pe}")
-            
-            # Cas B: L'item n'est plus dans la liste -> il ne doit PLUS pointer vers source_uid
-            # MAIS ATTENTION : On ne nettoie que si la source_uid est bien du type attendu
-            # (pour éviter de supprimer par erreur des liens existants d'autres sources)
-            else:
-                if "linked_ids" in item and source_uid in item["linked_ids"]:
-                    item["linked_ids"].remove(source_uid)
-                    file_changed = True
-                    logging.warning(f"[SYNC_LINK] LIEN SUPPRIMÉ : {uid} <-x-> {source_uid}")
-                    
-                    # Persistance physique (Sidecar) pour les fichiers locaux
-                    if "path" in item:
-                        try:
-                            abs_p = resolve_portable_path(item["path"])
-                            if abs_p and os.path.exists(abs_p):
-                                metadata_service.write_file_metadata(abs_p, {"linked_ids": item["linked_ids"]})
-                        except Exception as pe:
-                             logging.error(f"[SYNC_LINK] Erreur sidecar cleanup {uid}: {pe}")
-
-        # Sauvegarde si nécessaire
-        if file_changed:
+        if os.path.exists(path):
             try:
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(db, f, indent=4)
-                    f.flush()
-                    os.fsync(f.fileno())
-                logging.warning(f"[SYNC_LINK] Fichier {prefix} mis à jour et flushede sur disque.")
-                
-                # Recharger le manager pour lib
-                if prefix == 'lib' and library_manager:
-                    library_manager.load_library()
-            except Exception as e:
-                logging.error(f"[SYNC_LINK] Erreur sauvegarde {prefix}: {e}")
+                with open(path, "r", encoding="utf-8") as f:
+                    db = json.load(f)
+                    databases[prefix] = db
+                    for i, it in enumerate(db):
+                        uid = it.get("uid")
+                        if uid:
+                            uid_to_item[uid] = (prefix, it)
+                            legacy_to_uid[f"{prefix}:{i}"] = uid
+            except: pass
+
+    if seed_uid not in uid_to_item: return
+
+    # 2. PRÉ-MIGRATION : Convertir les liens Legacy en UIDs stables partout
+    for prefix, db in databases.items():
+        for item in db:
+            links = item.get("linked_ids", [])
+            new_links = []
+            changed = False
+            for l in links:
+                if ":" in l and "_" not in l: # Format Legacy 'type:idx'
+                    if l in legacy_to_uid:
+                        new_links.append(legacy_to_uid[l])
+                        changed = True
+                    else:
+                        new_links.append(l) # Garder tel quel si non résolu
+                else:
+                    new_links.append(l)
+            if changed:
+                item["linked_ids"] = list(set(new_links))
+
+    # 3. DÉCOUVERTE MULTIDIRECTIONNELLE (Undirected Loop)
+    # On cherche tout ce qui est connecté au Seed, directement ou indirectement
+    family_uids = {seed_uid}
+    last_size = 0
+    
+    # On itère jusqu'à ce que la famille n'augmente plus
+    while len(family_uids) > last_size:
+        last_size = len(family_uids)
+        for uid, (prefix, item) in uid_to_item.items():
+            item_links = set(item.get("linked_ids", []))
+            
+            # Si l'item pointe vers la famille OU si la famille pointe vers l'item
+            # (Note : la famille pointe déjà vers l'item si on suit les listes au fur et à mesure)
+            if uid not in family_uids:
+                if any(link in family_uids for link in item_links):
+                    family_uids.add(uid)
+            else:
+                # Ajouter ce vers quoi l'item pointe
+                for l in item_links:
+                    if l: family_uids.add(l)
+
+    # 4. HARMONISATION (Full Mesh)
+    dirty_prefixes = set()
+    
+    for uid, (prefix, item) in uid_to_item.items():
+        changed = False
+        if uid in family_uids:
+            # Maillage complet pour la famille
+            new_links = list(family_uids - {uid})
+            new_links.sort()
+            old_links = item.get("linked_ids", [])
+            old_links.sort()
+            if new_links != old_links:
+                item["linked_ids"] = new_links
+                changed = True
+        else:
+            # Nettoyage pour les hors-famille qui pointeraient vers le Seed (Déliaison)
+            if "linked_ids" in item and seed_uid in item["linked_ids"]:
+                item["linked_ids"] = [l for l in item["linked_ids"] if l != seed_uid]
+                changed = True
+        
+        if changed:
+            dirty_prefixes.add(prefix)
+            # Persistence Physique (Sidecar)
+            if prefix == 'lib' and item.get("path"):
+                try:
+                    abs_p = resolve_portable_path(item["path"])
+                    if abs_p and os.path.exists(abs_p):
+                        metadata_service.write_file_metadata(abs_p, {"linked_ids": item["linked_ids"]})
+                except: pass
+
+    # 5. SAUVEGARDE
+    for prefix in dirty_prefixes:
+        path = file_map[prefix]
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(databases[prefix], f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
+            logging.warning(f"[MESH_SYNC] SUPER-SYNCHRO RÉUSSIE : {prefix} mis à jour.")
+            if prefix == 'lib' and library_manager:
+                library_manager.load_library()
+        except Exception as e:
+            logging.error(f"[MESH_SYNC] Erreur sauvegarde {prefix}: {e}")
 
 @app.get("/api/web_links")
 async def get_web_links():
@@ -3041,8 +3073,8 @@ async def add_web_link(item: Dict):
         
         logging.warning(f"[SAVE_WEB] Ajout avec UID {item['uid']}. Synchro liens...")
         
-        # Synchronisation Bidirectionnelle utilisant UID
-        sync_web_link_bidirectional(item["uid"], item.get("linked_ids", []))
+        # Synchronisation Mesh utilisant UID
+        harmonize_media_mesh(item["uid"])
 
         
         return {"status": "ok", "index": new_index}
@@ -3070,8 +3102,8 @@ async def update_web_link(index: int, item: Dict):
                 f.flush()
                 os.fsync(f.fileno())
             
-            # Synchronisation Bidirectionnelle utilisant UID
-            sync_web_link_bidirectional(item.get("uid"), item.get("linked_ids", []))
+            # Synchronisation Mesh utilisant UID (V58)
+            harmonize_media_mesh(item.get("uid"))
 
             
             return {"status": "ok"}

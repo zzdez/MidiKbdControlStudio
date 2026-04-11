@@ -751,6 +751,19 @@ let currentTrackList = [];
 let editingIndex = null; // null = Add Mode, number = Edit Mode
 let sortAsc = true;
 
+// --- DATA LOADING & SYNC ---
+
+async function refreshAllMediaData() {
+    console.log("[SYNC] Refreshing all media sources...");
+    // Parallel fetch
+    await Promise.all([
+        loadSetlist(),
+        loadLocalFiles(),
+        loadWebLinks()
+    ]);
+    console.log("[SYNC] All media sources refreshed.");
+}
+
 async function loadSetlist() {
     try {
         const res = await fetch("/api/setlist");
@@ -1036,7 +1049,7 @@ async function saveWebLink() {
             
             const modalEl = document.getElementById("modal-web-link");
             if (modalEl && modalEl.close) modalEl.close();
-            loadWebLinks();
+            refreshAllMediaData();
         } else {
             const errBody = await res.text();
             console.error("[SAVE_WEB] SERVER ERROR:", res.status, errBody);
@@ -1331,28 +1344,42 @@ function isMatch(item, artist, title) {
 }
 
 function getLinkedItem(uid) {
-    if (!uid || typeof uid !== 'string') return null; // V58: Safety check against null/undefined
+    if (!uid || typeof uid !== 'string') return null;
     
-    // V55: Stable UID support (prefix_hash)
+    // V59: Stable UID support with improved resolution
+    let found = null;
     if (uid.includes('_')) {
-        const prefix = uid.split('_')[0]; // 'lib', 'set', 'web'
+        const prefix = uid.split('_')[0];
         const list = (prefix === 'lib' ? localFiles : (prefix === 'set' ? currentTrackList : webLinks));
-        if (!list) return null;
-        return list.find(it => it.uid === uid) || null;
+        if (list) {
+            found = list.find(it => it.uid === uid) || null;
+        }
     }
 
+    // Fallback: Si non trouvé par préfixe ou si préfixe invalide, chercher partout
+    if (!found) {
+        found = (localFiles || []).find(it => it.uid === uid) || 
+                (currentTrackList || []).find(it => it.uid === uid) || 
+                (webLinks || []).find(it => it.uid === uid) || null;
+    }
+
+    if (found) return found;
+
     // Legacy: prefix:index support
-    const [type, idxStr] = uid.split(':');
-    const idx = parseInt(idxStr);
+    const parts = uid.split(':');
+    if (parts.length === 2) {
+        const [type, idxStr] = parts;
+        const idx = parseInt(idxStr);
+        const findIn = (list, i) => {
+            if (!list || list.length === 0) return null;
+            return list.find(t => t.originalIndex === i) || (i >= 0 && i < list.length ? list[i] : null);
+        };
+        if (type === 'set') return findIn(currentTrackList, idx);
+        if (type === 'lib') return findIn(localFiles, idx);
+        if (type === 'web') return findIn(webLinks, idx);
+    }
     
-    const findIn = (list, i) => {
-        if (!list || list.length === 0) return null;
-        return list.find(t => t.originalIndex === i) || (i >= 0 && i < list.length ? list[i] : null);
-    };
-    
-    if (type === 'set') return findIn(currentTrackList, idx);
-    if (type === 'lib') return findIn(localFiles, idx);
-    if (type === 'web') return findIn(webLinks, idx);
+    console.warn("[LINK] Résolution échouée pour UID:", uid);
     return null;
 }
 
@@ -2643,7 +2670,7 @@ async function saveItem() {
     if (!isOffline) {
         closeModal();
     }
-    loadSetlist();
+    refreshAllMediaData();
 }
 
 function previewItem() {
@@ -6140,7 +6167,7 @@ async function saveLocalItem() {
     if (!isOffline) {
         closeLocalModal();
     }
-    loadLocalFiles();
+    refreshAllMediaData();
 }
 
 async function deleteLocalFile(index) {
