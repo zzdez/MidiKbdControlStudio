@@ -117,6 +117,7 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     - **Démarrage Synchrone** : Architecture optimisée pour éliminer les "Race Conditions". Vos icônes d'interconnexion (Songsterr, etc.) apparaissent instantanément après chaque rafraîchissement (F5).
     - **Header Cockpit Dynamique** : Des icônes interactives (Vidéo, Audio, Multipiste, Web) apparaissent instantanément dans le panneau de contrôle dès qu'une liaison est configurée.
     - **Visualisation de Bibliothèque** : Affichage d'un badge bleu "ID-Link" et d'un compteur filtré (affichage des liens valides uniquement) dans toutes les listes.
+    - **Vue Groupée (V60)** : Système de regroupement intelligent par "famille" de médias pour désencombrer l'interface en masquant les doublons liés.
 
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)

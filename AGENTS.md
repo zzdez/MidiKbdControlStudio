@@ -660,3 +660,9 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 *   **Fiabilisation Frontend (`app.js`)** :
     - Initialisation systématique de `currentEditingLinkedIds` à l'ouverture des modales.
     - Correction de `applyUniversalMetadata` pour assurer que `currentCoverData` est correctement mis à jour lors d'un tagging automatique, permettant la persistence immédiate de la pochette choisie.
+
+### 42. Évolution V60 : Vue Groupée & Smart Mesh View
+*   **Algorithme de Regroupement** : Implémentation d'un filtrage basé sur l'appartenance à une "famille" (Mesh). Pour chaque groupe de médias interconnectés, l'interface ne conserve qu'un seul représentant (Master) lors du rendu.
+*   **Hiérarchie de Représentation** : Choix intelligent de l'élément Master selon le score de priorité : Multitrack (5) > Vidéo (4) > Audio (3) > YouTube (2) > Web (1).
+*   **Persistance UI** : L'état du commutateur "Vue Groupée" est sauvegardé dans le `localStorage` et synchronisé entre tous les onglets de la bibliothèque.
+*   **Expérience UI** : Ajout d'une icône de pile (`.group-toggle-mini`) compacte dans les zones de filtrage pour basculer nativement entre la vue détaillée et la vue consolidée.

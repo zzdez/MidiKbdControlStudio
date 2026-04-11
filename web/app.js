@@ -5,6 +5,9 @@ let currentActivePlayer = 'youtube';
 let isInitialSettingsLoad = true;
 let sidebarUserOverride = false;
 
+// --- Grouping (Mesh Sync V60) ---
+let isLibraryGrouped = localStorage.getItem("isLibraryGrouped") !== "false"; // Default true
+
 // --- i18n (Internationalization) ---
 let currentLang = "fr";
 let translations = {};
@@ -523,6 +526,7 @@ function connectVideoWebSocket() {
 
     websocket.onopen = () => {
         document.getElementById("connection-status").classList.add("connected");
+        updateGroupTogglesUI(); // V60
         loadSetlist();
         loadLocalFiles(); // Load local early for interconnection
         loadWebLinks();  // Load web links early for interconnection
@@ -764,6 +768,37 @@ async function refreshAllMediaData() {
     console.log("[SYNC] All media sources refreshed.");
 }
 
+// --- Grouping (Mesh Sync V60) ---
+function toggleGroupedView(enabled) {
+    isLibraryGrouped = enabled;
+    localStorage.setItem("isLibraryGrouped", enabled);
+    updateGroupTogglesUI();
+    
+    // Global Refresh
+    renderSetlist(currentTrackList);
+    renderLocalFiles();
+    renderWebLinks();
+}
+
+function updateGroupTogglesUI() {
+    ["chk-group-setlist", "chk-group-local", "chk-group-web"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.checked = isLibraryGrouped;
+    });
+}
+
+function getItemPriority(item) {
+    if (item.is_multitrack) return 5;
+    const type = getLocalType(item);
+    if (type === 'video') return 4;
+    // For audio, we prefer files that have metadata
+    if (type === 'audio') return 3;
+    // YouTube links
+    if (item.uid && item.uid.startsWith('set')) return 2;
+    // Generic web links
+    return 1;
+}
+
 async function loadSetlist() {
     try {
         const res = await fetch("/api/setlist");
@@ -835,7 +870,16 @@ function renderWebLinks() {
         return;
     }
 
+    const renderedFamilies = new Set();
+
     filtered.forEach(link => {
+        // Grouping Check (V60)
+        if (isLibraryGrouped) {
+            const family = [link.uid, ...(link.linked_ids || [])];
+            if (family.some(uid => renderedFamilies.has(uid))) return; // Skip
+            family.forEach(uid => renderedFamilies.add(uid)); 
+        }
+
         const realIndex = link.originalIndex;
         const tr = document.createElement("tr");
         
@@ -1429,7 +1473,16 @@ function renderSetlist(list) {
         return;
     }
 
+    const renderedFamilies = new Set();
+
     filtered.forEach((track) => {
+        // Grouping Check (V60)
+        if (isLibraryGrouped) {
+            const family = [track.uid, ...(track.linked_ids || [])];
+            if (family.some(uid => renderedFamilies.has(uid))) return; // Skip
+            family.forEach(uid => renderedFamilies.add(uid)); 
+        }
+
         // Use originalIndex for safe actions
         const realIndex = track.originalIndex;
         const tr = document.createElement("tr");
@@ -3629,7 +3682,16 @@ function renderLocalFiles() {
         return;
     }
 
+    const renderedFamilies = new Set();
+
     filtered.forEach((file, index) => {
+        // Grouping Check (V60)
+        if (isLibraryGrouped) {
+            const family = [file.uid, ...(file.linked_ids || [])];
+            if (family.some(uid => renderedFamilies.has(uid))) return; // Skip
+            family.forEach(uid => renderedFamilies.add(uid)); 
+        }
+
         const realIndex = localFiles.indexOf(file);
         if (!file.path) {
             console.warn("[RENDER_LOCAL] Missing path for item:", file);

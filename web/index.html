@@ -727,7 +727,7 @@
                     </div>
 
                     <!-- Search / Filters -->
-                    <div class="search-filters">
+                    <div class="search-filters" style="align-items: center;">
                         <input type="text" id="filter-artist" placeholder="Artiste..."
                             onkeyup="renderSetlist(currentTrackList)" style="flex:1;">
                         <input type="text" id="filter-title" placeholder="Titre..."
@@ -735,6 +735,12 @@
                         <input type="text" id="filter-category" placeholder="Cat..."
                             onkeyup="renderSetlist(currentTrackList)" style="flex:0.5;">
                         <button class="btn-clear-global" onclick="resetFilters('web')" title="Réinitialiser">×</button>
+                        
+                        <!-- Toggle Vue Groupée V60 -->
+                        <div class="group-toggle-mini" title="Grouper les versions liées (Audio/Vidéo/YouTube)" data-i18n-title="web.hint_grouped_view">
+                            <input type="checkbox" id="chk-group-setlist" onchange="toggleGroupedView(this.checked)">
+                            <label for="chk-group-setlist"><i class="ph ph-stack"></i></label>
+                        </div>
                     </div>
 
                     <!-- Table -->
@@ -779,13 +785,19 @@
                     </div>
 
                     <!-- Web Links Filters -->
-                    <div class="search-filters">
+                    <div class="search-filters" style="align-items: center;">
                         <input type="text" id="filter-web-artist" placeholder="Artiste..."
                             onkeyup="renderWebLinks()" style="flex:1;">
                         <input type="text" id="filter-web-title" placeholder="Titre..." onkeyup="renderWebLinks()"
                             style="flex:1;">
                         <button class="btn-clear-global" onclick="resetFilters('web_links')"
                             title="Réinitialiser">×</button>
+
+                        <!-- Toggle Vue Groupée V60 -->
+                        <div class="group-toggle-mini" title="Grouper les versions liées (Audio/Vidéo/YouTube)" data-i18n-title="web.hint_grouped_view">
+                            <input type="checkbox" id="chk-group-web" onchange="toggleGroupedView(this.checked)">
+                            <label for="chk-group-web"><i class="ph ph-stack"></i></label>
+                        </div>
                     </div>
 
                     <div class="table-wrapper">
@@ -829,7 +841,7 @@
                     </div>
 
                     <!-- Local Filters -->
-                    <div class="search-filters">
+                    <div class="search-filters" style="align-items: center;">
                         <input type="text" id="filter-local-artist" placeholder="Artiste..."
                             onkeyup="renderLocalFiles()" style="flex:1;">
                         <input type="text" id="filter-local-title" placeholder="Titre..." onkeyup="renderLocalFiles()"
@@ -838,6 +850,12 @@
                             style="flex:0.5;">
                         <button class="btn-clear-global" onclick="resetFilters('local')"
                             title="Réinitialiser">×</button>
+
+                        <!-- Toggle Vue Groupée V60 -->
+                        <div class="group-toggle-mini" title="Grouper les versions liées (Audio/Vidéo/YouTube)" data-i18n-title="web.hint_grouped_view">
+                            <input type="checkbox" id="chk-group-local" onchange="toggleGroupedView(this.checked)">
+                            <label for="chk-group-local"><i class="ph ph-stack"></i></label>
+                        </div>
                     </div>
 
                     <div class="table-wrapper">

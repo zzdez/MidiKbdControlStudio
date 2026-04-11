@@ -548,6 +548,8 @@
         "modal_choice_title": "Choisir un média",
         "lbl_interconnect_audio": "Audio",
         "lbl_interconnect_video": "Vidéo",
-        "lbl_interconnect_multitrack": "Multipiste"
+        "lbl_interconnect_multitrack": "Multipiste",
+        "lbl_grouped_view": "Vue Groupée",
+        "hint_grouped_view": "Grouper les versions liées (Audio/Vidéo/YouTube)"
     }
 }
