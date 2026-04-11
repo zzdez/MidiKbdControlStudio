@@ -2072,7 +2072,7 @@ async def get_local_subs(index: int, track: str = None):
         return Response(content="", media_type="text/plain")
 
 @app.delete("/api/local/{index}")
-async def delete_local_file(index: int):
+async def delete_local_file(index: int, delete_files: bool = False):
     try:
         items = []
         if os.path.exists(LOCAL_LIB_FILE):
@@ -2080,6 +2080,32 @@ async def delete_local_file(index: int):
                 items = json.load(f)
 
         if 0 <= index < len(items):
+            # V60: Handle physical deletion
+            if delete_files:
+                item_to_del = items[index]
+                path_to_del = resolve_portable_path(item_to_del.get("path", ""))
+                if path_to_del and os.path.exists(path_to_del):
+                    try:
+                        if os.path.isdir(path_to_del):
+                            import shutil
+                            shutil.rmtree(path_to_del)
+                            logging.info(f"[BACKEND] Physically deleted folder: {path_to_del}")
+                        else:
+                            os.remove(path_to_del)
+                            logging.info(f"[BACKEND] Physically deleted file: {path_to_del}")
+                            
+                            # Clean sidecars (JSON metadata and subtitles)
+                            import glob
+                            base_p, _ = os.path.splitext(path_to_del)
+                            for ext in ['.json', '.srt', '.vtt']:
+                                pattern = glob.escape(base_p) + "*" + ext
+                                for sidecar in glob.glob(pattern):
+                                    try:
+                                        os.remove(sidecar)
+                                    except: pass
+                    except Exception as fe:
+                        logging.error(f"[BACKEND] Physical delete error for {path_to_del}: {fe}")
+
             items.pop(index)
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=4)

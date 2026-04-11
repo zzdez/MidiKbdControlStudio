@@ -2971,6 +2971,32 @@
         </div>
     </dialog>
 
+    <!-- Modal: Confirmation Suppression (V60) -->
+    <dialog id="modal-delete-confirm" class="modal-modern" style="width: 400px; max-width: 95vw; border: 1px solid #cf6679;">
+        <div class="modal-header" style="background: rgba(207, 102, 121, 0.1);">
+            <h2 style="color: #cf6679; font-size: 1.1em;"><i class="ph ph-warning-circle"></i> <span data-i18n="web.modal_delete_title">Confirmation de suppression</span></h2>
+            <button class="btn-close-modal" onclick="document.getElementById('modal-delete-confirm').close()">×</button>
+        </div>
+        <div class="modal-body" style="padding: 20px;">
+            <p id="delete-confirm-text" style="margin-bottom: 20px; font-weight: 500;"></p>
+            
+            <div id="delete-physical-option" style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; border: 1px dashed rgba(207, 102, 121, 0.3);">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="chk-delete-physical" style="width: 18px; height: 18px;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="font-weight: bold; color: #cf6679; font-size: 0.9em;" data-i18n="web.lbl_delete_physical">Supprimer aussi le(s) fichier(s) sur le disque</span>
+                        <span style="font-size: 0.75em; color: #888;" data-i18n="web.hint_delete_physical">Cette action est irréversible et supprimera le média de votre ordinateur.</span>
+                    </div>
+                </label>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px;">
+                <button class="btn-secondary" onclick="document.getElementById('modal-delete-confirm').close()" data-i18n="web.btn_cancel">Annuler</button>
+                <button id="btn-do-delete" class="btn-primary" style="background: #cf6679; color: white;" data-i18n="web.btn_confirm_delete">Supprimer</button>
+            </div>
+        </div>
+    </dialog>
+
     <div id="sidebar-hover-trigger"></div>
 </body>
 

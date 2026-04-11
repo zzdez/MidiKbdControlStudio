@@ -75,7 +75,7 @@ header {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.9em;
+    font-size: 0.8em;
     padding: 2px 4px;
     border-radius: 4px;
     background: rgba(255,255,255,0.05);
@@ -137,7 +137,7 @@ header {
     border-right: 1px solid #333;
     display: flex;
     flex-direction: column;
-    padding: 10px;
+    padding: 6px;
     overflow: hidden;
     /* Force containment */
 }
@@ -145,7 +145,7 @@ header {
 /* RIGHT COLUMN: 30% */
 .sidebar-zone {
     flex: 3;
-    padding: 10px;
+    padding: 6px;
     background-color: #181818;
     display: flex;
     flex-direction: column;
@@ -196,7 +196,7 @@ header {
 }
 
 .api-result-artist {
-    font-size: 0.9em;
+    font-size: 0.8em;
     color: var(--text-secondary);
 }
 
@@ -397,7 +397,7 @@ iframe {
     grid-template-columns: repeat(5, 1fr);
     /* 5 Columns for AIRSTEP */
     gap: 10px;
-    padding: 10px;
+    padding: 6px;
 }
 
 .empty-state {
@@ -410,7 +410,7 @@ iframe {
 
 .pedal-card {
     background: var(--card-bg);
-    padding: 10px;
+    padding: 6px;
     border-radius: 8px;
     text-align: center;
     border: 2px solid transparent;
@@ -451,7 +451,7 @@ iframe {
 /* SIDEBAR COMPONENTS */
 .sidebar-section {
     background: #222;
-    padding: 10px;
+    padding: 6px;
     border-radius: 8px;
     display: flex; /* V60 Flex Layout */
     flex-direction: column;
@@ -460,10 +460,10 @@ iframe {
 }
 
 .section-title {
-    font-size: 0.9em;
+    font-size: 0.8em;
     color: #888;
     text-transform: uppercase;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     border-bottom: 1px solid #333;
     padding-bottom: 5px;
 }
@@ -472,7 +472,7 @@ iframe {
 .input-group {
     display: flex;
     gap: 5px;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     flex-wrap: wrap;
 }
 
@@ -488,7 +488,7 @@ select {
 }
 
 button {
-    padding: 6px 12px;
+    padding: 4px 10px;
     background: var(--accent);
     border: none;
     border-radius: 4px;
@@ -540,7 +540,7 @@ button:hover {
 /* TAB NAVIGATION */
 .nav-tabs {
     display: flex;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     border-bottom: 1px solid #333;
 }
 
@@ -548,7 +548,7 @@ button:hover {
     flex: 1;
     background: transparent;
     border: none;
-    padding: 10px;
+    padding: 6px;
     color: #888;
     border-bottom: 2px solid transparent;
     border-radius: 0;
@@ -574,13 +574,13 @@ button:hover {
 .styled-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9em;
+    font-size: 0.8em;
     /* Unified Font Size */
 }
 
 .styled-table th {
     text-align: left;
-    padding: 10px;
+    padding: 6px;
     border-bottom: 2px solid #333;
     color: #aaa;
     cursor: pointer;
@@ -593,7 +593,7 @@ button:hover {
 }
 
 .styled-table td {
-    padding: 10px;
+    padding: 6px;
     border-bottom: 1px solid #2a2a2a;
     color: #ddd;
     vertical-align: middle;
@@ -607,7 +607,7 @@ button:hover {
 .styled-table .btn-action {
     padding: 4px 8px;
     /* Slightly compact */
-    font-size: 0.9em;
+    font-size: 0.8em;
     margin-left: 2px;
 }
 
@@ -616,7 +616,7 @@ button:hover {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: 15px;
-    padding: 10px;
+    padding: 6px;
 }
 
 .app-card-large {
@@ -645,7 +645,7 @@ button:hover {
 
 .app-name-large {
     font-weight: bold;
-    font-size: 0.9em;
+    font-size: 0.8em;
     color: white;
 }
 
@@ -1052,7 +1052,7 @@ dialog::backdrop {
     border: 1px solid #333;
     color: white;
     font-family: inherit;
-    font-size: 0.9em;
+    font-size: 0.8em;
     resize: vertical;
 }
 
@@ -1269,7 +1269,7 @@ dialog::backdrop {
     display: flex;
     gap: 5px;
     /* Reduced from 10px */
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     align-items: center;
 }
 
@@ -1314,7 +1314,7 @@ dialog::backdrop {
 .import-actions button {
     width: 100%;
     text-align: left;
-    padding: 10px;
+    padding: 6px;
     justify-content: flex-start;
 }
 
@@ -1395,7 +1395,7 @@ dialog::backdrop {
     background: #181818;
     margin-top: 10px;
     border-radius: 8px;
-    padding: 10px;
+    padding: 6px;
     border: 1px solid #333;
     max-height: 200px;
     overflow-y: auto;
@@ -1436,7 +1436,7 @@ dialog::backdrop {
     cursor: pointer;
     border-radius: 4px;
     color: #ccc;
-    font-size: 0.9em;
+    font-size: 0.8em;
 }
 
 .chapter-item:hover {
@@ -1608,7 +1608,7 @@ dialog::backdrop {
 }
 
 .folder-item {
-    padding: 10px;
+    padding: 6px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1621,7 +1621,7 @@ dialog::backdrop {
 
 .folder-path {
     font-family: monospace;
-    font-size: 0.9em;
+    font-size: 0.8em;
     color: #ccc;
     word-break: break-all;
 }
@@ -1804,7 +1804,7 @@ dialog::backdrop {
 }
 
 .folder-item {
-    padding: 10px;
+    padding: 6px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1817,7 +1817,7 @@ dialog::backdrop {
 
 .folder-path {
     font-family: monospace;
-    font-size: 0.9em;
+    font-size: 0.8em;
     color: #ccc;
     word-break: break-all;
 }
@@ -2223,7 +2223,7 @@ dialog::backdrop {
     align-items: center;
     justify-content: center;
     gap: 10px;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     height: 180px;
     width: 100%;
     overflow: hidden;
@@ -2603,7 +2603,7 @@ dialog::backdrop {
     min-width: 160px;
     padding: 8px 0;
     flex-direction: column;
-    font-size: 0.9em;
+    font-size: 0.8em;
 }
 
 #stem-context-menu.active {
@@ -2732,7 +2732,7 @@ input[type="color"].stem-color-input::-moz-color-swatch {
 
 #header-smart-scale-pill span {
     font-weight: 600;
-    font-size: 0.9em;
+    font-size: 0.8em;
     color: #fff;
 }
 
@@ -2842,7 +2842,7 @@ input[type="color"].stem-color-input::-moz-color-swatch {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px;
+    padding: 6px;
     background: rgba(255, 255, 255, 0.03);
     border-radius: 8px;
     cursor: pointer;

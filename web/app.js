@@ -1108,11 +1108,7 @@ async function saveWebLink() {
 }
 
 async function deleteWebLink(index) {
-    if (!confirm(t("web.msg_confirm_delete", "Supprimer ce lien ?"))) return;
-    try {
-        await fetch(`/api/web_links/${index}`, { method: "DELETE" });
-        loadWebLinks();
-    } catch (e) { console.error("Delete Web Link error:", e); }
+    requestDeletion(index, 'web');
 }
 
 function playWebLink(index) {
@@ -2927,9 +2923,7 @@ function stopAllMedia() {
 }
 
 async function deleteTrack(index) {
-    if (!confirm("Supprimer ?")) return;
-    await fetch(`/api/setlist/${index}`, { method: "DELETE" });
-    loadSetlist();
+    requestDeletion(index, 'setlist');
 }
 
 function playTrackAt(index) {
@@ -6233,9 +6227,58 @@ async function saveLocalItem() {
 }
 
 async function deleteLocalFile(index) {
-    if (!confirm("Supprimer ce fichier de la bibliothèque ?")) return;
-    await fetch(`/api/local/${index}`, { method: "DELETE" });
-    loadLocalFiles();
+    requestDeletion(index, 'local');
+}
+
+/**
+ * V60: Unified Deletion Flow with Physical File Option
+ */
+function requestDeletion(index, type) {
+    const modal = document.getElementById('modal-delete-confirm');
+    const textEl = document.getElementById('delete-confirm-text');
+    const chk = document.getElementById('chk-delete-physical');
+    const btn = document.getElementById('btn-do-delete');
+    const physicalOpt = document.getElementById('delete-physical-option');
+
+    if (!modal) return;
+    
+    chk.checked = false;
+    
+    if (type === 'web') {
+        textEl.innerText = t("web.msg_confirm_delete_web", "Voulez-vous supprimer ce lien web ?");
+        physicalOpt.style.display = 'none';
+    } else if (type === 'setlist') {
+        textEl.innerText = t("web.msg_confirm_delete_youtube", "Supprimer cette vidéo YouTube de la bibliothèque ?");
+        physicalOpt.style.display = 'none';
+    } else {
+        textEl.innerText = t("web.msg_confirm_delete_local", "Supprimer ce média de la bibliothèque ?");
+        physicalOpt.style.display = 'block';
+    }
+
+    btn.onclick = async () => {
+        const deletePhysical = chk.checked;
+        modal.close();
+        
+        try {
+            if (type === 'web') {
+                await fetch(`/api/web_links/${index}`, { method: "DELETE" });
+                loadWebLinks();
+            } else if (type === 'setlist') {
+                await fetch(`/api/setlist/${index}`, { method: "DELETE" });
+                loadSetlist();
+            } else {
+                // DELETE Local with optional physical removal
+                await fetch(`/api/local/${index}?delete_files=${deletePhysical}`, { method: "DELETE" });
+                loadLocalFiles();
+            }
+            refreshAllMediaData();
+        } catch (e) {
+            console.error("Delete error:", e);
+            alert("Erreur lors de la suppression.");
+        }
+    };
+
+    modal.showModal();
 }
 
 
