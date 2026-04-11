@@ -575,7 +575,7 @@ button:hover {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.8em;
-    /* Unified Font Size */
+    table-layout: fixed; /* V60: Forced column widths */
 }
 
 .styled-table th {
@@ -593,15 +593,28 @@ button:hover {
 }
 
 .styled-table td {
-    padding: 6px;
+    padding: 4px 6px;
     border-bottom: 1px solid #2a2a2a;
     color: #ddd;
     vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .styled-table tr:hover {
     background-color: #252525;
 }
+
+/* V60: Column Normalization */
+.col-type { width: 35px; text-align: center; }
+.col-artist { width: 90px; font-weight: 500; color: #bbb; }
+.col-title { width: auto; color: #fff; }
+.col-cat { width: 50px; text-align: center; color: #888; font-size: 0.9em; }
+.col-actions { width: 65px; text-align: right; padding-right: 2px !important; }
+
+/* Remove ellipsis for actions to ensure icons stay visible */
+.styled-table td.col-actions { overflow: visible; text-overflow: clip; }
 
 /* Action buttons inside table - Standard "Mini" Buttons */
 .styled-table .btn-action {

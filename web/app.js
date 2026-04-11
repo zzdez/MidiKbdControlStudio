@@ -905,13 +905,13 @@ function renderWebLinks() {
             : `<span class="link-badge" style="margin-right:8px; opacity:0.3;"><i class="ph ph-link-simple"></i></span>`;
 
         tr.innerHTML = `
-            <td style="text-align:center;">${iconHtml}</td>
-            <td>${link.artist || ""}</td>
-            <td style="cursor:pointer; color:var(--accent);" onclick="playWebLink(${realIndex})">
+            <td class="col-type">${iconHtml}</td>
+            <td class="col-artist">${link.artist || ""}</td>
+            <td class="col-title" style="cursor:pointer;" onclick="playWebLink(${realIndex})">
                 ${linkIndicator}
                 ${link.title || link.url}
             </td>
-            <td style="text-align:right;">
+            <td class="col-actions">
                 <button class="btn-action" onclick="openWebLinkModal(${realIndex})" title="${t("web.btn_edit")}">✎</button>
                 <button class="btn-action" onclick="deleteWebLink(${realIndex})" style="color:#cf6679;" title="${t("web.btn_delete")}">×</button>
             </td>
@@ -1506,12 +1506,12 @@ function renderSetlist(list) {
 
         // Swapped Columns: Artist | Title (with icon) | Category
         tr.innerHTML = `
-            <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.artist || ""}</td>
-            <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">
+            <td class="col-artist" style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.artist || ""}</td>
+            <td class="col-title" style="cursor:pointer;" onclick="playTrackAt(${realIndex})">
                 ${linkIndicator}${iconImg}${track.title || track.url}
             </td>
-            <td style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.category || ""}</td>
-            <td style="text-align:right;">
+            <td class="col-cat" style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.category || ""}</td>
+            <td class="col-actions">
                 <button class="btn-action" onclick="openEditModal(${realIndex})" title="${t("web.btn_edit")}">✎</button>
                 <button class="btn-action" onclick="deleteTrack(${realIndex})" style="color:#cf6679;" title="${t("web.btn_delete")}">×</button>
             </td>
@@ -3721,14 +3721,13 @@ function renderLocalFiles() {
             : `<span class="link-badge" style="margin-right:8px; opacity:0.3;"><i class="ph ph-link-simple"></i></span>`;
 
         tr.innerHTML = `
-            <td>${file.artist || ""}</td>
-            <td style="cursor:pointer;" onclick="playLocal(${realIndex})">
+            <td class="col-artist">${file.artist || ""}</td>
+            <td class="col-title" style="cursor:pointer;" onclick="playLocal(${realIndex})">
                 ${linkIndicator}${iconHtml}
                 ${file.title}
             </td>
-            <td>${file.category || "Général"}</td>
-
-            <td style="text-align:right;">
+            <td class="col-cat">${file.category || "Général"}</td>
+            <td class="col-actions">
                 <button class="btn-action" onclick="${file.is_multitrack ? 'openMultitrackModal' : 'openEditLocalModal'}(${realIndex})">✎</button>
                 <button class="btn-action" onclick="deleteLocalFile(${realIndex})" style="color:#cf6679;">×</button>
             </td>
