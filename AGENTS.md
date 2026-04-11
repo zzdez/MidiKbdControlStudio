@@ -665,4 +665,4 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 *   **Algorithme de Regroupement** : Implémentation d'un filtrage basé sur l'appartenance à une "famille" (Mesh). Pour chaque groupe de médias interconnectés, l'interface ne conserve qu'un seul représentant (Master) lors du rendu.
 *   **Hiérarchie de Représentation** : Choix intelligent de l'élément Master selon le score de priorité : Multitrack (5) > Vidéo (4) > Audio (3) > YouTube (2) > Web (1).
 *   **Persistance UI** : L'état du commutateur "Vue Groupée" est sauvegardé dans le `localStorage` et synchronisé entre tous les onglets de la bibliothèque.
-*   **Expérience UI** : Ajout d'une icône de pile (`.group-toggle-mini`) compacte dans les zones de filtrage pour basculer nativement entre la vue détaillée et la vue consolidée.
+*   **Expérience UI (Sticky Headers)** : Implémentation de `position: sticky` avec offsets calculés pour les onglets, titres et filtres de la barre latérale. Utilisation de fonds opaques et de `z-index` hiérarchisés pour garantir une navigation fluide sans chevauchement visuel lors du défilement des listes massives.

@@ -149,7 +149,8 @@ header {
     background-color: #181818;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    overflow: hidden; /* V60: Scroll Moved to table-wrapper */
+    height: calc(100vh - 76px); /* Fixed Height below header */
 }
 
 /* ==========================================
@@ -449,10 +450,13 @@ iframe {
 
 /* SIDEBAR COMPONENTS */
 .sidebar-section {
-    margin-bottom: 20px;
     background: #222;
     padding: 10px;
     border-radius: 8px;
+    display: flex; /* V60 Flex Layout */
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
 }
 
 .section-title {
@@ -560,6 +564,9 @@ button:hover {
 
 /* LIBRARY TABLE */
 .table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
     overflow-x: auto;
 }
 
@@ -2931,3 +2938,26 @@ input[type="color"].stem-color-input::-moz-color-swatch {
 .group-toggle-mini label i { font-size: 16px; }
 .group-toggle-mini input:checked + label { background: rgba(187, 134, 252, 0.15); border-color: var(--accent); color: var(--accent); box-shadow: 0 0 8px rgba(187, 134, 252, 0.2); }
 .group-toggle-mini label:hover { background: rgba(255, 255, 255, 0.1); color: #eee; }
+
+/* V60: Sidebar Cockpit Layout (Flexbox Architecture) */
+.view-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#bulk-relocate-banner {
+    flex-shrink: 0;
+    margin-bottom: 15px !important;
+}
+
+/* Ensure thead stays at top of the scrolling table-wrapper */
+.styled-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #181818;
+    border-bottom: 2px solid #333;
+}
