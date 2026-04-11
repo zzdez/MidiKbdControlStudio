@@ -698,6 +698,9 @@
 
         </section>
 
+        <!-- V60: Sidebar Resizer -->
+        <div id="sidebar-resizer"></div>
+
         <!-- COLONNE DROITE (30%) -->
         <section class="sidebar-zone">
 
@@ -748,9 +751,9 @@
                         <table id="library-table" class="styled-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortTable('artist')" class="col-artist" data-i18n="web.col_artist">Artiste</th>
-                                    <th onclick="sortTable('title')" class="col-title" data-i18n="web.col_title">Titre</th>
-                                    <th onclick="sortTable('category')" class="col-cat" data-i18n="web.col_category">Cat</th>
+                                    <th onclick="sortTable('artist')" class="col-artist" data-i18n="web.col_artist">Artiste <div class="th-resizer" data-col="artist"></div></th>
+                                    <th onclick="sortTable('title')" class="col-title" data-i18n="web.col_title">Titre <div class="th-resizer" data-col="title"></div></th>
+                                    <th onclick="sortTable('category')" class="col-cat" data-i18n="web.col_category">Cat <div class="th-resizer" data-col="cat"></div></th>
                                     <th class="col-actions" data-i18n="web.col_actions">Actions</th>
                                 </tr>
                             </thead>
@@ -804,9 +807,9 @@
                         <table id="web-links-table" class="styled-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortWebLinks('type')" class="col-type"><i class="ph ph-globe"></i></th>
-                                    <th onclick="sortWebLinks('artist')" class="col-artist" data-i18n="web.col_artist">Artiste</th>
-                                    <th onclick="sortWebLinks('title')" class="col-title" data-i18n="web.col_title">Titre</th>
+                                    <th onclick="sortWebLinks('type')" class="col-type"><i class="ph ph-globe"></i> <div class="th-resizer" data-col="type"></div></th>
+                                    <th onclick="sortWebLinks('artist')" class="col-artist" data-i18n="web.col_artist">Artiste <div class="th-resizer" data-col="artist"></div></th>
+                                    <th onclick="sortWebLinks('title')" class="col-title" data-i18n="web.col_title">Titre <div class="th-resizer" data-col="title"></div></th>
                                     <th class="col-actions" data-i18n="web.col_actions">Actions</th>
                                 </tr>
                             </thead>
@@ -862,9 +865,9 @@
                         <table id="local-table" class="styled-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortLocal('artist')" class="col-artist" data-i18n="web.col_artist">Artiste</th>
-                                    <th onclick="sortLocal('title')" class="col-title" data-i18n="web.col_title">Titre</th>
-                                    <th onclick="sortLocal('category')" class="col-cat" data-i18n="web.col_category">Cat</th>
+                                    <th onclick="sortLocal('artist')" class="col-artist" data-i18n="web.col_artist">Artiste <div class="th-resizer" data-col="artist"></div></th>
+                                    <th onclick="sortLocal('title')" class="col-title" data-i18n="web.col_title">Titre <div class="th-resizer" data-col="title"></div></th>
+                                    <th onclick="sortLocal('category')" class="col-cat" data-i18n="web.col_category">Cat <div class="th-resizer" data-col="cat"></div></th>
                                     <th class="col-actions" data-i18n="web.col_actions">Actions</th>
                                 </tr>
                             </thead>

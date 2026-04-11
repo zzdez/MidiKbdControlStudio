@@ -133,7 +133,7 @@ header {
 
 /* LEFT COLUMN: 70% */
 .media-zone {
-    flex: 7;
+    flex: 1;
     border-right: 1px solid #333;
     display: flex;
     flex-direction: column;
@@ -142,9 +142,26 @@ header {
     /* Force containment */
 }
 
+/* V60: Sidebar Resizer Spliter */
+#sidebar-resizer {
+    width: 6px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.2s;
+    z-index: 100;
+    margin-left: -3px;
+    margin-right: -3px;
+}
+
+#sidebar-resizer:hover, #sidebar-resizer.resizing {
+    background: var(--accent);
+}
+
 /* RIGHT COLUMN: 30% */
 .sidebar-zone {
-    flex: 3;
+    flex: 0 0 var(--sidebar-width, 30%);
+    min-width: 250px;
+    max-width: 60%;
     padding: 6px;
     background-color: #181818;
     display: flex;
@@ -586,10 +603,26 @@ button:hover {
     cursor: pointer;
     font-weight: bold;
     text-transform: uppercase;
+    position: relative; /* For resizer */
 }
 
 .styled-table th:hover {
     color: white;
+}
+
+/* V60: Column Resizer Handle */
+.th-resizer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 5px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 10;
+}
+
+.th-resizer:hover, .th-resizer.resizing {
+    border-right: 2px solid var(--accent);
 }
 
 .styled-table td {
@@ -606,15 +639,31 @@ button:hover {
     background-color: #252525;
 }
 
-/* V60: Column Normalization */
-.col-type { width: 35px; text-align: center; }
-.col-artist { width: 90px; font-weight: 500; color: #bbb; }
+/* V60: Column Normalization & Resizing */
+.col-type { width: var(--col-type-width, 35px); text-align: center; }
+.col-artist { width: var(--col-artist-width, 90px); font-weight: 500; color: #bbb; }
 .col-title { width: auto; color: #fff; }
-.col-cat { width: 50px; text-align: center; color: #888; font-size: 0.9em; }
-.col-actions { width: 65px; text-align: right; padding-right: 2px !important; }
+.col-cat { width: var(--col-cat-width, 60px); text-align: center; color: #888; font-size: 0.9em; }
+.col-actions { width: var(--col-actions-width, 65px); text-align: right; padding-right: 2px !important; }
 
 /* Remove ellipsis for actions to ensure icons stay visible */
 .styled-table td.col-actions { overflow: visible; text-overflow: clip; }
+
+/* V60: Global Resize Overlay to catch events over iframes */
+.resize-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    cursor: col-resize;
+    background: transparent;
+    display: none;
+}
+.resize-overlay.active {
+    display: block;
+}
 
 /* Action buttons inside table - Standard "Mini" Buttons */
 .styled-table .btn-action {

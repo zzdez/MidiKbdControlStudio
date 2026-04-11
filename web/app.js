@@ -6316,6 +6316,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupUniversalLoopSelection();
     setupSliderReset(document.getElementById("mt-modal-volume"), "volume");
 
+    // V60: Initialization of resizing engines
+    initLayoutEngine();
+
     // 4. SYNC DATA LOAD (The Core of V57 Fix)
     console.log("[INIT] Waiting for critical data (Setlist, Library, WebLinks)...");
     try {
@@ -10472,4 +10475,144 @@ async function toggleMediaLink(targetType, targetIndex) {
         console.log("[SYNC_LINK] Re-aligned linkerSourceItem and currentEditingLinkedIds after reload:", currentEditingLinkedIds);
     }
 
+}
+
+// --- DYNAMIC LAYOUT ENGINE (V60) ---
+function initLayoutEngine() {
+    console.log("[LAYOUT] Initializing Hardened Resizing Engines...");
+
+    // 0. Create or get Global Overlay
+    let overlay = document.getElementById('resize-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'resize-overlay';
+        overlay.className = 'resize-overlay';
+        document.body.appendChild(overlay);
+    }
+
+    const iframes = document.querySelectorAll('iframe');
+    
+    // State management
+    let activeDrag = null; // { type: 'sidebar' | 'column', handle: element, colType: string }
+
+    function startDrag(type, e, colType = null) {
+        activeDrag = { type, handle: e.target, colType };
+        overlay.classList.add('active');
+        document.body.style.userSelect = 'none';
+        
+        // Neutralize iframes to prevent event loss
+        iframes.forEach(f => f.style.pointerEvents = 'none');
+        
+        if (type === 'sidebar') {
+            document.getElementById('sidebar-resizer').classList.add('resizing');
+        } else {
+            activeDrag.handle.classList.add('resizing');
+            activeDrag.startX = e.clientX;
+            activeDrag.startWidth = activeDrag.handle.parentElement.offsetWidth;
+        }
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', stopDrag);
+    }
+
+    function onMouseMove(moveEvent) {
+        if (!activeDrag) return;
+
+        if (activeDrag.type === 'sidebar') {
+            const totalWidth = window.innerWidth;
+            const newWidthPx = totalWidth - moveEvent.clientX;
+            const newWidthPercent = (newWidthPx / totalWidth) * 100;
+            
+            if (newWidthPercent >= 15 && newWidthPercent <= 60) {
+                document.documentElement.style.setProperty('--sidebar-width', `${newWidthPercent}%`);
+                localStorage.setItem('sidebar_width', `${newWidthPercent}%`);
+            }
+        } else if (activeDrag.type === 'column') {
+            const currentWidth = activeDrag.startWidth + (moveEvent.clientX - activeDrag.startX);
+            if (currentWidth > 30) {
+                document.documentElement.style.setProperty(`--col-${activeDrag.colType}-width`, `${currentWidth}px`);
+                localStorage.setItem(`col_${activeDrag.colType}_width`, `${currentWidth}px`);
+            }
+        }
+    }
+
+    function stopDrag() {
+        if (!activeDrag) return;
+
+        console.log("[LAYOUT] Stopping drag:", activeDrag.type);
+        overlay.classList.remove('active');
+        document.body.style.userSelect = 'auto';
+        iframes.forEach(f => f.style.pointerEvents = 'auto');
+
+        if (activeDrag.type === 'sidebar') {
+            document.getElementById('sidebar-resizer').classList.remove('resizing');
+        } else if (activeDrag.handle) {
+            activeDrag.handle.classList.remove('resizing');
+        }
+
+        activeDrag = null;
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', stopDrag);
+    }
+
+    // 1. Sidebar Resizing
+    const resizer = document.getElementById('sidebar-resizer');
+    if (resizer) {
+        resizer.addEventListener('mousedown', (e) => startDrag('sidebar', e));
+    }
+
+    // 2. Column Resizing
+    document.addEventListener('mousedown', (e) => {
+        if (!e.target.classList.contains('th-resizer')) return;
+        startDrag('column', e, e.target.dataset.col);
+    });
+
+    // 3. Auto-fit (Double click)
+    document.addEventListener('dblclick', (e) => {
+        if (!e.target.classList.contains('th-resizer')) return;
+        autoFitColumn(e.target.dataset.col);
+    });
+
+    // 4. Restoration
+    const savedSidebar = localStorage.getItem('sidebar_width');
+    if (savedSidebar) document.documentElement.style.setProperty('--sidebar-width', savedSidebar);
+    
+    ['artist', 'cat', 'type', 'actions'].forEach(col => {
+        const saved = localStorage.getItem(`col_${col}_width`);
+        if (saved) document.documentElement.style.setProperty(`--col-${col}-width`, saved);
+    });
+}
+
+/**
+ * Scans visible table bodies to calculate the optimal width for a column
+ */
+function autoFitColumn(colType) {
+    let maxWidth = 40; // Base minimum
+    const tables = ['setlist-body', 'web-links-body', 'local-body'];
+    
+    // Create a temporary hidden span to measure text precisely
+    const span = document.createElement('span');
+    span.style.visibility = 'hidden';
+    span.style.position = 'absolute';
+    span.style.whiteSpace = 'nowrap';
+    span.style.fontSize = '0.8em'; // Must match .styled-table font size
+    document.body.appendChild(span);
+
+    tables.forEach(id => {
+        const tbody = document.getElementById(id);
+        if (!tbody) return;
+        const cells = tbody.querySelectorAll(`.col-${colType}`);
+        cells.forEach(td => {
+            span.innerText = td.innerText;
+            const width = span.offsetWidth + 25; // + padding + safety margin
+            if (width > maxWidth) maxWidth = width;
+        });
+    });
+
+    document.body.removeChild(span);
+
+    if (maxWidth > 500) maxWidth = 500; // Hard cap to prevent runaway layout
+    
+    document.documentElement.style.setProperty(`--col-${colType}-width`, `${maxWidth}px`);
+    localStorage.setItem(`col_${colType}_width`, `${maxWidth}px`);
 }
