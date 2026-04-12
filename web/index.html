@@ -1903,109 +1903,83 @@
             <div class="settings-content">
                 <!-- TAB: GENERAL -->
                 <div id="tab-settings-general" class="settings-tab">
-                    <!-- INJECT SELECT -->
                     <h4 data-i18n="web.lbl_lang_choice">Langue / Language</h4>
-                    <select id="setting-language" onchange="changeLanguage()"
-                        style="padding:10px; border-radius:10px; border:1px solid #333; background:#222; color:white; width:100%; margin-bottom: 20px;">
+                    <select id="setting-language" onchange="changeLanguage()" style="margin-bottom: 8px;">
                         <option value="fr">Français</option>
                         <option value="en">English</option>
                     </select>
 
                     <h4 data-i18n="web.lbl_playback_options">Options de Lecture</h4>
-                    <div
-                        style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-                            <input type="checkbox" id="setting-autoplay" style="width:18px; height:18px;">
-                            <span data-i18n="web.lbl_autoplay">Lecture auto à la sélection</span>
-                        </label>
-                        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-                            <input type="checkbox" id="setting-autoreplay" style="width:18px; height:18px;">
-                            <span data-i18n="web.lbl_autoreplay">Rejouer en boucle à la fin</span>
-                        </label>
-                    </div>
-
-                    <h4 data-i18n="web.lbl_interface_ergonomics" style="display:none;">Interface & Ergonomie</h4>
-                    <div style="display:none;">
+                    <div class="settings-control-group" style="padding:4px 8px; margin-bottom:8px;">
+                        <div class="settings-row" style="margin-bottom:0; background:none; border:none; padding:0; gap:15px;">
+                            <label style="display:flex; align-items:center; gap:6px;">
+                                <input type="checkbox" id="setting-autoplay" style="width:14px; height:14px;">
+                                <span data-i18n="web.lbl_autoplay">Lecture auto</span>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:6px;">
+                                <input type="checkbox" id="setting-autoreplay" style="width:14px; height:14px;">
+                                <span data-i18n="web.lbl_autoreplay">Boucle auto</span>
+                            </label>
+                        </div>
                     </div>
 
                     <h4 data-i18n="web.lbl_fretboard_style">Style du Fretboard</h4>
-                    <select id="setting-fretboard-skin" onchange="changeFretboardSkin()"
-                        style="padding:10px; border-radius:10px; border:1px solid #333; background:#222; color:white; width:100%; margin-bottom: 10px;">
-                        <option value="flat" data-i18n="web.fretboard_flat">Plat & Sombre (Flat Dark)</option>
-                        <option value="wood" data-i18n="web.fretboard_wood">Réaliste (Bois)</option>
-                    </select>
-                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-bottom: 20px; background:#222; padding:15px; border-radius:10px; border:1px solid #333;">
-                        <input type="checkbox" id="setting-fretboard-autoclose" style="width:18px; height:18px;">
-                        <span data-i18n="web.lbl_fretboard_auto_close">Fermeture auto du manche au changement de média</span>
-                    </label>
-
-                    <h4 data-i18n="web.lbl_youtube_api">Clé API YouTube (Optionnelle)</h4>
-                    <label data-i18n="web.lbl_youtube_api_key">YouTube Data API Key</label>
-                    <input type="password" id="setting-youtube-key" data-i18n-placeholder="web.placeholder_youtube_api"
-                        placeholder="Laisser vide si aucune clé...">
-                    <p class="hint" style="margin-top:5px;" data-i18n="web.msg_api_info" data-i18n-html="true">
-                        <strong>Optionnel :</strong> Cette clé gratuite permet de récupérer automatiquement les titres,
-                        descriptions et miniatures.
-                    </p>
-                    <p class="hint"><a href="https://console.cloud.google.com/" target="_blank"
-                            style="color:var(--accent); text-decoration:none;" data-i18n="web.link_get_api_key">Obtenir
-                            une clé API gratuite ↗</a>.</p>
-
-                    <h4 data-i18n="web.lbl_music_apis" style="margin-top: 20px;">APIs Musique (BPM & Tonalité)</h4>
-                    <p class="hint" data-i18n="web.msg_music_api_info">
-                        Ces clés optionnelles permettent la recherche automatique du BPM et de la tonalité. Spotify est
-                        prioritaire si configuré.
-                        <br><strong>Note :</strong> L'utilisation des APIs gratuites GetSongBPM et GetSongKey implique
-                        l'acceptation de leurs conditions d'utilisation.
-                        Merci à <a href="https://getsongbpm.com" target="_blank"
-                            style="color:var(--accent);">GetSongBPM</a> et <a href="https://getsongkey.com"
-                            target="_blank" style="color:var(--accent);">GetSongKey</a> pour leur base de données.
-                    </p>
-
-                    <div
-                        style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
-                        <div>
-                            <label data-i18n="web.lbl_spotify_client_id">Spotify Client ID</label>
-                            <input type="password" id="setting-spotify-client-id"
-                                placeholder="Laisser vide pour désactiver..." style="margin-bottom: 5px;">
-                            <label data-i18n="web.lbl_spotify_client_secret">Spotify Client Secret</label>
-                            <input type="password" id="setting-spotify-client-secret"
-                                placeholder="Laisser vide pour désactiver...">
+                    <div class="settings-control-group" style="padding:4px 8px; margin-bottom:8px;">
+                        <select id="setting-fretboard-skin" onchange="changeFretboardSkin()" style="margin-bottom:6px; height:22px;">
+                            <option value="flat" data-i18n="web.fretboard_flat">Plat & Sombre (Flat Dark)</option>
+                            <option value="wood" data-i18n="web.fretboard_wood">Réaliste (Bois)</option>
+                        </select>
+                        <div class="settings-row" style="margin-bottom:0; background:none; border:none; padding:0;">
+                            <input type="checkbox" id="setting-fretboard-autoclose" style="width:14px; height:14px;">
+                            <label for="setting-fretboard-autoclose" data-i18n="web.lbl_fretboard_auto_close" style="font-size:0.8em; margin-left:6px;">Fermeture auto manche</label>
                         </div>
-                        <hr style="border: 0; border-top: 1px solid #444; width: 100%; margin: 5px 0;">
-                        <div>
-                            <label data-i18n="web.lbl_getsong_api_key">GetSongBPM/Key API Key</label>
-                            <input type="password" id="setting-getsong-api-key"
-                                placeholder="API gratuite pour le BPM et la tonalité...">
+                    </div>
+
+                    <h4 data-i18n="web.lbl_youtube_api">Clé API YouTube</h4>
+                    <div class="settings-control-group" style="padding:4px 8px; margin-bottom:8px;">
+                        <input type="password" id="setting-youtube-key" data-i18n-placeholder="web.placeholder_youtube_api" style="height:22px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+                            <p class="hint" data-i18n="web.msg_api_info" style="margin:0; font-size:0.7em;">Raccourci titres/images.</p>
+                            <a href="https://console.cloud.google.com/" target="_blank" style="color:var(--accent); text-decoration:none; font-size:0.7em;" data-i18n="web.link_get_api_key">Clé API ↗</a>
+                        </div>
+                    </div>
+
+                    <h4 data-i18n="web.lbl_music_apis">APIs Musique (BPM & Ton.)</h4>
+                    <div class="settings-control-group" style="padding:4px 8px; margin-bottom:8px;">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                            <div>
+                                <label data-i18n="web.lbl_spotify_client_id" style="font-size:0.7em;">ID Spotify</label>
+                                <input type="password" id="setting-spotify-client-id" placeholder="..." style="height:20px;">
+                            </div>
+                            <div>
+                                <label data-i18n="web.lbl_spotify_client_secret" style="font-size:0.7em;">Secret Spotify</label>
+                                <input type="password" id="setting-spotify-client-secret" placeholder="..." style="height:20px;">
+                            </div>
+                        </div>
+                        <div style="margin-top:4px; padding-top:4px; border-top:1px solid #333;">
+                            <label data-i18n="web.lbl_getsong_api_key" style="font-size:0.7em;">GetSongBPM Key</label>
+                            <input type="password" id="setting-getsong-api-key" placeholder="..." style="height:20px;">
                         </div>
                     </div>
                 </div>
 
                 <!-- TAB: LIBRARY -->
                 <div id="tab-settings-library" class="settings-tab" style="display:none;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <h4 data-i18n="web.lbl_local_folders">Dossiers Locaux</h4>
-                        <button class="btn-secondary" onclick="addLibraryFolder()" data-i18n="web.btn_add_folder_list">+
-                            Ajouter Dossier</button>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <h4 data-i18n="web.lbl_local_folders" style="margin:0; border:none;">Dossiers Locaux</h4>
+                        <button class="btn-secondary" onclick="addLibraryFolder()" style="padding:4px 8px; font-size:0.8em;">+ Ajouter</button>
                     </div>
-
-                    <div id="settings-folder-list" class="folder-list">
-                        <!-- JS injected -->
-                    </div>
-                    <p class="hint" data-i18n="web.hint_local_folders">Les fichiers audio (MP3, WAV, FLAC, M4A, OGG)
-                        seront analysés automatiquement.</p>
+                    <div id="settings-folder-list" class="folder-list" style="max-height:250px;"></div>
+                    <p class="hint" data-i18n="web.hint_local_folders">Scan auto (MP3, WAV, etc.)</p>
                 </div>
 
                 <!-- TAB: CONTROLLER -->
                 <div id="tab-settings-controller" class="settings-tab" style="display:none;">
-                    <h4 data-i18n="web.lbl_controller_config">Configuration du Pédalier</h4>
-                    <p data-i18n="web.hint_controller_config">Pour modifier les boutons, les actions avancées et les
-                        profils, utilisez l'éditeur natif.</p>
-
-                    <div style="text-align:center; margin-top:30px;">
-                        <button class="btn-primary" onclick="openNativeEditor()"
-                            style="padding:15px 30px; font-size:1.1em;" data-i18n="gui.btn_open_editor">
-                            Ouvrir l'Éditeur Avancé ⚙️
+                    <h4 data-i18n="web.lbl_controller_config">Contrôleur</h4>
+                    <p class="hint" data-i18n="web.hint_controller_config" style="margin-bottom:15px;">Utilisez l'éditeur natif pour les boutons.</p>
+                    <div style="text-align:center;">
+                        <button class="btn-primary" onclick="openNativeEditor()" style="padding:10px 20px;" data-i18n="gui.btn_open_editor">
+                            Éditeur Avancé ⚙️
                         </button>
                     </div>
                 </div>
@@ -2013,26 +1987,22 @@
                 <!-- TAB: STORAGE -->
                 <div id="tab-settings-storage" class="settings-tab" style="display:none;">
                     <h4 data-i18n="web.lbl_portability">Portabilité & Migration</h4>
-                    <p data-i18n="web.hint_portability" style="font-size: 0.85em; color: #888;">Gérez vos médias pour le transfert entre ordinateurs. Les chemins de cette application sont stockés en relatif.</p>
-
-                    <div style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-top: 15px;">
+                    <div class="settings-control-group">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div style="padding-right: 15px;">
-                                <strong data-i18n="web.lbl_consolidate">Consolider la Bibliothèque</strong>
-                                <p style="font-size: 0.8em; color: #888; margin-top: 5px;" data-i18n="web.hint_consolidate">Copie tous les médias externes (Audio, Vidéos, Multitracks) à l'intérieur du dossier portable de l'application.</p>
+                            <div style="flex:1;">
+                                <strong style="font-size:0.85em;" data-i18n="web.lbl_consolidate">Consolider</strong>
+                                <p class="hint" data-i18n="web.hint_consolidate" style="margin:0;">Copie tout en local.</p>
                             </div>
-                            <button class="btn-primary" onclick="consolidateLibrary()" data-i18n="web.btn_consolidate_run" style="white-space:nowrap;">Consolider</button>
+                            <button class="btn-primary" onclick="consolidateLibrary()" data-i18n="web.btn_consolidate_run" style="padding:6px 12px; font-size:0.8em;">Consolider</button>
                         </div>
                     </div>
                     
-                    <div style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-top: 15px;">
-                        <h5 data-i18n="web.lbl_missing_media" style="margin-top:0; color:#cf6679; display: flex; align-items: center; gap: 5px;"><i class="ph ph-warning"></i> Médias Déconnectés</h5>
-                        <p style="font-size: 0.8em; color: #888;" data-i18n="web.hint_missing_media">Si vous avez changé d'ordinateur ou déplacé des dossiers, utilisez l'outil de relocalisation depuis la ligne du fichier brisé (icône loupe rouge) dans la vue Fichiers Locaux.</p>
-                    </div>
+                    <h4 data-i18n="web.lbl_missing_media" style="color:#cf6679; border-bottom-color:#442222;">Médias Déconnectés</h4>
+                    <p class="hint" data-i18n="web.hint_missing_media">Utilisez la loupe rouge pour réparer.</p>
                 </div>
             </div>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer" style="padding:10px 15px;">
             <button class="btn-text" onclick="closeSettingsModal()" data-i18n="web.btn_cancel">Annuler</button>
             <button class="btn-primary" onclick="saveSettings()" data-i18n="web.btn_save">Enregistrer</button>
         </div>

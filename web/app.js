@@ -1856,10 +1856,12 @@ function renderSettingsFolders() {
 
     const folders = currentSettings.media_folders || [];
     folders.forEach((path, index) => {
+        const appLabel = t('web.lbl_app_dir_path', "${APP_DIR}");
+        const displayPath = path.replace("${APP_DIR}", appLabel);
         const div = document.createElement("div");
         div.className = "folder-item";
         div.innerHTML = `
-            <div class="folder-path">${path}</div>
+            <div class="folder-path">${displayPath}</div>
             <button class="btn-remove-folder" onclick="removeFolder(${index})">×</button>
         `;
         list.appendChild(div);
