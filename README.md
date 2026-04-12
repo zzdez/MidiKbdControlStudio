@@ -117,7 +117,10 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     - **Démarrage Synchrone** : Architecture optimisée pour éliminer les "Race Conditions". Vos icônes d'interconnexion (Songsterr, etc.) apparaissent instantanément après chaque rafraîchissement (F5).
     - **Header Cockpit Dynamique** : Des icônes interactives (Vidéo, Audio, Multipiste, Web) apparaissent instantanément dans le panneau de contrôle dès qu'une liaison est configurée.
     - **Visualisation de Bibliothèque** : Affichage d'un badge bleu "ID-Link" et d'un compteur filtré (affichage des liens valides uniquement) dans toutes les listes.
+    - **Adressage Absolu UID (V64) ✨** : Abandon définitif des index de ligne au profit des UIDs stables. L'interface garantit que le média cliqué est toujours le bon, quel que soit le tri ou le filtrage appliqué.
     - **Vue Groupée & Sticky Headers (V60)** : Système de regroupement intelligent par "famille" de médias pour désencombrer l'interface, couplé à des en-têtes de liste (Onglets, Titres, Filtres) qui restent fixés en haut lors du défilement.
+    - **Moteur de Tri Unifié (V65) ✨** : Standardisation du tri bidirectionnel (ASC/DESC) sur tous les onglets. Le système se souvient de l'état de chaque colonne et réinitialise l'ordre lors d'un changement de champ.
+    - **Harmonisation Web Links (V66)** : Intégration de la colonne Catégorie et alignement "Pixel-Perfect" des contrôles de tri pour une expérience cockpit symétrique.
 
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)

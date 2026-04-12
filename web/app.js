@@ -4,6 +4,7 @@ let currentProfile = null;
 let currentActivePlayer = 'youtube';
 let isInitialSettingsLoad = true;
 let sidebarUserOverride = false;
+let isDraggingLayout = false; // Global lock to prevent sorting during resize
 
 // --- Grouping (Mesh Sync V60) ---
 let isLibraryGrouped = localStorage.getItem("isLibraryGrouped") !== "false"; // Default true
@@ -754,6 +755,7 @@ function switchView(viewName) {
 let currentTrackList = [];
 let editingIndex = null; // null = Add Mode, number = Edit Mode
 let sortAsc = true;
+let currentSetlistSortKey = 'artist'; // V65
 
 // --- DATA LOADING & SYNC ---
 
@@ -804,8 +806,11 @@ async function loadSetlist() {
         const res = await fetch("/api/setlist");
         if (res.ok) {
             const rawList = await res.json();
-            // Assign persistent original index for safe editing/deleting after sort
-            currentTrackList = rawList.map((track, idx) => ({ ...track, originalIndex: idx }));
+            // V63: Assign persistent original index AND ensure UID presence
+            currentTrackList = rawList.map((track, idx) => {
+                const uid = track.uid || `set:${idx}`;
+                return { ...track, originalIndex: idx, uid };
+            });
         } else {
             currentTrackList = [];
         }
@@ -824,7 +829,10 @@ async function loadWebLinks() {
         if (res.ok) {
             const rawList = await res.json();
             console.log("[LOAD_WEB] Items loaded:", rawList.length);
-            webLinks = rawList.map((link, idx) => ({ ...link, originalIndex: idx }));
+            webLinks = rawList.map((link, idx) => {
+                const uid = link.uid || `web:${idx}`;
+                return { ...link, originalIndex: idx, uid };
+            });
             currentWebLinkTrackList = [...webLinks];
         }
     } catch (e) {
@@ -866,7 +874,7 @@ function renderWebLinks() {
     });
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:gray;">${t("web.msg_no_result")}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:gray;">${t("web.msg_no_result")}</td></tr>`;
         return;
     }
 
@@ -907,10 +915,11 @@ function renderWebLinks() {
         tr.innerHTML = `
             <td class="col-type">${iconHtml}</td>
             <td class="col-artist">${link.artist || ""}</td>
-            <td class="col-title" style="cursor:pointer;" onclick="playWebLink(${realIndex})">
+            <td class="col-title" style="cursor:pointer;" onclick="playMediaByUid('${link.uid}')">
                 ${linkIndicator}
                 ${link.title || link.url}
             </td>
+            <td class="col-cat">${link.category || "Général"}</td>
             <td class="col-actions">
                 <button class="btn-action" onclick="openWebLinkModal(${realIndex})" title="${t("web.btn_edit")}">✎</button>
                 <button class="btn-action" onclick="deleteWebLink(${realIndex})" style="color:#cf6679;" title="${t("web.btn_delete")}">×</button>
@@ -1435,14 +1444,20 @@ function getIcon(url) {
 }
 
 function sortTable(key) {
-    sortAsc = !sortAsc;
+    // V65: KEY-BASED TOGGLE
+    if (currentSetlistSortKey === key) {
+        sortAsc = !sortAsc;
+    } else {
+        currentSetlistSortKey = key;
+        sortAsc = true; // Reset to ASC on new key
+    }
+
     currentTrackList.sort((a, b) => {
         const valA = (a[key] || "").toString().toLowerCase();
         const valB = (b[key] || "").toString().toLowerCase();
         return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
     });
     renderSetlist(currentTrackList); // Render Sorted
-    updateDatalists(currentTrackList); // Update shared datalists
 }
 
 function renderSetlist(list) {
@@ -1506,11 +1521,11 @@ function renderSetlist(list) {
 
         // Swapped Columns: Artist | Title (with icon) | Category
         tr.innerHTML = `
-            <td class="col-artist" style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.artist || ""}</td>
-            <td class="col-title" style="cursor:pointer;" onclick="playTrackAt(${realIndex})">
+            <td class="col-artist" style="cursor:default;">${track.artist || ""}</td>
+            <td class="col-title" style="cursor:pointer;" onclick="playMediaByUid('${track.uid}')">
                 ${linkIndicator}${iconImg}${track.title || track.url}
             </td>
-            <td class="col-cat" style="cursor:pointer;" onclick="playTrackAt(${realIndex})">${track.category || ""}</td>
+            <td class="col-cat" style="cursor:default;">${track.category || ""}</td>
             <td class="col-actions">
                 <button class="btn-action" onclick="openEditModal(${realIndex})" title="${t("web.btn_edit")}">✎</button>
                 <button class="btn-action" onclick="deleteTrack(${realIndex})" style="color:#cf6679;" title="${t("web.btn_delete")}">×</button>
@@ -2931,6 +2946,29 @@ function playTrackAt(index) {
     if (track) playTrack(track);
 }
 
+// V63: New Universal Addressing by UID
+function playMediaByUid(uid) {
+    const item = getLinkedItem(uid);
+    if (!item) {
+        console.error("[V63] Could not resolve UID:", uid);
+        return;
+    }
+    
+    // Determine source and call appropriate player
+    if (uid.startsWith('set')) {
+        playTrack(item);
+    } else if (uid.startsWith('lib')) {
+        const realIdx = localFiles.indexOf(item);
+        if (realIdx !== -1) playLocal(realIdx);
+    } else if (uid.startsWith('web')) {
+        const realIdx = webLinks.indexOf(item);
+        if (realIdx !== -1) playWebLink(realIdx);
+    } else {
+        // Ultimate Fallback
+        playTrack(item); 
+    }
+}
+
 function playTrack(track) {
     if (track.is_missing === true) {
         openMissingFileModal(track, 'setlist');
@@ -3181,11 +3219,13 @@ function toggleTheaterMode(forceState = null) {
 
     // Elements to toggle
     const sidebar = document.querySelector(".sidebar-zone");
+    const sideResizer = document.getElementById("sidebar-resizer");
     const pedalboard = document.getElementById("pedalboard-container");
     const mediaZone = document.querySelector(".media-zone");
 
     if (isTheaterMode) {
         if (sidebar) sidebar.style.display = "none";
+        if (sideResizer) sideResizer.style.display = "none";
         if (pedalboard) pedalboard.style.display = "none";
         if (mediaZone) mediaZone.style.borderRight = "none";
     } else {
@@ -3193,6 +3233,7 @@ function toggleTheaterMode(forceState = null) {
             sidebar.classList.remove('hover-active'); // On nettoie le mode survol si on repasse en mode normal
             sidebar.style.display = "flex"; 
         }
+        if (sideResizer) sideResizer.style.display = "block";
         if (pedalboard) pedalboard.style.display = "block";
         if (mediaZone) mediaZone.style.borderRight = "1px solid #333";
     }
@@ -3632,11 +3673,11 @@ async function loadLocalFiles() {
         if (res.ok) {
             const rawLocal = await res.json();
             console.log("[LOAD_LOCAL] Items loaded:", rawLocal.length);
-            // V56: Diagnostic check for UIDs
-            const missingUids = rawLocal.filter(f => !f.uid).length;
-            if (missingUids > 0) console.warn(`[V56] ${missingUids} items missing UIDs. Healer might not have run yet.`);
-            
-            localFiles = rawLocal.map((f, idx) => ({ ...f, originalIndex: idx }));
+            // V63: Ensure stable UIDs for local files (Healer fallback)
+            localFiles = rawLocal.map((f, idx) => {
+                const uid = f.uid || `lib:${idx}`;
+                return { ...f, originalIndex: idx, uid };
+            });
         }
     } catch (e) { 
         console.error("Local files load error:", e);
@@ -3722,7 +3763,7 @@ function renderLocalFiles() {
 
         tr.innerHTML = `
             <td class="col-artist">${file.artist || ""}</td>
-            <td class="col-title" style="cursor:pointer;" onclick="playLocal(${realIndex})">
+            <td class="col-title" style="cursor:pointer;" onclick="playMediaByUid('${file.uid}')">
                 ${linkIndicator}${iconHtml}
                 ${file.title}
             </td>
@@ -6282,12 +6323,25 @@ function requestDeletion(index, type) {
 
 
 
+// --- LOCAL SORT V65 ---
+let currentLocalSortKey = 'artist';
+let currentLocalSortOrder = 'asc';
+
 function sortLocal(key) {
+    if (currentLocalSortKey === key) {
+        currentLocalSortOrder = (currentLocalSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+        currentLocalSortKey = key;
+        currentLocalSortOrder = 'asc'; // Reset to ASC on new key
+    }
+
     // Basic sort
     localFiles.sort((a, b) => {
-        const va = (a[key] || "").toLowerCase();
-        const vb = (b[key] || "").toLowerCase();
-        return va.localeCompare(vb);
+        const va = (a[key] || "").toString().toLowerCase();
+        const vb = (b[key] || "").toString().toLowerCase();
+        if (va < vb) return currentLocalSortOrder === 'asc' ? -1 : 1;
+        if (va > vb) return currentLocalSortOrder === 'asc' ? 1 : -1;
+        return 0;
     });
     renderLocalFiles();
 }
@@ -10479,7 +10533,7 @@ async function toggleMediaLink(targetType, targetIndex) {
 
 // --- DYNAMIC LAYOUT ENGINE (V60) ---
 function initLayoutEngine() {
-    console.log("[LAYOUT] Initializing Hardened Resizing Engines...");
+    console.log("[LAYOUT] Initializing Final Robust Resizing Engines...");
 
     // 0. Create or get Global Overlay
     let overlay = document.getElementById('resize-overlay');
@@ -10493,14 +10547,40 @@ function initLayoutEngine() {
     const iframes = document.querySelectorAll('iframe');
     
     // State management
-    let activeDrag = null; // { type: 'sidebar' | 'column', handle: element, colType: string }
+    let activeDrag = null; 
+    let lastResizerClick = 0; 
 
     function startDrag(type, e, colType = null) {
+        // SAFETY: Only start if width is measurable (ignore 0px parents in floating mode)
+        let initialWidth = 0;
+        if (type === 'sidebar') {
+            initialWidth = document.querySelector(".sidebar-zone")?.offsetWidth || 0;
+        } else {
+            // V63: Robust parent measurement for floating/collapsed modes
+            const parent = e.target.parentElement;
+            if (parent) {
+                const rect = parent.getBoundingClientRect();
+                initialWidth = rect.width || parent.offsetWidth || 0;
+            } else {
+                initialWidth = 0;
+            }
+        }
+        
+        if (initialWidth <= 0) {
+            console.warn("[LAYOUT] startDrag aborted: Container width is 0. Attempting fallback.");
+            // Try to read from CSS variable as ultimate fallback
+            if (colType) {
+                const style = getComputedStyle(document.documentElement);
+                const val = style.getPropertyValue(`--col-${colType}-width`);
+                if (val && val.includes('px')) initialWidth = parseInt(val);
+            }
+        }
+
+        isDraggingLayout = true; // ACTIVATION DU VERROU GLOBAL
         activeDrag = { type, handle: e.target, colType };
         overlay.classList.add('active');
         document.body.style.userSelect = 'none';
         
-        // Neutralize iframes to prevent event loss
         iframes.forEach(f => f.style.pointerEvents = 'none');
         
         if (type === 'sidebar') {
@@ -10508,7 +10588,7 @@ function initLayoutEngine() {
         } else {
             activeDrag.handle.classList.add('resizing');
             activeDrag.startX = e.clientX;
-            activeDrag.startWidth = activeDrag.handle.parentElement.offsetWidth;
+            activeDrag.startWidth = initialWidth;
         }
 
         window.addEventListener('mousemove', onMouseMove);
@@ -10529,6 +10609,7 @@ function initLayoutEngine() {
             }
         } else if (activeDrag.type === 'column') {
             const currentWidth = activeDrag.startWidth + (moveEvent.clientX - activeDrag.startX);
+            // SAFETY: Clamp to 30px minimum but only if moveEvent is valid
             if (currentWidth > 30) {
                 document.documentElement.style.setProperty(`--col-${activeDrag.colType}-width`, `${currentWidth}px`);
                 localStorage.setItem(`col_${activeDrag.colType}_width`, `${currentWidth}px`);
@@ -10553,66 +10634,118 @@ function initLayoutEngine() {
         activeDrag = null;
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', stopDrag);
+        
+        // DÉSACTIVATION DU VERROU avec un court délai pour couvrir le clic final
+        setTimeout(() => {
+            isDraggingLayout = false;
+        }, 150);
     }
 
     // 1. Sidebar Resizing
     const resizer = document.getElementById('sidebar-resizer');
     if (resizer) {
-        resizer.addEventListener('mousedown', (e) => startDrag('sidebar', e));
+        resizer.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            startDrag('sidebar', e);
+        });
+        resizer.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
     }
 
-    // 2. Column Resizing
+    // 2. Column Resizing & Custom Double-Click
     document.addEventListener('mousedown', (e) => {
         if (!e.target.classList.contains('th-resizer')) return;
-        startDrag('column', e, e.target.dataset.col);
+
+        e.stopPropagation(); 
+        e.preventDefault();
+
+        const currentTime = Date.now();
+        const doubleClickDelay = 300; 
+
+        if (currentTime - lastResizerClick < doubleClickDelay) {
+            isDraggingLayout = true; // Activer le verrou AVANT l'auto-fit
+            const colType = e.target.dataset.col;
+            autoFitColumn(colType);
+            lastResizerClick = 0;
+            setTimeout(() => { isDraggingLayout = false; }, 400); // Verrou long pour couvrir dblclick
+        } else {
+            lastResizerClick = currentTime;
+            startDrag('column', e, e.target.dataset.col);
+        }
     });
 
-    // 3. Auto-fit (Double click)
-    document.addEventListener('dblclick', (e) => {
-        if (!e.target.classList.contains('th-resizer')) return;
-        autoFitColumn(e.target.dataset.col);
-    });
+    // 2.1 Absolute click lock (Capture phase)
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('th-resizer') || e.target.closest('.th-resizer') || isDraggingLayout) {
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            e.preventDefault();
+        }
+    }, true);
 
     // 4. Restoration
     const savedSidebar = localStorage.getItem('sidebar_width');
     if (savedSidebar) document.documentElement.style.setProperty('--sidebar-width', savedSidebar);
     
-    ['artist', 'cat', 'type', 'actions'].forEach(col => {
+    ['artist', 'title', 'cat', 'type', 'actions'].forEach(col => {
         const saved = localStorage.getItem(`col_${col}_width`);
         if (saved) document.documentElement.style.setProperty(`--col-${col}-width`, saved);
     });
 }
 
 /**
- * Scans visible table bodies to calculate the optimal width for a column
+ * Scans the active table body to calculate the optimal width for a column based on actual content (Excel-style)
  */
 function autoFitColumn(colType) {
-    let maxWidth = 40; // Base minimum
-    const tables = ['setlist-body', 'web-links-body', 'local-body'];
+    console.log("[LAYOUT] Precise Auto-fitting column:", colType);
     
-    // Create a temporary hidden span to measure text precisely
-    const span = document.createElement('span');
-    span.style.visibility = 'hidden';
-    span.style.position = 'absolute';
-    span.style.whiteSpace = 'nowrap';
-    span.style.fontSize = '0.8em'; // Must match .styled-table font size
-    document.body.appendChild(span);
+    const tables = [
+        { id: 'library-table', body: 'setlist-body' },
+        { id: 'web-links-table', body: 'web-links-body' },
+        { id: 'local-table', body: 'local-body' }
+    ];
 
-    tables.forEach(id => {
-        const tbody = document.getElementById(id);
-        if (!tbody) return;
+    let maxWidth = 50; 
+    
+    tables.forEach(tableInfo => {
+        const table = document.getElementById(tableInfo.id);
+        const tbody = document.getElementById(tableInfo.body);
+        if (!table || !tbody) return;
+        
+        // Process only if the table's view is visible
+        const parentView = table.closest('.view-container');
+        if (parentView && parentView.style.display === 'none') return;
+
+        // 1. Save original states
+        const originalLayout = table.style.tableLayout;
+        const originalVar = document.documentElement.style.getPropertyValue(`--col-${colType}-width`);
+        
+        // 2. Set to auto to let browser calculate based on content
+        table.style.tableLayout = 'auto';
+        document.documentElement.style.setProperty(`--col-${colType}-width`, 'auto');
+        
+        // 3. Measure cells (scrollWidth accounts for icons, badges, padding)
         const cells = tbody.querySelectorAll(`.col-${colType}`);
         cells.forEach(td => {
-            span.innerText = td.innerText;
-            const width = span.offsetWidth + 25; // + padding + safety margin
-            if (width > maxWidth) maxWidth = width;
+            const w = td.scrollWidth + 15; // 15px safety margin
+            if (w > 0 && w > maxWidth) maxWidth = w;
         });
+        
+        // 4. Restore
+        table.style.tableLayout = originalLayout;
+        document.documentElement.style.setProperty(`--col-${colType}-width`, originalVar);
     });
 
-    document.body.removeChild(span);
+    // SAFETY CHECK: If maxWidth is suspiciously small (0 or 50 default), skip update to prevent disappearance
+    if (maxWidth <= 50) {
+        console.warn(`[LAYOUT] Auto-fit skipped for ${colType}: Measurement failed (0 or too small). Check visibility.`);
+        return;
+    }
 
-    if (maxWidth > 500) maxWidth = 500; // Hard cap to prevent runaway layout
+    if (maxWidth > 500) maxWidth = 500;
     
+    console.log(`[LAYOUT] Final Auto-width for ${colType}: ${maxWidth}px`);
     document.documentElement.style.setProperty(`--col-${colType}-width`, `${maxWidth}px`);
     localStorage.setItem(`col_${colType}_width`, `${maxWidth}px`);
 }

@@ -751,9 +751,27 @@
                         <table id="library-table" class="styled-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortTable('artist')" class="col-artist" data-i18n="web.col_artist">Artiste <div class="th-resizer" data-col="artist"></div></th>
-                                    <th onclick="sortTable('title')" class="col-title" data-i18n="web.col_title">Titre <div class="th-resizer" data-col="title"></div></th>
-                                    <th onclick="sortTable('category')" class="col-cat" data-i18n="web.col_category">Cat <div class="th-resizer" data-col="cat"></div></th>
+                                    <th class="col-artist">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_artist">Artiste</span>
+                                            <span class="btn-sort" onclick="sortTable('artist')" title="Trier par Artiste"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="artist"></div>
+                                    </th>
+                                    <th class="col-title">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_title">Titre</span>
+                                            <span class="btn-sort" onclick="sortTable('title')" title="Trier par Titre"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="title"></div>
+                                    </th>
+                                    <th class="col-cat">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_category">Cat</span>
+                                            <span class="btn-sort" onclick="sortTable('category')" title="Trier par Catégorie"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="cat"></div>
+                                    </th>
                                     <th class="col-actions" data-i18n="web.col_actions">Actions</th>
                                 </tr>
                             </thead>
@@ -807,9 +825,34 @@
                         <table id="web-links-table" class="styled-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortWebLinks('type')" class="col-type"><i class="ph ph-globe"></i> <div class="th-resizer" data-col="type"></div></th>
-                                    <th onclick="sortWebLinks('artist')" class="col-artist" data-i18n="web.col_artist">Artiste <div class="th-resizer" data-col="artist"></div></th>
-                                    <th onclick="sortWebLinks('title')" class="col-title" data-i18n="web.col_title">Titre <div class="th-resizer" data-col="title"></div></th>
+                                    <th class="col-type">
+                                        <div class="th-content">
+                                            <i class="ph ph-globe"></i>
+                                            <span class="btn-sort" onclick="sortWebLinks('type')" title="Trier par Type"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="type"></div>
+                                    </th>
+                                    <th class="col-artist">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_artist">Artiste</span>
+                                            <span class="btn-sort" onclick="sortWebLinks('artist')" title="Trier par Artiste"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="artist"></div>
+                                    </th>
+                                    <th class="col-title">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_title">Titre</span>
+                                            <span class="btn-sort" onclick="sortWebLinks('title')" title="Trier par Titre"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="title"></div>
+                                    </th>
+                                    <th class="col-cat">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_category">Cat</span>
+                                            <span class="btn-sort" onclick="sortWebLinks('category')" title="Trier par Catégorie"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="cat"></div>
+                                    </th>
                                     <th class="col-actions" data-i18n="web.col_actions">Actions</th>
                                 </tr>
                             </thead>
@@ -865,9 +908,27 @@
                         <table id="local-table" class="styled-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortLocal('artist')" class="col-artist" data-i18n="web.col_artist">Artiste <div class="th-resizer" data-col="artist"></div></th>
-                                    <th onclick="sortLocal('title')" class="col-title" data-i18n="web.col_title">Titre <div class="th-resizer" data-col="title"></div></th>
-                                    <th onclick="sortLocal('category')" class="col-cat" data-i18n="web.col_category">Cat <div class="th-resizer" data-col="cat"></div></th>
+                                    <th class="col-artist">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_artist">Artiste</span>
+                                            <span class="btn-sort" onclick="sortLocal('artist')" title="Trier par Artiste"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="artist"></div>
+                                    </th>
+                                    <th class="col-title">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_title">Titre</span>
+                                            <span class="btn-sort" onclick="sortLocal('title')" title="Trier par Titre"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="title"></div>
+                                    </th>
+                                    <th class="col-cat">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_category">Cat</span>
+                                            <span class="btn-sort" onclick="sortLocal('category')" title="Trier par Catégorie"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="cat"></div>
+                                    </th>
                                     <th class="col-actions" data-i18n="web.col_actions">Actions</th>
                                 </tr>
                             </thead>

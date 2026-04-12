@@ -666,3 +666,16 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 *   **Hiérarchie de Représentation** : Choix intelligent de l'élément Master selon le score de priorité : Multitrack (5) > Vidéo (4) > Audio (3) > YouTube (2) > Web (1).
 *   **Persistance UI** : L'état du commutateur "Vue Groupée" est sauvegardé dans le `localStorage` et synchronisé entre tous les onglets de la bibliothèque.
 *   **Expérience UI (Sticky Headers)** : Implémentation de `position: sticky` avec offsets calculés pour les onglets, titres et filtres de la barre latérale. Utilisation de fonds opaques et de `z-index` hiérarchisés pour garantir une navigation fluide sans chevauchement visuel lors du défilement des listes massives.
+
+### 43. Évolution V64 : Adressage par UID & Hardening Layout
+*   **Adressage Absolu (`playMediaByUid`)** : Abandon définitif de la lecture par "index de ligne" (index-based) qui causait des désynchronisations lors du tri ou du filtrage. Chaque clic passe désormais l'UID stable de l'élément.
+*   **Isolation du Layout (`.th-content`)** : Introduction d'un wrapper flex interne dans les balises `th`. Cela permet de garder les cellules en `display: table-cell` (garantissant l'alignement horizontal natif) tout en offrant des contrôles flexibles (boutons de tri, resizers) à l'intérieur.
+*   **Découplage Tri/Resize** : Les événements de tri sont isolés sur des boutons dédiés (`.btn-sort`), éliminant les déclenchements accidentels lors du redimensionnement manuel des colonnes.
+
+### 44. Évolution V65 : Standardisation du Tri Bidirectionnel
+*   **Moteur de Tri Unifié** : Standardisation du comportement de tri pour les 3 bibliothèques (YouTube, Local, Web). 
+*   **Toggle Intelligent** : Premier clic = Croissant (A-Z). Re-clic sur la même colonne = Décroissant (Z-A). Le passage à une nouvelle colonne réinitialise automatiquement le sens en mode Croissant pour une expérience prévisible.
+
+### 45. Évolution V66 : Harmonisation de l'Applet Web Links
+*   **Parité Fonctionnelle** : Ajout de la colonne **Catégorie** dans la table des liens Web pour correspondre aux bibliothèques locales.
+*   **Alignement "Pixel-Perfect"** : Utilisation de `justify-content: space-between` dans les en-têtes pour forcer l'alignement des icônes de tri sur le bord droit de chaque colonne, créant une symétrie visuelle sur tout le Dashboard.
