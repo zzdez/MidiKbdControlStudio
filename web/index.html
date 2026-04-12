@@ -1903,35 +1903,41 @@
             <div class="settings-content">
                 <!-- TAB: GENERAL -->
                 <div id="tab-settings-general" class="settings-tab">
-                    <h4 data-i18n="web.lbl_lang_choice">Langue / Language</h4>
-                    <select id="setting-language" onchange="changeLanguage()" style="margin-bottom: 8px;">
-                        <option value="fr">Français</option>
-                        <option value="en">English</option>
-                    </select>
-
-                    <h4 data-i18n="web.lbl_playback_options">Options de Lecture</h4>
-                    <div class="settings-control-group" style="padding:4px 8px; margin-bottom:8px;">
-                        <div class="settings-row" style="margin-bottom:0; background:none; border:none; padding:0; gap:15px;">
-                            <label style="display:flex; align-items:center; gap:6px;">
-                                <input type="checkbox" id="setting-autoplay" style="width:14px; height:14px;">
-                                <span data-i18n="web.lbl_autoplay">Lecture auto</span>
-                            </label>
-                            <label style="display:flex; align-items:center; gap:6px;">
-                                <input type="checkbox" id="setting-autoreplay" style="width:14px; height:14px;">
-                                <span data-i18n="web.lbl_autoreplay">Boucle auto</span>
-                            </label>
-                        </div>
+                    <div class="settings-row" style="justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <h4 data-i18n="web.lbl_lang_choice" style="margin:0; border:none; padding:0; font-size:0.8em;">Langue / Language</h4>
+                        <select id="setting-language" onchange="changeLanguage()" style="height:20px; width:120px; padding:2px; font-size:0.8em; margin:0;">
+                            <option value="fr">Français</option>
+                            <option value="en">English</option>
+                        </select>
                     </div>
 
-                    <h4 data-i18n="web.lbl_fretboard_style">Style du Fretboard</h4>
-                    <div class="settings-control-group" style="padding:4px 8px; margin-bottom:8px;">
-                        <select id="setting-fretboard-skin" onchange="changeFretboardSkin()" style="margin-bottom:6px; height:22px;">
-                            <option value="flat" data-i18n="web.fretboard_flat">Plat & Sombre (Flat Dark)</option>
-                            <option value="wood" data-i18n="web.fretboard_wood">Réaliste (Bois)</option>
-                        </select>
-                        <div class="settings-row" style="margin-bottom:0; background:none; border:none; padding:0;">
-                            <input type="checkbox" id="setting-fretboard-autoclose" style="width:14px; height:14px;">
-                            <label for="setting-fretboard-autoclose" data-i18n="web.lbl_fretboard_auto_close" style="font-size:0.8em; margin-left:6px;">Fermeture auto manche</label>
+                    <div style="display:flex; gap:10px; margin-bottom: 8px;">
+                        <div class="settings-row" style="flex:1; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                            <h4 data-i18n="web.lbl_playback_options" style="margin:0; border:none; padding:0; font-size:0.8em;">Options de Lecture</h4>
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <label style="display:flex; align-items:center; gap:5px; margin:0;">
+                                    <input type="checkbox" id="setting-autoplay" style="width:13px; height:13px;">
+                                    <span data-i18n="web.lbl_autoplay" style="font-size:0.75em;">Auto</span>
+                                </label>
+                                <label style="display:flex; align-items:center; gap:5px; margin:0;">
+                                    <input type="checkbox" id="setting-autoreplay" style="width:13px; height:13px;">
+                                    <span data-i18n="web.lbl_autoreplay" style="font-size:0.75em;">Boucle</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="settings-row" style="flex:1; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                            <h4 data-i18n="web.lbl_fretboard_style" style="margin:0; border:none; padding:0; font-size:0.8em;">Style Fretboard</h4>
+                            <div style="display:flex; gap:6px; align-items:center;">
+                                <select id="setting-fretboard-skin" onchange="changeFretboardSkin()" style="height:20px; width:90px; padding:2px; font-size:0.75em;">
+                                    <option value="flat" data-i18n="web.fretboard_flat">Plat</option>
+                                    <option value="wood" data-i18n="web.fretboard_wood">Bois</option>
+                                </select>
+                                <label style="display:flex; align-items:center; gap:5px; margin:0;">
+                                    <input type="checkbox" id="setting-fretboard-autoclose" style="width:13px; height:13px;">
+                                    <span data-i18n="web.lbl_fretboard_auto_close" style="font-size:0.75em;">Auto-Close</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
 
