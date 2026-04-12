@@ -1,0 +1,139 @@
+import os
+import json
+import hashlib
+import logging
+from utils import get_app_dir, get_data_dir
+
+# Configuration des chemins via utils pour garantir la portabilité
+def get_data_filepaths():
+    data_dir = get_data_dir()
+    return {
+        'lib': os.path.join(data_dir, "local_lib.json"),
+        'set': os.path.join(data_dir, "setlist.json"),
+        'web': os.path.join(data_dir, "web_links.json")
+    }
+
+def generate_uid(prefix, item):
+    """Génère un UID stable basé sur le contenu."""
+    seed = item.get("path") or item.get("url") or (item.get("title", "") + item.get("artist", ""))
+    h = hashlib.md5(seed.encode("utf-8")).hexdigest()[:8]
+    return f"{prefix}_{h}"
+
+def heal_all_meshes():
+    """
+    V59: Point d'entrée de la maintenance au démarrage.
+    Garantit que 100% des liens sont synchronisés et utilisent des UIDs stables.
+    """
+    logging.warning("[MAINTENANCE] Démarrage de la consolidation globale du maillage...")
+    
+    file_map = get_data_filepaths()
+    databases = {}
+    uid_to_item = {}
+    legacy_to_uid = {}
+
+    # 1. Chargement et Réparation des UIDs
+    for prefix, path in file_map.items():
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    db = json.load(f)
+                    databases[prefix] = db
+                    for i, it in enumerate(db):
+                        # Garantir un UID stable
+                        if not it.get("uid"):
+                            it["uid"] = generate_uid(prefix, it)
+                        
+                        uid = it["uid"]
+                        uid_to_item[uid] = (prefix, it)
+                        # Pour migrer les anciens liens type 'lib:5'
+                        legacy_to_uid[f"{prefix}:{i}"] = uid
+            except Exception as e:
+                logging.error(f"[MAINTENANCE] Erreur chargement {path}: {e}")
+
+    if not uid_to_item:
+        logging.info("[MAINTENANCE] Aucune donnée à traiter.")
+        return
+
+    # 2. Migration des liens Legacy vers UIDs stables
+    migration_count = 0
+    for prefix, db in databases.items():
+        for item in db:
+            links = item.get("linked_ids", [])
+            if not isinstance(links, list): 
+                item["linked_ids"] = []
+                continue
+                
+            new_links = []
+            changed = False
+            for l in links:
+                if not l or not isinstance(l, str): continue
+                # Si c'est un format Legacy 'type:idx' (ex: 'lib:5')
+                if ":" in l and "_" not in l:
+                    if l in legacy_to_uid:
+                        new_links.append(legacy_to_uid[l])
+                        changed = True
+                        migration_count += 1
+                    else:
+                        new_links.append(l)
+                else:
+                    new_links.append(l)
+            if changed:
+                item["linked_ids"] = list(set(new_links))
+
+    # 3. Calcul des Meshes Transitifs (Découverte multidirectionnelle)
+    all_uids = list(uid_to_item.keys())
+    visited = set()
+    groups = []
+
+    for start_uid in all_uids:
+        if start_uid in visited: continue
+        
+        family = {start_uid}
+        last_size = 0
+        while len(family) > last_size:
+            last_size = len(family)
+            for uid, (prefix, it) in uid_to_item.items():
+                item_links = set(it.get("linked_ids", []))
+                # Si l'item pointe vers la famille ou si la famille contient déjà l'item
+                if uid not in family:
+                    if any(link in family for link in item_links):
+                        family.add(uid)
+                else:
+                    # Ajouter tout ce vers quoi cet item de la famille pointe
+                    for l in item_links:
+                        if l: family.add(l)
+        
+        visited.update(family)
+        if len(family) > 1:
+            groups.append(family)
+
+    # 4. Harmonisation Physique (Full Mesh Expansion)
+    dirty_prefixes = set()
+    for group in groups:
+        for uid in group:
+            prefix, item = uid_to_item[uid]
+            # Le maillage complet = tout le groupe sauf soi-même
+            new_links = list(group - {uid})
+            new_links.sort()
+            
+            old_links = item.get("linked_ids", [])
+            old_links.sort()
+            
+            if new_links != old_links:
+                item["linked_ids"] = new_links
+                dirty_prefixes.add(prefix)
+
+    # 5. Sauvegarde des changements
+    if dirty_prefixes or migration_count > 0:
+        for prefix, db in databases.items():
+            if prefix in dirty_prefixes:
+                path = file_map[prefix]
+                try:
+                    with open(path, "w", encoding="utf-8") as f:
+                        json.dump(db, f, indent=4)
+                    logging.warning(f"[MAINTENANCE] {prefix.upper()} synchronisé et réparé.")
+                except Exception as e:
+                    logging.error(f"[MAINTENANCE] Erreur sauvegarde {prefix}: {e}")
+        logging.warning(f"[MAINTENANCE] Consolidation terminée. {len(groups)} groupes harmonisés, {migration_count} liens migrés.")
+    else:
+        logging.info("[MAINTENANCE] Les données sont déjà saines et synchronisées.")

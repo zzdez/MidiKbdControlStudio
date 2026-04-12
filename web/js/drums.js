@@ -106,7 +106,7 @@ window.DrumMachine = {
                         ${labelText} ${isMuted ? '<b>(M)</b>' : ''}
                     </span>
                     <div class="drum-slider-area">
-                        <input type="range" id="drum-vol-${inst.id}" min="0" max="100" value="${Math.round(config.volume * 100)}" orient="vertical" oninput="window.DrumMachine.updateVolume('${inst.id}', this.value)" style="height: 100px; width: 22px; -webkit-appearance: slider-vertical; appearance: slider-vertical; writing-mode: vertical-lr; direction: rtl; margin: 0; cursor: pointer;">
+                        <input type="range" id="drum-vol-${inst.id}" min="0" max="100" value="${Math.round(config.volume * 100)}" orient="vertical" oninput="window.DrumMachine.updateVolume('${inst.id}', this.value)" style="height: 100px; width: 22px; writing-mode: vertical-lr; direction: rtl; margin: 0; cursor: pointer;">
                         <div class="vu-meter-container">
                             <div id="vu-${inst.id}" class="vu-meter-bar"></div>
                         </div>

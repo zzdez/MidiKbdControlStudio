@@ -698,6 +698,9 @@
 
         </section>
 
+        <!-- V60: Sidebar Resizer -->
+        <div id="sidebar-resizer"></div>
+
         <!-- COLONNE DROITE (30%) -->
         <section class="sidebar-zone">
 
@@ -727,7 +730,7 @@
                     </div>
 
                     <!-- Search / Filters -->
-                    <div class="search-filters">
+                    <div class="search-filters" style="align-items: center;">
                         <input type="text" id="filter-artist" placeholder="Artiste..."
                             onkeyup="renderSetlist(currentTrackList)" style="flex:1;">
                         <input type="text" id="filter-title" placeholder="Titre..."
@@ -735,6 +738,12 @@
                         <input type="text" id="filter-category" placeholder="Cat..."
                             onkeyup="renderSetlist(currentTrackList)" style="flex:0.5;">
                         <button class="btn-clear-global" onclick="resetFilters('web')" title="Réinitialiser">×</button>
+                        
+                        <!-- Toggle Vue Groupée V60 -->
+                        <div class="group-toggle-mini" title="Grouper les versions liées (Audio/Vidéo/YouTube)" data-i18n-title="web.hint_grouped_view">
+                            <input type="checkbox" id="chk-group-setlist" onchange="toggleGroupedView(this.checked)">
+                            <label for="chk-group-setlist"><i class="ph ph-stack"></i></label>
+                        </div>
                     </div>
 
                     <!-- Table -->
@@ -742,10 +751,28 @@
                         <table id="library-table" class="styled-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortTable('artist')" data-i18n="web.col_artist">Artiste</th>
-                                    <th onclick="sortTable('title')" data-i18n="web.col_title">Titre</th>
-                                    <th onclick="sortTable('category')" data-i18n="web.col_category">Cat</th>
-                                    <th style="width: 80px;" data-i18n="web.col_actions">Actions</th>
+                                    <th class="col-artist">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_artist">Artiste</span>
+                                            <span class="btn-sort" onclick="sortTable('artist')" title="Trier par Artiste"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="artist"></div>
+                                    </th>
+                                    <th class="col-title">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_title">Titre</span>
+                                            <span class="btn-sort" onclick="sortTable('title')" title="Trier par Titre"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="title"></div>
+                                    </th>
+                                    <th class="col-cat">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_category">Cat</span>
+                                            <span class="btn-sort" onclick="sortTable('category')" title="Trier par Catégorie"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="cat"></div>
+                                    </th>
+                                    <th class="col-actions" data-i18n="web.col_actions">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="setlist-body">
@@ -779,23 +806,54 @@
                     </div>
 
                     <!-- Web Links Filters -->
-                    <div class="search-filters">
+                    <div class="search-filters" style="align-items: center;">
                         <input type="text" id="filter-web-artist" placeholder="Artiste..."
                             onkeyup="renderWebLinks()" style="flex:1;">
                         <input type="text" id="filter-web-title" placeholder="Titre..." onkeyup="renderWebLinks()"
                             style="flex:1;">
                         <button class="btn-clear-global" onclick="resetFilters('web_links')"
                             title="Réinitialiser">×</button>
+
+                        <!-- Toggle Vue Groupée V60 -->
+                        <div class="group-toggle-mini" title="Grouper les versions liées (Audio/Vidéo/YouTube)" data-i18n-title="web.hint_grouped_view">
+                            <input type="checkbox" id="chk-group-web" onchange="toggleGroupedView(this.checked)">
+                            <label for="chk-group-web"><i class="ph ph-stack"></i></label>
+                        </div>
                     </div>
 
                     <div class="table-wrapper">
                         <table id="web-links-table" class="styled-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortWebLinks('type')" style="width:40px;"><i class="ph ph-globe"></i></th>
-                                    <th onclick="sortWebLinks('artist')" data-i18n="web.col_artist">Artiste</th>
-                                    <th onclick="sortWebLinks('title')" data-i18n="web.col_title">Titre</th>
-                                    <th style="width: 80px;" data-i18n="web.col_actions">Actions</th>
+                                    <th class="col-type">
+                                        <div class="th-content">
+                                            <i class="ph ph-globe"></i>
+                                            <span class="btn-sort" onclick="sortWebLinks('type')" title="Trier par Type"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="type"></div>
+                                    </th>
+                                    <th class="col-artist">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_artist">Artiste</span>
+                                            <span class="btn-sort" onclick="sortWebLinks('artist')" title="Trier par Artiste"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="artist"></div>
+                                    </th>
+                                    <th class="col-title">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_title">Titre</span>
+                                            <span class="btn-sort" onclick="sortWebLinks('title')" title="Trier par Titre"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="title"></div>
+                                    </th>
+                                    <th class="col-cat">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_category">Cat</span>
+                                            <span class="btn-sort" onclick="sortWebLinks('category')" title="Trier par Catégorie"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="cat"></div>
+                                    </th>
+                                    <th class="col-actions" data-i18n="web.col_actions">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="web-links-body"></tbody>
@@ -829,7 +887,7 @@
                     </div>
 
                     <!-- Local Filters -->
-                    <div class="search-filters">
+                    <div class="search-filters" style="align-items: center;">
                         <input type="text" id="filter-local-artist" placeholder="Artiste..."
                             onkeyup="renderLocalFiles()" style="flex:1;">
                         <input type="text" id="filter-local-title" placeholder="Titre..." onkeyup="renderLocalFiles()"
@@ -838,16 +896,40 @@
                             style="flex:0.5;">
                         <button class="btn-clear-global" onclick="resetFilters('local')"
                             title="Réinitialiser">×</button>
+
+                        <!-- Toggle Vue Groupée V60 -->
+                        <div class="group-toggle-mini" title="Grouper les versions liées (Audio/Vidéo/YouTube)" data-i18n-title="web.hint_grouped_view">
+                            <input type="checkbox" id="chk-group-local" onchange="toggleGroupedView(this.checked)">
+                            <label for="chk-group-local"><i class="ph ph-stack"></i></label>
+                        </div>
                     </div>
 
                     <div class="table-wrapper">
                         <table id="local-table" class="styled-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortLocal('artist')" data-i18n="web.col_artist">Artiste</th>
-                                    <th onclick="sortLocal('title')" data-i18n="web.col_title">Titre</th>
-                                    <th onclick="sortLocal('category')" data-i18n="web.col_category">Cat</th>
-                                    <th style="width: 100px;" data-i18n="web.col_actions">Actions</th>
+                                    <th class="col-artist">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_artist">Artiste</span>
+                                            <span class="btn-sort" onclick="sortLocal('artist')" title="Trier par Artiste"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="artist"></div>
+                                    </th>
+                                    <th class="col-title">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_title">Titre</span>
+                                            <span class="btn-sort" onclick="sortLocal('title')" title="Trier par Titre"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="title"></div>
+                                    </th>
+                                    <th class="col-cat">
+                                        <div class="th-content">
+                                            <span data-i18n="web.col_category">Cat</span>
+                                            <span class="btn-sort" onclick="sortLocal('category')" title="Trier par Catégorie"><i class="ph ph-caret-up-down"></i></span>
+                                        </div>
+                                        <div class="th-resizer" data-col="cat"></div>
+                                    </th>
+                                    <th class="col-actions" data-i18n="web.col_actions">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="local-body"></tbody>
@@ -1821,109 +1903,89 @@
             <div class="settings-content">
                 <!-- TAB: GENERAL -->
                 <div id="tab-settings-general" class="settings-tab">
-                    <!-- INJECT SELECT -->
-                    <h4 data-i18n="web.lbl_lang_choice">Langue / Language</h4>
-                    <select id="setting-language" onchange="changeLanguage()"
-                        style="padding:10px; border-radius:10px; border:1px solid #333; background:#222; color:white; width:100%; margin-bottom: 20px;">
-                        <option value="fr">Français</option>
-                        <option value="en">English</option>
-                    </select>
-
-                    <h4 data-i18n="web.lbl_playback_options">Options de Lecture</h4>
-                    <div
-                        style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-                            <input type="checkbox" id="setting-autoplay" style="width:18px; height:18px;">
-                            <span data-i18n="web.lbl_autoplay">Lecture auto à la sélection</span>
-                        </label>
-                        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-                            <input type="checkbox" id="setting-autoreplay" style="width:18px; height:18px;">
-                            <span data-i18n="web.lbl_autoreplay">Rejouer en boucle à la fin</span>
-                        </label>
+                    <div class="settings-row" style="justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <h4 data-i18n="web.lbl_lang_choice" style="margin:0; border:none; padding:0; font-size:0.8em;">Langue / Language</h4>
+                        <select id="setting-language" onchange="changeLanguage()" style="height:20px; width:120px; padding:2px; font-size:0.8em; margin:0;">
+                            <option value="fr">Français</option>
+                            <option value="en">English</option>
+                        </select>
                     </div>
 
-                    <h4 data-i18n="web.lbl_interface_ergonomics" style="display:none;">Interface & Ergonomie</h4>
-                    <div style="display:none;">
-                    </div>
-
-                    <h4 data-i18n="web.lbl_fretboard_style">Style du Fretboard</h4>
-                    <select id="setting-fretboard-skin" onchange="changeFretboardSkin()"
-                        style="padding:10px; border-radius:10px; border:1px solid #333; background:#222; color:white; width:100%; margin-bottom: 10px;">
-                        <option value="flat" data-i18n="web.fretboard_flat">Plat & Sombre (Flat Dark)</option>
-                        <option value="wood" data-i18n="web.fretboard_wood">Réaliste (Bois)</option>
-                    </select>
-                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-bottom: 20px; background:#222; padding:15px; border-radius:10px; border:1px solid #333;">
-                        <input type="checkbox" id="setting-fretboard-autoclose" style="width:18px; height:18px;">
-                        <span data-i18n="web.lbl_fretboard_auto_close">Fermeture auto du manche au changement de média</span>
-                    </label>
-
-                    <h4 data-i18n="web.lbl_youtube_api">Clé API YouTube (Optionnelle)</h4>
-                    <label data-i18n="web.lbl_youtube_api_key">YouTube Data API Key</label>
-                    <input type="password" id="setting-youtube-key" data-i18n-placeholder="web.placeholder_youtube_api"
-                        placeholder="Laisser vide si aucune clé...">
-                    <p class="hint" style="margin-top:5px;" data-i18n="web.msg_api_info" data-i18n-html="true">
-                        <strong>Optionnel :</strong> Cette clé gratuite permet de récupérer automatiquement les titres,
-                        descriptions et miniatures.
-                    </p>
-                    <p class="hint"><a href="https://console.cloud.google.com/" target="_blank"
-                            style="color:var(--accent); text-decoration:none;" data-i18n="web.link_get_api_key">Obtenir
-                            une clé API gratuite ↗</a>.</p>
-
-                    <h4 data-i18n="web.lbl_music_apis" style="margin-top: 20px;">APIs Musique (BPM & Tonalité)</h4>
-                    <p class="hint" data-i18n="web.msg_music_api_info">
-                        Ces clés optionnelles permettent la recherche automatique du BPM et de la tonalité. Spotify est
-                        prioritaire si configuré.
-                        <br><strong>Note :</strong> L'utilisation des APIs gratuites GetSongBPM et GetSongKey implique
-                        l'acceptation de leurs conditions d'utilisation.
-                        Merci à <a href="https://getsongbpm.com" target="_blank"
-                            style="color:var(--accent);">GetSongBPM</a> et <a href="https://getsongkey.com"
-                            target="_blank" style="color:var(--accent);">GetSongKey</a> pour leur base de données.
-                    </p>
-
-                    <div
-                        style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
-                        <div>
-                            <label data-i18n="web.lbl_spotify_client_id">Spotify Client ID</label>
-                            <input type="password" id="setting-spotify-client-id"
-                                placeholder="Laisser vide pour désactiver..." style="margin-bottom: 5px;">
-                            <label data-i18n="web.lbl_spotify_client_secret">Spotify Client Secret</label>
-                            <input type="password" id="setting-spotify-client-secret"
-                                placeholder="Laisser vide pour désactiver...">
+                    <div style="display:flex; gap:10px; margin-bottom: 8px;">
+                        <div class="settings-row" style="flex:1; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                            <h4 data-i18n="web.lbl_playback_options" style="margin:0; border:none; padding:0; font-size:0.8em;">Options de Lecture</h4>
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <label style="display:flex; align-items:center; gap:5px; margin:0;">
+                                    <input type="checkbox" id="setting-autoplay" style="width:13px; height:13px;">
+                                    <span data-i18n="web.lbl_autoplay" style="font-size:0.75em;">Auto</span>
+                                </label>
+                                <label style="display:flex; align-items:center; gap:5px; margin:0;">
+                                    <input type="checkbox" id="setting-autoreplay" style="width:13px; height:13px;">
+                                    <span data-i18n="web.lbl_autoreplay" style="font-size:0.75em;">Boucle</span>
+                                </label>
+                            </div>
                         </div>
-                        <hr style="border: 0; border-top: 1px solid #444; width: 100%; margin: 5px 0;">
-                        <div>
-                            <label data-i18n="web.lbl_getsong_api_key">GetSongBPM/Key API Key</label>
-                            <input type="password" id="setting-getsong-api-key"
-                                placeholder="API gratuite pour le BPM et la tonalité...">
+
+                        <div class="settings-row" style="flex:1; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                            <h4 data-i18n="web.lbl_fretboard_style" style="margin:0; border:none; padding:0; font-size:0.8em;">Style Fretboard</h4>
+                            <div style="display:flex; gap:6px; align-items:center;">
+                                <select id="setting-fretboard-skin" onchange="changeFretboardSkin()" style="height:20px; width:90px; padding:2px; font-size:0.75em;">
+                                    <option value="flat" data-i18n="web.fretboard_flat">Plat</option>
+                                    <option value="wood" data-i18n="web.fretboard_wood">Bois</option>
+                                </select>
+                                <label style="display:flex; align-items:center; gap:5px; margin:0;">
+                                    <input type="checkbox" id="setting-fretboard-autoclose" style="width:13px; height:13px;">
+                                    <span data-i18n="web.lbl_fretboard_auto_close" style="font-size:0.75em;">Auto-Close</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4 data-i18n="web.lbl_youtube_api">Clé API YouTube</h4>
+                    <div class="settings-control-group" style="padding:4px 8px; margin-bottom:8px;">
+                        <input type="password" id="setting-youtube-key" data-i18n-placeholder="web.placeholder_youtube_api" style="height:22px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+                            <p class="hint" data-i18n="web.msg_api_info" style="margin:0; font-size:0.7em;">Raccourci titres/images.</p>
+                            <a href="https://console.cloud.google.com/" target="_blank" style="color:var(--accent); text-decoration:none; font-size:0.7em;" data-i18n="web.link_get_api_key">Clé API ↗</a>
+                        </div>
+                    </div>
+
+                    <h4 data-i18n="web.lbl_music_apis">APIs Musique (BPM & Ton.)</h4>
+                    <div class="settings-control-group" style="padding:4px 8px; margin-bottom:8px;">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                            <div>
+                                <label data-i18n="web.lbl_spotify_client_id" style="font-size:0.7em;">ID Spotify</label>
+                                <input type="password" id="setting-spotify-client-id" placeholder="..." style="height:20px;">
+                            </div>
+                            <div>
+                                <label data-i18n="web.lbl_spotify_client_secret" style="font-size:0.7em;">Secret Spotify</label>
+                                <input type="password" id="setting-spotify-client-secret" placeholder="..." style="height:20px;">
+                            </div>
+                        </div>
+                        <div style="margin-top:4px; padding-top:4px; border-top:1px solid #333;">
+                            <label data-i18n="web.lbl_getsong_api_key" style="font-size:0.7em;">GetSongBPM Key</label>
+                            <input type="password" id="setting-getsong-api-key" placeholder="..." style="height:20px;">
                         </div>
                     </div>
                 </div>
 
                 <!-- TAB: LIBRARY -->
                 <div id="tab-settings-library" class="settings-tab" style="display:none;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <h4 data-i18n="web.lbl_local_folders">Dossiers Locaux</h4>
-                        <button class="btn-secondary" onclick="addLibraryFolder()" data-i18n="web.btn_add_folder_list">+
-                            Ajouter Dossier</button>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <h4 data-i18n="web.lbl_local_folders" style="margin:0; border:none;">Dossiers Locaux</h4>
+                        <button class="btn-secondary" onclick="addLibraryFolder()" style="padding:4px 8px; font-size:0.8em;">+ Ajouter</button>
                     </div>
-
-                    <div id="settings-folder-list" class="folder-list">
-                        <!-- JS injected -->
-                    </div>
-                    <p class="hint" data-i18n="web.hint_local_folders">Les fichiers audio (MP3, WAV, FLAC, M4A, OGG)
-                        seront analysés automatiquement.</p>
+                    <div id="settings-folder-list" class="folder-list" style="max-height:250px;"></div>
+                    <p class="hint" data-i18n="web.hint_local_folders">Scan auto (MP3, WAV, etc.)</p>
                 </div>
 
                 <!-- TAB: CONTROLLER -->
                 <div id="tab-settings-controller" class="settings-tab" style="display:none;">
-                    <h4 data-i18n="web.lbl_controller_config">Configuration du Pédalier</h4>
-                    <p data-i18n="web.hint_controller_config">Pour modifier les boutons, les actions avancées et les
-                        profils, utilisez l'éditeur natif.</p>
-
-                    <div style="text-align:center; margin-top:30px;">
-                        <button class="btn-primary" onclick="openNativeEditor()"
-                            style="padding:15px 30px; font-size:1.1em;" data-i18n="gui.btn_open_editor">
-                            Ouvrir l'Éditeur Avancé ⚙️
+                    <h4 data-i18n="web.lbl_controller_config">Contrôleur</h4>
+                    <p class="hint" data-i18n="web.hint_controller_config" style="margin-bottom:15px;">Utilisez l'éditeur natif pour les boutons.</p>
+                    <div style="text-align:center;">
+                        <button class="btn-primary" onclick="openNativeEditor()" style="padding:10px 20px;" data-i18n="gui.btn_open_editor">
+                            Éditeur Avancé ⚙️
                         </button>
                     </div>
                 </div>
@@ -1931,26 +1993,22 @@
                 <!-- TAB: STORAGE -->
                 <div id="tab-settings-storage" class="settings-tab" style="display:none;">
                     <h4 data-i18n="web.lbl_portability">Portabilité & Migration</h4>
-                    <p data-i18n="web.hint_portability" style="font-size: 0.85em; color: #888;">Gérez vos médias pour le transfert entre ordinateurs. Les chemins de cette application sont stockés en relatif.</p>
-
-                    <div style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-top: 15px;">
+                    <div class="settings-control-group">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div style="padding-right: 15px;">
-                                <strong data-i18n="web.lbl_consolidate">Consolider la Bibliothèque</strong>
-                                <p style="font-size: 0.8em; color: #888; margin-top: 5px;" data-i18n="web.hint_consolidate">Copie tous les médias externes (Audio, Vidéos, Multitracks) à l'intérieur du dossier portable de l'application.</p>
+                            <div style="flex:1;">
+                                <strong style="font-size:0.85em;" data-i18n="web.lbl_consolidate">Consolider</strong>
+                                <p class="hint" data-i18n="web.hint_consolidate" style="margin:0;">Copie tout en local.</p>
                             </div>
-                            <button class="btn-primary" onclick="consolidateLibrary()" data-i18n="web.btn_consolidate_run" style="white-space:nowrap;">Consolider</button>
+                            <button class="btn-primary" onclick="consolidateLibrary()" data-i18n="web.btn_consolidate_run" style="padding:6px 12px; font-size:0.8em;">Consolider</button>
                         </div>
                     </div>
                     
-                    <div style="background:#222; padding:15px; border-radius:10px; border:1px solid #333; margin-top: 15px;">
-                        <h5 data-i18n="web.lbl_missing_media" style="margin-top:0; color:#cf6679; display: flex; align-items: center; gap: 5px;"><i class="ph ph-warning"></i> Médias Déconnectés</h5>
-                        <p style="font-size: 0.8em; color: #888;" data-i18n="web.hint_missing_media">Si vous avez changé d'ordinateur ou déplacé des dossiers, utilisez l'outil de relocalisation depuis la ligne du fichier brisé (icône loupe rouge) dans la vue Fichiers Locaux.</p>
-                    </div>
+                    <h4 data-i18n="web.lbl_missing_media" style="color:#cf6679; border-bottom-color:#442222;">Médias Déconnectés</h4>
+                    <p class="hint" data-i18n="web.hint_missing_media">Utilisez la loupe rouge pour réparer.</p>
                 </div>
             </div>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer" style="padding:10px 15px;">
             <button class="btn-text" onclick="closeSettingsModal()" data-i18n="web.btn_cancel">Annuler</button>
             <button class="btn-primary" onclick="saveSettings()" data-i18n="web.btn_save">Enregistrer</button>
         </div>
@@ -2949,6 +3007,32 @@
             <p id="interconnection-choice-desc" style="font-size: 0.9em; color: #888; margin-bottom: 15px;">Plusieurs médias de ce type sont disponibles :</p>
             <div id="interconnection-choice-list" style="display:flex; flex-direction:column; gap:10px; max-height: 400px; overflow-y: auto;">
                 <!-- Buttons will be injected here -->
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Modal: Confirmation Suppression (V60) -->
+    <dialog id="modal-delete-confirm" class="modal-modern" style="width: 400px; max-width: 95vw; border: 1px solid #cf6679;">
+        <div class="modal-header" style="background: rgba(207, 102, 121, 0.1);">
+            <h2 style="color: #cf6679; font-size: 1.1em;"><i class="ph ph-warning-circle"></i> <span data-i18n="web.modal_delete_title">Confirmation de suppression</span></h2>
+            <button class="btn-close-modal" onclick="document.getElementById('modal-delete-confirm').close()">×</button>
+        </div>
+        <div class="modal-body" style="padding: 20px;">
+            <p id="delete-confirm-text" style="margin-bottom: 20px; font-weight: 500;"></p>
+            
+            <div id="delete-physical-option" style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; border: 1px dashed rgba(207, 102, 121, 0.3);">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="chk-delete-physical" style="width: 18px; height: 18px;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="font-weight: bold; color: #cf6679; font-size: 0.9em;" data-i18n="web.lbl_delete_physical">Supprimer aussi le(s) fichier(s) sur le disque</span>
+                        <span style="font-size: 0.75em; color: #888;" data-i18n="web.hint_delete_physical">Cette action est irréversible et supprimera le média de votre ordinateur.</span>
+                    </div>
+                </label>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px;">
+                <button class="btn-secondary" onclick="document.getElementById('modal-delete-confirm').close()" data-i18n="web.btn_cancel">Annuler</button>
+                <button id="btn-do-delete" class="btn-primary" style="background: #cf6679; color: white;" data-i18n="web.btn_confirm_delete">Supprimer</button>
             </div>
         </div>
     </dialog>

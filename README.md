@@ -111,11 +111,16 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
 *   **Interconnexion de Médias (Maillage Intelligent) :**
     - **Ponts Automatiques** : Liez n'importe quel morceau à sa version YouTube, son fichier MP3 local, son projet Multipiste ou des sites Web tiers (Songsterr, Moises, Spotify).
     - **Persistence Blindée (V57)** : Migration vers des **UIDs stables** (identifiants uniques). Vos liens ne sont plus brisés si vous déplacez un fichier ou changez l'ordre de votre bibliothèque.
-    - **Startup Self-Healing** : Un moteur de nettoyage automatique au démarrage répare les liens orphelins et garantit la symétrie entre vos bases de données.
+    - **Maillage Transitif (Mesh Sync V59) ✨** : Si A est lié à B et B est lié à C, alors A est automatiquement lié à C. L'application harmonise tout le groupe de liens pour une cohérence parfaite.
+    - **Startup Self-Healing ✨** : Un moteur de nettoyage automatique au démarrage répare les liens orphelins et garantit la symétrie entre vos bases de données sur n'importe quel ordinateur dès le lancement.
     - **Nettoyage Métadonnées** : Les fichiers sidecar (`airstep_meta.json`) sont maintenant épurés des données binaires (Base64) pour garantir des performances optimales et une intégrité totale sur le long terme.
     - **Démarrage Synchrone** : Architecture optimisée pour éliminer les "Race Conditions". Vos icônes d'interconnexion (Songsterr, etc.) apparaissent instantanément après chaque rafraîchissement (F5).
     - **Header Cockpit Dynamique** : Des icônes interactives (Vidéo, Audio, Multipiste, Web) apparaissent instantanément dans le panneau de contrôle dès qu'une liaison est configurée.
     - **Visualisation de Bibliothèque** : Affichage d'un badge bleu "ID-Link" et d'un compteur filtré (affichage des liens valides uniquement) dans toutes les listes.
+    - **Adressage Absolu UID (V64) ✨** : Abandon définitif des index de ligne au profit des UIDs stables. L'interface garantit que le média cliqué est toujours le bon, quel que soit le tri ou le filtrage appliqué.
+    - **Vue Groupée & Sticky Headers (V60)** : Système de regroupement intelligent par "famille" de médias pour désencombrer l'interface, couplé à des en-têtes de liste (Onglets, Titres, Filtres) qui restent fixés en haut lors du défilement.
+    - **Moteur de Tri Unifié (V65) ✨** : Standardisation du tri bidirectionnel (ASC/DESC) sur tous les onglets. Le système se souvient de l'état de chaque colonne et réinitialise l'ordre lors d'un changement de champ.
+    - **Harmonisation Web Links (V66)** : Intégration de la colonne Catégorie et alignement "Pixel-Perfect" des contrôles de tri pour une expérience cockpit symétrique.
 
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)

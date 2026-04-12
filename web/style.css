@@ -75,7 +75,7 @@ header {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.9em;
+    font-size: 0.8em;
     padding: 2px 4px;
     border-radius: 4px;
     background: rgba(255,255,255,0.05);
@@ -133,23 +133,41 @@ header {
 
 /* LEFT COLUMN: 70% */
 .media-zone {
-    flex: 7;
+    flex: 1;
     border-right: 1px solid #333;
     display: flex;
     flex-direction: column;
-    padding: 10px;
+    padding: 6px;
     overflow: hidden;
     /* Force containment */
 }
 
+/* V60: Sidebar Resizer Spliter */
+#sidebar-resizer {
+    width: 6px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.2s;
+    z-index: 100;
+    margin-left: -3px;
+    margin-right: -3px;
+}
+
+#sidebar-resizer:hover, #sidebar-resizer.resizing {
+    background: var(--accent);
+}
+
 /* RIGHT COLUMN: 30% */
 .sidebar-zone {
-    flex: 3;
-    padding: 10px;
+    flex: 0 0 var(--sidebar-width, 30%);
+    min-width: 250px;
+    max-width: 60%;
+    padding: 6px;
     background-color: #181818;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    overflow: hidden; /* V60: Scroll Moved to table-wrapper */
+    height: calc(100vh - 76px); /* Fixed Height below header */
 }
 
 /* ==========================================
@@ -195,7 +213,7 @@ header {
 }
 
 .api-result-artist {
-    font-size: 0.9em;
+    font-size: 0.8em;
     color: var(--text-secondary);
 }
 
@@ -396,7 +414,7 @@ iframe {
     grid-template-columns: repeat(5, 1fr);
     /* 5 Columns for AIRSTEP */
     gap: 10px;
-    padding: 10px;
+    padding: 6px;
 }
 
 .empty-state {
@@ -409,7 +427,7 @@ iframe {
 
 .pedal-card {
     background: var(--card-bg);
-    padding: 10px;
+    padding: 6px;
     border-radius: 8px;
     text-align: center;
     border: 2px solid transparent;
@@ -449,17 +467,20 @@ iframe {
 
 /* SIDEBAR COMPONENTS */
 .sidebar-section {
-    margin-bottom: 20px;
     background: #222;
-    padding: 10px;
+    padding: 6px;
     border-radius: 8px;
+    display: flex; /* V60 Flex Layout */
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
 }
 
 .section-title {
-    font-size: 0.9em;
+    font-size: 0.8em;
     color: #888;
     text-transform: uppercase;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     border-bottom: 1px solid #333;
     padding-bottom: 5px;
 }
@@ -468,7 +489,7 @@ iframe {
 .input-group {
     display: flex;
     gap: 5px;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     flex-wrap: wrap;
 }
 
@@ -484,7 +505,7 @@ select {
 }
 
 button {
-    padding: 6px 12px;
+    padding: 4px 10px;
     background: var(--accent);
     border: none;
     border-radius: 4px;
@@ -536,7 +557,7 @@ button:hover {
 /* TAB NAVIGATION */
 .nav-tabs {
     display: flex;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     border-bottom: 1px solid #333;
 }
 
@@ -544,7 +565,7 @@ button:hover {
     flex: 1;
     background: transparent;
     border: none;
-    padding: 10px;
+    padding: 6px;
     color: #888;
     border-bottom: 2px solid transparent;
     border-radius: 0;
@@ -560,6 +581,9 @@ button:hover {
 
 /* LIBRARY TABLE */
 .table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
     overflow-x: auto;
 }
 
@@ -567,40 +591,86 @@ button:hover {
 .styled-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9em;
-    /* Unified Font Size */
+    font-size: 0.8em;
+    table-layout: fixed; /* V60: Forced column widths */
 }
 
 .styled-table th {
     text-align: left;
-    padding: 10px;
+    padding: 6px;
     border-bottom: 2px solid #333;
-    color: #aaa;
-    cursor: pointer;
+    color: #999;
     font-weight: bold;
     text-transform: uppercase;
+    position: relative; 
+    height: 38px;
+    box-sizing: border-box;
 }
 
 .styled-table th:hover {
-    color: white;
+    color: #ccc;
+}
+
+/* V60: Column Resizer Handle */
+.th-resizer {
+    position: absolute;
+    right: -7px;
+    top: 0;
+    width: 14px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 100;
+}
+
+.th-resizer:hover, .th-resizer.resizing {
+    border-right: 2px solid var(--accent);
 }
 
 .styled-table td {
-    padding: 10px;
+    padding: 4px 6px;
     border-bottom: 1px solid #2a2a2a;
     color: #ddd;
     vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .styled-table tr:hover {
     background-color: #252525;
 }
 
+/* V60: Column Normalization & Resizing */
+.col-type { width: var(--col-type-width, 35px); text-align: center; }
+.col-artist { width: var(--col-artist-width, 90px); font-weight: 500; color: #bbb; }
+.col-title { width: var(--col-title-width, auto); color: #fff; }
+.col-cat { width: var(--col-cat-width, 60px); text-align: center; color: #888; font-size: 0.9em; }
+.col-actions { width: var(--col-actions-width, 65px); text-align: right; padding-right: 2px !important; }
+
+/* Remove ellipsis for actions to ensure icons stay visible */
+.styled-table td.col-actions { overflow: visible; text-overflow: clip; }
+
+/* V60: Global Resize Overlay to catch events over iframes */
+.resize-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    cursor: col-resize;
+    background: transparent;
+    display: none;
+}
+.resize-overlay.active {
+    display: block;
+}
+
 /* Action buttons inside table - Standard "Mini" Buttons */
 .styled-table .btn-action {
     padding: 4px 8px;
     /* Slightly compact */
-    font-size: 0.9em;
+    font-size: 0.8em;
     margin-left: 2px;
 }
 
@@ -609,7 +679,7 @@ button:hover {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: 15px;
-    padding: 10px;
+    padding: 6px;
 }
 
 .app-card-large {
@@ -638,7 +708,7 @@ button:hover {
 
 .app-name-large {
     font-weight: bold;
-    font-size: 0.9em;
+    font-size: 0.8em;
     color: white;
 }
 
@@ -1045,7 +1115,7 @@ dialog::backdrop {
     border: 1px solid #333;
     color: white;
     font-family: inherit;
-    font-size: 0.9em;
+    font-size: 0.8em;
     resize: vertical;
 }
 
@@ -1262,7 +1332,7 @@ dialog::backdrop {
     display: flex;
     gap: 5px;
     /* Reduced from 10px */
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     align-items: center;
 }
 
@@ -1307,7 +1377,7 @@ dialog::backdrop {
 .import-actions button {
     width: 100%;
     text-align: left;
-    padding: 10px;
+    padding: 6px;
     justify-content: flex-start;
 }
 
@@ -1346,9 +1416,9 @@ dialog::backdrop {
     display: none !important;
 }
 
-/* --- SETTINGS MODAL STYLES --- */
+/* --- SETTINGS MODAL STYLES (Refactoring V3) --- */
 .settings-nav {
-    width: 150px;
+    width: 130px;
     background: #181818;
     border-right: 1px solid #333;
     display: flex;
@@ -1359,10 +1429,12 @@ dialog::backdrop {
     background: transparent;
     border: none;
     color: #aaa;
-    padding: 15px;
+    padding: 10px 15px;
     text-align: left;
     cursor: pointer;
     border-left: 3px solid transparent;
+    font-size: 0.85em;
+    transition: all 0.2s;
 }
 
 .nav-btn:hover {
@@ -1379,8 +1451,75 @@ dialog::backdrop {
 
 .settings-content {
     flex: 1;
-    padding: 20px;
-    min-height: 300px;
+    padding: 8px 12px;
+    min-height: 320px;
+    overflow-y: auto;
+}
+
+.settings-tab h4 {
+    margin: 0 0 6px 0;
+    padding-bottom: 2px;
+    border-bottom: 1px solid #333;
+    color: var(--accent);
+    font-size: 0.8em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    background: rgba(255,255,255,0.03);
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.settings-row label {
+    font-size: 0.8em;
+    cursor: pointer;
+    flex: 1;
+}
+
+.settings-control-group {
+    background: rgba(0,0,0,0.2);
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.settings-tab label {
+    font-size: 0.75em;
+    color: #888;
+    margin-bottom: 0px;
+}
+
+.settings-tab select, 
+.settings-tab input[type="text"], 
+.settings-tab input[type="password"],
+.settings-tab input[type="number"] {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #333;
+    background: #0a0a0a;
+    color: white;
+    font-size: 0.8em;
+    width: 100%;
+    box-sizing: border-box;
+    height: 24px;
+}
+
+.settings-tab select:focus, 
+.settings-tab input:focus {
+    border-color: var(--accent);
+    outline: none;
+    background: #1a1a1a;
 }
 
 /* CHAPTERS */
@@ -1388,7 +1527,7 @@ dialog::backdrop {
     background: #181818;
     margin-top: 10px;
     border-radius: 8px;
-    padding: 10px;
+    padding: 6px;
     border: 1px solid #333;
     max-height: 200px;
     overflow-y: auto;
@@ -1429,7 +1568,7 @@ dialog::backdrop {
     cursor: pointer;
     border-radius: 4px;
     color: #ccc;
-    font-size: 0.9em;
+    font-size: 0.8em;
 }
 
 .chapter-item:hover {
@@ -1578,34 +1717,28 @@ dialog::backdrop {
     opacity: 1;
 }
 
-.settings-tab h4 {
-    margin-top: 0;
-    border-bottom: 1px solid #333;
-    padding-bottom: 10px;
-    margin-bottom: 20px;
-    color: var(--accent);
-}
-
-.hint {
-    font-size: 0.8em;
-    color: #666;
-    margin-top: 5px;
-}
-
 .folder-list {
     background: #121212;
     border: 1px solid #333;
     border-radius: 4px;
-    max-height: 200px;
+    max-height: 250px;
     overflow-y: auto;
 }
 
 .folder-item {
-    padding: 10px;
+    height: 28px;
+    padding: 0 8px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid #222;
+    box-sizing: border-box;
+}
+
+.hint {
+    font-size: 0.7em;
+    color: #666;
+    margin-top: 2px;
 }
 
 .folder-item:last-child {
@@ -1614,7 +1747,7 @@ dialog::backdrop {
 
 .folder-path {
     font-family: monospace;
-    font-size: 0.9em;
+    font-size: 0.8em;
     color: #ccc;
     word-break: break-all;
 }
@@ -1774,46 +1907,6 @@ dialog::backdrop {
     opacity: 1;
 }
 
-.settings-tab h4 {
-    margin-top: 0;
-    border-bottom: 1px solid #333;
-    padding-bottom: 10px;
-    margin-bottom: 20px;
-    color: var(--accent);
-}
-
-.hint {
-    font-size: 0.8em;
-    color: #666;
-    margin-top: 5px;
-}
-
-.folder-list {
-    background: #121212;
-    border: 1px solid #333;
-    border-radius: 4px;
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.folder-item {
-    padding: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #222;
-}
-
-.folder-item:last-child {
-    border-bottom: none;
-}
-
-.folder-path {
-    font-family: monospace;
-    font-size: 0.9em;
-    color: #ccc;
-    word-break: break-all;
-}
 
 .btn-remove-folder {
     background: transparent;
@@ -2216,7 +2309,7 @@ dialog::backdrop {
     align-items: center;
     justify-content: center;
     gap: 10px;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     height: 180px;
     width: 100%;
     overflow: hidden;
@@ -2596,7 +2689,7 @@ dialog::backdrop {
     min-width: 160px;
     padding: 8px 0;
     flex-direction: column;
-    font-size: 0.9em;
+    font-size: 0.8em;
 }
 
 #stem-context-menu.active {
@@ -2725,7 +2818,7 @@ input[type="color"].stem-color-input::-moz-color-swatch {
 
 #header-smart-scale-pill span {
     font-weight: 600;
-    font-size: 0.9em;
+    font-size: 0.8em;
     color: #fff;
 }
 
@@ -2835,7 +2928,7 @@ input[type="color"].stem-color-input::-moz-color-swatch {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px;
+    padding: 6px;
     background: rgba(255, 255, 255, 0.03);
     border-radius: 8px;
     cursor: pointer;
@@ -2923,3 +3016,68 @@ input[type="color"].stem-color-input::-moz-color-swatch {
 .type-label-multitrack { background: rgba(155, 89, 182, 0.2); color: #9b59b6; }
 .type-label-web { background: rgba(241, 196, 15, 0.2); color: #f1c40f; }
 
+
+/* Group Toggle Mini Button (V60) */
+.group-toggle-mini { display: flex; align-items: center; justify-content: center; margin-left: 5px; }
+.group-toggle-mini input { display: none; }
+.group-toggle-mini label { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: rgba(255, 255, 255, 0.05); border: 1px solid #333; border-radius: 4px; cursor: pointer; color: #666; transition: all 0.2s ease; }
+.group-toggle-mini label i { font-size: 16px; }
+.group-toggle-mini input:checked + label { background: rgba(187, 134, 252, 0.15); border-color: var(--accent); color: var(--accent); box-shadow: 0 0 8px rgba(187, 134, 252, 0.2); }
+.group-toggle-mini label:hover { background: rgba(255, 255, 255, 0.1); color: #eee; }
+
+/* V60: Sidebar Cockpit Layout (Flexbox Architecture) */
+.view-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#bulk-relocate-banner {
+    flex-shrink: 0;
+    margin-bottom: 15px !important;
+}
+
+/* V64 Content Wrapper for TH to avoid table structure break */
+.th-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* V66: Force sort button to the right */
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+}
+
+/* Dedicated Sort Button V63 */
+.btn-sort {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    color: #666;
+    transition: all 0.2s ease;
+    background: rgba(255,255,255,0.03);
+    margin-left: auto; /* Push to right of text but before resizer */
+}
+
+.btn-sort:hover {
+    color: var(--accent);
+    background: rgba(187, 134, 252, 0.15);
+    transform: scale(1.1);
+}
+
+.btn-sort i {
+    font-size: 1.1em;
+}
+
+.styled-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #181818;
+    border-bottom: 2px solid #333;
+}

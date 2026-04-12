@@ -32,6 +32,7 @@ from config_manager import ConfigManager
 from gui import MidiKbdApp
 from midi_engine import MidiManager
 from utils import get_app_dir
+import maintenance
 
 # Globals
 server_thread = None
@@ -69,6 +70,12 @@ def main():
     lang = config.get("language", "fr")
     i18n.export_locales()
     i18n.set_language(lang)
+
+    # 1b. Maintenance & Consolidation des données (Mesh Sync Global)
+    try:
+        maintenance.heal_all_meshes()
+    except Exception as e:
+        print(f"Maintenance Error: {e}")
 
     # 2. Interface Graphique (GUI) - Doit être créée dans le Main Thread
     app = MidiKbdApp()

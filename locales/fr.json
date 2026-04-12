@@ -192,9 +192,9 @@
         "lbl_youtube_api_key": "YouTube Data API Key",
         "placeholder_youtube_api": "Laisser vide si aucune clé...",
         "lbl_playback_options": "Options de Lecture",
-        "lbl_autoplay": "Lecture auto à la sélection",
-        "lbl_autoreplay": "Rejouer en boucle à la fin",
-        "msg_api_info": "<strong>Optionnel :</strong> Cette clé gratuite permet de récupérer automatiquement les titres, descriptions et miniatures lors de l'ajout d'un lien YouTube. Si aucune clé n'est fournie, <strong>la lecture vidéo et le pédalier MIDI fonctionneront parfaitement</strong>, mais vous devrez taper les titres manuellement.",
+        "lbl_autoplay": "Lecture auto",
+        "lbl_autoreplay": "Boucle auto",
+        "msg_api_info": "Raccourci pour titres/images.",
         "lbl_interface_ergonomics": "Interface & Ergonomie",
         "lbl_sidebar_autohide": "Masquage auto (Lecture)",
         "lbl_sidebar_default_hidden": "Masquer par défaut",
@@ -226,6 +226,7 @@
         "lbl_local_folders": "Dossiers Locaux",
         "btn_add_folder_list": "+ Ajouter Dossier",
         "hint_local_folders": "Les fichiers audio (MP3, WAV, FLAC, M4A, OGG) seront analysés automatiquement.",
+        "lbl_app_dir_path": "[Dossier Application]",
         "lbl_controller_config": "Configuration du Pédalier",
         "hint_controller_config": "Pour modifier les boutons, les actions avancées et les profils, utilisez l'éditeur natif.",
         "modal_import_title": "Importer le fichier ?",
@@ -403,7 +404,7 @@
         "tuning_drop_d_bass_4": "Drop D (D A D G)",
         "tuning_eb_bass_4": "Eb Standard (Eb Ab Db Gb)",
         "tuning_standard_bass_5": "Standard (B E A D G)",
-        "lbl_fretboard_auto_close": "Fermeture auto du manche au changement de média",
+        "lbl_fretboard_auto_close": "Fermeture auto manche",
         "title_metronome": "Métronome",
         "title_fretboard": "Grille de Gammes",
         "lbl_metro_sound": "Son :",
@@ -488,7 +489,7 @@
         "tab_storage": "Stockage",
         "lbl_portability": "Portabilité & Migration",
         "hint_portability": "Gérez vos médias pour le transfert entre ordinateurs. Les chemins de cette application sont stockés en relatif.",
-        "lbl_consolidate": "Consolider la Bibliothèque",
+        "lbl_consolidate": "Consolider",
         "hint_consolidate": "Copie tous les médias externes (Audio, Vidéos, Multitracks) à l'intérieur du dossier portable de l'application.",
         "btn_consolidate_run": "Consolider",
         "lbl_missing_media": "Médias Déconnectés",
@@ -548,6 +549,8 @@
         "modal_choice_title": "Choisir un média",
         "lbl_interconnect_audio": "Audio",
         "lbl_interconnect_video": "Vidéo",
-        "lbl_interconnect_multitrack": "Multipiste"
+        "lbl_interconnect_multitrack": "Multipiste",
+        "lbl_grouped_view": "Vue Groupée",
+        "hint_grouped_view": "Grouper les versions liées (Audio/Vidéo/YouTube)"
     }
 }
