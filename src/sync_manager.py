@@ -188,6 +188,7 @@ class SyncManager:
 
     def sync(self, analysis_result: Dict[str, list]):
         os.makedirs(self.update_buffer_dir, exist_ok=True)
+        remote_files = self.provider.list_files()
         
         # 1. Pull
         for rel_path in analysis_result['pull']:
@@ -212,33 +213,59 @@ class SyncManager:
             local_path = os.path.join(self.local_dir, rel_path)
             
             # Smart Push for JSON: Merge with remote first to avoid overwriting master BPM with stale local BPM
+            # AND filter out private data (loops, notes) before upload
+            upload_source = local_path
             if rel_path.endswith('.json'):
                 try:
-                    # Temporary download of the master version to merge it
+                    # 1. Download existing remote version if it exists
                     temp_remote_path = os.path.join(self.update_buffer_dir, rel_path + ".remote")
-                    if rel_path in remote_files: # Only if it exists remotely
+                    remote_exists = False
+                    for rp in remote_files: # Note: remote_files was defined in analyze but we need to ensure it's accessible or re-list
+                         if rp == rel_path:
+                             remote_exists = True
+                             break
+                    
+                    if remote_exists:
                         self.provider.download_file(rel_path, temp_remote_path)
-                        self._perform_smart_merge_for_push(local_path, temp_remote_path)
+                        # Prepare a merged AND filtered version for upload
+                        filtered_path = os.path.join(self.update_buffer_dir, rel_path + ".upload")
+                        self._prepare_filtered_json_for_upload(local_path, temp_remote_path, filtered_path)
+                        upload_source = filtered_path
+                    else:
+                        # New file on master: filter only
+                        filtered_path = os.path.join(self.update_buffer_dir, rel_path + ".upload")
+                        self._prepare_filtered_json_for_upload(local_path, None, filtered_path)
+                        upload_source = filtered_path
                 except Exception as e:
-                    print(f"Push merge error for {rel_path}: {e}")
+                    print(f"Push preparation error for {rel_path}: {e}")
 
-            self.provider.upload_file(local_path, rel_path)
+            self.provider.upload_file(upload_source, rel_path)
             
-    def _perform_smart_merge_for_push(self, local_json_path: str, remote_json_path: str):
-        """Merges remote global metadata into local file before pushing it."""
+    def _prepare_filtered_json_for_upload(self, local_json_path: str, remote_json_path: Optional[str], output_path: str):
+        """Creates a filtered version of the JSON for the Master (removes private fields)."""
+        SHARED_FIELDS = [
+            'title', 'artist', 'album', 'genre', 'year', 'bpm', 'key', 'scale', 
+            'category', 'tuning', 'shared_with_group', 'url', 'path', 'added_at', 
+            'duration', 'is_multitrack', 'stems', 'chapters', 'audio_cues', 'linked_ids', 'uid'
+        ]
+        
         with open(local_json_path, 'r', encoding='utf-8') as f:
             local_data = json.load(f)
-        with open(remote_json_path, 'r', encoding='utf-8') as f:
-            remote_data = json.load(f)
             
-        # The Master (remote) is the source of truth for global metadata
-        # We inject remote BPM/Key into the local file we are about to push
-        for key in ['bpm', 'key', 'scale', 'category', 'genre', 'title']:
-            if key in remote_data and remote_data[key]:
-                local_data[key] = remote_data[key]
+        # 1. Create a copy with only shared fields
+        filtered_data = {k: local_data[k] for k in SHARED_FIELDS if k in local_data}
         
-        with open(local_json_path, 'w', encoding='utf-8') as f:
-            json.dump(local_data, f, indent=4)
+        # 2. If there is a remote version, prioritize IT for global shared data (Master Wins)
+        if remote_json_path and os.path.exists(remote_json_path):
+            with open(remote_json_path, 'r', encoding='utf-8') as f:
+                remote_data = json.load(f)
+            # Master wins on global metadata to avoid overwriting with stale local data
+            for k in ['bpm', 'key', 'scale', 'title', 'artist', 'genre', 'year']:
+                if k in remote_data and remote_data[k]:
+                    filtered_data[k] = remote_data[k]
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(filtered_data, f, indent=4)
 
     def _perform_deep_merge(self, downloaded_json_path: str, local_json_path: str):
         with open(local_json_path, 'r', encoding='utf-8') as f:
@@ -247,17 +274,26 @@ class SyncManager:
             remote_data = json.load(f)
             
         # Priority: Remote values act as source for global metadata (BPM, chapters),
-        # but LOCAL overrides for volume, target_pitch, saved_loops
+        # but LOCAL overrides for volume, target_pitch, saved_loops, notes
         
         merged = deep_merge(local_data.copy(), remote_data)
         
-        # Restore pure local preferences
-        if 'volume' in local_data:
-            merged['volume'] = local_data['volume']
-        if 'target_pitch' in local_data:
-            merged['target_pitch'] = local_data['target_pitch']
-        if 'loops' in local_data:
-            merged['loops'] = local_data['loops']
+        # Ensure PRIVATE local data is NEVER overwritten by Master
+        PRIVATE_FIELDS = [
+            'loops', 'user_notes', 'volume', 'target_pitch', 'target_profile', 
+            'subtitle_enabled', 'subtitle_pos_y', 'subtitle_track', 
+            'autoplay', 'autoreplay', 'original_pitch'
+        ]
+        
+        for field in PRIVATE_FIELDS:
+            if field in local_data:
+                merged[field] = local_data[field]
+            elif field in merged:
+                # If master has it but we don't, we might want to keep it? 
+                # No, for local posto it's better to stay clean if we don't have it locally.
+                # Actually, merged already has it from remote_data. 
+                # If it's private, we delete it from merged to be sure it doesn't pollute user machine.
+                del merged[field]
             
         with open(downloaded_json_path, 'w', encoding='utf-8') as f:
             json.dump(merged, f, indent=4)
