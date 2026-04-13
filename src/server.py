@@ -69,6 +69,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_event():
+    logging.warning("[STARTUP] Déclenchement du rafraîchissement initial de la bibliothèque...")
+    try:
+        await refresh_from_sidecars()
+    except Exception as e:
+        logging.error(f"[STARTUP ERROR] Refresh failed: {e}")
+
 # --- ASSETS PATH HELPER ---
 def get_resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
@@ -2414,20 +2422,30 @@ async def relocate_media(index: int):
 @app.post("/api/local/refresh_from_sidecars")
 async def refresh_from_sidecars():
     try:
+        logging.warning("[REFRESH] Démarrage du rafraîchissement depuis les fichiers sidecars...")
         items = []
         if os.path.exists(LOCAL_LIB_FILE):
              with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
                  items = json.load(f)
-                 
+        
         if not items:
+            logging.warning("[REFRESH] Aucun élément trouvé dans la bibliothèque.")
             return {"status": "ok", "refreshed_count": 0}
+
+        logging.warning(f"[REFRESH] Traitement de {len(items)} éléments...")
             
         from utils import resolve_portable_path
         refreshed_count = 0
         for item in items:
             path = item.get("path")
             if path:
-                sidecar_path = resolve_portable_path(path) + ".json"
+                abs_path = resolve_portable_path(path)
+                sidecar_path = abs_path + ".json"
+                
+                if "Blind Man" in path:
+                    logging.warning(f"[REFRESH] Diagnostic Sidecar: {sidecar_path}")
+                    logging.warning(f"  - Existe? {os.path.exists(sidecar_path)}")
+
                 if os.path.exists(sidecar_path):
                     try:
                         with open(sidecar_path, "r", encoding="utf-8") as f2:
