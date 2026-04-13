@@ -1992,6 +1992,34 @@ async function openNativeEditor() {
     await fetch("/api/open_native_editor", { method: "POST" });
 }
 
+let currentEditSharedStatus = false;
+
+function toggleEditShared() {
+    currentEditSharedStatus = !currentEditSharedStatus;
+    const btn = document.getElementById("btn-edit-shared");
+    if (btn) {
+        if (currentEditSharedStatus) {
+            btn.style.color = "#03DAC6"; // Accent color for active
+        } else {
+            btn.style.color = "#666"; // Gray for inactive
+        }
+    }
+}
+
+function setEditSharedStatus(isShared) {
+    currentEditSharedStatus = isShared === true || isShared === "true"; 
+    const btn = document.getElementById("btn-edit-shared");
+    if (btn) {
+        if (currentEditSharedStatus) {
+            btn.style.color = "#03DAC6";
+            btn.classList.add("shared-active");
+        } else {
+            btn.style.color = "#666";
+            btn.classList.remove("shared-active");
+        }
+    }
+}
+
 function resetMediaModalUI() {
     // 1. Reset Download UI
     const dlStatus = document.getElementById("dl-status");
@@ -2117,6 +2145,7 @@ function openEditModal(index) {
     document.getElementById("search-results").innerHTML = ""; // Clear old search
 
     document.getElementById("edit-title").value = track.title;
+    setEditSharedStatus(track.shared_with_group);
     document.getElementById("edit-artist").value = track.artist || "";
     document.getElementById("edit-channel").value = track.channel || "";
     
@@ -2291,6 +2320,7 @@ function selectResult(video) {
 
     // 2. Title & URL
     document.getElementById("edit-title").value = video.title;
+    setEditSharedStatus(false); // Reset for new video
     const url = video.id ? `https://www.youtube.com/watch?v=${video.id}` : "";
     if (url) document.getElementById("edit-url").value = url;
 
@@ -2679,6 +2709,7 @@ async function saveItem() {
         category: category,
         genre: genre,
         manual_mode: mode,
+        shared_with_group: currentEditSharedStatus,
         target_profile: target_profile,
         artist: artist,
         channel: channel,
@@ -5942,6 +5973,7 @@ function openEditLocalModal(index) {
 
     // Fill Form (Mappings from local- to edit-)
     document.getElementById("edit-title").value = item.title;
+    setEditSharedStatus(item.shared_with_group);
     document.getElementById("edit-artist").value = item.artist || "";
     
     const urlField = document.getElementById("edit-url");
@@ -6215,6 +6247,7 @@ async function saveLocalItem() {
         album: (editingLocalIndex !== null && localFiles[editingLocalIndex]) ? localFiles[editingLocalIndex].album : "", // Keep album if existing
         genre: document.getElementById("edit-genre").value,
         category: document.getElementById("edit-category").value || "Général",
+        shared_with_group: currentEditSharedStatus,
         year: (editingLocalIndex !== null && localFiles[editingLocalIndex]) ? localFiles[editingLocalIndex].year : "", // Keep year if existing
         bpm: document.getElementById("edit-bpm").value,
         key: document.getElementById("edit-key").value,

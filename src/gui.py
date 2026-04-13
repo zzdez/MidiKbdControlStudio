@@ -1031,10 +1031,13 @@ class MidiKbdApp(ctk.CTk):
 
         # 6. Global Actions
         self.btn_remote = ctk.CTkButton(self.sidebar_frame, text=_("gui.btn_detach_remote"), command=self.open_remote_control, fg_color="#444", hover_color="#666", height=28)
-        self.btn_remote.grid(row=10, column=0, padx=20, pady=(10, 5))
+        self.btn_remote.grid(row=10, column=0, padx=20, pady=(10, 2))
+
+        self.btn_sync = ctk.CTkButton(self.sidebar_frame, text="☁ Sync", command=self.open_sync_dialog, fg_color="#0066cc", hover_color="#004499", height=28)
+        self.btn_sync.grid(row=11, column=0, padx=20, pady=(2, 5))
 
         self.save_button = ctk.CTkButton(self.sidebar_frame, text=_("gui.btn_save_all"), command=lambda: self.save_all(silent=False), fg_color="green", hover_color="darkgreen", height=28)
-        self.save_button.grid(row=11, column=0, padx=20, pady=(5, 20))
+        self.save_button.grid(row=12, column=0, padx=20, pady=(5, 20))
 
     def create_main_area(self):
         # Configuration de la grille principale
@@ -1221,6 +1224,167 @@ class MidiKbdApp(ctk.CTk):
 
     def open_settings(self):
         SettingsDialog(self, self.profile_manager, self.action_handler, self.env_manager, self.midi_manager)
+
+    def open_sync_dialog(self):
+        from utils import get_app_dir
+        import threading
+        import json
+        import os
+        
+        config_path = os.path.join(get_app_dir(), "config.json")
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                conf = json.load(f)
+        except:
+            conf = {}
+        sync_conf = conf.get("sync", {"type": "sftp", "host": "", "port": 22, "username": "", "password": "", "remote_dir": "", "target_dir": ""})
+
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Cloud Sync")
+        dialog.geometry("450x450")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        tabs = ctk.CTkTabview(dialog)
+        tabs.pack(fill="both", expand=True, padx=10, pady=5)
+        tab_sync = tabs.add("Synchronisation")
+        tab_conf = tabs.add("SFTP")
+        tab_local = tabs.add("Local")
+
+        # --- TAB SYNC ---
+        ctk.CTkLabel(tab_sync, text="Synchronisation Collaborative", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(15, 5))
+        
+        type_var = ctk.StringVar(value=sync_conf.get("type", "sftp"))
+        ctk.CTkRadioButton(tab_sync, text="Utiliser Serveur Distant (SFTP)", variable=type_var, value="sftp").pack(pady=5)
+        ctk.CTkRadioButton(tab_sync, text="Utiliser Dossier Partagé (Local)", variable=type_var, value="local").pack(pady=5)
+        
+        lbl_status = ctk.CTkLabel(tab_sync, text="Prêt à synchroniser...", text_color="gray")
+        lbl_status.pack(pady=10)
+
+        # --- TAB CONF SFTP ---
+        ctk.CTkLabel(tab_conf, text="Serveur / Host:", anchor="w").pack(fill="x", padx=10)
+        e_host = ctk.CTkEntry(tab_conf)
+        e_host.insert(0, str(sync_conf.get("host", "")))
+        e_host.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(tab_conf, text="Port:", anchor="w").pack(fill="x", padx=10)
+        e_port = ctk.CTkEntry(tab_conf)
+        e_port.insert(0, str(sync_conf.get("port", "22")))
+        e_port.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(tab_conf, text="Utilisateur:", anchor="w").pack(fill="x", padx=10)
+        e_user = ctk.CTkEntry(tab_conf)
+        e_user.insert(0, str(sync_conf.get("username", "")))
+        e_user.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(tab_conf, text="Mot de passe:", anchor="w").pack(fill="x", padx=10)
+        e_pass = ctk.CTkEntry(tab_conf, show="*")
+        e_pass.insert(0, str(sync_conf.get("password", "")))
+        e_pass.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(tab_conf, text="Dossier Distant:", anchor="w").pack(fill="x", padx=10)
+        e_dir = ctk.CTkEntry(tab_conf)
+        e_dir.insert(0, str(sync_conf.get("remote_dir", "")))
+        e_dir.pack(fill="x", padx=10, pady=(0, 10))
+
+        # --- TAB LOCAL ---
+        ctk.CTkLabel(tab_local, text="Chemin du dossier (ex: Dropbox/AirstepSync):", anchor="w").pack(fill="x", padx=10, pady=(10,0))
+        e_local_dir = ctk.CTkEntry(tab_local)
+        e_local_dir.insert(0, str(sync_conf.get("target_dir", "")))
+        e_local_dir.pack(fill="x", padx=10, pady=(0, 10))
+        
+        def pick_local():
+            import tkinter.filedialog
+            folder = tkinter.filedialog.askdirectory(parent=dialog)
+            if folder:
+                e_local_dir.delete(0, "end")
+                e_local_dir.insert(0, folder)
+        ctk.CTkButton(tab_local, text="Parcourir", command=pick_local, fg_color="#555").pack(pady=5)
+
+        def save_conf():
+            try:
+                sync_conf["host"] = e_host.get()
+                sync_conf["port"] = int(e_port.get() or 22)
+                sync_conf["username"] = e_user.get()
+                sync_conf["password"] = e_pass.get()
+                sync_conf["remote_dir"] = e_dir.get()
+                sync_conf["target_dir"] = e_local_dir.get()
+                sync_conf["type"] = type_var.get()
+                conf["sync"] = sync_conf
+                with open(config_path, "w", encoding="utf-8") as f:
+                    json.dump(conf, f, indent=4)
+                return True
+            except Exception as e:
+                lbl_status.configure(text=f"Erreur config: {e}", text_color="red")
+                tabs.set("Synchronisation")
+                return False
+
+        ctk.CTkButton(tab_conf, text="Sauvegarder", command=lambda: save_conf() and lbl_status.configure(text="Config SFTP Sauvée.", text_color="green") or tabs.set("Synchronisation"), fg_color="green", hover_color="darkgreen").pack(pady=10)
+        ctk.CTkButton(tab_local, text="Sauvegarder", command=lambda: save_conf() and lbl_status.configure(text="Config Locale Sauvée.", text_color="green") or tabs.set("Synchronisation"), fg_color="green", hover_color="darkgreen").pack(pady=10)
+
+        # --- RUN logic ---
+        def run_sync():
+            if not save_conf(): return
+            
+            btn_sync.configure(state="disabled")
+            lbl_status.configure(text="Analyse en cours...", text_color="orange")
+            
+            def _thread():
+                try:
+                    from sync_manager import SyncManager, LocalProvider, SftpProvider
+                    
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        fresh_conf = json.load(f)
+                    current_sync_conf = fresh_conf.get("sync", {})
+                    
+                    if current_sync_conf.get("type", "sftp") == "sftp":
+                        provider = SftpProvider(
+                            current_sync_conf.get("host"), current_sync_conf.get("port", 22),
+                            current_sync_conf.get("username"), current_sync_conf.get("password", ""),
+                            current_sync_conf.get("remote_dir", "/var/www/airstep")
+                        )
+                    else:
+                        local_target = current_sync_conf.get("target_dir", "")
+                        if not local_target:
+                            raise ValueError("Le dossier Cloud local n'est pas configuré.")
+                        provider = LocalProvider(local_target)
+                        
+                    mgr = SyncManager(get_app_dir(), provider)
+                    res = mgr.analyze()
+                    lbl_status.configure(text=f"Pull: {len(res['pull'])} | Push: {len(res['push'])}")
+                    
+                    mgr.sync(res)
+                    lbl_status.configure(text="Synchronisation terminée !", text_color="green")
+                    
+                    if res['pull']:
+                        try:
+                            import urllib.request
+                            req = urllib.request.Request("http://127.0.0.1:8000/api/local/refresh_from_sidecars", method="POST")
+                            with urllib.request.urlopen(req, timeout=5) as response:
+                                pass
+                            lbl_status.configure(text="Synchro OK (Bibliothèque rafraîchie)", text_color="green")
+                        except Exception as ex:
+                            print("Consolidate error: ", ex)
+
+                    if res['pull'] and any("AirstepStudio.exe" in p for p in res['pull']):
+                        script = mgr.generate_bootstrapper_script()
+                        lbl_status.configure(text="Mise à jour requise. Redémarrage...", text_color="red")
+                        import subprocess
+                        subprocess.Popen(script, shell=True)
+                        import sys
+                        sys.exit(0)
+                        
+                except Exception as e:
+                    lbl_status.configure(text=f"Erreur: {str(e)}", text_color="red")
+                finally:
+                    btn_sync.configure(state="normal")
+            
+            threading.Thread(target=_thread, daemon=True).start()
+
+        btn_sync = ctk.CTkButton(tab_sync, text="Lancer la Sync", command=run_sync, fg_color="#0066cc", hover_color="#004499", height=32)
+        btn_sync.pack(pady=(20, 5))
+        ctk.CTkButton(dialog, text="Fermer", command=dialog.destroy, fg_color="transparent", border_width=1, text_color="gray").pack(pady=5)
 
     def on_device_saved(self):
         # Reload definitions

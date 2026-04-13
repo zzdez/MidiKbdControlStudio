@@ -850,6 +850,7 @@ async def update_setlist_item(index: int, item: Dict):
                 "audio_cues": item.get("audio_cues", items[index].get("audio_cues", [])),
                 "autoplay": item.get("autoplay", items[index].get("autoplay", False)),
                 "autoreplay": item.get("autoreplay", items[index].get("autoreplay", False)),
+                "shared_with_group": item.get("shared_with_group", items[index].get("shared_with_group", False)),
                 "uid": item.get("uid") or items[index].get("uid") or generate_stable_setlist_uid(url), # V58: Persist or generate stable UID
                 "linked_ids": item.get("linked_ids", items[index].get("linked_ids", [])) # V58: Persist links
             }
@@ -1612,6 +1613,7 @@ async def update_local_file(index: int, item: Dict):
             current["target_pitch"] = item.get("target_pitch", current.get("target_pitch", ""))
             current["autoplay"] = item.get("autoplay", current.get("autoplay", False))
             current["autoreplay"] = item.get("autoreplay", current.get("autoreplay", False))
+            current["shared_with_group"] = item.get("shared_with_group", current.get("shared_with_group", False))
             current["linked_ids"] = item.get("linked_ids", current.get("linked_ids", []))
             
             # --- RELOCATION / PATH UPDATE LOGIC ---
@@ -2407,6 +2409,49 @@ async def relocate_media(index: int):
              raise HTTPException(status_code=404, detail="Index not found")
     except Exception as e:
         print(f"Relocate Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/local/refresh_from_sidecars")
+async def refresh_from_sidecars():
+    try:
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+                 
+        if not items:
+            return {"status": "ok", "refreshed_count": 0}
+            
+        from utils import resolve_portable_path
+        refreshed_count = 0
+        for item in items:
+            path = item.get("path")
+            if path:
+                sidecar_path = resolve_portable_path(path) + ".json"
+                if os.path.exists(sidecar_path):
+                    try:
+                        with open(sidecar_path, "r", encoding="utf-8") as f2:
+                            sidecar_data = json.load(f2)
+                        
+                        # Apply ONLY global metadata which we care about from master
+                        item["bpm"] = sidecar_data.get("bpm", item.get("bpm", ""))
+                        item["key"] = sidecar_data.get("key", item.get("key", ""))
+                        item["scale"] = sidecar_data.get("scale", item.get("scale", ""))
+                        item["category"] = sidecar_data.get("category", item.get("category", ""))
+                        item["year"] = sidecar_data.get("year", item.get("year", ""))
+                        item["genre"] = sidecar_data.get("genre", item.get("genre", ""))
+                        item["title"] = sidecar_data.get("title", item.get("title", ""))
+                        item["shared_with_group"] = sidecar_data.get("shared_with_group", item.get("shared_with_group", False))
+                        refreshed_count += 1
+                    except Exception as ex:
+                        print(f"Error reading sidecar {sidecar_path}: {ex}")
+        
+        with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=4)
+            
+        return {"status": "ok", "refreshed_count": refreshed_count}
+    except Exception as e:
+        print(f"Refresh Sidecars Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/local/consolidate")
