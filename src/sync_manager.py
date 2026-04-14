@@ -5,6 +5,7 @@ import hashlib
 from typing import Dict, List, Optional
 from datetime import datetime
 import paramiko
+import logging
 from cryptography.fernet import Fernet
 
 def deep_merge(target: dict, source: dict) -> dict:
@@ -84,20 +85,48 @@ class SftpProvider(SyncProvider):
     def list_files(self, relative_dir: str = "") -> Dict[str, dict]:
         self.connect()
         result = {}
-        target_dir = f"{self.remote_root}/{relative_dir}".replace('//', '/')
         
+        # Ensure remote_root doesn't end with slash
+        root = self.remote_root.rstrip('/')
+        if not root: root = "."
+        
+        target_dir = f"{root}/{relative_dir}".replace('//', '/').rstrip('/')
+        if not target_dir: target_dir = "."
+        
+        logging.warning(f"[SFTP] Tentative de listing dans: {target_dir} (Root: {root})")
+        
+        try:
+            self.sftp.stat(target_dir)
+        except IOError:
+            logging.warning(f"[SFTP] Le dossier racine '{target_dir}' n'existe pas encore.")
+            return {}
+
         def _walk(path):
             try:
                 for entry in self.sftp.listdir_attr(path):
-                    entry_path = f"{path}/{entry.filename}".replace('//', '/')
+                    if entry.filename in ['.', '..']: continue
+                    
+                    full_p = f"{path}/{entry.filename}".replace('//', '/')
                     import stat
                     if stat.S_ISDIR(entry.st_mode):
-                        _walk(entry_path)
+                        _walk(full_p)
                     else:
-                        rel_path = entry_path.replace(self.remote_root + '/', '')
+                        # CRITICAL: Normalize rel_path by stripping the root part
+                        # We must handle both absolute and relative roots
+                        norm_p = full_p
+                        if norm_p.startswith('./'): norm_p = norm_p[2:]
+                        
+                        clean_root = root
+                        if clean_root.startswith('./'): clean_root = clean_root[2:]
+                        
+                        if norm_p.startswith(clean_root):
+                            rel_path = norm_p[len(clean_root):].lstrip('/')
+                        else:
+                            rel_path = norm_p # Fallback
+                        
                         result[rel_path] = {'mtime': entry.st_mtime, 'size': entry.st_size}
-            except IOError:
-                pass
+            except IOError as e:
+                logging.warning(f"[SFTP] Erreur lors du listing de {path} : {e}")
         
         _walk(target_dir)
         return result
@@ -109,24 +138,65 @@ class SftpProvider(SyncProvider):
         self.sftp.get(src, local_absolute_path)
         return True
 
+    def _mkdir_p(self, remote_directory):
+        """Recursively create directories on the SFTP server."""
+        if not remote_directory or remote_directory in ['.', '/']:
+            return
+
+        dirs = []
+        path = remote_directory
+        while path and path not in ['.', '/']:
+            try:
+                self.sftp.stat(path)
+                break
+            except IOError:
+                dirs.append(path)
+                path = os.path.dirname(path).replace('\\', '/')
+        
+        while dirs:
+            target = dirs.pop()
+            try:
+                logging.warning(f"[SFTP] Creating directory: {target}")
+                self.sftp.mkdir(target)
+            except IOError as e:
+                # Might already exist (race condition)
+                pass
+
     def upload_file(self, local_absolute_path: str, remote_relative_path: str) -> bool:
         self.connect()
-        dst = f"{self.remote_root}/{remote_relative_path}".replace('//', '/')
+        root = self.remote_root.rstrip('/')
+        dst = f"{root}/{remote_relative_path}".replace('//', '/')
         dst_dir = os.path.dirname(dst)
         
+        logging.warning(f"[SFTP] Uploading to: {dst}")
         try:
-            self.sftp.stat(dst_dir)
-        except IOError:
-            self.sftp.mkdir(dst_dir) # simplistic, would need recursive mkdir for real
-            
-        self.sftp.put(local_absolute_path, dst)
-        return True
+            self._mkdir_p(dst_dir)
+            self.sftp.put(local_absolute_path, dst)
+            return True
+        except Exception as e:
+            logging.warning(f"[SFTP] Echec de l'upload pour {dst} : {e}")
+            raise e
 
 class SyncManager:
-    def __init__(self, local_app_dir: str, provider: SyncProvider):
+    def __init__(self, local_app_dir: str, provider: SyncProvider, shared_fields: Optional[List[str]] = None):
         self.local_dir = local_app_dir
         self.provider = provider
         self.update_buffer_dir = os.path.join(local_app_dir, '.update_buffer')
+        
+        # Default shared fields (Global metadata)
+        self.shared_fields = shared_fields or [
+            'title', 'artist', 'album', 'genre', 'year', 'bpm', 'key', 'media_key', 'scale', 
+            'category', 'tuning', 'shared_with_group', 'url', 'path', 'added_at', 
+            'duration', 'is_multitrack', 'stems', 'chapters', 'audio_cues', 'linked_ids', 
+            'uid', 'original_pitch', 'target_pitch'
+        ]
+        
+        # Absolute private fields (Never shared)
+        self.private_fields = [
+            'loops', 'user_notes', 'volume', 'target_profile', 
+            'subtitle_enabled', 'subtitle_pos_y', 'subtitle_track', 
+            'autoplay', 'autoreplay'
+        ]
 
     def analyze(self) -> Dict[str, dict]:
         """Compares local and remote to return a list of files to pull and push."""
@@ -243,24 +313,25 @@ class SyncManager:
             
     def _prepare_filtered_json_for_upload(self, local_json_path: str, remote_json_path: Optional[str], output_path: str):
         """Creates a filtered version of the JSON for the Master (removes private fields)."""
-        SHARED_FIELDS = [
-            'title', 'artist', 'album', 'genre', 'year', 'bpm', 'key', 'scale', 
-            'category', 'tuning', 'shared_with_group', 'url', 'path', 'added_at', 
-            'duration', 'is_multitrack', 'stems', 'chapters', 'audio_cues', 'linked_ids', 'uid'
-        ]
-        
         with open(local_json_path, 'r', encoding='utf-8') as f:
             local_data = json.load(f)
             
-        # 1. Create a copy with only shared fields
-        filtered_data = {k: local_data[k] for k in SHARED_FIELDS if k in local_data}
+        # 1. Create a copy with only shared fields (Whitelist)
+        filtered_data = {k: local_data[k] for k in self.shared_fields if k in local_data}
         
-        # 2. If there is a remote version, prioritize IT for global shared data (Master Wins)
+        # 2. Force remove absolute private fields just in case they were in the shared list
+        for fld in self.private_fields:
+            if fld in filtered_data:
+                del filtered_data[fld]
+        
+        # 3. If there is a remote version, prioritize IT for global shared data (Master Wins)
         if remote_json_path and os.path.exists(remote_json_path):
             with open(remote_json_path, 'r', encoding='utf-8') as f:
                 remote_data = json.load(f)
             # Master wins on global metadata to avoid overwriting with stale local data
-            for k in ['bpm', 'key', 'scale', 'title', 'artist', 'genre', 'year']:
+            # (We only override if the master actually HAS data for these fields)
+            MASTER_WINS_FIELDS = ['bpm', 'key', 'media_key', 'scale', 'title', 'artist', 'genre', 'year', 'original_pitch']
+            for k in MASTER_WINS_FIELDS:
                 if k in remote_data and remote_data[k]:
                     filtered_data[k] = remote_data[k]
 
@@ -279,21 +350,23 @@ class SyncManager:
         merged = deep_merge(local_data.copy(), remote_data)
         
         # Ensure PRIVATE local data is NEVER overwritten by Master
-        PRIVATE_FIELDS = [
-            'loops', 'user_notes', 'volume', 'target_pitch', 'target_profile', 
-            'subtitle_enabled', 'subtitle_pos_y', 'subtitle_track', 
-            'autoplay', 'autoreplay', 'original_pitch'
-        ]
-        
-        for field in PRIVATE_FIELDS:
+        for field in self.private_fields:
             if field in local_data:
                 merged[field] = local_data[field]
             elif field in merged:
-                # If master has it but we don't, we might want to keep it? 
-                # No, for local posto it's better to stay clean if we don't have it locally.
-                # Actually, merged already has it from remote_data. 
-                # If it's private, we delete it from merged to be sure it doesn't pollute user machine.
                 del merged[field]
+        
+        # Also protect fields NOT in the current whitelist (they are considered local-only by the user)
+        # unless they are explicitly shared and we want them.
+        # (This handles the case where someone adds a field to their MASTER that we don't want)
+        for field in list(merged.keys()):
+            if field not in self.shared_fields and field not in self.private_fields:
+                 # If it was in local_data, keep it (local preference)
+                 if field in local_data:
+                     merged[field] = local_data[field]
+                 else:
+                     # It's extra data from master that we don't share/recognize
+                     pass 
             
         with open(downloaded_json_path, 'w', encoding='utf-8') as f:
             json.dump(merged, f, indent=4)

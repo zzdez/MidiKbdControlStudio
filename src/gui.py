@@ -1337,6 +1337,7 @@ class MidiKbdApp(ctk.CTk):
                     with open(config_path, "r", encoding="utf-8") as f:
                         fresh_conf = json.load(f)
                     current_sync_conf = fresh_conf.get("sync", {})
+                    shared_fields = current_sync_conf.get("shared_fields", None)
                     
                     if current_sync_conf.get("type", "sftp") == "sftp":
                         provider = SftpProvider(
@@ -1350,7 +1351,7 @@ class MidiKbdApp(ctk.CTk):
                             raise ValueError("Le dossier Cloud local n'est pas configuré.")
                         provider = LocalProvider(local_target)
                         
-                    mgr = SyncManager(get_app_dir(), provider)
+                    mgr = SyncManager(get_app_dir(), provider, shared_fields=shared_fields)
                     res = mgr.analyze()
                     lbl_status.configure(text=f"Pull: {len(res['pull'])} | Push: {len(res['push'])}")
                     
