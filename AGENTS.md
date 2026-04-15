@@ -679,3 +679,14 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 ### 45. Évolution V66 : Harmonisation de l'Applet Web Links
 *   **Parité Fonctionnelle** : Ajout de la colonne **Catégorie** dans la table des liens Web pour correspondre aux bibliothèques locales.
 *   **Alignement "Pixel-Perfect"** : Utilisation de `justify-content: space-between` dans les en-têtes pour forcer l'alignement des icônes de tri sur le bord droit de chaque colonne, créant une symétrie visuelle sur tout le Dashboard.
+### 46. Évolution V67 : Système de Synchronisation Multi-Cloud & Hardening WebDAV
+*   **Moteur de Synchronisation Unifié (`sync_manager.py`)** :
+    - **Architecture Multi-Provider** : Support natif du stockage Local, SFTP et WebDAV via une interface fournisseur unique.
+    - **Smart Sidecar Matching** : Logique de décision basée sur le flag `shared_with_group` des fichiers sidecars pour éviter la synchronisation accidentelle de la bibliothèque privée.
+    - **Listing Récurrent IIS** : Implémentation de `_list_manual` pour WebDAV, simulant un scan récursif profond sur les serveurs IIS qui rejettent l'en-tête `Depth: Infinity`.
+*   **Robustesse des Transferts & Casing** :
+    - **Comparaison Case-Insensitive** : Analyse de la bibliothèque basée sur des index en minuscules pour prévenir les boucles d'upload/download infinies causées par des différences de casse entre l'OS local et le serveur (ex: `FFMPEG.exe`).
+    - **Gestion des Gros Fichiers (HTTP 413)** : Documentation et hardening pour supporter les transferts jusqu'à 4 Go sur IIS WebDAV.
+*   **Monitoring de Précision** :
+    - Instrumentation complète des flux réseau avec logs explicites (`[SYNC]`, `[WEBDAV]`, `[SFTP]`) permettant un diagnostic instantané des échecs de permission ou de quota.
+    - Correction de la signature `is_remote` pour garantir la stabilité du maillage lors des scans de fichiers manquants.

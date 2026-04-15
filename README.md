@@ -121,6 +121,11 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     - **Vue Groupée & Sticky Headers (V60)** : Système de regroupement intelligent par "famille" de médias pour désencombrer l'interface, couplé à des en-têtes de liste (Onglets, Titres, Filtres) qui restent fixés en haut lors du défilement.
     - **Moteur de Tri Unifié (V65) ✨** : Standardisation du tri bidirectionnel (ASC/DESC) sur tous les onglets. Le système se souvient de l'état de chaque colonne et réinitialise l'ordre lors d'un changement de champ.
     - **Harmonisation Web Links (V66)** : Intégration de la colonne Catégorie et alignement "Pixel-Perfect" des contrôles de tri pour une expérience cockpit symétrique.
+*   **Synchronisation Multi-Cloud (Nouveau ! V67) :**
+    - **Système Hybride** : Synchronisez votre bibliothèque entre plusieurs ordinateurs via **SFTP**, **WebDAV** (compatible IIS) ou un dossier **Local** partagé.
+    - **Maillage Intelligent** : Le système synchronise automatiquement les fichiers sidecars (`.json`) et les médias marqués comme "partagés avec le groupe".
+    - **Résilience WebDAV** : Support optimisé pour les serveurs Windows IIS (Listing récursif, contournement de la limite 4 Go).
+    - **Casing-Safe** : Gestion intelligente de la casse (minuscules/majuscules) pour garantir une compatibilité parfaite entre Windows, Linux et macOS.
 
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)

@@ -1,4 +1,5 @@
 import customtkinter as ctk
+import logging
 import json
 import os
 import sys
@@ -1250,6 +1251,7 @@ class MidiKbdApp(ctk.CTk):
         tabs.pack(fill="both", expand=True, padx=10, pady=5)
         tab_sync = tabs.add("Synchronisation")
         tab_conf = tabs.add("SFTP")
+        tab_webdav = tabs.add("WebDAV")
         tab_local = tabs.add("Local")
 
         # --- TAB SYNC ---
@@ -1257,6 +1259,7 @@ class MidiKbdApp(ctk.CTk):
         
         type_var = ctk.StringVar(value=sync_conf.get("type", "sftp"))
         ctk.CTkRadioButton(tab_sync, text="Utiliser Serveur Distant (SFTP)", variable=type_var, value="sftp").pack(pady=5)
+        ctk.CTkRadioButton(tab_sync, text="Utiliser Serveur Cloud (WebDAV)", variable=type_var, value="webdav").pack(pady=5)
         ctk.CTkRadioButton(tab_sync, text="Utiliser Dossier Partagé (Local)", variable=type_var, value="local").pack(pady=5)
         
         lbl_status = ctk.CTkLabel(tab_sync, text="Prêt à synchroniser...", text_color="gray")
@@ -1288,6 +1291,22 @@ class MidiKbdApp(ctk.CTk):
         e_dir.insert(0, str(sync_conf.get("remote_dir", "")))
         e_dir.pack(fill="x", padx=10, pady=(0, 10))
 
+        # --- TAB CONF WEBDAV ---
+        ctk.CTkLabel(tab_webdav, text="URL WebDAV (ex: https://cloud.com/dav):", anchor="w").pack(fill="x", padx=10)
+        e_wd_url = ctk.CTkEntry(tab_webdav)
+        e_wd_url.insert(0, str(sync_conf.get("webdav_url", "")))
+        e_wd_url.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(tab_webdav, text="Utilisateur:", anchor="w").pack(fill="x", padx=10)
+        e_wd_user = ctk.CTkEntry(tab_webdav)
+        e_wd_user.insert(0, str(sync_conf.get("webdav_user", "")))
+        e_wd_user.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(tab_webdav, text="Mot de passe:", anchor="w").pack(fill="x", padx=10)
+        e_wd_pass = ctk.CTkEntry(tab_webdav, show="*")
+        e_wd_pass.insert(0, str(sync_conf.get("webdav_pass", "")))
+        e_wd_pass.pack(fill="x", padx=10, pady=(0, 10))
+
         # --- TAB LOCAL ---
         ctk.CTkLabel(tab_local, text="Chemin du dossier (ex: Dropbox/AirstepSync):", anchor="w").pack(fill="x", padx=10, pady=(10,0))
         e_local_dir = ctk.CTkEntry(tab_local)
@@ -1310,6 +1329,9 @@ class MidiKbdApp(ctk.CTk):
                 sync_conf["password"] = e_pass.get()
                 sync_conf["remote_dir"] = e_dir.get()
                 sync_conf["target_dir"] = e_local_dir.get()
+                sync_conf["webdav_url"] = e_wd_url.get()
+                sync_conf["webdav_user"] = e_wd_user.get()
+                sync_conf["webdav_pass"] = e_wd_pass.get()
                 sync_conf["type"] = type_var.get()
                 conf["sync"] = sync_conf
                 with open(config_path, "w", encoding="utf-8") as f:
@@ -1321,6 +1343,7 @@ class MidiKbdApp(ctk.CTk):
                 return False
 
         ctk.CTkButton(tab_conf, text="Sauvegarder", command=lambda: save_conf() and lbl_status.configure(text="Config SFTP Sauvée.", text_color="green") or tabs.set("Synchronisation"), fg_color="green", hover_color="darkgreen").pack(pady=10)
+        ctk.CTkButton(tab_webdav, text="Sauvegarder", command=lambda: save_conf() and lbl_status.configure(text="Config WebDAV Sauvée.", text_color="green") or tabs.set("Synchronisation"), fg_color="green", hover_color="darkgreen").pack(pady=10)
         ctk.CTkButton(tab_local, text="Sauvegarder", command=lambda: save_conf() and lbl_status.configure(text="Config Locale Sauvée.", text_color="green") or tabs.set("Synchronisation"), fg_color="green", hover_color="darkgreen").pack(pady=10)
 
         # --- RUN logic ---
@@ -1332,7 +1355,7 @@ class MidiKbdApp(ctk.CTk):
             
             def _thread():
                 try:
-                    from sync_manager import SyncManager, LocalProvider, SftpProvider
+                    from sync_manager import SyncManager, LocalProvider, SftpProvider, WebdavProvider
                     
                     with open(config_path, "r", encoding="utf-8") as f:
                         fresh_conf = json.load(f)
@@ -1344,6 +1367,13 @@ class MidiKbdApp(ctk.CTk):
                             current_sync_conf.get("host"), current_sync_conf.get("port", 22),
                             current_sync_conf.get("username"), current_sync_conf.get("password", ""),
                             current_sync_conf.get("remote_dir", "/var/www/airstep")
+                        )
+                    elif current_sync_conf.get("type") == "webdav":
+                        from sync_manager import WebdavProvider
+                        provider = WebdavProvider(
+                            current_sync_conf.get("webdav_url"),
+                            current_sync_conf.get("webdav_user"),
+                            current_sync_conf.get("webdav_pass")
                         )
                     else:
                         local_target = current_sync_conf.get("target_dir", "")
@@ -1368,15 +1398,30 @@ class MidiKbdApp(ctk.CTk):
                         except Exception as ex:
                             print("Consolidate error: ", ex)
 
-                    if res['pull'] and any("AirstepStudio.exe" in p for p in res['pull']):
+                    if res['pull'] and any("MidiKbdControlStudio.exe" in p for p in res['pull']):
                         script = mgr.generate_bootstrapper_script()
-                        lbl_status.configure(text="Mise à jour requise. Redémarrage...", text_color="red")
-                        import subprocess
-                        subprocess.Popen(script, shell=True)
-                        import sys
-                        sys.exit(0)
+                        import tkinter.messagebox
+                        if tkinter.messagebox.askyesno("Mise à jour disponible", "Une nouvelle version de l'application a été téléchargée. Voulez-vous redémarrer pour l'installer ?"):
+                            lbl_status.configure(text="Redémarrage pour mise à jour...", text_color="red")
+                            import subprocess
+                            subprocess.Popen(script, shell=True)
+                            dialog.destroy() # Close config
+                            self.quit_app() # Close main app
+                    elif res['pull']:
+                        # Refresh library if items were pulled
+                        try:
+                            import urllib.request
+                            req = urllib.request.Request("http://127.0.0.1:8000/api/local/refresh_from_sidecars", method="POST")
+                            with urllib.request.urlopen(req, timeout=5) as response:
+                                pass
+                            lbl_status.configure(text="Synchro OK (Bibliothèque rafraîchie)", text_color="green")
+                        except:
+                            pass
                         
                 except Exception as e:
+                    import traceback
+                    logging.warning(f"[SYNC] Erreur critique durant la synchronisation : {e}")
+                    logging.warning(traceback.format_exc())
                     lbl_status.configure(text=f"Erreur: {str(e)}", text_color="red")
                 finally:
                     btn_sync.configure(state="normal")
