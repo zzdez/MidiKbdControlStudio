@@ -1486,6 +1486,11 @@ function renderSetlist(list) {
 
     const renderedFamilies = new Set();
 
+    // V60: Sort by priority so the best item is picked as family Master
+    if (isLibraryGrouped) {
+        filtered.sort((a, b) => getItemPriority(b) - getItemPriority(a));
+    }
+
     filtered.forEach((track) => {
         // Grouping Check (V60)
         if (isLibraryGrouped) {
@@ -3752,6 +3757,11 @@ function renderLocalFiles() {
 
     const renderedFamilies = new Set();
 
+    // V60: Sort by priority so the best item is picked as family Master
+    if (isLibraryGrouped) {
+        filtered.sort((a, b) => getItemPriority(b) - getItemPriority(a));
+    }
+
     filtered.forEach((file, index) => {
         // Grouping Check (V60)
         if (isLibraryGrouped) {
@@ -3775,6 +3785,9 @@ function renderLocalFiles() {
         let iconHtml = '';
         if (isMissing) {
             iconHtml = `<i class="ph ph-warning-circle" style="color:#ff4444; font-size:1.2em; vertical-align:middle; margin-right:5px;" title="Fichier introuvable"></i>`;
+        } else if (file.is_multitrack) {
+            // Multitrack / Stems
+            iconHtml = `<i class="ph ph-stack" style="color:#ffb74d; font-size:1.2em; vertical-align:middle; margin-right:5px;"></i>`;
         } else if (isAudio) {
             iconHtml = `<i class="ph ph-music-notes" style="color:#bb86fc; font-size:1.2em; vertical-align:middle; margin-right:5px;"></i>`;
         } else {

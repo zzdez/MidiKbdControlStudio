@@ -61,7 +61,17 @@
             <button id="btn-global-cue-add" class="btn-icon" onclick="openCueModal()" title="Repère" style="color:#888;"><i class="ph ph-flag"></i></button>
             
             <div class="header-separator" style="width:1px; height:18px; background:#444; margin:0 5px;"></div>
-            
+
+            <button id="btn-sidebar-hover-trigger" class="btn-icon btn-sidebar-opt active" onclick="toggleSidebarOption('sidebar_hover_trigger')" data-i18n-title="web.lbl_sidebar_hover_trigger" title="Show on hover">
+                <i class="ph ph-hand-pointing"></i>
+            </button>
+            <button id="btn-sidebar-default-hidden" class="btn-icon btn-sidebar-opt" onclick="toggleSidebarOption('sidebar_default_hidden')" data-i18n-title="web.lbl_sidebar_default_hidden" title="Hide by default">
+                <i class="ph ph-sidebar-simple"></i>
+            </button>
+            <button id="btn-sidebar-autohide" class="btn-icon btn-sidebar-opt active" onclick="toggleSidebarOption('sidebar_autohide')" data-i18n-title="web.lbl_sidebar_autohide" title="Auto-hide (Media)">
+                <i class="ph ph-monitor-play"></i>
+            </button>
+
             <button id="btn-toggle-theater" class="btn-icon" onclick="toggleTheaterMode()" title="Théâtre"><i class="ph ph-corners-out"></i></button>
             <span id="active-profile" style="white-space: nowrap; font-size: 0.8em; color: #ccc;">Profil : Global</span>
             <button id="btn-settings" class="btn-icon" onclick="openSettingsModal()" title="Paramètres"><i class="ph ph-gear"></i></button>

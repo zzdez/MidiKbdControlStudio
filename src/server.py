@@ -1685,6 +1685,9 @@ async def update_local_file(index: int, item: Dict):
                 except Exception as e:
                     logging.warning(f"Tag Write Warning: {e}")
             
+            # 3. Synchronisation Mesh (Liaisons bidirectionnelles)
+            harmonize_media_mesh(current.get("uid"))
+
             return {
                 "status": "partial_success" if warning_msg else "ok",
                 "warning": warning_msg,
