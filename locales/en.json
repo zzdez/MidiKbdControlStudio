@@ -552,5 +552,22 @@
         "lbl_interconnect_multitrack": "Multitrack",
         "lbl_grouped_view": "Grouped View",
         "hint_grouped_view": "Group linked versions (Audio/Video/YouTube)"
+    },
+    "sync": {
+        "title": "Cloud Sync",
+        "lbl_categories": "Categories to sync:",
+        "cat_exe": "Executables (.exe)",
+        "cat_medias": "Media (Audio/Video)",
+        "cat_data": "Databases (JSON)",
+        "cat_profiles": "MIDI Profiles",
+        "cat_devices": "Pedalboard Definitions",
+        "cat_system": "System (Assets/Languages)",
+        "btn_analyze": "Analyze",
+        "btn_run": "Run Sync",
+        "status_analyzing": "Analyzing files...",
+        "status_finished": "Sync finished!",
+        "stage_pull": "Pulling: {file}",
+        "stage_push": "Pushing: {file}",
+        "msg_analysis_res": "Ready: {pull} to pull, {push} to push"
     }
 }

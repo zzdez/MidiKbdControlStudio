@@ -423,7 +423,7 @@ class MetadataService:
             logging.error(f"Generate Peaks Error for {file_path} (wave module): {e}")
             return []
 
-    def write_file_metadata(self, path, data):
+    def write_file_metadata(self, path, data, local_items=None):
         """Writes metadata to a file's id3 tags or a sidecar .json file."""
         from utils import resolve_portable_path
         path = resolve_portable_path(path)
@@ -452,7 +452,7 @@ class MetadataService:
             try:
                 # 3. Handle Cover if provided
                 if "cover_data" in data and data["cover_data"]:
-                    cover_data_bin, mime = self._resolve_cover_bin(data["cover_data"])
+                    cover_data_bin, mime = self._resolve_cover_bin(data["cover_data"], local_items)
                     if cover_data_bin:
                         dest_img = os.path.join(path, "folder.jpg")
                         if cover_data_bin == "DELETE":
@@ -461,53 +461,59 @@ class MetadataService:
                         else:
                             with open(dest_img, "wb") as img_f:
                                 img_f.write(cover_data_bin)
+                                img_f.flush()
+                                os.fsync(img_f.fileno())
                             from utils import to_portable_path
                             sidecar_data["cover"] = to_portable_path(dest_img)
 
                 # 4. SAVE JSON (Sidecar)
                 with open(sidecar_path, "w", encoding="utf-8") as f:
                     json.dump(sidecar_data, f, indent=4)
+                    f.flush()
+                    os.fsync(f.fileno())
                 
                 return True
             except Exception as e:
                 logging.error(f"Multitrack Sidecar Write Error: {e}")
                 return False
 
-        ext = os.path.splitext(path)[1].lower()
+        else:
+            # --- 2. SINGLE FILE METADATA PERSISTENCE ---
+            sidecar_path = path + ".json"
+            import json
 
-        # --- SIDECAR UPDATE FOR SINGLE FILES (MP3, WAV, MKV, etc) ---
-        sidecar_path = path + ".json"
-        import json
+            # Merge with existing sidecar data if present
+            sidecar_data = {}
+            if os.path.exists(sidecar_path):
+                try:
+                    with open(sidecar_path, "r", encoding="utf-8") as f:
+                        sidecar_data = json.load(f)
+                except Exception as e:
+                    logging.error(f"Error reading existing sidecar JSON for update: {e}")
 
-        # Merge with existing sidecar data if present
-        sidecar_data = {}
-        if os.path.exists(sidecar_path):
+            # Update with new values (keep existing keys we don't know about)
+            for key, value in data.items():
+                if key not in ["cover_data", "stems", "is_multitrack", "duration", "chapters"]:
+                    sidecar_data[key] = value
+
             try:
-                with open(sidecar_path, "r", encoding="utf-8") as f:
-                    sidecar_data = json.load(f)
+                with open(sidecar_path, "w", encoding="utf-8") as f:
+                    json.dump(sidecar_data, f, indent=4)
+                    f.flush()
+                    os.fsync(f.fileno())
             except Exception as e:
-                logging.error(f"Error reading existing sidecar JSON for update: {e}")
+                logging.error(f"Error writing sidecar JSON: {e}")
 
-        # Update with new values (keep existing keys we don't know about)
-        for key, value in data.items():
-            if key not in ["cover_data", "stems", "is_multitrack", "duration", "chapters"]:
-                sidecar_data[key] = value
+            # --- 3. PREPARE COVER DATA ---
+            cover_data_bin, mime_type = self._resolve_cover_bin(data.get("cover_data"), local_items)
 
-        try:
-            with open(sidecar_path, "w", encoding="utf-8") as f:
-                json.dump(sidecar_data, f, indent=4)
-        except Exception as e:
-            logging.error(f"Error writing sidecar JSON: {e}")
+            # --- 4. FORMAT SPECIFIC LOGIC (Physical Tags) ---
+            ext = os.path.splitext(path)[1].lower()
+            if ext in ['.mkv', '.webm']:
+                logging.info("WebM/MKV : Mise à jour DB locale uniquement")
+                return True
 
-        # --- 0. PREPARE COVER DATA ---
-        cover_data_bin, mime_type = self._resolve_cover_bin(data.get("cover_data"))
-
-        # --- 1. FILTER READ-ONLY FORMATS ---
-        if ext in ['.mkv', '.webm']:
-            logging.info("WebM/MKV : Mise à jour DB locale uniquement")
-            return True
-
-        if ext in ['.avi', '.mov']: return False
+            if ext in ['.avi', '.mov']: return False
 
         try:
             # --- 2. FORMAT SPECIFIC LOGIC ---
@@ -692,7 +698,7 @@ class MetadataService:
 
         return False
 
-    def _resolve_cover_bin(self, cover_source):
+    def _resolve_cover_bin(self, cover_source, local_items=None):
         """Helper to resolve different cover sources to binary data."""
         if not cover_source: return None, None
         
@@ -703,7 +709,46 @@ class MetadataService:
         if cover_source == "DELETE":
             return "DELETE", None
 
-        # Case B: URL
+        # Case B: Local API /api/local/art/{index}
+        elif "/api/local/art/" in cover_source:
+             try:
+                 parts = cover_source.split("/")
+                 idx_str = parts[-1].split("?")[0]
+                 idx = int(idx_str)
+                 if local_items and 0 <= idx < len(local_items):
+                     from utils import resolve_portable_path
+                     path = resolve_portable_path(local_items[idx].get("path", ""))
+                     if os.path.exists(path):
+                         return self.get_file_cover(path)
+             except Exception as e:
+                 logging.warning(f"Failed local art resolution: {e}")
+
+        # Case C: Local API /api/cover?path=...
+        elif "/api/cover" in cover_source and "path=" in cover_source:
+             try:
+                 import urllib.parse
+                 from utils import resolve_portable_path
+                 parsed = urllib.parse.urlparse(cover_source)
+                 params = urllib.parse.parse_qs(parsed.query)
+                 raw_path = params.get("path", [None])[0]
+                 if raw_path:
+                     path = resolve_portable_path(raw_path)
+                     if os.path.exists(path):
+                         return self.get_file_cover(path)
+             except Exception as e:
+                 logging.warning(f"Failed local path resolution from API URL: {e}")
+
+        # Case D: Raw File Path (Portable or Absolute)
+        elif "${APP_DIR}" in cover_source or cover_source.startswith(("/") if os.name != 'nt' else ("/", "C:", "\\")):
+             try:
+                 from utils import resolve_portable_path
+                 path = resolve_portable_path(cover_source)
+                 if os.path.exists(path):
+                     return self.get_file_cover(path)
+             except Exception as e:
+                 logging.warning(f"Failed raw path cover resolution: {e}")
+
+        # Case E: External URL
         elif cover_source.startswith("http"):
             try:
                 resp = requests.get(cover_source, timeout=10)
@@ -713,7 +758,7 @@ class MetadataService:
                         mime_type = "image/png"
             except: pass
 
-        # Case C: Base64
+        # Case E: Base64
         elif cover_source.startswith("data:"):
             try:
                 header, encoded = cover_source.split(",", 1)
@@ -762,6 +807,28 @@ class MetadataService:
                 except: pass
             return None, None
 
+
+        # --- SINGLE FILE SIDECAR CHECK (V57) ---
+        sidecar_path = path + ".json"
+        if os.path.exists(sidecar_path):
+            try:
+                import json
+                with open(sidecar_path, "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+                    cover_field = meta.get("cover")
+                    if cover_field:
+                        # Try to resolve cover (could be absolute, portable or relative to media)
+                        from utils import resolve_portable_path
+                        resolved_cover = resolve_portable_path(cover_field)
+                        if os.path.exists(resolved_cover):
+                            return self.get_file_cover(resolved_cover)
+                        
+                        # Try relative to the media file handle directory
+                        rel_cover = os.path.join(os.path.dirname(path), cover_field)
+                        if os.path.exists(rel_cover):
+                             return self.get_file_cover(rel_cover)
+            except Exception as e:
+                logging.debug(f"[COVER] Sidecar {sidecar_path} parsing skip: {e}")
 
         ext = os.path.splitext(path)[1].lower()
         

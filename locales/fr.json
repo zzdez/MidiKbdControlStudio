@@ -552,5 +552,22 @@
         "lbl_interconnect_multitrack": "Multipiste",
         "lbl_grouped_view": "Vue Groupée",
         "hint_grouped_view": "Grouper les versions liées (Audio/Vidéo/YouTube)"
+    },
+    "sync": {
+        "title": "Synchronisation Cloud",
+        "lbl_categories": "Catégories à synchroniser :",
+        "cat_exe": "Exécutables (.exe)",
+        "cat_medias": "Médias (Audio/Vidéo)",
+        "cat_data": "Bases de données (JSON)",
+        "cat_profiles": "Profils MIDI",
+        "cat_devices": "Définitions Pédaliers",
+        "cat_system": "Système (Assets/Langues)",
+        "btn_analyze": "Analyser",
+        "btn_run": "Lancer la Sync",
+        "status_analyzing": "Analyse des fichiers...",
+        "status_finished": "Synchronisation terminée !",
+        "stage_pull": "Réception : {file}",
+        "stage_push": "Envoi : {file}",
+        "msg_analysis_res": "Prêt : {pull} à recevoir, {push} à envoyer"
     }
 }

@@ -690,3 +690,12 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 *   **Monitoring de Précision** :
     - Instrumentation complète des flux réseau avec logs explicites (`[SYNC]`, `[WEBDAV]`, `[SFTP]`) permettant un diagnostic instantané des échecs de permission ou de quota.
     - Correction de la signature `is_remote` pour garantir la stabilité du maillage lors des scans de fichiers manquants.
+### 47. Évolution V68 : Synchronisation Robuste des Pochettes & Support Sidecar Universel
+*   **Moteur d'Extraction Hybride (`metadata_service.py`) ✨** :
+    - **Support Sidecar pour Fichiers Simples** : Le moteur de résolution d'images (`get_file_cover`) a été étendu pour supporter les fichiers `.json` sidecars même pour les fichiers média uniques (MP4, MP3). S'il ne trouve pas d'image embarquée, il cherche `nom_fichier.json` et utilise le champ `cover`. Idéal pour les vidéos YouTube téléchargées.
+    - **Nettoyage Automatique** : Lors de toute écriture en base, le service purge les données binaires (Base64) du JSON pour forcer le stockage dans un fichier physique `folder.jpg` (pour les dossiers) ou référencé (pour les fichiers), garantissant des performances optimales.
+*   **Endpoint de Résolution Directe (`server.py`) ✨** :
+    - **`/api/cover`** : Nouvel endpoint permettant de récupérer une pochette directement via un chemin de fichier (portable ou absolu). Inclus une gestion d'erreurs "Safe" (retour 404 propre au lieu de 500) pour une stabilité totale du Dashboard.
+*   **Intégrité Physiques des Données** :
+    - Implémentation systématique de `f.flush()` et `os.fsync()` lors de la sauvegarde des métadonnées et des images, prévenant les corruptions de fichiers lors de déplacements ou de rafraîchissements rapides.
+*   **Expansion WAV** : Support natif de l'extraction et de l'injection d'images dans les fichiers WAV via le moteur Mutagen Wave.

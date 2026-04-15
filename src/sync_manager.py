@@ -358,6 +358,9 @@ class SyncManager:
         self.provider = provider
         self.update_buffer_dir = os.path.join(local_app_dir, '.update_buffer')
         
+        # Callback for progress reporting: (current, total, filename, stage)
+        self.progress_callback = None
+
         # Default shared fields (Global metadata)
         self.shared_fields = shared_fields or [
             'title', 'artist', 'album', 'genre', 'year', 'bpm', 'key', 'media_key', 'scale', 
@@ -373,8 +376,23 @@ class SyncManager:
             'autoplay', 'autoreplay'
         ]
 
-    def analyze(self) -> Dict[str, list]:
-        """Compares local and remote to return a list of files to pull and push."""
+    def set_progress_callback(self, callback):
+        self.progress_callback = callback
+
+    def _notify_progress(self, current, total, filename, stage):
+        if self.progress_callback:
+            try:
+                self.progress_callback(current, total, filename, stage)
+            except:
+                pass
+
+    def analyze(self, selected_categories: Optional[List[str]] = None) -> Dict[str, list]:
+        """
+        Compares local and remote to return a list of files to pull and push.
+        selected_categories: List of ['exe', 'medias', 'data', 'profiles', 'devices', 'system']
+        """
+        self._notify_progress(0, 100, "", "analyzing")
+        
         remote_files = self.provider.list_files()
         local_files = self._list_local_files()
         
@@ -389,141 +407,149 @@ class SyncManager:
         
         TOLERANCE = 2.0 # 2 seconds tolerance for mtimes
         
+        # Filter files based on categories
         for rel_path, remote_stat in remote_files.items():
             rel_path_low = rel_path.lower()
-            if self._should_ignore(rel_path):
-                logging.warning(f"[SYNC] Skip Pull: {rel_path} (Ignored by policy)")
+            
+            # 1. Check absolute ignore (Never sync)
+            if self._is_absolute_ignore(rel_path):
+                continue
+                
+            # 2. Check if file belongs to selected categories
+            if not self._is_in_selected_categories(rel_path, selected_categories):
                 continue
             
+            # 3. Pull logic
             if rel_path_low not in local_files_lower:
-                if self._is_shared_file(rel_path, is_remote=True):
-                    logging.warning(f"[SYNC] Add to Pull: {rel_path} (Missing locally)")
+                if self._is_shared_file(rel_path, is_remote=True, categories=selected_categories):
+                    # logging.warning(f"[SYNC] Add to Pull: {rel_path} (Missing locally)")
                     to_pull.append(rel_path)
             elif (remote_stat['mtime'] - local_files[local_files_lower[rel_path_low]]['mtime']) > TOLERANCE:
-                logging.warning(f"[SYNC] Add to Pull: {rel_path} (Remote is newer)")
+                # logging.warning(f"[SYNC] Add to Pull: {rel_path} (Remote is newer)")
                 to_pull.append(rel_path)
-            elif (local_files[local_files_lower[rel_path_low]]['mtime'] - remote_stat['mtime']) > TOLERANCE and self._is_shared_file(rel_path):
-                logging.warning(f"[SYNC] Add to Push: {local_files_lower[rel_path_low]} (Local is newer and shared)")
+            elif (local_files[local_files_lower[rel_path_low]]['mtime'] - remote_stat['mtime']) > TOLERANCE and self._is_shared_file(rel_path, categories=selected_categories):
+                # logging.warning(f"[SYNC] Add to Push: {local_files_lower[rel_path_low]} (Local is newer and shared)")
                 to_push.append(local_files_lower[rel_path_low])
         
         # Determine push for shared local files that don't exist remotely (case-insensitive)
         for rel_path, local_stat in local_files.items():
             rel_path_low = rel_path.lower()
-            if self._should_ignore(rel_path):
+            
+            if self._is_absolute_ignore(rel_path):
                 continue
                 
-            if self._is_shared_file(rel_path) and rel_path_low not in remote_files_lower:
-                logging.warning(f"[SYNC] Add to Push: {rel_path} (Missing on remote)")
+            if not self._is_in_selected_categories(rel_path, selected_categories):
+                continue
+                
+            if self._is_shared_file(rel_path, categories=selected_categories) and rel_path_low not in remote_files_lower:
+                # logging.warning(f"[SYNC] Add to Push: {rel_path} (Missing on remote)")
                 to_push.append(rel_path)
-            elif not self._is_shared_file(rel_path) and rel_path_low not in remote_files_lower:
-                if rel_path_low.startswith("medias/"):
-                    logging.warning(f"[SYNC] Skip Push: {rel_path} (Not marked as shared)")
-
+        
+        self._notify_progress(100, 100, "", "analyzed")
         return {"pull": to_pull, "push": to_push}
     
     def _list_local_files(self) -> Dict[str, dict]:
+        """Scans the local application directory for files."""
+        from sync_manager import LocalProvider
         local_provider = LocalProvider(self.local_dir)
         return local_provider.list_files()
-        
-    def _should_ignore(self, rel_path: str) -> bool:
-        """Returns True if the file should NEVER be synchronized (private or temporary)."""
+    
+    def _is_absolute_ignore(self, rel_path: str) -> bool:
+        """Returns True if the file should NEVER be synchronized (logs, dev, git, etc)."""
         p = rel_path.replace('\\', '/').lower()
         
-        # 1. User Personnel Configuration & Hardware profiles
-        if p == "config.json" or p.startswith("data/config.json"):
-            return True
-        if p.startswith("profiles/"):
-            return True
-        if p.startswith("devices/"):
-            return True
+        # Temporary & Cache files
+        if p.startswith(".update_buffer/"): return True
+        if "backup/" in p: return True
+        if "peaks/" in p: return True
+        if p.endswith(".log") or "debug" in p: return True
             
-        # 2. Temporary & Cache files
-        if p.startswith(".update_buffer/"):
-            return True
-        if "backup/" in p:
-            return True
-        if "peaks/" in p:
-            return True
-        if p.endswith(".log") or "debug" in p:
-            return True
-            
-        # 3. Development files
-        if p in [".env", ".gitignore", "requirements.txt", "build.bat", "ag_state.json"]:
-            return True
-        if p.startswith("venv/") or p.startswith(".git/"):
-            return True
-        if p.endswith(".py"): # Do not sync source code, only binaries
-            return True
+        # Development files
+        if p in [".env", ".gitignore", "requirements.txt", "build.bat", "ag_state.json"]: return True
+        if p.startswith("venv/") or p.startswith(".git/"): return True
+        if p.endswith(".py"): return True
+        
+        # User hardware config (should remain unique to the machine generally)
+        if p == "config.json" or p.startswith("data/config.json"): return True
             
         return False
+
+    def _is_in_selected_categories(self, rel_path: str, categories: Optional[List[str]]) -> bool:
+        """Returns True if the file belongs to one of the selected categories."""
+        if categories is None: return True # All categories by default
         
-    def _is_shared_file(self, rel_path: str, is_remote: bool = False) -> bool:
-        """Returns True if the file should be shared with the group automatically or via flag."""
         p = rel_path.replace('\\', '/').lower()
         
-        # 1. Binaries and System Tools (Always shared)
-        SHARED_BINARIES = ["midikbdcontrolstudio.exe", "yt-dlp.exe", "ffmpeg.exe", "ffprobe.exe"]
-        for b in SHARED_BINARIES:
-            if p == b: 
-                logging.warning(f"[SYNC] Shared check: {p} => TRUE (System Binary)")
-                return True
+        if 'exe' in categories:
+            if p.endswith('.exe'): return True
+            
+        if 'medias' in categories:
+            if p.startswith('medias/'): return True
+            
+        if 'data' in categories:
+            # Main JSON files and data folder
+            DATA_FILES = ["library.json", "local_lib.json", "apps.json", "setlist.json", "web_links.json"]
+            if any(p == d for d in DATA_FILES): return True
+            if p.startswith('data/'): return True
+            
+        if 'profiles' in categories:
+            if p.startswith('profiles/'): return True
+            
+        if 'devices' in categories:
+            if p.startswith('devices/'): return True
+            
+        if 'system' in categories:
+            if p.startswith('assets/') or p.startswith('locales/'): return True
+            
+        return False
 
-        # 2. System Folders (Always shared)
-        if p.startswith("assets/") or p.startswith("locales/"):
-            logging.warning(f"[SYNC] Shared check: {p} => TRUE (Assets/Locales)")
-            return True
-            
-        # 3. Shared Data files (Global library indices)
-        SHARED_DATA = ["data/web_links.json", "library.json", "local_lib.json", "apps.json", "setlist.json"]
-        for d in SHARED_DATA:
-            if p == d: 
-                logging.warning(f"[SYNC] Shared check: {p} => TRUE (Shared Data)")
-                return True
-            
-        # 4. Media Files & Sidecars (Conditional)
+    def _is_shared_file(self, rel_path: str, is_remote: bool = False, categories: Optional[List[str]] = None) -> bool:
+        """Returns True if the file should be shared with the group."""
+        p = rel_path.replace('\\', '/').lower()
+        
+        # 1. Validate against categories first
+        if not self._is_in_selected_categories(rel_path, categories):
+            return False
+
+        # 2. Specific logic for Medias (requires sidecar flag check if local)
         if p.startswith("medias/"):
-            # A. If it's the sidecar itself
             if p.endswith('.json'):
                 full_path = os.path.join(self.local_dir, rel_path)
                 if os.path.exists(full_path):
                     try:
                         with open(full_path, 'r', encoding='utf-8') as f:
                             data = json.load(f)
-                            res = isinstance(data, dict) and data.get('shared_with_group', False)
-                            logging.warning(f"[SYNC] Shared check: {p} => {res} (Sidecar flag)")
-                            return res
+                            return isinstance(data, dict) and data.get('shared_with_group', False)
                     except: return False
                 else:
-                    if hasattr(self, '_remote_files_cache') and rel_path in self._remote_files_cache:
-                        logging.warning(f"[SYNC] Shared check: {p} => TRUE (Remote sidecar present)")
-                        return True
-                    logging.warning(f"[SYNC] Shared check: {p} => FALSE (Sidecar missing locally & remote)")
-                    return False
-
-            # B. Other files in Medias
+                    return is_remote # If remote, we assume we want it
+            
+            # For media content files, check if their sidecar is shared
             json_path = rel_path + '.json'
-            if self._is_shared_file(json_path):
-                logging.warning(f"[SYNC] Shared check: {p} => TRUE (Sidecar {json_path} is shared)")
+            if self._is_shared_file(json_path, is_remote=is_remote, categories=categories):
                 return True
                 
-            # C. Satellite files
+            # Satellite files (chapters, loops etc)
             MEDIA_EXTS = ('.mp4', '.mp3', '.wav', '.mkv', '.webm', '.flv', '.avi')
             base_name = os.path.basename(rel_path)
             dir_name = os.path.dirname(rel_path)
             if '.' in base_name:
                 parent_candidate = base_name.rsplit('.', 1)[0]
                 if parent_candidate.lower().endswith(MEDIA_EXTS):
-                    if self._is_shared_file(os.path.join(dir_name, parent_candidate + '.json').replace('\\', '/')):
-                        logging.warning(f"[SYNC] Shared check: {p} => TRUE (Parent media {parent_candidate} is shared)")
+                    if self._is_shared_file(os.path.join(dir_name, parent_candidate + '.json').replace('\\', '/'), is_remote=is_remote, categories=categories):
                         return True
             
             return False
 
-        return False
+        # 3. Everything else that passed category check is shared
+        return True
 
-    def sync(self, analysis_result: Dict[str, list]):
+    def sync(self, analysis_result: Dict[str, list], selected_categories: Optional[List[str]] = None):
         pull_list = analysis_result.get('pull', [])
         push_list = analysis_result.get('push', [])
+        total_actions = len(pull_list) + len(push_list)
+        current_action = 0
+        
         logging.warning(f"[SYNC] Starting execution: {len(pull_list)} to pull, {len(push_list)} to push.")
 
         os.makedirs(self.update_buffer_dir, exist_ok=True)
@@ -532,8 +558,10 @@ class SyncManager:
         remote_files = self._remote_files_cache
         
         # 1. Pull
-        for i, rel_path in enumerate(pull_list):
-            logging.warning(f"[SYNC] Pulling {i+1}/{len(pull_list)}: {rel_path}")
+        for rel_path in pull_list:
+            current_action += 1
+            self._notify_progress(current_action, total_actions, rel_path, "pull")
+            
             # Normal pull to buffer
             buffer_path = os.path.join(self.update_buffer_dir, rel_path)
             self.provider.download_file(rel_path, buffer_path)
@@ -551,22 +579,18 @@ class SyncManager:
                 shutil.copy2(buffer_path, local_path)
                     
         # 2. Push
-        for i, rel_path in enumerate(push_list):
-            logging.warning(f"[SYNC] Pushing {i+1}/{len(push_list)}: {rel_path}")
-            local_path = os.path.join(self.local_dir, rel_path)
+        for rel_path in push_list:
+            current_action += 1
+            self._notify_progress(current_action, total_actions, rel_path, "push")
             
-            # Smart Push for JSON: Merge with remote first to avoid overwriting master BPM with stale local BPM
-            # AND filter out private data (loops, notes) before upload
+            local_path = os.path.join(self.local_dir, rel_path)
             upload_source = local_path
+            
             if rel_path.endswith('.json'):
                 try:
                     # 1. Download existing remote version if it exists
                     temp_remote_path = os.path.join(self.update_buffer_dir, rel_path + ".remote")
-                    remote_exists = False
-                    for rp in remote_files: # Note: remote_files was defined in analyze but we need to ensure it's accessible or re-list
-                         if rp == rel_path:
-                             remote_exists = True
-                             break
+                    remote_exists = rel_path in remote_files
                     
                     if remote_exists:
                         self.provider.download_file(rel_path, temp_remote_path)
@@ -580,9 +604,12 @@ class SyncManager:
                         self._prepare_filtered_json_for_upload(local_path, None, filtered_path)
                         upload_source = filtered_path
                 except Exception as e:
-                    print(f"Push preparation error for {rel_path}: {e}")
+                    logging.error(f"Push preparation error for {rel_path}: {e}")
 
             self.provider.upload_file(upload_source, rel_path)
+        
+        self._notify_progress(total_actions, total_actions, "", "finished")
+
             
     def _prepare_filtered_json_for_upload(self, local_json_path: str, remote_json_path: Optional[str], output_path: str):
         """Creates a filtered version of the JSON for the Master (removes private fields)."""

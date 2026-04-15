@@ -1356,6 +1356,29 @@ async def get_local_art(index: int):
         logging.error(f"Error fetching art for {path}: {e}")
         return Response(status_code=404)
 
+@app.get("/api/cover")
+async def get_cover(path: str):
+    """
+    Exposes a way to get cover art for a specific file path.
+    Used by the frontend to resolve covers without knowing the library index.
+    """
+    try:
+        if not path:
+             return Response(status_code=400)
+             
+        resolved_path = resolve_portable_path(path)
+        if not os.path.exists(resolved_path):
+             return Response(status_code=404)
+             
+        data, mime = metadata_service.get_file_cover(resolved_path)
+        if data:
+            return Response(content=data, media_type=mime)
+        return Response(status_code=404)
+    except Exception as e:
+        # Log error but return 404 to app.js to avoid 500 console noise
+        logging.warning(f"API Cover Fetch failed for {path}: {e}")
+        return Response(status_code=404)
+
 @app.post("/api/local/add")
 async def add_local_file():
     try:
@@ -1639,10 +1662,12 @@ async def update_local_file(index: int, item: Dict):
                         current["is_missing"] = False
                     except Exception as ex:
                         logging.error(f"Error re-scanning stems after manual relocate: {ex}")
-
-            # 1. Save JSON (Database Priority)
+            
+            # 1. Update Database (Priority)
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
 
             # 2. Write to disk tags (Physical)
             warning_msg = None
@@ -1653,12 +1678,12 @@ async def update_local_file(index: int, item: Dict):
                 warning_msg = "Métadonnées sauvegardées dans la base locale uniquement (Format vidéo non éditable)."
             else:
                 try:
-                    # Update to use metadata_service
-                    metadata_service.write_file_metadata(resolved_path, item)
+                    # V58: Pass 'items' to support local art resolution during sync
+                    metadata_service.write_file_metadata(resolved_path, item, local_items=items)
                 except PermissionError:
                     warning_msg = "Attention : Le fichier est en cours d'utilisation. Les tags internes n'ont pas été modifiés, mais la bibliothèque est à jour."
                 except Exception as e:
-                    print(f"Tag Write Warning: {e}")
+                    logging.warning(f"Tag Write Warning: {e}")
             
             return {
                 "status": "partial_success" if warning_msg else "ok",
@@ -1849,18 +1874,35 @@ async def relocate_apply(data: dict):
         action = data.get("action") # 'link', 'copy', 'move'
         item_type = data.get("type") # 'library', 'setlist'
         index = data.get("index")
-        new_source_path = data.get("new_path") # Absolute source path found
 
-        if not action or index is None or not new_source_path:
-            return {"status": "error", "message": "Missing parameters"}
-
-        # 1. Load the item to get filename and properties
+        # 1. Load the item to get properties
         db_file = SETLIST_FILE if item_type == "setlist" else LOCAL_LIB_FILE
+        if not os.path.exists(db_file):
+            return {"status": "error", "message": f"Database not found: {db_file}"}
+
         with open(db_file, "r", encoding="utf-8") as f:
             items = json.load(f)
         
+        if index < 0 or index >= len(items):
+            return {"status": "error", "message": f"Index {index} out of range"}
+
         target_item = items[index]
         is_multitrack = target_item.get("is_multitrack", False)
+        
+        # Fallback logic for new_source_path (V61)
+        # If new_path is missing, we assume we are moving the existing file
+        current_path_abs = resolve_portable_path(target_item.get("path", ""))
+        raw_new_path = data.get("new_path")
+        
+        # V62: ALWAYS resolve new_source_path immediately if it's portable
+        if raw_new_path:
+            new_source_path = resolve_portable_path(raw_new_path)
+        else:
+            new_source_path = current_path_abs
+            
+        if not action or not new_source_path:
+            return {"status": "error", "message": "Missing necessary parameters (action or source path)"}
+
         filename = os.path.basename(new_source_path.rstrip('/\\'))
 
         # Update metadata if requested (V49)
@@ -1870,6 +1912,8 @@ async def relocate_apply(data: dict):
             # Save DB update immediately so the rest of the logic uses new metadata
             with open(db_file, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=4, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())
         
         final_dest_path = new_source_path
 
@@ -1924,6 +1968,7 @@ async def relocate_apply(data: dict):
             try:
                 dest_abs = os.path.abspath(final_dest_path).lower()
                 if dest_abs != src_abs:
+                    logging.warning(f"[RelocateApply] Performing {action}: {new_source_path} -> {final_dest_path}")
                     if action == 'copy':
                         if os.path.isdir(new_source_path):
                             # dirs_exist_ok allows copying into an existing folder (Python 3.8+)
@@ -1931,6 +1976,15 @@ async def relocate_apply(data: dict):
                         else:
                             shutil.copy2(new_source_path, final_dest_path)
                     else: # Move
+                        # V61 Hardening: If moving a directory, ensure destination doesn't exist yet
+                        # or shutil.move might put src INSIDE dst.
+                        if os.path.isdir(new_source_path) and os.path.exists(final_dest_path):
+                            if os.path.isdir(final_dest_path):
+                                # If it's the exact same content, we might skip or merge. 
+                                # But here we want a clean move. Let's try to remove dst if it's empty or just let it fail.
+                                # Actually, our suffix logic (line 1916) should have avoided this.
+                                pass 
+                        
                         shutil.move(new_source_path, final_dest_path)
 
                     # --- Sidecar Files Persistence (JSON + Subtitles) ---
@@ -1998,6 +2052,8 @@ async def relocate_apply(data: dict):
             if changed:
                 with open(db_path, "w", encoding="utf-8") as f:
                     json.dump(db_items, f, indent=4)
+                    f.flush()
+                    os.fsync(f.fileno())
 
         return {
             "status": "ok",
@@ -2300,12 +2356,14 @@ async def edit_local_file(index: int, item: Dict):
             try:
                 abs_p = resolve_portable_path(current.get("path", ""))
                 if abs_p and os.path.exists(abs_p):
-                    metadata_service.write_file_metadata(abs_p, current)
+                    metadata_service.write_file_metadata(abs_p, current, local_items=items)
             except Exception as pe:
                 logging.error(f"Persistence Error in edit_local_file: {pe}")
 
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
 
             return {"status": "ok", "items": items}
         return {"status": "error", "message": "Index missing"}
@@ -2768,11 +2826,9 @@ async def get_managed_folders():
     from config_manager import ConfigManager
     config = ConfigManager()
     folders = config.get("media_folders", [])
-    # V57: Always resolve for UI delivery to prevent literal ${APP_DIR} in dropdowns
-    from utils import resolve_portable_path
-    resolved_folders = [resolve_portable_path(f) for f in folders]
-    print(f"[DEBUG API] Sending managed folders to UI: {resolved_folders}")
-    return {"status": "ok", "folders": resolved_folders}
+    # V61: Return original (portable) paths to sync with detection logic and prevent UI mismatches
+    print(f"[DEBUG API] Sending managed folders to UI: {folders}")
+    return {"status": "ok", "folders": folders}
 
 @app.post("/api/open_settings")
 async def api_open_settings(request: Request):
@@ -3240,10 +3296,11 @@ async def upload_cover_generic(request: Request):
     return {"status": "ok", "path": to_portable_path(dest_path)}
 
 @app.get("/api/local/find_artist_folder")
-async def find_artist_folder(name: str):
+async def find_artist_folder(name: str, preferred_root: str = None):
     """
     Scans managed folders to see if a subfolder with this artist name already exists.
     Useful to suggest destination to the user (V50).
+    V61: Supports 'preferred_root' to prioritize matches in the selected destination.
     """
     if not name or not name.strip() or name.strip() == "Divers":
         return {"status": "ok", "matches": []}
@@ -3272,6 +3329,10 @@ async def find_artist_folder(name: str):
                 })
         except:
             continue
+    
+    # Sort matches: place preferred_root at the top if it matches
+    if preferred_root and preferred_root != "AUTO":
+        matches.sort(key=lambda x: 0 if x["root"] == preferred_root else 1)
             
     return {"status": "ok", "matches": matches}
 

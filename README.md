@@ -22,7 +22,8 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     *   **Modale de recherche YouTube intégrée :** trouvez, prévisualisez et ajoutez vos backing tracks sans quitter l'appli.
     *   **Support des fichiers locaux (MP3/WAV) via streaming natif.**
     *   **Auto-Tag Intelligent :** Recherche automatique des métadonnées et pochettes HD via iTunes API.
-    *   **Éditeur de Métadonnées :** Modifiez physiquement vos fichiers (Titres, Artistes...) et gérez vos pochettes d'album directement depuis l'application.
+    *   **Synchronisation Universelle (Align) ✨ :** Harmonisez instantanément vos différents médias (YouTube, MP3, Multipistes). Le système propage les titres, artistes, BPM, tonalités et pochettes entre vos fichiers tout en créant un maillage intelligent.
+    *   **Éditeur de Métadonnées Robuste :** Modifiez physiquement vos fichiers (WAV, MP3, M4A) et gérez vos pochettes directement depuis l'application. Support avancé des fichiers **sidecars JSON** pour garantir que vos images s'affichent partout, même pour les vidéos locales sans tags embarqués.
     *   **UI Premium :** Interface modernisée avec **Phosphor Icons** pour une lisibilité parfaite. Surlignage intelligent et défilement automatique vers le morceau actif.
     *   Organisez par Artiste, Genre, et ajoutez vos notes personnelles distinctes de la description YouTube.
     *   **Profils Web Universels :** Ajoutez n'importe quel site (Dailymotion, Vimeo...) et associez-lui un profil dédié. L'application détecte automatiquement le contexte grâce au titre de la fenêtre dynamique.

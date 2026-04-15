@@ -9686,6 +9686,12 @@ async function relocateFromEdit(action) {
     // Default to AUTO for smart routing
     if (confirmSelect) {
         confirmSelect.value = "AUTO";
+
+        // V61: Update artist folder suggestion when destination changes
+        confirmSelect.onchange = () => {
+            const artistInput = document.getElementById('relocate-confirm-artist-input');
+            if (artistInput) checkArtistFolderMatch(artistInput.value);
+        };
     }
     
     if (warnEl) warnEl.style.display = 'none';
@@ -9726,6 +9732,7 @@ async function checkArtistFolderMatch(name) {
     const zone = document.getElementById('relocate-confirm-artist-match-zone');
     const pathEl = document.getElementById('relocate-confirm-match-path');
     const btn = document.getElementById('btn-use-detected-folder');
+    const select = document.getElementById('relocate-confirm-dest-select');
     
     if (!name || name.trim() === "" || name.trim() === "Divers") {
         if (zone) zone.style.display = 'none';
@@ -9733,7 +9740,8 @@ async function checkArtistFolderMatch(name) {
     }
     
     try {
-        const res = await fetch(`/api/local/find_artist_folder?name=${encodeURIComponent(name)}`);
+        const preferred = select ? select.value : "AUTO";
+        const res = await fetch(`/api/local/find_artist_folder?name=${encodeURIComponent(name)}&preferred_root=${encodeURIComponent(preferred)}`);
         const data = await res.json();
         
         if (data.status === 'ok' && data.matches && data.matches.length > 0) {
@@ -9802,6 +9810,7 @@ async function confirmRelocateUnitary() {
                 action: action,
                 type: type,
                 index: index,
+                new_path: localFiles[index].path, // Explicitly send the source path (V61)
                 target_folder: finalDest,
                 create_artist_folder: useArtist,
                 updated_artist: updatedArtist
