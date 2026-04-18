@@ -12,6 +12,7 @@ import mido
 import pystray
 import webbrowser
 from PIL import Image
+from utils import get_app_dir, get_data_dir
 def get_resource_path(relative_path):
     """Trouve les fichiers aussi bien en Dev qu'en EXE PyInstaller"""
     if hasattr(sys, '_MEIPASS'):
@@ -835,7 +836,9 @@ class MidiKbdApp(ctk.CTk):
         self.profile_manager.migrate_legacy_config()
 
         self.env_manager = EnvManager()
-        self.library_manager = LibraryManager()
+        # V6.1: Force use of DATA_DIR for library stability
+        lib_path = os.path.join(get_data_dir(), "library.json")
+        self.library_manager = LibraryManager(lib_path)
 
         self.device_manager = DeviceManager()
         self.current_device_def = None
@@ -1439,18 +1442,20 @@ class MidiKbdApp(ctk.CTk):
                     mgr = SyncManager(get_app_dir(), provider, shared_fields=shared_fields)
                     
                     # Progress Callback setup
-                    def on_progress(current, total, filename, stage):
+                    def on_progress(current, total, filename, stage, reason=None):
                         pct = current / total if total > 0 else 1
                         progress_bar.set(pct)
+                        
+                        r_text = f" ({reason})" if reason else ""
                         
                         if stage == "analyzing":
                             lbl_status.configure(text=_("sync.status_analyzing"))
                         elif stage == "analyzed":
                             pass # result will be handled below
                         elif stage == "pull":
-                            log_msg(_("sync.stage_pull", file=filename))
+                            log_msg(_("sync.stage_pull", file=filename) + r_text)
                         elif stage == "push":
-                            log_msg(_("sync.stage_push", file=filename))
+                            log_msg(_("sync.stage_push", file=filename) + r_text)
                     
                     mgr.set_progress_callback(on_progress)
                     

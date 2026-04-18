@@ -1188,6 +1188,9 @@
                     <button class="btn-secondary" onclick="autoTagMultitrack()"
                         title="Rechercher sur MusicBrainz/YouTube" data-i18n-title="web.hint_autotag">🔍
                         Auto-Tag</button>
+                    <button id="btn-edit-shared" class="btn-secondary" onclick="toggleEditShared()" title="Partager avec le Groupe" style="color: #666;" data-i18n-title="web.hint_share_group">
+                        <i class="ph ph-cloud-arrow-up"></i>
+                    </button>
                 </div>
 
                 <div class="row-inputs">
@@ -3046,6 +3049,27 @@
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px;">
                 <button class="btn-secondary" onclick="document.getElementById('modal-delete-confirm').close()" data-i18n="web.btn_cancel">Annuler</button>
                 <button id="btn-do-delete" class="btn-primary" style="background: #cf6679; color: white;" data-i18n="web.btn_confirm_delete">Supprimer</button>
+            </div>
+        </div>
+    </dialog>
+    
+    <!-- Modal: Sync Family Selection (V6.4) -->
+    <dialog id="modal-sync-family" class="modal-modern" style="width: 450px; max-width: 95vw;">
+        <div class="modal-header">
+            <h2 style="font-size: 1.1em;"><i class="ph ph-cloud-arrow-up"></i> <span data-i18n="web.modal_sync_family_title">Gestion du partage (Famille)</span></h2>
+            <button class="btn-close-modal" onclick="document.getElementById('modal-sync-family').close()">×</button>
+        </div>
+        <div class="modal-body" style="padding: 20px;">
+            <p style="font-size: 0.85em; color: #888; margin-bottom: 15px;" data-i18n="web.modal_sync_family_desc">Sélectionnez les médias à synchroniser avec le groupe :</p>
+            
+            <div id="sync-family-list" style="display:flex; flex-direction:column; gap:10px; max-height: 350px; overflow-y: auto; padding: 5px;">
+                <!-- Master and Linked items checkboxes here -->
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:20px; padding-top:15px; border-top:1px solid #333;">
+                <button class="btn-secondary" style="flex:1; font-size:0.8em;" onclick="toggleAllFamilySync(true)" data-i18n="web.btn_select_all">Tout inclure</button>
+                <button class="btn-secondary" style="flex:1; font-size:0.8em;" onclick="toggleAllFamilySync(false)" data-i18n="web.btn_select_none">Tout retirer</button>
+                <button class="btn-primary" style="flex:1;" onclick="document.getElementById('modal-sync-family').close()" data-i18n="web.btn_done">Terminer</button>
             </div>
         </div>
     </dialog>

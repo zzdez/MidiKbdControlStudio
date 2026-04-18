@@ -878,15 +878,55 @@ function renderWebLinks() {
         return;
     }
 
-    const renderedFamilies = new Set();
+    // V60: Robust Grouping & Sorting Engine
+    let finalItems = [];
 
-    filtered.forEach(link => {
-        // Grouping Check (V60)
-        if (isLibraryGrouped) {
-            const family = [link.uid, ...(link.linked_ids || [])];
-            if (family.some(uid => renderedFamilies.has(uid))) return; // Skip
-            family.forEach(uid => renderedFamilies.add(uid)); 
+    if (isLibraryGrouped) {
+        const families = new Map(); // Map<MasterUID, Array<Items>>
+        const itemToMaster = new Map(); // Map<UID, MasterUID>
+
+        // 1. Identify Families (Linked UIDs cluster)
+        filtered.forEach(item => {
+            if (itemToMaster.has(item.uid)) return;
+
+            const familyUIDs = [item.uid, ...(item.linked_ids || [])];
+            let masterUID = familyUIDs.find(uid => itemToMaster.has(uid));
+            if (!masterUID) masterUID = item.uid;
+
+            familyUIDs.forEach(uid => itemToMaster.set(uid, masterUID));
+            if (!families.has(masterUID)) families.set(masterUID, []);
+            families.get(masterUID).push(item);
+        });
+
+        // 2. Pick the Best Representative for each family
+        families.forEach((members, masterUID) => {
+            members.sort((a, b) => getItemPriority(b) - getItemPriority(a));
+            finalItems.push(members[0]);
+        });
+    } else {
+        finalItems = [...filtered];
+    }
+
+    // 3. APPLY USER SORT (Final Alphabetical Order)
+    const key = currentWebSortKey || 'artist';
+    const order = currentSortOrderWeb || 'asc';
+
+    finalItems.sort((a, b) => {
+        const valA = (a[key] || "").toString().trim();
+        const valB = (b[key] || "").toString().trim();
+        
+        // Secondary sort by title if primary is same
+        if (valA.toLowerCase() === valB.toLowerCase() && key !== 'title') {
+            const tA = (a.title || "").toString().toLowerCase();
+            const tB = (b.title || "").toString().toLowerCase();
+            if (tA !== tB) return tA.localeCompare(tB);
         }
+
+        const cmp = valA.localeCompare(valB, undefined, { sensitivity: 'base', numeric: true });
+        return order === 'asc' ? cmp : -cmp;
+    });
+
+    finalItems.forEach(link => {
 
         const realIndex = link.originalIndex;
         const tr = document.createElement("tr");
@@ -1148,15 +1188,7 @@ function sortWebLinks(key) {
         currentSortOrderWeb = 'asc';
     }
 
-    currentWebLinkTrackList.sort((a, b) => {
-        let valA = (a[key] || "").toString().toLowerCase();
-        let valB = (b[key] || "").toString().toLowerCase();
-        
-        if (valA < valB) return currentSortOrderWeb === 'asc' ? -1 : 1;
-        if (valA > valB) return currentSortOrderWeb === 'asc' ? 1 : -1;
-        return 0;
-    });
-
+    // Note: renderWebLinks now handles the stable sort using currentWebSortKey and currentSortOrderWeb
     renderWebLinks();
 }
 
@@ -1452,12 +1484,8 @@ function sortTable(key) {
         sortAsc = true; // Reset to ASC on new key
     }
 
-    currentTrackList.sort((a, b) => {
-        const valA = (a[key] || "").toString().toLowerCase();
-        const valB = (b[key] || "").toString().toLowerCase();
-        return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
-    });
-    renderSetlist(currentTrackList); // Render Sorted
+    // Note: renderSetlist now handles the stable sort using currentSetlistSortKey and sortAsc
+    renderSetlist(currentTrackList);
 }
 
 function renderSetlist(list) {
@@ -1484,20 +1512,55 @@ function renderSetlist(list) {
         return;
     }
 
-    const renderedFamilies = new Set();
+    // V60: Robust Grouping & Sorting Engine
+    let finalItems = [];
 
-    // V60: Sort by priority so the best item is picked as family Master
     if (isLibraryGrouped) {
-        filtered.sort((a, b) => getItemPriority(b) - getItemPriority(a));
+        const families = new Map(); // Map<MasterUID, Array<Items>>
+        const itemToMaster = new Map(); // Map<UID, MasterUID>
+
+        // 1. Identify Families (Linked UIDs cluster)
+        filtered.forEach(item => {
+            if (itemToMaster.has(item.uid)) return;
+
+            const familyUIDs = [item.uid, ...(item.linked_ids || [])];
+            let masterUID = familyUIDs.find(uid => itemToMaster.has(uid));
+            if (!masterUID) masterUID = item.uid;
+
+            familyUIDs.forEach(uid => itemToMaster.set(uid, masterUID));
+            if (!families.has(masterUID)) families.set(masterUID, []);
+            families.get(masterUID).push(item);
+        });
+
+        // 2. Pick the Best Representative for each family
+        families.forEach((members, masterUID) => {
+            members.sort((a, b) => getItemPriority(b) - getItemPriority(a));
+            finalItems.push(members[0]);
+        });
+    } else {
+        finalItems = [...filtered];
     }
 
-    filtered.forEach((track) => {
-        // Grouping Check (V60)
-        if (isLibraryGrouped) {
-            const family = [track.uid, ...(track.linked_ids || [])];
-            if (family.some(uid => renderedFamilies.has(uid))) return; // Skip
-            family.forEach(uid => renderedFamilies.add(uid)); 
+    // 3. APPLY USER SORT (Final Alphabetical Order)
+    const key = currentSetlistSortKey || 'artist';
+    const order = sortAsc ? 'asc' : 'desc';
+
+    finalItems.sort((a, b) => {
+        const valA = (a[key] || "").toString().trim();
+        const valB = (b[key] || "").toString().trim();
+        
+        // Secondary sort by title if primary is same
+        if (valA.toLowerCase() === valB.toLowerCase() && key !== 'title') {
+            const tA = (a.title || a.url || "").toString().toLowerCase();
+            const tB = (b.title || b.url || "").toString().toLowerCase();
+            if (tA !== tB) return tA.localeCompare(tB);
         }
+
+        const cmp = valA.localeCompare(valB, undefined, { sensitivity: 'base', numeric: true });
+        return order === 'asc' ? cmp : -cmp;
+    });
+
+    finalItems.forEach((track) => {
 
         // Use originalIndex for safe actions
         const realIndex = track.originalIndex;
@@ -2000,28 +2063,171 @@ async function openNativeEditor() {
 let currentEditSharedStatus = false;
 
 function toggleEditShared() {
-    currentEditSharedStatus = !currentEditSharedStatus;
-    const btn = document.getElementById("btn-edit-shared");
-    if (btn) {
-        if (currentEditSharedStatus) {
-            btn.style.color = "#03DAC6"; // Accent color for active
-        } else {
-            btn.style.color = "#666"; // Gray for inactive
-        }
+    // V6.4: If family members exist, show the choice menu instead of simple toggle
+    if (currentEditingLinkedIds && currentEditingLinkedIds.length > 0) {
+        showSyncFamilyModal();
+        return;
     }
+
+    currentEditSharedStatus = !currentEditSharedStatus;
+    updateFamilySyncIcon();
 }
 
 function setEditSharedStatus(isShared) {
     currentEditSharedStatus = isShared === true || isShared === "true"; 
+    updateFamilySyncIcon(); // V6.4: Unified state update
+}
+
+function updateFamilySyncIcon() {
     const btn = document.getElementById("btn-edit-shared");
-    if (btn) {
-        if (currentEditSharedStatus) {
-            btn.style.color = "#03DAC6";
-            btn.classList.add("shared-active");
-        } else {
-            btn.style.color = "#666";
-            btn.classList.remove("shared-active");
+    if (!btn) return;
+    
+    let isPartial = false;
+    let anyShared = currentEditSharedStatus;
+    let allShared = currentEditSharedStatus;
+    
+    // Check linked items if any
+    if (currentEditingLinkedIds && currentEditingLinkedIds.length > 0) {
+        currentEditingLinkedIds.forEach(uid => {
+            const item = getLinkedItem(uid);
+            if (item) {
+                const shared = item.shared_with_group === true || item.shared_with_group === "true";
+                if (shared) anyShared = true;
+                else allShared = false;
+            }
+        });
+    }
+
+    // Determine color and icon
+    if (anyShared && allShared) {
+        btn.style.color = "#03DAC6"; // Cyan: Full
+        btn.innerHTML = '<i class="ph-fill ph-cloud-arrow-up"></i>';
+        btn.title = (currentLang === 'fr') ? "Partage complet" : "Full share";
+    } else if (anyShared) {
+        btn.style.color = "#FFB74D"; // Orange: Partial
+        btn.innerHTML = '<i class="ph ph-cloud-arrow-up"></i>';
+        btn.title = (currentLang === 'fr') ? "Partage partiel" : "Partial share";
+    } else {
+        btn.style.color = "#666"; // Gray: None
+        btn.innerHTML = '<i class="ph ph-cloud-slash"></i>';
+        btn.title = (currentLang === 'fr') ? "Non partagé" : "Not shared";
+    }
+}
+
+async function showSyncFamilyModal() {
+    const container = document.getElementById("sync-family-list");
+    if (!container) return;
+    container.innerHTML = "";
+    
+    // 1. Get Main Item
+    let mainTitle = "Média principal";
+    if (editingIndex !== null) mainTitle = currentTrackList[editingIndex].title;
+    else if (editingLocalIndex !== null) mainTitle = localFiles[editingLocalIndex].title;
+    else if (currentWebLinkIndex !== null) mainTitle = webLinks[currentWebLinkIndex].title;
+
+    function createRow(title, isShared, toggleFn, iconClass = "ph ph-file") {
+        const row = document.createElement("div");
+        row.style = "display:flex; align-items:center; gap:10px; padding:8px; background:rgba(255,255,255,0.03); border-radius:6px; transition: background 0.2s;";
+        
+        const chkId = `chk-sync-${Math.random().toString(36).substr(2, 9)}`;
+        row.innerHTML = `
+            <i class="${iconClass}" style="color:#888;"></i>
+            <span style="flex:1; font-size:0.9em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${title}</span>
+            <div class="toggle-switch">
+                <input type="checkbox" id="${chkId}" ${isShared ? 'checked' : ''} onchange="${toggleFn}">
+                <label for="${chkId}"></label>
+            </div>
+        `;
+        return row;
+    }
+
+    // Add Master
+    const masterRow = createRow(mainTitle, currentEditSharedStatus, "currentEditSharedStatus = this.checked; updateFamilySyncIcon();", "ph ph-star-fill");
+    container.appendChild(masterRow);
+
+    // Add Links
+    if (currentEditingLinkedIds) {
+        currentEditingLinkedIds.forEach(uid => {
+            const item = getLinkedItem(uid);
+            if (!item) return;
+            
+            let icon = "ph ph-link";
+            let typeLabel = "";
+            
+            if (uid.startsWith('set')) {
+                icon = "ph ph-youtube-logo";
+                typeLabel = " (YouTube)";
+            } else if (uid.startsWith('lib')) {
+                if (item.is_multitrack || (item.path && item.path.includes('Multipistes'))) {
+                    icon = "ph ph-stack";
+                    typeLabel = " (Multipiste)";
+                } else {
+                    // Detect if video by extension if is_video not set
+                    const isVid = item.is_video || (item.path && /\.(mp4|mkv|mov|avi|webm)$/i.test(item.path));
+                    icon = isVid ? "ph ph-film-strip" : "ph ph-music-note";
+                    typeLabel = isVid ? " (Vidéo)" : " (Audio)";
+                }
+            } else if (uid.startsWith('web')) {
+                icon = "ph ph-globe";
+                typeLabel = " (Lien Web)";
+            }
+
+            const isShared = item.shared_with_group === true || item.shared_with_group === "true";
+            const displayTitle = item.title + (item.title.includes(typeLabel.trim()) ? "" : ` <small style="color:#777; font-size:0.8em;">${typeLabel}</small>`);
+            const row = createRow(displayTitle, isShared, `toggleSharedForUID('${uid}', null)`, icon);
+            container.appendChild(row);
+        });
+    }
+
+    document.getElementById("modal-sync-family").showModal();
+}
+
+async function toggleAllFamilySync(shared) {
+    // 1. Toggle Master
+    currentEditSharedStatus = shared;
+    
+    // 2. Toggle All base UIDs
+    if (currentEditingLinkedIds) {
+        for (const uid of currentEditingLinkedIds) {
+            const item = getLinkedItem(uid);
+            if (item && (item.shared_with_group !== shared)) {
+                await toggleSharedForUID(uid, null);
+            }
         }
+    }
+    
+    updateFamilySyncIcon();
+    showSyncFamilyModal(); // Refresh view
+}
+
+async function toggleSharedForUID(uid, event) {
+    if (event) event.stopPropagation();
+    console.log(`[SYNC] Toggling share for UID: ${uid}`);
+    
+    try {
+        const response = await fetch(`/api/media/toggle_shared/${uid}`, { method: 'POST' });
+        const res = await response.json();
+        
+        if (res.status === 'ok') {
+            // Update local memory to avoid full refresh
+            const item = getLinkedItem(uid);
+            if (item) {
+                item.shared_with_group = res.new_status;
+            }
+            // If it's the current track in setlist, update it too
+            if (typeof currentTrackList !== 'undefined' && currentTrackList) {
+                const track = currentTrackList.find(t => t.uid === uid);
+                if (track) track.shared_with_group = res.new_status;
+            }
+            
+            // Re-render linked items UI
+            renderModalLinkedItems();
+            
+            showToast(res.new_status ? "Média partagé !" : "Partage désactivé", "info");
+        }
+    } catch (e) {
+        console.error("[SYNC] Error toggling shared UID:", e);
+        showToast("Erreur lors du partage", "error");
     }
 }
 
@@ -3755,20 +3961,55 @@ function renderLocalFiles() {
         return;
     }
 
-    const renderedFamilies = new Set();
+    // V60: Robust Grouping & Sorting Engine
+    let finalItems = [];
 
-    // V60: Sort by priority so the best item is picked as family Master
     if (isLibraryGrouped) {
-        filtered.sort((a, b) => getItemPriority(b) - getItemPriority(a));
+        const families = new Map(); // Map<MasterUID, Array<Items>>
+        const itemToMaster = new Map(); // Map<UID, MasterUID>
+
+        // 1. Identify Families (Linked UIDs cluster)
+        filtered.forEach(item => {
+            if (itemToMaster.has(item.uid)) return;
+
+            const familyUIDs = [item.uid, ...(item.linked_ids || [])];
+            let masterUID = familyUIDs.find(uid => itemToMaster.has(uid));
+            if (!masterUID) masterUID = item.uid;
+
+            familyUIDs.forEach(uid => itemToMaster.set(uid, masterUID));
+            if (!families.has(masterUID)) families.set(masterUID, []);
+            families.get(masterUID).push(item);
+        });
+
+        // 2. Pick the Best Representative for each family
+        families.forEach((members, masterUID) => {
+            members.sort((a, b) => getItemPriority(b) - getItemPriority(a));
+            finalItems.push(members[0]);
+        });
+    } else {
+        finalItems = [...filtered];
     }
 
-    filtered.forEach((file, index) => {
-        // Grouping Check (V60)
-        if (isLibraryGrouped) {
-            const family = [file.uid, ...(file.linked_ids || [])];
-            if (family.some(uid => renderedFamilies.has(uid))) return; // Skip
-            family.forEach(uid => renderedFamilies.add(uid)); 
+    // 3. APPLY USER SORT (Final Alphabetical Order)
+    const key = currentLocalSortKey || 'artist';
+    const order = currentLocalSortOrder || 'asc';
+
+    finalItems.sort((a, b) => {
+        const valA = (a[key] || "").toString().trim();
+        const valB = (b[key] || "").toString().trim();
+        
+        // Secondary sort by title if primary is same
+        if (valA.toLowerCase() === valB.toLowerCase() && key !== 'title') {
+            const tA = (a.title || "").toString().toLowerCase();
+            const tB = (b.title || "").toString().toLowerCase();
+            if (tA !== tB) return tA.localeCompare(tB);
         }
+
+        const cmp = valA.localeCompare(valB, undefined, { sensitivity: 'base', numeric: true });
+        return order === 'asc' ? cmp : -cmp;
+    });
+
+    finalItems.forEach((file, index) => {
 
         const realIndex = localFiles.indexOf(file);
         if (!file.path) {
@@ -6101,6 +6342,8 @@ function openMultitrackModal(index) {
     const item = localFiles[index];
     if (!item) return;
 
+    setEditSharedStatus(item.shared_with_group);
+
     // Reveal sidebar if in theater mode to give context to editing
     if (isTheaterMode && typeof toggleTheaterMode === 'function') {
         toggleTheaterMode(false);
@@ -6204,6 +6447,7 @@ async function saveMultitrackItem() {
         target_pitch: document.getElementById("mt-target-pitch").value,
         target_profile: document.getElementById("mt-target-profile").value,
         user_notes: document.getElementById("mt-notes").value,
+        shared_with_group: currentEditSharedStatus,
         cover_data: currentCoverData,
         volume: parseInt(document.getElementById("mt-modal-volume").value, 10) || 100,
         autoplay: document.getElementById("mt-autoplay").checked,
@@ -6383,14 +6627,7 @@ function sortLocal(key) {
         currentLocalSortOrder = 'asc'; // Reset to ASC on new key
     }
 
-    // Basic sort
-    localFiles.sort((a, b) => {
-        const va = (a[key] || "").toString().toLowerCase();
-        const vb = (b[key] || "").toString().toLowerCase();
-        if (va < vb) return currentLocalSortOrder === 'asc' ? -1 : 1;
-        if (va > vb) return currentLocalSortOrder === 'asc' ? 1 : -1;
-        return 0;
-    });
+    // Note: renderLocalFiles now handles the stable sort using currentLocalSortKey and order
     renderLocalFiles();
 }
 
@@ -10416,8 +10653,8 @@ function renderModalLinkedItems() {
             if (!item) return;
 
             const badge = document.createElement("div");
-            badge.className = "link-pill"; // Assuming this class exists or we use inline style
-            badge.style = "background:rgba(187,134,252,0.1); border:1px solid rgba(187,134,252,0.3); padding:3px 10px; border-radius:15px; font-size:0.75em; color:#bb86fc; display:flex; align-items:center; gap:5px; cursor:pointer;";
+            badge.className = "link-pill"; 
+            badge.style = "background:rgba(187,134,252,0.1); border:1px solid rgba(187,134,252,0.3); padding:3px 10px; border-radius:15px; font-size:0.75em; color:#bb86fc; display:flex; align-items:center; gap:8px; cursor:default; position:relative;";
             badge.title = item.artist ? `${item.artist} - ${item.title}` : item.title;
             
             // Icon logic (YouTube vs others)
@@ -10432,12 +10669,61 @@ function renderModalLinkedItems() {
                 iconClass = "ph ph-globe";
             }
 
-            badge.innerHTML = `<i class="${iconClass}"></i> <span style="max-width:110px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</span>`;
+            // Sync Status (Cloud Icon)
+            const isShared = item.shared_with_group === true || item.shared_with_group === "true";
+            const cloudIconClass = isShared ? "ph-fill ph-cloud-arrow-up" : "ph ph-cloud-slash";
+            const cloudColor = isShared ? "#03DAC6" : "#666";
+            const cloudTitle = isShared ? (currentLang === 'fr' ? 'Partagé avec le groupe' : 'Shared with group') : (currentLang === 'fr' ? 'Non partagé' : 'Not shared');
+
+            badge.innerHTML = `
+                <i class="${iconClass}"></i> 
+                <span class="badge-title" style="max-width:110px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer;" title="(Cliquez pour ouvrir)">${item.title}</span>
+                <i class="ph ${cloudIconClass}" 
+                   style="color:${cloudColor}; cursor:pointer; font-size:1.2em; margin-left:5px;" 
+                   title="${cloudTitle}"
+                   onclick="toggleSharedForUID('${uid}', event)"></i>
+            `;
             
-            // Ability to open the linked media directly? Maybe too complex for now, just visual is enough
+            // Navigation click on badge text
+            const textSpan = badge.querySelector(".badge-title");
+            if (textSpan) {
+                textSpan.onclick = (e) => {
+                    e.stopPropagation();
+                    openLinkedMedia(uid);
+                };
+            }
+            
             container.appendChild(badge);
         });
     });
+}
+
+function openLinkedMedia(uid) {
+    // Close current modals first to avoid stacking issues or confusion
+    if (document.getElementById("modal-media-edit").open) {
+        document.getElementById("modal-media-edit").close();
+    }
+    if (document.getElementById("modal-multitrack").open) {
+        document.getElementById("modal-multitrack").close();
+    }
+    
+    // Find item
+    if (uid.startsWith('set:')) {
+        const index = parseInt(uid.split(':')[1]);
+        if (!isNaN(index)) openEditModal(index);
+    } else if (uid.startsWith('lib:')) {
+        const index = parseInt(uid.split(':')[1]);
+        if (!isNaN(index)) {
+            const item = localFiles[index];
+            if (item) {
+                if (item.is_multitrack) openMultitrackModal(index);
+                else openEditLocalModal(index);
+            }
+        }
+    } else if (uid.startsWith('web:')) {
+        const index = parseInt(uid.split(':')[1]);
+        if (!isNaN(index)) openWebLinkModal(index);
+    }
 }
 
 async function toggleMediaLink(targetType, targetIndex) {

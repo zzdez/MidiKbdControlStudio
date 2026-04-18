@@ -2525,12 +2525,119 @@ async def refresh_from_sidecars():
                     except Exception as ex:
                         print(f"Error reading sidecar {sidecar_path}: {ex}")
         
-        with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
-            json.dump(items, f, indent=4)
+        # V7.2: Idempotent save
+        has_changed = False
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f_check:
+                 old_data = f_check.read()
+             new_data = json.dumps(items, indent=4)
+             if old_data.strip() != new_data.strip():
+                 has_changed = True
+        else:
+            has_changed = True
+
+        if has_changed:
+            with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+            logging.warning("[REFRESH] local_lib.json mis à jour avec les sidecars.")
+        else:
+            logging.info("[REFRESH] Aucune modification détectée, sauvegarde locale ignorée.")
             
         return {"status": "ok", "refreshed_count": refreshed_count}
     except Exception as e:
         print(f"Refresh Sidecars Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/media/toggle_shared/{uid}")
+async def toggle_media_shared(uid: str):
+    """Universal toggle for shared_with_group status by UID."""
+    try:
+        if not uid: raise HTTPException(status_code=400, detail="Missing UID")
+        prefix = uid.split('_')[0] if '_' in uid else None
+        
+        found_item = None
+        target_file = None
+        target_list = None
+        target_index = -1
+        
+        # 1. Determine which DB to check
+        if prefix == 'set':
+            target_file = SETLIST_FILE
+        elif prefix == 'lib':
+            target_file = LOCAL_LIB_FILE
+        elif prefix == 'web':
+            target_file = WEB_LINKS_FILE
+        else:
+            # Try all if no prefix
+            files_to_check = [SETLIST_FILE, LOCAL_LIB_FILE, WEB_LINKS_FILE]
+            for f_path in files_to_check:
+                if not os.path.exists(f_path): continue
+                with open(f_path, "r", encoding="utf-8") as f:
+                    items = json.load(f)
+                    for i, it in enumerate(items):
+                        if it.get("uid") == uid:
+                            target_file = f_path
+                            target_list = items
+                            target_index = i
+                            found_item = it
+                            break
+                if found_item: break
+        
+        if not found_item and target_file and os.path.exists(target_file):
+             with open(target_file, "r", encoding="utf-8") as f:
+                target_list = json.load(f)
+                for i, it in enumerate(target_list):
+                    if it.get("uid") == uid:
+                        target_index = i
+                        found_item = it
+                        break
+        
+        if not found_item:
+            raise HTTPException(status_code=404, detail=f"Item with UID {uid} not found")
+            
+        # 2. Toggle Status
+        new_status = not found_item.get("shared_with_group", False)
+        found_item["shared_with_group"] = new_status
+        
+        # 3. Persist to main DB
+        with open(target_file, "w", encoding="utf-8") as f:
+            json.dump(target_list, f, indent=4)
+            
+        # 4. If it's a local file, also persist to sidecar
+        if prefix == 'lib':
+            path = found_item.get("path")
+            if path:
+                # Resolve absolute path (V55)
+                from utils import get_app_dir
+                abs_path = path if os.path.isabs(path) else os.path.join(get_app_dir(), path)
+                abs_path = os.path.normpath(abs_path)
+                
+                sidecar_path = None
+                if found_item.get("is_multitrack"):
+                    if os.path.isdir(abs_path):
+                        sidecar_path = os.path.join(abs_path, "airstep_meta.json")
+                else:
+                    if os.path.exists(abs_path):
+                        sidecar_path = abs_path + ".json"
+                
+                if sidecar_path:
+                    try:
+                        sidecar_data = {}
+                        if os.path.exists(sidecar_path):
+                            with open(sidecar_path, 'r', encoding='utf-8') as f:
+                                sidecar_data = json.load(f)
+                        
+                        sidecar_data["shared_with_group"] = new_status
+                        with open(sidecar_path, 'w', encoding='utf-8') as f:
+                            json.dump(sidecar_data, f, indent=4)
+                    except Exception as ex:
+                        logging.error(f"Error updating sidecar during toggle_shared: {ex}")
+
+        return {"status": "ok", "new_status": new_status, "uid": uid}
+
+    except Exception as e:
+        logging.error(f"Toggle Shared UID Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/local/consolidate")
