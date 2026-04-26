@@ -130,6 +130,80 @@ class ShortcutsDialog(ctk.CTkToplevel):
         self.callback(text)
         self.destroy()
 
+class SyncConfirmationDialog(ctk.CTkToplevel):
+    def __init__(self, parent, analysis_result, callback):
+        super().__init__(parent)
+        self.title("Récapitulatif & Exécution de la Synchronisation")
+        self.geometry("900x800")
+        self.analysis_result = analysis_result
+        self.callback = callback
+        self.attributes("-topmost", True)
+        self.grab_set()
+
+        ctk.CTkLabel(self, text="Éléments à synchroniser", font=ctk.CTkFont(size=20, weight="bold")).pack(pady=15)
+        
+        self.scroll = ctk.CTkScrollableFrame(self, height=350)
+        self.scroll.pack(fill="both", expand=False, padx=20, pady=10)
+        
+        self.vars = {"pull": [], "push": [], "delete_remote": [], "delete_local": []}
+        
+        self._add_section("📥 Téléchargements (Pull)", analysis_result.get("pull", []), "pull", "#2ecc71")
+        self._add_section("📤 Envois (Push)", analysis_result.get("push", []), "push", "#3498db")
+        self._add_section("🗑️ Suppressions Distantes (Delete Remote)", analysis_result.get("delete_remote", []), "delete_remote", "#e74c3c")
+        self._add_section("🗑️ Suppressions Locales (Delete Local)", analysis_result.get("delete_local", []), "delete_local", "#e67e22")
+
+        # Execution Section (New in V9.2)
+        ctk.CTkLabel(self, text="Progression & Logs", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(10, 5))
+        self.progress_bar = ctk.CTkProgressBar(self, width=800)
+        self.progress_bar.set(0)
+        self.progress_bar.pack(pady=10)
+        
+        self.log_box = ctk.CTkTextbox(self, height=180, font=ctk.CTkFont(family="Consolas", size=11))
+        self.log_box.pack(fill="both", expand=True, padx=20, pady=5)
+        self.log_box.configure(state="disabled")
+
+        self.btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.btn_frame.pack(fill="x", side="bottom", pady=20, padx=20)
+        
+        self.btn_sync = ctk.CTkButton(self.btn_frame, text="Lancer la Synchronisation", fg_color="green", hover_color="darkgreen", command=self.on_sync)
+        self.btn_sync.pack(side="right", padx=10)
+        
+        self.btn_cancel = ctk.CTkButton(self.btn_frame, text="Fermer / Annuler", fg_color="#555", command=self.destroy)
+        self.btn_cancel.pack(side="right", padx=10)
+
+    def log_msg(self, msg):
+        self.log_box.configure(state="normal")
+        self.log_box.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}\n")
+        self.log_box.see("end")
+        self.log_box.configure(state="disabled")
+
+    def _add_section(self, title, items, key, color):
+        if not items: return
+        
+        ctk.CTkLabel(self.scroll, text=title, font=ctk.CTkFont(weight="bold"), text_color=color).pack(anchor="w", pady=(15, 5))
+        
+        for item in items:
+            path = item["path"] if isinstance(item, dict) else item
+            reason = item.get("reason", "") if isinstance(item, dict) else ""
+            
+            var = ctk.BooleanVar(value=True)
+            cb = ctk.CTkCheckBox(self.scroll, text=f"{path} ({reason})" if reason else path, variable=var)
+            cb.pack(anchor="w", padx=20, pady=2)
+            self.vars[key].append((item, var))
+
+    def on_sync(self):
+        self.btn_sync.configure(state="disabled")
+        self.btn_cancel.configure(state="disabled")
+        final_res = {
+            "pull": [i for i, v in self.vars["pull"] if v.get()],
+            "push": [i for i, v in self.vars["push"] if v.get()],
+            "delete_remote": [i for i, v in self.vars["delete_remote"] if v.get()],
+            "delete_local": [i for i, v in self.vars["delete_local"] if v.get()]
+        }
+        self.callback(final_res)
+        # We DON'T destroy yet, as we want to see logs. 
+        # run_sync will re-enable the cancel button at the end.
+
 class SettingsDialog(ctk.CTkToplevel):
     def __init__(self, parent, profile_manager, action_handler, env_manager, midi_manager):
         super().__init__(parent)
@@ -1248,7 +1322,7 @@ class MidiKbdApp(ctk.CTk):
 
         dialog = ctk.CTkToplevel(self)
         dialog.title(_("sync.title"))
-        dialog.geometry("520x650")
+        dialog.geometry("520x450")
         dialog.resizable(False, False)
         dialog.transient(self)
         dialog.grab_set()
@@ -1269,6 +1343,12 @@ class MidiKbdApp(ctk.CTk):
         ctk.CTkRadioButton(radio_frame, text="SFTP", variable=type_var, value="sftp").pack(side="left", padx=10)
         ctk.CTkRadioButton(radio_frame, text="WebDAV", variable=type_var, value="webdav").pack(side="left", padx=10)
         ctk.CTkRadioButton(radio_frame, text="Local", variable=type_var, value="local").pack(side="left", padx=10)
+        
+        # Sync Mode selection
+        ctk.CTkLabel(tab_sync, text="Mode de Synchronisation:", font=ctk.CTkFont(size=12, weight="bold")).pack(pady=(10, 0))
+        mode_var = ctk.StringVar(value=sync_conf.get("mode", "Bidirectionnel (Auto)"))
+        mode_menu = ctk.CTkOptionMenu(tab_sync, values=["Bidirectionnel (Auto)", "Réception (Pull Only)", "Envoi (Push Only)"], variable=mode_var)
+        mode_menu.pack(pady=5)
         
         # Categories Frame
         cat_frame = ctk.CTkFrame(tab_sync)
@@ -1294,23 +1374,9 @@ class MidiKbdApp(ctk.CTk):
             cb = ctk.CTkCheckBox(cb_container, text=label, variable=var, font=ctk.CTkFont(size=11))
             cb.grid(row=i//2, column=i%2, padx=15, pady=3, sticky="w")
 
-        # Progress elements
+        # Progress status (minimal)
         lbl_status = ctk.CTkLabel(tab_sync, text=_("gui.status_wait"), text_color="gray")
-        lbl_status.pack(pady=(5, 0))
-        
-        progress_bar = ctk.CTkProgressBar(tab_sync, width=400)
-        progress_bar.set(0)
-        progress_bar.pack(pady=10)
-        
-        log_box = ctk.CTkTextbox(tab_sync, height=150, font=ctk.CTkFont(family="Consolas", size=11))
-        log_box.pack(fill="both", expand=True, padx=15, pady=5)
-        log_box.configure(state="disabled")
-
-        def log_msg(msg):
-            log_box.configure(state="normal")
-            log_box.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}\n")
-            log_box.see("end")
-            log_box.configure(state="disabled")
+        lbl_status.pack(pady=10)
 
         # --- TAB CONF SFTP ---
         # (Same as before but with better labels)
@@ -1381,6 +1447,7 @@ class MidiKbdApp(ctk.CTk):
                 sync_conf["webdav_user"] = e_wd_user.get()
                 sync_conf["webdav_pass"] = e_wd_pass.get()
                 sync_conf["type"] = type_var.get()
+                sync_conf["mode"] = mode_var.get()
                 
                 # Save categories
                 active_cats = [k for k, v in cat_vars.items() if v.get()]
@@ -1404,12 +1471,9 @@ class MidiKbdApp(ctk.CTk):
             if not save_conf(): return
             
             btn_sync.configure(state="disabled")
-            log_box.configure(state="normal")
-            log_box.delete("1.0", "end")
-            log_box.configure(state="disabled")
-            
             lbl_status.configure(text=_("sync.status_analyzing"), text_color="orange")
-            progress_bar.set(0)
+            
+            modal_container = [None] # To store modal reference
             
             def _thread():
                 try:
@@ -1444,31 +1508,72 @@ class MidiKbdApp(ctk.CTk):
                     # Progress Callback setup
                     def on_progress(current, total, filename, stage, reason=None):
                         pct = current / total if total > 0 else 1
-                        progress_bar.set(pct)
                         
-                        r_text = f" ({reason})" if reason else ""
-                        
-                        if stage == "analyzing":
-                            lbl_status.configure(text=_("sync.status_analyzing"))
-                        elif stage == "analyzed":
-                            pass # result will be handled below
-                        elif stage == "pull":
-                            log_msg(_("sync.stage_pull", file=filename) + r_text)
-                        elif stage == "push":
-                            log_msg(_("sync.stage_push", file=filename) + r_text)
+                        # Use modal widgets if available
+                        if modal_container[0]:
+                            modal_container[0].progress_bar.set(pct)
+                            r_text = f" ({reason})" if reason else ""
+                            if stage == "pull":
+                                modal_container[0].log_msg(_("sync.stage_pull", file=filename) + r_text)
+                            elif stage == "push":
+                                modal_container[0].log_msg(_("sync.stage_push", file=filename) + r_text)
+                            elif stage == "delete_remote":
+                                modal_container[0].log_msg(f"🗑️ [DEL REMOTE] {filename}")
+                            elif stage == "delete_local":
+                                modal_container[0].log_msg(f"🗑️ [DEL LOCAL] {filename}")
+                        else:
+                            if stage == "analyzing":
+                                lbl_status.configure(text=_("sync.status_analyzing"))
                     
                     mgr.set_progress_callback(on_progress)
                     
                     res = mgr.analyze(selected_categories=selected_cats)
-                    lbl_status.configure(text=_("sync.msg_analysis_res", pull=len(res['pull']), push=len(res['push'])))
                     
-                    if not res['pull'] and not res['push']:
+                    # V9.1: Apply Sync Mode filtering
+                    sync_mode = current_sync_conf.get("mode", "Bidirectionnel (Auto)")
+                    if "Réception" in sync_mode:
+                        res["push"] = []
+                        res["delete_remote"] = []
+                    elif "Envoi" in sync_mode:
+                        res["pull"] = []
+                        res["delete_local"] = []
+                    
+                    # V9.1: Sync Confirmation Logic
+                    sync_event = threading.Event()
+                    final_choice = {"res": None}
+                    
+                    def on_user_choice(choice):
+                        final_choice["res"] = choice
+                        sync_event.set()
+                    
+                    if not any(res.values()):
                         lbl_status.configure(text=_("sync.status_finished"), text_color="green")
                         btn_sync.configure(state="normal")
                         return
 
+                    # Show dialog on main thread
+                    def show_dialog():
+                        modal_container[0] = SyncConfirmationDialog(dialog, res, on_user_choice)
+                    
+                    dialog.after(0, show_dialog)
+                    
+                    # Wait for user
+                    lbl_status.configure(text="En attente du récapitulatif...", text_color="orange")
+                    sync_event.wait()
+                    
+                    res = final_choice["res"]
+                    if not res or not any(res.values()):
+                        lbl_status.configure(text="Synchronisation annulée.", text_color="orange")
+                        btn_sync.configure(state="normal")
+                        return
+
+                    lbl_status.configure(text="Synchronisation en cours...", text_color="blue")
                     mgr.sync(res, selected_categories=selected_cats)
                     lbl_status.configure(text=_("sync.status_finished"), text_color="green")
+                    
+                    if modal_container[0]:
+                        modal_container[0].log_msg("✅ " + _("sync.status_finished"))
+                        modal_container[0].btn_cancel.configure(state="normal", text=_("web.btn_close"), fg_color="green")
                     
                     # Refresh library logic
                     if res['pull']:
@@ -1500,7 +1605,7 @@ class MidiKbdApp(ctk.CTk):
             
             threading.Thread(target=_thread, daemon=True).start()
 
-        btn_sync = ctk.CTkButton(tab_sync, text=_("sync.btn_run"), command=run_sync, fg_color="#0066cc", hover_color="#004499", height=32)
+        btn_sync = ctk.CTkButton(tab_sync, text=_("sync.btn_analyze"), command=run_sync, fg_color="#0066cc", hover_color="#004499", height=32)
         btn_sync.pack(pady=(10, 5))
         ctk.CTkButton(dialog, text=_("web.btn_close"), command=dialog.destroy, fg_color="transparent", border_width=1, text_color="gray").pack(pady=5)
 

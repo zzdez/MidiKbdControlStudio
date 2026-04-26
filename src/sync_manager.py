@@ -28,7 +28,7 @@ class SyncProvider:
     def download_file(self, remote_path: str, local_path: str) -> bool:
         raise NotImplementedError
 
-    def upload_file(self, local_path: str, remote_path: str) -> bool:
+    def delete_file(self, relative_path: str) -> bool:
         raise NotImplementedError
 
 
@@ -105,6 +105,13 @@ class LocalProvider(SyncProvider):
             logging.error(f"[SYNC] [ERROR] Could not verify write for {remote_relative_path}: {e}")
             
         return True
+
+    def delete_file(self, relative_path: str) -> bool:
+        path = os.path.join(self.root_dir, relative_path)
+        if os.path.exists(path):
+            os.remove(path)
+            return True
+        return False
 
     def get_file_content(self, relative_path: str) -> Optional[str]:
         """V7.6: Helper for diagnostic diffs."""
@@ -237,14 +244,31 @@ class SftpProvider(SyncProvider):
         dst = f"{root}/{remote_relative_path}".replace('//', '/')
         dst_dir = os.path.dirname(dst)
         
+        # V8.9: Get local mtime for later sync
+        local_mtime = os.path.getmtime(local_absolute_path)
+        
         logging.warning(f"[SFTP] Uploading to: {dst}")
         try:
             self._mkdir_p(dst_dir)
             self.sftp.put(local_absolute_path, dst)
+            
+            # V8.9: Force remote mtime to match local mtime
+            try:
+                self.sftp.utime(dst, (local_mtime, local_mtime))
+                logging.debug(f"[SFTP] Remote mtime synced for {dst}")
+            except Exception as ut_e:
+                logging.debug(f"[SFTP] Failed to sync utime for {dst}: {ut_e}")
+                
             return True
         except Exception as e:
             logging.warning(f"[SFTP] Echec de l'upload pour {dst} : {e}")
-            raise e
+    def delete_file(self, relative_path: str) -> bool:
+        self.connect()
+        path = f"{self.remote_root}/{relative_path}".replace('//', '/')
+        try:
+            self.sftp.remove(path)
+            return True
+        except: return False
 
 class WebdavProvider(SyncProvider):
     def __init__(self, url: str, username: str, password: str):
@@ -420,6 +444,13 @@ class WebdavProvider(SyncProvider):
             logging.warning(f"[WebDAV] Upload EXCEPTION for {dst}: {e}")
             return False
 
+    def delete_file(self, relative_path: str) -> bool:
+        dst = f"{self.url}/{relative_path}"
+        try:
+            resp = self.session.delete(dst)
+            return resp.status_code in [200, 204]
+        except: return False
+
     def _mkdir_p_dav(self, remote_directory: str):
         if not remote_directory or remote_directory in ['.', '/']:
             return
@@ -461,6 +492,31 @@ class SyncManager:
             'subtitle_enabled', 'subtitle_pos_y', 'subtitle_track', 
             'autoplay', 'autoreplay'
         ]
+
+        # V9.1: Sync State (Memory)
+        self.state_file = os.path.join(local_app_dir, "data", "sync_state.json")
+        self.state = self._load_state()
+
+    def _load_state(self) -> dict:
+        if os.path.exists(self.state_file):
+            try:
+                with open(self.state_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except: pass
+        return {"files": {}, "last_sync": 0}
+
+    def _save_state(self, current_files: dict):
+        """V9.1: Save a snapshot of the synchronized files."""
+        try:
+            os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
+            self.state = {
+                "files": {p: {"mtime": s["mtime"], "size": s["size"]} for p, s in current_files.items()},
+                "last_sync": time.time()
+            }
+            with open(self.state_file, "w", encoding="utf-8") as f:
+                json.dump(self.state, f, indent=2)
+        except Exception as e:
+            logging.error(f"[STATE] Failed to save sync state: {e}")
 
     def _get_canonical_hash_from_dict(self, data: dict) -> str:
         """Returns a stable MD5 from a dict by using minified, sorted JSON."""
@@ -515,20 +571,27 @@ class SyncManager:
             logging.error(f"[DIFF] Failed to log diff for {rel_path}: {e}")
 
     def _are_jsons_functionally_identical(self, local_path: str, remote_data: dict) -> bool:
-        """V7.8: Deep comparison of filtered local JSON vs remote JSON data."""
+        """V7.8 & V8.7: Symmetric deep comparison of filtered local JSON vs filtered remote JSON."""
         try:
             with open(local_path, "r", encoding="utf-8") as f:
                 local_raw = json.load(f)
             
-            local_filtered = local_raw
-            if isinstance(local_raw, dict):
-                local_filtered = {k: local_raw[k] for k in self.shared_fields if k in local_raw}
+            if not isinstance(local_raw, dict) or not isinstance(remote_data, dict):
+                # For non-dict (lists like setlist), compare as is
+                return local_raw == remote_data
 
-            if not isinstance(remote_data, dict) or not isinstance(local_filtered, dict):
-                return False
+            # V8.7: Symmetric filtering
+            # We filter BOTH sides to ensure we only compare the fields that AirstepStudio manages.
+            # This ignores extra metadata that some WebDAV servers might inject or preserve.
+            local_filtered = {k: local_raw[k] for k in self.shared_fields if k in local_raw}
+            remote_filtered = {k: remote_data[k] for k in self.shared_fields if k in remote_data}
 
-            # Strict keys and values comparison
-            return local_filtered == remote_data
+            # Also force remove private fields just in case
+            for fld in self.private_fields:
+                if fld in local_filtered: del local_filtered[fld]
+                if fld in remote_filtered: del remote_filtered[fld]
+
+            return local_filtered == remote_filtered
         except:
             return False
 
@@ -550,22 +613,23 @@ class SyncManager:
 
     def analyze(self, selected_categories: Optional[List[str]] = None) -> Dict[str, list]:
         """
-        Compares local and remote to return a list of files to pull and push.
-        selected_categories: List of ['exe', 'medias', 'data', 'profiles', 'devices', 'system']
+        V9.1: Comprehensive analysis including additions, updates, and deletions.
+        Returns: {'pull': [], 'push': [], 'delete_remote': [], 'delete_local': []}
         """
         self._notify_progress(0, 100, "", "analyzing")
         
-        remote_files = self.provider.list_files()
         local_files = self._list_local_files()
+        remote_files = self.provider.list_files()
         
-        self._remote_files_cache = remote_files
-        
-        # Build lowercase maps for case-insensitive matching
-        remote_files_lower = {k.lower(): k for k in remote_files.keys()}
-        local_files_lower = {k.lower(): k for k in local_files.keys()}
+        # Maps for case-insensitive matching
+        local_files_lower = {p.lower(): p for p in local_files.keys()}
+        remote_files_lower = {p.lower(): p for p in remote_files.keys()}
+        state_files_lower = {p.lower(): p for p in self.state.get("files", {}).keys()}
         
         to_pull = []
         to_push = []
+        to_delete_remote = [] # Deleted locally -> should be removed from remote
+        to_delete_local = []  # Deleted remotely -> should be removed from local
         
         TOLERANCE = 5.0 # V6.6: Increased to 5s for non-hashed binary files (Windows jitter resilience)
         
@@ -574,212 +638,105 @@ class SyncManager:
         hash_counts = {"local": sum(1 for f in local_files.values() if 'hash' in f),
                        "remote": sum(1 for f in remote_files.values() if 'hash' in f)}
         
-        logging.warning(f"[SYNC] Analyze: Local files: {len(local_files)} ({hash_counts['local']} hashed), Remote files: {len(remote_files)} ({hash_counts['remote']} hashed)")
+        logging.warning(f"[SYNC] Analyze: Local files: {len(local_files)}, Remote files: {len(remote_files)}, State: {len(self.state.get('files', {}))}")
 
         # V8.4: WebDAV Ghost Cleanup
-        # If we find library.json at the root, but it also exists in data/ on the remote
-        # we should ignore the root one to avoid confusion.
         ghosts = ['library.json', 'local_lib.json', 'setlist.json', 'web_links.json']
-        remote_ghost_keys = []
         for g in ghosts:
             if g in remote_files and f"data/{g}" in remote_files:
-                logging.warning(f"[SYNC] [CLEANUP] Ignoring ghost file at remote root: {g} (Data version exists)")
-                remote_ghost_keys.append(g)
-        for g in remote_ghost_keys:
-            del remote_files[g]
-            del remote_files_lower[g.lower()]
+                logging.warning(f"[SYNC] [CLEANUP] Ignoring ghost file at remote root: {g}")
+                if g in remote_files: del remote_files[g]
+                if g.lower() in remote_files_lower: del remote_files_lower[g.lower()]
 
-        # V8.4: Semantic Sovereignty Map
-        # Paths identified as functionally identical in Pass 1.5 will be skipped in main loop
-        self._semantic_identity_cache = set()
-
-        # Pass 1: Identical content (Highest confidence)
+        # PASS 1: CLOCK SKEW CALIBRATION
+        skews = []
         for rel_path, remote_stat in remote_files.items():
             rel_path_low = rel_path.lower()
             if rel_path_low in local_files_lower:
-                local_p_real = local_files_lower[rel_path_low]
-                local_stat = local_files[local_p_real]
+                local_p = local_files_lower[rel_path_low]
+                local_stat = local_files[local_p]
                 if 'hash' in remote_stat and 'hash' in local_stat:
                     if remote_stat['hash'] == local_stat['hash']:
                         skews.append(local_stat['mtime'] - remote_stat['mtime'])
-                        # If hashes match, it's also a semantic identity
-                        self._semantic_identity_cache.add(rel_path.lower())
+
+        if not skews and hasattr(self.provider, 'get_file_content'):
+            json_files = [p for p in remote_files.keys() if p.lower().endswith('.json')]
+            data_jsons = [p for p in json_files if p.lower().startswith('data/')]
+            priority_jsons = (data_jsons + json_files[:10])[:20]
+            for rel_path in priority_jsons:
+                if rel_path.lower() in local_files_lower:
+                    try:
+                        remote_raw = self.provider.get_file_content(rel_path)
+                        if remote_raw:
+                            remote_data = json.loads(remote_raw)
+                            local_p = local_files_lower[rel_path.lower()]
+                            if self._are_jsons_functionally_identical(local_p, remote_data):
+                                skews.append(local_files[local_p]['mtime'] - remote_files[rel_path]['mtime'])
+                    except: pass
         
-        # Pass 2: Fallback to same size (Lower confidence, used only if nothing found)
-        if not skews:
-            logging.warning("[SYNC] No identical hashes found for skew. Falling back to semantic anchoring (Pass 1.5).")
-            # V8.3: Pass 1.5: Functional sidecar anchoring
-            # If the provider doesn't support hashes (WebDAV), we read a few JSONs directly
-            # to see if they are identical. If yes, it's a perfect anchor.
-            canonical_anchors = []
-            if hasattr(self.provider, 'get_file_content'):
-                scan_count = 0
-                for rel_path, remote_stat in remote_files.items():
-                    if scan_count >= 10: break # Performance limit
-                    if self._is_media_sidecar(rel_path) and rel_path.lower() in local_files_lower:
-                        local_p_real = local_files_lower[rel_path.lower()]
-                        try:
-                            remote_raw = self.provider.get_file_content(rel_path)
-                            if remote_raw:
-                                remote_data = json.loads(remote_raw)
-                                if self._are_jsons_functionally_identical(local_p_real, remote_data):
-                                    local_stat = local_files[local_p_real]
-                                    skews.append(local_stat['mtime'] - remote_stat['mtime'])
-                                    canonical_anchors.append(rel_path)
-                                    self._semantic_identity_cache.add(rel_path.lower())
-                                    scan_count += 1
-                        except: pass
-            
-            if canonical_anchors:
-                logging.warning(f"[SYNC] Clock skew stabilized (Pass 1.5) using {len(canonical_anchors)} semantic anchors.")
-            else:
-                logging.warning("[SYNC] Pass 1.5 failed. Falling back to same-size anchoring (Pass 2).")
-                for rel_path, remote_stat in remote_files.items():
-                    rel_path_low = rel_path.lower()
-                    if rel_path_low in local_files_lower:
-                        local_stat = local_files[local_files_lower[rel_path_low]]
-                        if remote_stat['size'] == local_stat['size'] and remote_stat['size'] > 0:
-                            # Only take large files or exes to be safer
-                            ext = os.path.splitext(rel_path)[1].lower()
-                            if remote_stat['size'] > 1024 * 1024 or ext in ['.exe', '.dll', '.mp4', '.mp3']:
-                                skews.append(local_stat['mtime'] - remote_stat['mtime'])
-        
-        # Pass 3: Universal Fallback (Any common file as anchor)
-        if not skews:
-            logging.warning("[SYNC] Critical: No anchor found in Pass 1 or 2. Falling back to universal name matching.")
-            for rel_path, remote_stat in remote_files.items():
-                rel_path_low = rel_path.lower()
-                if rel_path_low in local_files_lower:
-                    local_stat = local_files[local_files_lower[rel_path_low]]
-                    skews.append(local_stat['mtime'] - remote_stat['mtime'])
-        
-        # Calculate median skew
         clock_skew = 0
         if skews:
             skews.sort()
-            # V8.0: Absolute Drift Stability
-            # We use the median of ALL common files. This forces the clock to anchor
-            # on the majority (the 200+ identical JSONs) and ignores the drifting EXE.
             clock_skew = skews[len(skews) // 2]
-            logging.warning(f"[SYNC] [RESULT] Clock skew stabilized on majority: {clock_skew:.2f}s (based on {len(skews)} samples).")
-        else:
-            logging.warning("[SYNC] [RESULT] No common files found at all. Using 0s offset.")
+            logging.warning(f"[SYNC] Clock skew stabilized: {clock_skew:.2f}s")
+            
+        TOLERANCE = 5.0
 
-        # V6.8: Detection of remote corruption (duplicate hashes)
-        remote_hashes = {}
-        for p, s in remote_files.items():
-            h = s.get('hash')
-            if h and s['size'] > 100: # Ignore tiny identical files like {}
-                if h in remote_hashes:
-                    logging.error(f"[SYNC] [WARNING] Remote corruption suspected: {p} has same hash as {remote_hashes[h]} ({h[:8]}..). Your backup might be invalid!")
-                else:
-                    remote_hashes[h] = p
-
-        # Filter files based on categories
+        # PASS 2: COMPREHENSIVE SCAN
+        # 2.1 Scan Remote for Pull or Remote-Delete
         for rel_path, remote_stat in remote_files.items():
             rel_path_low = rel_path.lower()
-            
-            # 1. Check absolute ignore (Never sync)
-            if self._is_absolute_ignore(rel_path):
-                continue
-                
-            # 2. Check if file belongs to selected categories
-            if not self._is_in_selected_categories(rel_path, selected_categories):
-                continue
+            if self._is_absolute_ignore(rel_path): continue
+            if not self._is_in_selected_categories(rel_path, selected_categories): continue
 
-            # V8.4: Semantic Sovereignty check
-            # Skip if we already confirmed functional identity in Pass 1.5 (for WebDAV)
-            # or in Pass 1 (for providers with hashes)
-            if rel_path_low in self._semantic_identity_cache:
-                continue
-            
-            # 3. Pull/Push logic
             if rel_path_low not in local_files_lower:
-                if self._is_shared_file(rel_path, is_remote=True, categories=selected_categories):
-                    # logging.warning(f"[SYNC] Add to Pull: {rel_path} (Missing locally)")
-                    to_pull.append({"path": rel_path, "reason": "remote_only"})
+                if rel_path_low in state_files_lower:
+                    to_delete_remote.append({"path": rel_path, "reason": "deleted_locally"})
+                else:
+                    if self._is_shared_file(rel_path, is_remote=True, categories=selected_categories):
+                        to_pull.append({"path": rel_path, "reason": "remote_only"})
             else:
                 local_p_real = local_files_lower[rel_path_low]
                 local_stat = local_files[local_p_real]
-                local_mtime = local_stat['mtime']
-                remote_mtime = remote_stat['mtime']
                 
-                # V7.2: Robust relative time comparison
-                diff = local_mtime - remote_mtime
-                drift = diff - clock_skew
-                is_mtime_different = abs(drift) > TOLERANCE
-                
-                # V6.6: Hybrid Hash/Mtime logic
-                has_hash = ('hash' in remote_stat and 'hash' in local_stat)
-                if has_hash:
-                    local_hash = local_stat['hash']
-                    
-                    # V7.5: Use filtered hash for comparison on sidecars
-                    if self._is_media_sidecar(rel_path):
-                        local_hash = self._get_filtered_hash_for_comparison(local_p_real)
-                        
-                        # V7.7: ATOMIC NEUTRALIZATION
-                        # If canonical content is identical, skip sync entirely.
-                        if local_hash == remote_stat['hash']:
-                            logging.debug(f"[SYNC] {rel_path} : Canonical match found. Ignoring formatting differences.")
+                if rel_path.lower().endswith('.json') and hasattr(self.provider, 'get_file_content'):
+                    try:
+                        remote_raw = self.provider.get_file_content(rel_path)
+                        if remote_raw and self._are_jsons_functionally_identical(local_p_real, json.loads(remote_raw)):
                             continue
+                    except: pass
 
-                    if local_hash != remote_stat['hash']:
-                        # Content differs!
-                        logging.warning(f"[SYNC] [DEBUG] {rel_path} : Hash mismatch! (Local:{local_hash[:8]} vs Remote:{remote_stat['hash'][:8]})")
-                        
-                        # V7.6: Diagnostic Diff
-                        if self._is_media_sidecar(rel_path) and hasattr(self.provider, 'get_file_content'):
-                            try:
-                                remote_raw = self.provider.get_file_content(rel_path)
-                                if remote_raw:
-                                    remote_data = json.loads(remote_raw)
-                                    # V7.8: FUNCTIONAL NEUTRALIZATION
-                                    if self._are_jsons_functionally_identical(local_p_real, remote_data):
-                                        logging.warning(f"[SYNC] [OK] {rel_path} : Functionally identical content. Skipping sync.")
-                                        continue
-                                    
-                                    self._log_json_diff(local_p_real, remote_data, rel_path)
-                            except Exception as e:
-                                logging.debug(f"Diff diagnostic failed: {e}")
-
-                        # Decision logic for content mismatch
-                        if drift > 0:
-                            to_push.append({"path": local_p_real, "reason": "content_change (local_newer)"})
-                        else:
-                            to_pull.append({"path": rel_path, "reason": "content_change (remote_newer)"})
-                    continue
-                
-                # If no hash, rely on mtime drift
-                if is_mtime_different:
-                    # V8.4: Safety for EXE on servers without hashes
-                    # Never pull an EXE due to mtime drift alone if it's identical size
-                    if rel_path.lower().endswith('.exe') and remote_stat['size'] == local_stat['size']:
-                        logging.warning(f"[SYNC] [SAFETY] {rel_path} : Ignoring time drift on same-sized EXE.")
+                drift = (local_stat['mtime'] - remote_stat['mtime']) - clock_skew
+                if 'hash' in remote_stat and 'hash' in local_stat:
+                    if remote_stat['hash'] != local_stat['hash']:
+                        if drift > 0: to_push.append({"path": local_p_real, "reason": "content_change"})
+                        else: to_pull.append({"path": rel_path, "reason": "content_change"})
+                elif abs(drift) > TOLERANCE:
+                    if remote_stat['size'] == local_stat['size'] and remote_stat['size'] > 0:
                         continue
+                    if drift > 0: to_push.append({"path": local_p_real, "reason": "newer_locally"})
+                    else: to_pull.append({"path": rel_path, "reason": "newer_remotely"})
 
-                    logging.warning(f"[SYNC] [DEBUG] {rel_path} : Time mismatch! (Drift:{drift:.2f}s)")
-                    if drift > 0:
-                        to_push.append({"path": local_p_real, "reason": f"local_newer (Drift:{drift:.2f}s)"})
-                    else:
-                        to_pull.append({"path": rel_path, "reason": f"remote_newer (Drift:{drift:.2f}s)"})
-        
-        # Determine push for shared local files that don't exist remotely (case-insensitive)
+        # 2.2 Scan Local for Push or Local-Delete
         for rel_path, local_stat in local_files.items():
             rel_path_low = rel_path.lower()
-            
-            if self._is_absolute_ignore(rel_path):
-                continue
-                
-            if not self._is_in_selected_categories(rel_path, selected_categories):
-                continue
-                
-            if self._is_shared_file(rel_path, categories=selected_categories) and rel_path_low not in remote_files_lower:
-                # logging.warning(f"[SYNC] Add to Push: {rel_path} (Missing on remote)")
-                to_push.append({"path": rel_path, "reason": "local_only"})
+            if self._is_absolute_ignore(rel_path): continue
+            if not self._is_in_selected_categories(rel_path, selected_categories): continue
+
+            if rel_path_low not in remote_files_lower:
+                if rel_path_low in state_files_lower:
+                    to_delete_local.append({"path": rel_path, "reason": "deleted_remotely"})
+                else:
+                    if self._is_shared_file(rel_path, categories=selected_categories):
+                        to_push.append({"path": rel_path, "reason": "local_only"})
         
         self._notify_progress(100, 100, "", "analyzed")
-        return {"pull": to_pull, "push": to_push}
+        return {
+            "pull": to_pull, 
+            "push": to_push,
+            "delete_remote": to_delete_remote,
+            "delete_local": to_delete_local
+        }
     
     def _list_local_files(self) -> Dict[str, dict]:
         """Scans the local application directory for files."""
@@ -909,36 +866,32 @@ class SyncManager:
     def sync(self, analysis_result: Dict[str, list], selected_categories: Optional[List[str]] = None):
         pull_list = analysis_result.get('pull', [])
         push_list = analysis_result.get('push', [])
-        total_actions = len(pull_list) + len(push_list)
+        del_remote = analysis_result.get('delete_remote', [])
+        del_local = analysis_result.get('delete_local', [])
+        
+        total_actions = len(pull_list) + len(push_list) + len(del_remote) + len(del_local)
         current_action = 0
         
-        logging.warning(f"[SYNC] Starting execution: {len(pull_list)} to pull, {len(push_list)} to push.")
+        logging.warning(f"[SYNC] Starting execution: {len(pull_list)} pull, {len(push_list)} push, {len(del_remote)} del_rem, {len(del_local)} del_loc")
 
         os.makedirs(self.update_buffer_dir, exist_ok=True)
-        # Store remote files in a cache for _is_shared_file to use
-        self._remote_files_cache = self.provider.list_files()
-        remote_files = self._remote_files_cache
+        remote_files = self.provider.list_files()
         
         # 1. Pull
         for item in pull_list:
             rel_path = item["path"] if isinstance(item, dict) else item
             reason = item["reason"] if isinstance(item, dict) else None
-            
             current_action += 1
             self._notify_progress(current_action, total_actions, rel_path, "pull", reason)
             
-            # Normal pull to buffer
             buffer_path = os.path.join(self.update_buffer_dir, rel_path)
             self.provider.download_file(rel_path, buffer_path)
             
-            # Deep Merge JSON logic only for Media Sidecars
-            # System JSONs (locales, library, etc.) are synced as-is (RAW)
             if self._is_media_sidecar(rel_path):
                 local_path = os.path.join(self.local_dir, rel_path)
                 if os.path.exists(local_path):
                     self._perform_deep_merge(buffer_path, local_path)
             
-            # Instantly apply non-lockable files to the main directory
             if not rel_path.lower().endswith('.exe'):
                 local_path = os.path.join(self.local_dir, rel_path)
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
@@ -948,29 +901,21 @@ class SyncManager:
         for item in push_list:
             rel_path = item["path"] if isinstance(item, dict) else item
             reason = item["reason"] if isinstance(item, dict) else None
-            
             current_action += 1
             self._notify_progress(current_action, total_actions, rel_path, "push", reason)
             
             local_path = os.path.join(self.local_dir, rel_path)
             upload_source = local_path
             
-            # Smart filtering only for Media Sidecars
-            # Other JSONs are pushed raw to ensure binary hash parity
             if self._is_media_sidecar(rel_path):
                 try:
-                    # 1. Download existing remote version if it exists
                     temp_remote_path = os.path.join(self.update_buffer_dir, rel_path + ".remote")
-                    remote_exists = rel_path in remote_files
-                    
-                    if remote_exists:
+                    if rel_path in remote_files:
                         self.provider.download_file(rel_path, temp_remote_path)
-                        # Prepare a merged AND filtered version for upload
                         filtered_path = os.path.join(self.update_buffer_dir, rel_path + ".upload")
                         self._prepare_filtered_json_for_upload(local_path, temp_remote_path, filtered_path)
                         upload_source = filtered_path
                     else:
-                        # New file on master: filter only
                         filtered_path = os.path.join(self.update_buffer_dir, rel_path + ".upload")
                         self._prepare_filtered_json_for_upload(local_path, None, filtered_path)
                         upload_source = filtered_path
@@ -978,6 +923,28 @@ class SyncManager:
                     logging.error(f"Push preparation error for {rel_path}: {e}")
 
             self.provider.upload_file(upload_source, rel_path)
+
+        # 3. Delete Remote
+        for item in del_remote:
+            rel_path = item["path"] if isinstance(item, dict) else item
+            current_action += 1
+            self._notify_progress(current_action, total_actions, rel_path, "delete_remote")
+            logging.warning(f"[SYNC] Deleting remote file: {rel_path}")
+            self.provider.delete_file(rel_path)
+
+        # 4. Delete Local
+        for item in del_local:
+            rel_path = item["path"] if isinstance(item, dict) else item
+            current_action += 1
+            self._notify_progress(current_action, total_actions, rel_path, "delete_local")
+            local_path = os.path.join(self.local_dir, rel_path)
+            if os.path.exists(local_path):
+                logging.warning(f"[SYNC] Deleting local file: {rel_path}")
+                os.remove(local_path)
+        
+        # FINAL: Save current state to memory
+        final_local_files = self._list_local_files()
+        self._save_state(final_local_files)
         
         self._notify_progress(total_actions, total_actions, "", "finished")
 

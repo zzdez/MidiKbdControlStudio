@@ -699,3 +699,25 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 *   **Intégrité Physiques des Données** :
     - Implémentation systématique de `f.flush()` et `os.fsync()` lors de la sauvegarde des métadonnées et des images, prévenant les corruptions de fichiers lors de déplacements ou de rafraîchissements rapides.
 *   **Expansion WAV** : Support natif de l'extraction et de l'injection d'images dans les fichiers WAV via le moteur Mutagen Wave.
+
+### 48. Évolution V69 : Persistance Absolue & MIDI Smart Matching
+*   **Path Persistence (`utils.py`) :**
+    - **Dossier Agnostique** : Centralisation via `get_app_dir()` pour garantir que le dossier de données (`config.json`, `profiles/`, `devices/`, `library.json`, etc.) réside **toujours** à côté de l'exécutable PyInstaller (`sys.executable`), même si l'application est lancée depuis un raccourci bureau qui modifie le CWD (Current Working Directory).
+    - **Sécurité des Données** : Suppression stricte des accès par chemins relatifs dans tous les managers (`config_manager.py`, `profile_manager.py`, `device_manager.py`, `library_manager.py`, `server.py`).
+*   **Smart Matching MIDI Output (`midi_engine.py`) :**
+    - **Résolution Dynamique** : Le moteur est désormais capable de se reconnecter automatiquement à un port de sortie renommé par Windows MM. Si "Midi 1" est déconnecté puis redétecté comme "Midi 2", le moteur retire le suffixe numérique, matche la racine "Midi", se connecte, et **met à jour la configuration silencieusement** pour préserver la case cochée dans GUI.
+    - **Ghost Config Fix** : La mémoire tampon de l'interface `self.settings` ne subit plus de dérive (drift) lors des appels `save_all`. Les ports d'E/S actifs sont strictement synchronisés dynamiquement avant chaque sauvegarde, évitant l'écrasement intempestif par un `config.json` vide.
+*   **Mode "Light" Agnostique (`main.py`) :**
+    - Le système de `.flag` (Désactivation Web/Moniteur de Focus) est désormais robuste et fonctionne n'importe où grâce à l'implémentation de `get_app_dir()`. De plus, le `.env` de sécurité YouTube obsolète a été banni de l'UI.
+
+### 49. Évolution V70 (V9.1 - V9.2) : Moteur de Synchronisation Interactive & Sécurité
+*   **Analyse de Différentiel Avancée (`sync_manager.py`) :**
+    - **Sync State Tracker** : Création de `data/sync_state.json` pour mémoriser l'état de la bibliothèque après chaque succès. Permet de distinguer mathématiquement une suppression d'un nouvel ajout.
+    - **Détection des Suppressions** : Le moteur identifie désormais 4 types d'actions : `pull`, `push`, `delete_remote` (suppression cloud) et `delete_local` (suppression physique locale).
+*   **Interface de Validation "Safety-First" (`gui.py`) :**
+    - **SyncConfirmationDialog** : Nouvelle modale interactive présentant le récapitulatif complet de l'analyse (avec icônes 📥, 📤, 🗑️). L'utilisateur peut cocher/décocher individuellement chaque fichier avant l'exécution.
+    - **Console Intégrée** : Déplacement de la barre de progression et de la console de logs du Dashboard principal vers la modale pour une meilleure concentration sur l'opération en cours.
+*   **Bridage de Flux (Sync Modes) :**
+    - Implémentation de 3 modes opératoires : **Bidirectionnel**, **Réception seule (Pull Only)** et **Envoi seul (Push Only)**. Le système filtre les listes d'actions avant de les présenter à l'utilisateur selon le mode choisi.
+*   **Hardening des Providers :**
+    - Ajout de la méthode `delete_file` dans `LocalProvider`, `SftpProvider` et `WebdavProvider`. Support du forçage de l'horloge (`utime`) sur SFTP pour garantir une précision < 1s.
