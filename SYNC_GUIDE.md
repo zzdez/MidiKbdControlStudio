@@ -38,38 +38,38 @@ Vous pouvez choisir précisément ce que vous souhaitez partager :
 
 ---
 
-## 3. Modes de Synchronisation
+## 3. Modes de Synchronisation (Autorité)
 
-Une nouveauté de la V9.2 est le **bridage de flux** :
+Une nouveauté de la V9.3 est la gestion de l'**autorité de flux** :
 
-*   **Bidirectionnel (Auto)** : Le mode standard. Les modifications locales sont envoyées, les modifications distantes sont reçues, et les suppressions sont propagées des deux côtés.
-*   **Réception (Pull Only)** : Mode sécurisé. L'application ne fera que télécharger les nouveautés du cloud. Rien ne sera jamais envoyé ou supprimé sur le cloud depuis cette machine.
-*   **Envoi (Push Only)** : Mode maître. L'application envoie ses modifications vers le cloud mais ignore les changements distants. Utile pour une machine de "production" principale.
+*   **Bidirectionnel (Neutre)** : Propose toutes les actions. Les ajouts et modifications sont sélectionnés par défaut, les suppressions sont proposées mais décochées par défaut pour votre sécurité.
+*   **Réception (Esclave / Pull Only)** : Seul le flux **Cloud ➔ PC** est actif. Les nouveaux fichiers du cloud sont téléchargés. Les fichiers manquants sur le cloud sont proposés à la suppression locale (décochés par défaut).
+*   **Envoi (Maître / Push Only)** : Seul le flux **PC ➔ Cloud** est actif. Vos nouveaux fichiers locaux sont envoyés vers le cloud. Les fichiers manquants localement sont proposés à la suppression sur le cloud (décochés par défaut).
 
 ---
 
-## 4. Workflow d'Utilisation
+## 4. Workflow d'Utilisation (Cockpit V9.3)
 
 Le processus se déroule en 3 étapes sécurisées :
 
 ### Étape 1 : Analyse
-Cliquez sur **Analyser**. Le système scanne le cloud et votre machine locale (en ignorant les fichiers identiques pour économiser la bande passante).
+Cliquez sur **Analyser**. Le système scanne le cloud et votre machine locale. **Nouveauté V9.3** : Les nouveaux médias locaux sont désormais détectés et proposés même s'ils n'ont pas encore de marquage "partagé" explicite.
 
-### Étape 2 : Récapitulatif & Confirmation
-Une modale interactive s'ouvre. Elle affiche la liste exacte de ce qui va se passer :
-*   📥 **Pull** : Fichiers arrivant du cloud.
-*   📤 **Push** : Fichiers envoyés vers le cloud.
-*   🗑️ **Delete Remote** : Fichiers qui seront supprimés sur le cloud car vous les avez supprimés ici.
-*   🗑️ **Delete Local** : Fichiers qui seront supprimés ici car ils n'existent plus sur le cloud.
+### Étape 2 : Cockpit de Validation
+Une modale interactive s'ouvre. Elle affiche la liste exacte avec des indicateurs de direction clairs :
+*   📥 **Cloud ➔ PC** : Fichiers arrivant du cloud.
+*   📤 **PC ➔ Cloud** : Fichiers envoyés vers le cloud.
+*   🗑️ **Cloud ❌** : Suppression sur le cloud.
+*   🗑️ **PC ❌** : Suppression sur ce PC.
 
-**Sécurité** : Vous pouvez décocher n'importe quel élément que vous ne souhaitez pas synchroniser à ce moment-là.
-
-### Étape 3 : Exécution
-Cliquez sur **Lancer la Synchronisation**. La progression et les logs détaillés s'affichent directement dans la modale. Une fois terminé, la bibliothèque se rafraîchit automatiquement.
+**Gestion de Masse** : Utilisez les cases à cocher **"Tout sélectionner"** en haut de chaque catégorie pour gagner du temps sur les gros volumes de fichiers.
 
 ---
 
 ## 5. Résolution de Problèmes (Troubleshooting)
+
+*   **Bouton Analyser grisé** : Si vous fermez la modale via la croix (X), l'interface se réinitialise désormais proprement (**Fix V9.3**).
+*   **Fichiers non détectés** : Assurez-vous d'avoir sélectionné les bonnes **Catégories** (Médias, Profils, etc.) avant de lancer l'analyse.
 
 *   **Conflit de Casse (Casing)** : Windows est insensible à la casse (`Photo.jpg` = `photo.jpg`), mais les serveurs Linux (SFTP/WebDAV) ne le sont pas. Le `SyncManager` intègre un "Bouclier de Casse" qui normalise les comparaisons pour éviter les boucles de transfert infinies.
 *   **Précision SFTP** : Certains serveurs SFTP tronquent les millisecondes des dates de fichiers. Le provider SFTP utilise un forçage `utime` pour garantir que les dates correspondent à 1 seconde près, évitant les faux-positifs de modification.

@@ -505,18 +505,6 @@ class SyncManager:
             except: pass
         return {"files": {}, "last_sync": 0}
 
-    def _save_state(self, current_files: dict):
-        """V9.1: Save a snapshot of the synchronized files."""
-        try:
-            os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
-            self.state = {
-                "files": {p: {"mtime": s["mtime"], "size": s["size"]} for p, s in current_files.items()},
-                "last_sync": time.time()
-            }
-            with open(self.state_file, "w", encoding="utf-8") as f:
-                json.dump(self.state, f, indent=2)
-        except Exception as e:
-            logging.error(f"[STATE] Failed to save sync state: {e}")
 
     def _get_canonical_hash_from_dict(self, data: dict) -> str:
         """Returns a stable MD5 from a dict by using minified, sorted JSON."""
@@ -611,7 +599,7 @@ class SyncManager:
             except:
                 pass
 
-    def analyze(self, selected_categories: Optional[List[str]] = None) -> Dict[str, list]:
+    def analyze(self, selected_categories: Optional[List[str]] = None, mode: str = "Bidirectionnel (Auto)") -> Dict[str, list]:
         """
         V9.1: Comprehensive analysis including additions, updates, and deletions.
         Returns: {'pull': [], 'push': [], 'delete_remote': [], 'delete_local': []}
@@ -690,7 +678,11 @@ class SyncManager:
             if not self._is_in_selected_categories(rel_path, selected_categories): continue
 
             if rel_path_low not in local_files_lower:
-                if rel_path_low in state_files_lower:
+                # AUTHORITY LOGIC: If we are in "Push Only (Master)" mode, anything on remote NOT on local
+                # should be proposed for deletion to match the local state.
+                if "Envoi" in mode:
+                    to_delete_remote.append({"path": rel_path, "reason": "mirror_master"})
+                elif rel_path_low in state_files_lower:
                     to_delete_remote.append({"path": rel_path, "reason": "deleted_locally"})
                 else:
                     if self._is_shared_file(rel_path, is_remote=True, categories=selected_categories):
@@ -724,7 +716,11 @@ class SyncManager:
             if not self._is_in_selected_categories(rel_path, selected_categories): continue
 
             if rel_path_low not in remote_files_lower:
-                if rel_path_low in state_files_lower:
+                # AUTHORITY LOGIC: If we are in "Pull Only (Slave)" mode, anything on local NOT on remote
+                # should be proposed for deletion to match the remote state.
+                if "Réception" in mode:
+                    to_delete_local.append({"path": rel_path, "reason": "mirror_slave"})
+                elif rel_path_low in state_files_lower:
                     to_delete_local.append({"path": rel_path, "reason": "deleted_remotely"})
                 else:
                     if self._is_shared_file(rel_path, categories=selected_categories):
@@ -820,6 +816,12 @@ class SyncManager:
             
             # For media content files, check if their sidecar is shared
             json_path = rel_path + '.json'
+            if not is_remote:
+                # If local media, check if sidecar exists. If it DOES NOT, it's a NEW file -> consider shared
+                local_json = os.path.join(self.local_dir, json_path)
+                if not os.path.exists(local_json):
+                    return True
+                    
             if self._is_shared_file(json_path, is_remote=is_remote, categories=categories):
                 return True
                 
@@ -943,8 +945,25 @@ class SyncManager:
                 os.remove(local_path)
         
         # FINAL: Save current state to memory
-        final_local_files = self._list_local_files()
-        self._save_state(final_local_files)
+        # V9.2.1: We only save what is CURRENTLY on the remote and that is SHARED.
+        # This prevents new local files (not yet pushed) from being seen as "deleted remotely".
+        final_remote_files = self.provider.list_files()
+        shared_state = {}
+        for p, s in final_remote_files.items():
+            if self._is_shared_file(p, is_remote=True, categories=selected_categories):
+                shared_state[p] = {"mtime": s.get("mtime", 0), "size": s.get("size", 0)}
+        
+        # Save to sync_state.json
+        try:
+            os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
+            self.state = {
+                "files": shared_state,
+                "last_sync": time.time()
+            }
+            with open(self.state_file, "w", encoding="utf-8") as f:
+                json.dump(self.state, f, indent=2)
+        except Exception as e:
+            logging.error(f"[STATE] Failed to save sync state: {e}")
         
         self._notify_progress(total_actions, total_actions, "", "finished")
 

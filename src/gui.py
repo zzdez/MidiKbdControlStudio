@@ -133,26 +133,30 @@ class ShortcutsDialog(ctk.CTkToplevel):
 class SyncConfirmationDialog(ctk.CTkToplevel):
     def __init__(self, parent, analysis_result, callback):
         super().__init__(parent)
-        self.title("Récapitulatif & Exécution de la Synchronisation")
-        self.geometry("900x800")
-        self.analysis_result = analysis_result
-        self.callback = callback
+        self.title("Récapitulatif de Synchronisation")
+        self.geometry("950x850")
         self.attributes("-topmost", True)
+        self.callback = callback
+        self.vars = {"pull": [], "push": [], "delete_remote": [], "delete_local": []}
+        self.section_cbs = {} # Global checkboxes
+        
+        # Handle close window (X button)
+        self.protocol("WM_DELETE_WINDOW", self.on_cancel)
         self.grab_set()
 
-        ctk.CTkLabel(self, text="Éléments à synchroniser", font=ctk.CTkFont(size=20, weight="bold")).pack(pady=15)
-        
-        self.scroll = ctk.CTkScrollableFrame(self, height=350)
-        self.scroll.pack(fill="both", expand=False, padx=20, pady=10)
-        
-        self.vars = {"pull": [], "push": [], "delete_remote": [], "delete_local": []}
-        
-        self._add_section("📥 Téléchargements (Pull)", analysis_result.get("pull", []), "pull", "#2ecc71")
-        self._add_section("📤 Envois (Push)", analysis_result.get("push", []), "push", "#3498db")
-        self._add_section("🗑️ Suppressions Distantes (Delete Remote)", analysis_result.get("delete_remote", []), "delete_remote", "#e74c3c")
-        self._add_section("🗑️ Suppressions Locales (Delete Local)", analysis_result.get("delete_local", []), "delete_local", "#e67e22")
+        self.scroll = ctk.CTkScrollableFrame(self)
+        self.scroll.pack(fill="both", expand=True, padx=20, pady=20)
 
-        # Execution Section (New in V9.2)
+        ctk.CTkLabel(self.scroll, text="Vérifiez les actions avant de lancer la synchronisation :", 
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
+
+        # Build sections
+        self._add_section("📥 Téléchargements (Cloud ➔ PC)", analysis_result.get("pull", []), "pull", "#2ecc71", default=True)
+        self._add_section("📤 Envois (PC ➔ Cloud)", analysis_result.get("push", []), "push", "#3498db", default=True)
+        self._add_section("🗑️ Suppressions sur le Cloud (Cloud ❌)", analysis_result.get("delete_remote", []), "delete_remote", "#e74c3c", default=False)
+        self._add_section("🗑️ Suppressions sur ce PC (PC ❌)", analysis_result.get("delete_local", []), "delete_local", "#e67e22", default=False)
+
+        # Execution Section
         ctk.CTkLabel(self, text="Progression & Logs", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(10, 5))
         self.progress_bar = ctk.CTkProgressBar(self, width=800)
         self.progress_bar.set(0)
@@ -168,8 +172,12 @@ class SyncConfirmationDialog(ctk.CTkToplevel):
         self.btn_sync = ctk.CTkButton(self.btn_frame, text="Lancer la Synchronisation", fg_color="green", hover_color="darkgreen", command=self.on_sync)
         self.btn_sync.pack(side="right", padx=10)
         
-        self.btn_cancel = ctk.CTkButton(self.btn_frame, text="Fermer / Annuler", fg_color="#555", command=self.destroy)
+        self.btn_cancel = ctk.CTkButton(self.btn_frame, text="Fermer / Annuler", fg_color="#555", command=self.on_cancel)
         self.btn_cancel.pack(side="right", padx=10)
+
+    def on_cancel(self):
+        self.callback(None)
+        self.destroy()
 
     def log_msg(self, msg):
         self.log_box.configure(state="normal")
@@ -177,19 +185,46 @@ class SyncConfirmationDialog(ctk.CTkToplevel):
         self.log_box.see("end")
         self.log_box.configure(state="disabled")
 
-    def _add_section(self, title, items, key, color):
+    def _add_section(self, title, items, key, color, default=True):
         if not items: return
         
-        ctk.CTkLabel(self.scroll, text=title, font=ctk.CTkFont(weight="bold"), text_color=color).pack(anchor="w", pady=(15, 5))
+        header_frame = ctk.CTkFrame(self.scroll, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(15, 5))
+        
+        ctk.CTkLabel(header_frame, text=title, font=ctk.CTkFont(weight="bold", size=13), text_color=color).pack(side="left")
+        
+        # Select All checkbox
+        toggle_var = ctk.BooleanVar(value=default)
+        cb_all = ctk.CTkCheckBox(header_frame, text="Tout sélectionner", font=ctk.CTkFont(size=11), 
+                                 variable=toggle_var, command=lambda k=key, v=toggle_var: self._toggle_all(k, v))
+        cb_all.pack(side="right", padx=10)
+        self.section_cbs[key] = (cb_all, toggle_var)
+        
+        # Direction mapping
+        dir_map = {
+            "pull": "Cloud ➔ PC",
+            "push": "PC ➔ Cloud",
+            "delete_remote": "Cloud ❌",
+            "delete_local": "PC ❌"
+        }
+        direction = dir_map.get(key, "")
         
         for item in items:
             path = item["path"] if isinstance(item, dict) else item
             reason = item.get("reason", "") if isinstance(item, dict) else ""
             
-            var = ctk.BooleanVar(value=True)
-            cb = ctk.CTkCheckBox(self.scroll, text=f"{path} ({reason})" if reason else path, variable=var)
+            display_text = f"{direction} : {path}"
+            if reason: display_text += f" ({reason})"
+            
+            var = ctk.BooleanVar(value=default)
+            cb = ctk.CTkCheckBox(self.scroll, text=display_text, variable=var, font=ctk.CTkFont(size=11))
             cb.pack(anchor="w", padx=20, pady=2)
             self.vars[key].append((item, var))
+
+    def _toggle_all(self, key, master_var):
+        val = master_var.get()
+        for item, var in self.vars[key]:
+            var.set(val)
 
     def on_sync(self):
         self.btn_sync.configure(state="disabled")
@@ -1527,7 +1562,8 @@ class MidiKbdApp(ctk.CTk):
                     
                     mgr.set_progress_callback(on_progress)
                     
-                    res = mgr.analyze(selected_categories=selected_cats)
+                    sync_mode = current_sync_conf.get("mode", "Bidirectionnel (Auto)")
+                    res = mgr.analyze(selected_categories=selected_cats, mode=sync_mode)
                     
                     # V9.1: Apply Sync Mode filtering
                     sync_mode = current_sync_conf.get("mode", "Bidirectionnel (Auto)")
@@ -1547,8 +1583,10 @@ class MidiKbdApp(ctk.CTk):
                         sync_event.set()
                     
                     if not any(res.values()):
-                        lbl_status.configure(text=_("sync.status_finished"), text_color="green")
-                        btn_sync.configure(state="normal")
+                        def nothing_ui():
+                            lbl_status.configure(text=_("sync.status_finished"), text_color="green")
+                            btn_sync.configure(state="normal")
+                        dialog.after(0, nothing_ui)
                         return
 
                     # Show dialog on main thread
@@ -1558,22 +1596,39 @@ class MidiKbdApp(ctk.CTk):
                     dialog.after(0, show_dialog)
                     
                     # Wait for user
-                    lbl_status.configure(text="En attente du récapitulatif...", text_color="orange")
+                    def wait_ui():
+                        lbl_status.configure(text="En attente du récapitulatif...", text_color="orange")
+                    dialog.after(0, wait_ui)
+                    
                     sync_event.wait()
                     
                     res = final_choice["res"]
-                    if not res or not any(res.values()):
-                        lbl_status.configure(text="Synchronisation annulée.", text_color="orange")
-                        btn_sync.configure(state="normal")
+                    if res is None: # Window closed via X
+                        def cancel_ui():
+                            lbl_status.configure(text=_("gui.status_wait"), text_color="gray")
+                            btn_sync.configure(state="normal")
+                        dialog.after(0, cancel_ui)
+                        return
+                        
+                    if not any(res.values()):
+                        def empty_ui():
+                            lbl_status.configure(text="Aucune action sélectionnée.", text_color="orange")
+                            btn_sync.configure(state="normal")
+                        dialog.after(0, empty_ui)
                         return
 
-                    lbl_status.configure(text="Synchronisation en cours...", text_color="blue")
-                    mgr.sync(res, selected_categories=selected_cats)
-                    lbl_status.configure(text=_("sync.status_finished"), text_color="green")
+                    def work_ui():
+                        lbl_status.configure(text="Synchronisation en cours...", text_color="blue")
+                    dialog.after(0, work_ui)
                     
-                    if modal_container[0]:
-                        modal_container[0].log_msg("✅ " + _("sync.status_finished"))
-                        modal_container[0].btn_cancel.configure(state="normal", text=_("web.btn_close"), fg_color="green")
+                    mgr.sync(res, selected_categories=selected_cats)
+                    
+                    def done_ui():
+                        lbl_status.configure(text=_("sync.status_finished"), text_color="green")
+                        if modal_container[0]:
+                            modal_container[0].log_msg("✅ " + _("sync.status_finished"))
+                            modal_container[0].btn_cancel.configure(state="normal", text=_("web.btn_close"), fg_color="green")
+                    dialog.after(0, done_ui)
                     
                     # Refresh library logic
                     if res['pull']:
