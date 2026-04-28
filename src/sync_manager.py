@@ -292,46 +292,72 @@ class WebdavProvider(SyncProvider):
         
         headers = {'Depth': 'infinity'}
         try:
-            response = self.session.request('PROPFIND', target_url, headers=headers)
-            if response.status_code not in [200, 207]:
+            response = self.session.request('PROPFIND', target_url, headers=headers, timeout=10)
+            if response.status_code == 401:
+                raise ConnectionError(f"WebDAV Non Autorisé (401). Vérifiez l'utilisateur et le mot de passe.")
+            elif response.status_code == 403:
+                raise ConnectionError(f"WebDAV Accès Interdit (403). Le serveur refuse l'accès au dossier (Droits/Permissions).")
+            elif response.status_code == 404:
+                raise ConnectionError(f"WebDAV Introuvable (404). Vérifiez l'URL et le dossier distant.")
+            elif response.status_code not in [200, 207]:
+                logging.warning(f"[WebDAV] PROPFIND (Depth: infinity) failed with status {response.status_code}. Content: {response.text[:200]}")
                 return self._list_manual(relative_dir)
             
             root = ET.fromstring(response.content)
             namespace = {'d': 'DAV:'}
             
-            for resp in root.findall('d:response', namespace):
-                href_raw = resp.find('d:href', namespace).text
+            # V9.6.2: Namespace agnostic fallback
+            responses = root.findall('d:response', namespace)
+            if not responses:
+                # Some servers might use different namespaces or no namespace
+                responses = root.findall('.//{DAV:}response')
+                if not responses:
+                    responses = root.findall('.//response')
+            
+            for resp in responses:
+                href_node = resp.find('d:href', namespace) or resp.find('.//{DAV:}href') or resp.find('.//href')
+                if href_node is None or not href_node.text: continue
+                href_raw = href_node.text
                 href_path = urlparse(href_raw).path
                 href_path = unquote(href_path) # Important for spaces and special chars
                 
-                # Normalize href to be relative to our base URL
+                # Normalize href to be relative to our base URL (Case Insensitive Prefix Stripping)
                 rel_p = href_path
-                if base_path != "/" and rel_p.startswith(base_path):
-                    rel_p = rel_p[len(base_path):].lstrip('/')
+                # V9.6.3: WebDAV paths can be returned in lower/different case than our base_path URL
+                if base_path != "/":
+                    if rel_p.lower().startswith(base_path.lower()):
+                        rel_p = rel_p[len(base_path):].lstrip('/')
                 elif base_path == "/" and rel_p.startswith('/'):
                     rel_p = rel_p.lstrip('/')
                 
                 if not rel_p: continue # Root folder
                 
-                propstat = resp.find('d:propstat', namespace)
+                propstat = resp.find('d:propstat', namespace) or resp.find('.//{DAV:}propstat') or resp.find('.//propstat')
                 if propstat is None: continue
-                prop = propstat.find('d:prop', namespace)
+                prop = propstat.find('d:prop', namespace) or propstat.find('.//{DAV:}prop') or propstat.find('.//prop')
                 if prop is None: continue
                 
                 # Check if it's a collection (folder)
-                resourcetype = prop.find('d:resourcetype', namespace)
-                if resourcetype is not None and resourcetype.find('d:collection', namespace) is not None:
+                resourcetype = prop.find('d:resourcetype', namespace) or prop.find('.//{DAV:}resourcetype') or prop.find('.//resourcetype')
+                if resourcetype is not None and (resourcetype.find('d:collection', namespace) is not None or resourcetype.find('.//{DAV:}collection') is not None or resourcetype.find('.//collection') is not None):
                     continue
                     
-                getlastmod = prop.find('d:getlastmodified', namespace)
-                getsize = prop.find('d:getcontentlength', namespace)
+                getlastmod = prop.find('d:getlastmodified', namespace) or prop.find('.//{DAV:}getlastmodified') or prop.find('.//getlastmodified')
+                getsize = prop.find('d:getcontentlength', namespace) or prop.find('.//{DAV:}getcontentlength') or prop.find('.//getcontentlength')
                 
                 mtime = 0
-                if getlastmod is not None:
+                if getlastmod is not None and getlastmod.text:
                     try:
                         from email.utils import parsedate_to_datetime
                         mtime = parsedate_to_datetime(getlastmod.text).timestamp()
-                    except: pass
+                    except:
+                        try:
+                            import datetime
+                            clean_str = getlastmod.text.replace('Z', '+00:00')
+                            mtime = datetime.datetime.fromisoformat(clean_str).timestamp()
+                        except Exception as e:
+                            logging.error(f"[WebDAV] Unparseable date: {getlastmod.text}")
+                            pass
                 
                 size = 0
                 if getsize is not None:
@@ -341,9 +367,11 @@ class WebdavProvider(SyncProvider):
                 result[rel_p] = {'mtime': mtime, 'size': size}
                 
             return result
+        except ConnectionError:
+            raise
         except Exception as e:
-            logging.warning(f"[WebDAV] Error listing {target_url}: {e}")
-            return {}
+            logging.error(f"[WebDAV] Error listing {target_url}: {e}")
+            raise ConnectionError(f"Erreur de connexion WebDAV : {str(e)}")
 
     def _list_manual(self, relative_dir: str):
         # Fallback manual list if Depth: infinity is disabled (common on IIS)
@@ -362,12 +390,30 @@ class WebdavProvider(SyncProvider):
             current_rel = folders_to_scan.pop(0)
             target_url = f"{self.url}/{current_rel}".rstrip('/') + '/'
             try:
-                response = self.session.request('PROPFIND', target_url, headers={'Depth': '1'})
-                if response.status_code not in [200, 207]: continue
+                response = self.session.request('PROPFIND', target_url, headers={'Depth': '1'}, timeout=10)
+                if response.status_code == 401:
+                    raise ConnectionError("WebDAV Non Autorisé (401)")
+                if response.status_code == 403:
+                    raise ConnectionError("WebDAV Accès Interdit (403)")
+                if response.status_code == 404:
+                    raise ConnectionError("WebDAV Introuvable (404)")
+                if response.status_code not in [200, 207]: 
+                    logging.warning(f"[WebDAV Manual] PROPFIND (Depth: 1) failed on {target_url} with status {response.status_code}.")
+                    continue
                 
                 root = ET.fromstring(response.content)
-                for resp in root.findall('d:response', namespace):
-                    href_raw = resp.find('d:href', namespace).text
+                
+                # V9.6.2: Namespace agnostic fallback
+                responses = root.findall('d:response', namespace)
+                if not responses:
+                    responses = root.findall('.//{DAV:}response')
+                    if not responses:
+                        responses = root.findall('.//response')
+                        
+                for resp in responses:
+                    href_node = resp.find('d:href', namespace) or resp.find('.//{DAV:}href') or resp.find('.//href')
+                    if href_node is None: continue
+                    href_raw = href_node.text
                     href_path = urlparse(href_raw).path
                     href_path = unquote(href_path)
                     
@@ -381,29 +427,40 @@ class WebdavProvider(SyncProvider):
                     rel_p = rel_p.rstrip('/')
                     if not rel_p or rel_p == current_rel: continue
                     
-                    propstat = resp.find('d:propstat', namespace)
-                    if not propstat: continue
-                    prop = propstat.find('d:prop', namespace)
-                    if not prop: continue
+                    propstat = resp.find('d:propstat', namespace) or resp.find('.//{DAV:}propstat') or resp.find('.//propstat')
+                    if propstat is None: continue
+                    prop = propstat.find('d:prop', namespace) or propstat.find('.//{DAV:}prop') or propstat.find('.//prop')
+                    if prop is None: continue
                     
-                    resourcetype = prop.find('d:resourcetype', namespace)
-                    if resourcetype is not None and resourcetype.find('d:collection', namespace) is not None:
+                    resourcetype = prop.find('d:resourcetype', namespace) or prop.find('.//{DAV:}resourcetype') or prop.find('.//resourcetype')
+                    if resourcetype is not None and (resourcetype.find('d:collection', namespace) is not None or resourcetype.find('.//{DAV:}collection') is not None or resourcetype.find('.//collection') is not None):
                         folders_to_scan.append(rel_p)
                     else:
-                        getlastmod = prop.find('d:getlastmodified', namespace)
-                        getsize = prop.find('d:getcontentlength', namespace)
+                        getlastmod = prop.find('d:getlastmodified', namespace) or prop.find('.//{DAV:}getlastmodified') or prop.find('.//getlastmodified')
+                        getsize = prop.find('d:getcontentlength', namespace) or prop.find('.//{DAV:}getcontentlength') or prop.find('.//getcontentlength')
                         mtime = 0
-                        if getlastmod is not None:
-                            from email.utils import parsedate_to_datetime
-                            try: mtime = parsedate_to_datetime(getlastmod.text).timestamp()
-                            except: pass
+                        if getlastmod is not None and getlastmod.text:
+                            try:
+                                from email.utils import parsedate_to_datetime
+                                mtime = parsedate_to_datetime(getlastmod.text).timestamp()
+                            except:
+                                try:
+                                    import datetime
+                                    clean_str = getlastmod.text.replace('Z', '+00:00')
+                                    mtime = datetime.datetime.fromisoformat(clean_str).timestamp()
+                                except Exception as e:
+                                    logging.error(f"[WebDAV] Manual unparseable date: {getlastmod.text}")
+                                    pass
                         size = 0
                         if getsize is not None:
                             try: size = int(getsize.text)
                             except: pass
                         result[rel_p] = {'mtime': mtime, 'size': size}
+            except ConnectionError:
+                raise
             except Exception as e:
-                logging.warning(f"[WebDAV] Manual list error at {current_rel}: {e}")
+                logging.error(f"[WebDAV] Manual list error at {current_rel}: {e}")
+                raise ConnectionError(f"Erreur de réseau : {str(e)}")
         return result
 
     def download_file(self, remote_relative_path: str, local_absolute_path: str) -> bool:
@@ -691,6 +748,14 @@ class SyncManager:
                 local_p_real = local_files_lower[rel_path_low]
                 local_stat = local_files[local_p_real]
                 
+                # V9.5: Check if the file is still shared before proposing update
+                if not self._is_shared_file(rel_path, categories=selected_categories):
+                    # V9.5.1: If we are in "Push Only (Master)" mode and local file is NOT shared,
+                    # but it exists on remote, we should propose deleting it from remote.
+                    if "Envoi" in mode:
+                        to_delete_remote.append({"path": rel_path, "reason": "unshared_locally"})
+                    continue
+
                 if rel_path.lower().endswith('.json') and hasattr(self.provider, 'get_file_content'):
                     try:
                         remote_raw = self.provider.get_file_content(rel_path)
@@ -719,13 +784,31 @@ class SyncManager:
                 # AUTHORITY LOGIC: If we are in "Pull Only (Slave)" mode, anything on local NOT on remote
                 # should be proposed for deletion to match the remote state.
                 if "Réception" in mode:
-                    to_delete_local.append({"path": rel_path, "reason": "mirror_slave"})
+                    if self._is_shared_file(rel_path, categories=selected_categories):
+                        to_delete_local.append({"path": rel_path, "reason": "mirror_slave"})
                 elif rel_path_low in state_files_lower:
                     to_delete_local.append({"path": rel_path, "reason": "deleted_remotely"})
                 else:
                     if self._is_shared_file(rel_path, categories=selected_categories):
                         to_push.append({"path": rel_path, "reason": "local_only"})
         
+        # V9.6.1: Debug Dump for User Verification
+        try:
+            debug_path = os.path.join(self.local_dir, "data", "sync_debug.json")
+            with open(debug_path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "remote_files": remote_files,
+                    "local_files": local_files,
+                    "proposed_sync": {
+                        "pull": to_pull, 
+                        "push": to_push,
+                        "delete_remote": to_delete_remote,
+                        "delete_local": to_delete_local
+                    }
+                }, f, indent=4)
+        except Exception as e:
+            logging.error(f"Failed to write sync_debug.json: {e}")
+
         self._notify_progress(100, 100, "", "analyzed")
         return {
             "pull": to_pull, 
@@ -809,7 +892,8 @@ class SyncManager:
                     try:
                         with open(full_path, 'r', encoding='utf-8') as f:
                             data = json.load(f)
-                            return isinstance(data, dict) and data.get('shared_with_group', False)
+                            shared = isinstance(data, dict) and data.get('shared_with_group', False)
+                            return shared
                     except: return False
                 else:
                     return is_remote # If remote, we assume we want it
@@ -817,13 +901,15 @@ class SyncManager:
             # For media content files, check if their sidecar is shared
             json_path = rel_path + '.json'
             if not is_remote:
-                # If local media, check if sidecar exists. If it DOES NOT, it's a NEW file -> consider shared
+                # V9.5: Hardened logic. If no sidecar exists locally, it cannot be "Shared with group"
+                # because the flag is stored in the sidecar. Returning False prevents leaking
+                # the entire library to the sync list.
                 local_json = os.path.join(self.local_dir, json_path)
                 if not os.path.exists(local_json):
-                    return True
+                    return False
                     
-            if self._is_shared_file(json_path, is_remote=is_remote, categories=categories):
-                return True
+            shared = self._is_shared_file(json_path, is_remote=is_remote, categories=categories)
+            return shared
                 
             # Satellite files (chapters, loops etc)
             MEDIA_EXTS = ('.mp4', '.mp3', '.wav', '.mkv', '.webm', '.flv', '.avi')

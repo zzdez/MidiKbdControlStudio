@@ -198,10 +198,17 @@ def heal_bidirectional_links():
             for it in items:
                 my_uid = it.get("uid")
                 linked = it.get("linked_ids", [])
+                if not isinstance(linked, list):
+                    linked = []
+                
                 new_linked = []
                 link_changed = False
 
                 for target_id in linked:
+                    if not target_id or not isinstance(target_id, str):
+                        link_changed = True
+                        continue
+                        
                     # Case 1: Legacy index-based link (lib:5) -> Migrate to UID
                     if ":" in target_id and "_" not in target_id:
                         try:

@@ -1563,7 +1563,16 @@ class MidiKbdApp(ctk.CTk):
                     mgr.set_progress_callback(on_progress)
                     
                     sync_mode = current_sync_conf.get("mode", "Bidirectionnel (Auto)")
-                    res = mgr.analyze(selected_categories=selected_cats, mode=sync_mode)
+                    
+                    try:
+                        res = mgr.analyze(selected_categories=selected_cats, mode=sync_mode)
+                    except Exception as e:
+                        err_msg = str(e)
+                        def show_err():
+                            lbl_status.configure(text=f"Erreur réseau: {err_msg}", text_color="red")
+                            btn_sync.configure(state="normal")
+                        dialog.after(0, show_err)
+                        return
                     
                     # V9.1: Apply Sync Mode filtering
                     sync_mode = current_sync_conf.get("mode", "Bidirectionnel (Auto)")
