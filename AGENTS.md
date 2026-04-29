@@ -721,3 +721,14 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     - Implémentation de 3 modes opératoires : **Bidirectionnel**, **Réception seule (Pull Only)** et **Envoi seul (Push Only)**. Le système filtre les listes d'actions avant de les présenter à l'utilisateur selon le mode choisi.
 *   **Hardening des Providers :**
     - Ajout de la méthode `delete_file` dans `LocalProvider`, `SftpProvider` et `WebdavProvider`. Support du forçage de l'horloge (`utime`) sur SFTP pour garantir une précision < 1s.
+
+### 50. Évolution V9.6.40 : Stabilisation Critique & Intelligence de Synchronisation
+*   **Moteur de Synchronisation 2.0 (`sync_manager.py`)** :
+    - **Validation Croisée Cloud (Trust-the-Cloud)** : Implémentation d'un mécanisme de sauvegarde où, en cas d'absence du flag local `shared_with_group` dans un sidecar, le système vérifie la présence du fichier sur le serveur distant. S'il existe sur le Cloud, il est considéré comme partagé, éliminant les suppressions accidentelles de médias légitimes lors d'une analyse bidirectionnelle.
+    - **Héritage Dynamique des Sidecars** : Les fichiers annexes (`folder.jpg`, `.srt`, `.vtt`, `.json`) ne sont plus rejetés d'office en mode local. Ils "traversent" désormais la logique pour vérifier récursivement le statut de leur fichier maître (JSON du média ou dossier multipiste).
+    - **Shield Anti-Récursion** : Ajout d'une protection stricte empêchant les fichiers `.json` ou les sidecars identifiés de chercher leur propre maître, prévenant les erreurs de type "Maximum recursion depth exceeded".
+    - **Cache d'Analyse Éphémère** : Stockage temporaire des index de fichiers (`local_files` / `remote_files`) dans l'instance pendant l'analyse pour permettre des validations croisées sans surcharge mémoire ni latence réseau.
+*   **Expansion des Formats Supportés** :
+    - Support natif étendu pour les formats : **Images** (PNG, JPEG, GIF), **Audio** (AAC, M4A, FLAC) et **Vidéo** (WebM, MKV, MOV).
+*   **Fiabilisation des Logs** :
+    - Nettoyage des logs de diagnostic `[SYNC-DEBUG]` au profit d'un flux de production clair et précis dans `midikbd_debug.log`.

@@ -565,9 +565,11 @@
         "btn_analyze": "Analyser",
         "btn_run": "Lancer la Sync",
         "status_analyzing": "Analyse des fichiers...",
+        "status_uptodate": "Votre bibliothèque est déjà à jour !",
         "status_finished": "Synchronisation terminée !",
         "stage_pull": "Réception : {file}",
         "stage_push": "Envoi : {file}",
+        "manual_skew_hours": "Décalage horaire manuel (en heures) :",
         "msg_analysis_res": "Prêt : {pull} à recevoir, {push} à envoyer"
     }
 }

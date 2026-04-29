@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 
 def get_app_dir():
     """
@@ -98,8 +99,45 @@ def resolve_portable_path(stored_path):
         
         # Convert forward slashes to system separators
         rel_part = os.path.normpath(rel_part)
-        
         return os.path.normpath(os.path.join(get_app_dir(), rel_part))
         
     # Already an absolute path, normalize it
     return os.path.normpath(s_path)
+
+def load_json(path, default=None):
+    """
+    V9.6.25: Robust JSON loader with automatic encoding detection.
+    Supports UTF-8 and UTF-16 (BOM).
+    """
+    if not os.path.exists(path):
+        return default if default is not None else {}
+    
+    # Try UTF-8 first (standard)
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except UnicodeDecodeError:
+        # Fallback to UTF-16 (common on Windows for some tools)
+        try:
+            with open(path, 'r', encoding='utf-16') as f:
+                return json.load(f)
+        except Exception as e:
+            import logging
+            logging.error(f"[JSON] Failed to load {path} even with UTF-16: {e}")
+            return default if default is not None else {}
+    except Exception as e:
+        import logging
+        logging.error(f"[JSON] Error loading {path}: {e}")
+        return default if default is not None else {}
+
+def save_json(path, data):
+    """Saves data to JSON with pretty print and UTF-8."""
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+        return True
+    except Exception as e:
+        import logging
+        logging.error(f"[JSON] Error saving {path}: {e}")
+        return False

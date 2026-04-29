@@ -565,9 +565,11 @@
         "btn_analyze": "Analyze",
         "btn_run": "Run Sync",
         "status_analyzing": "Analyzing files...",
+        "status_uptodate": "Your library is already up to date!",
         "status_finished": "Sync finished!",
         "stage_pull": "Pulling: {file}",
         "stage_push": "Pushing: {file}",
+        "manual_skew_hours": "Manual clock offset (hours):",
         "msg_analysis_res": "Ready: {pull} to pull, {push} to push"
     }
 }

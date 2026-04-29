@@ -8,6 +8,8 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import paramiko
 import logging
+import json
+import utils
 from cryptography.fernet import Fernet
 from urllib.parse import unquote, urlparse
 
@@ -252,13 +254,14 @@ class SftpProvider(SyncProvider):
             self._mkdir_p(dst_dir)
             self.sftp.put(local_absolute_path, dst)
             
-            # V8.9: Force remote mtime to match local mtime
-            try:
-                self.sftp.utime(dst, (local_mtime, local_mtime))
-                logging.debug(f"[SFTP] Remote mtime synced for {dst}")
-            except Exception as ut_e:
-                logging.debug(f"[SFTP] Failed to sync utime for {dst}: {ut_e}")
-                
+            # V9.6.15: Disable forced utime on SFTP. It creates inconsistent drifts when clocks are not synced.
+            # The SyncManager's clock_skew logic will handle the natural difference between PC and Server.
+            # try:
+            #     self.sftp.utime(dst, (local_mtime, local_mtime))
+            #     logging.debug(f"[SFTP] Remote mtime synced for {dst}")
+            # except Exception as ut_e:
+            #     logging.debug(f"[SFTP] Failed to sync utime for {dst}: {ut_e}")
+            
             return True
         except Exception as e:
             logging.warning(f"[SFTP] Echec de l'upload pour {dst} : {e}")
@@ -656,20 +659,23 @@ class SyncManager:
             except:
                 pass
 
-    def analyze(self, selected_categories: Optional[List[str]] = None, mode: str = "Bidirectionnel (Auto)") -> Dict[str, list]:
+    def analyze(self, selected_categories: Optional[List[str]] = None, mode: str = "Bidirectionnel (Auto)", exceptions: Optional[List[str]] = None, manual_skew: float = 0.0) -> Dict[str, list]:
         """
         V9.1: Comprehensive analysis including additions, updates, and deletions.
-        Returns: {'pull': [], 'push': [], 'delete_remote': [], 'delete_local': []}
         """
+        if exceptions is None: exceptions = []
+        # Normaliser les exceptions pour des comparaisons robustes
+        exceptions_lower = [e.lower() for e in exceptions]
+        
         self._notify_progress(0, 100, "", "analyzing")
         
         local_files = self._list_local_files()
         remote_files = self.provider.list_files()
         
-        # Maps for case-insensitive matching
-        local_files_lower = {p.lower(): p for p in local_files.keys()}
-        remote_files_lower = {p.lower(): p for p in remote_files.keys()}
-        state_files_lower = {p.lower(): p for p in self.state.get("files", {}).keys()}
+        # V9.6.33: Aggressive normalization of all paths (slashes and casing)
+        local_files_lower = {p.replace('\\', '/').lower(): p for p in local_files.keys()}
+        remote_files_lower = {p.replace('\\', '/').lower(): p for p in remote_files.keys()}
+        state_files_lower = {p.replace('\\', '/').lower(): p for p in self.state.get("files", {}).keys()}
         
         to_pull = []
         to_push = []
@@ -697,6 +703,9 @@ class SyncManager:
         skews = []
         for rel_path, remote_stat in remote_files.items():
             rel_path_low = rel_path.lower()
+            if self._is_absolute_ignore(rel_path): continue
+            if rel_path_low in exceptions_lower: continue # Skip skew check for exceptions
+            
             if rel_path_low in local_files_lower:
                 local_p = local_files_lower[rel_path_low]
                 local_stat = local_files[local_p]
@@ -709,6 +718,7 @@ class SyncManager:
             data_jsons = [p for p in json_files if p.lower().startswith('data/')]
             priority_jsons = (data_jsons + json_files[:10])[:20]
             for rel_path in priority_jsons:
+                if rel_path.lower() in exceptions_lower: continue
                 if rel_path.lower() in local_files_lower:
                     try:
                         remote_raw = self.provider.get_file_content(rel_path)
@@ -719,19 +729,28 @@ class SyncManager:
                                 skews.append(local_files[local_p]['mtime'] - remote_files[rel_path]['mtime'])
                     except: pass
         
-        clock_skew = 0
-        if skews:
+        if manual_skew != 0:
+            clock_skew = manual_skew
+            logging.warning(f"[SYNC] Manual skew OVERRIDE: {manual_skew:.2f}s (ignoring auto-detection)")
+        elif skews:
             skews.sort()
             clock_skew = skews[len(skews) // 2]
-            logging.warning(f"[SYNC] Clock skew stabilized: {clock_skew:.2f}s")
+            logging.warning(f"[SYNC] Clock skew stabilized: {clock_skew:.2f}s (based on {len(skews)} anchors)")
+        else:
+            logging.warning(f"[SYNC] WARNING: No identical files found and no manual skew. Using 0.0s baseline.")
             
         TOLERANCE = 5.0
 
         # PASS 2: COMPREHENSIVE SCAN
+        # V9.6.35: Cache file lists for cross-validation in _is_shared_file
+        self._current_remote_files = remote_files_lower
+        self._current_local_files = local_files_lower
+        
         # 2.1 Scan Remote for Pull or Remote-Delete
         for rel_path, remote_stat in remote_files.items():
             rel_path_low = rel_path.lower()
             if self._is_absolute_ignore(rel_path): continue
+            if rel_path_low in exceptions_lower: continue # V9.6.7: Ignorer complètement
             if not self._is_in_selected_categories(rel_path, selected_categories): continue
 
             if rel_path_low not in local_files_lower:
@@ -744,6 +763,9 @@ class SyncManager:
                 else:
                     if self._is_shared_file(rel_path, is_remote=True, categories=selected_categories):
                         to_pull.append({"path": rel_path, "reason": "remote_only"})
+                    else:
+                        to_delete_remote.append({"path": rel_path, "reason": "unshared_locally"})
+
             else:
                 local_p_real = local_files_lower[rel_path_low]
                 local_stat = local_files[local_p_real]
@@ -763,21 +785,33 @@ class SyncManager:
                             continue
                     except: pass
 
+                from datetime import datetime
                 drift = (local_stat['mtime'] - remote_stat['mtime']) - clock_skew
+                
+                local_dt = datetime.fromtimestamp(local_stat['mtime']).strftime('%d/%m %H:%M')
+                # Real server date (unskewed) for display
+                remote_real_dt = datetime.fromtimestamp(remote_stat['mtime']).strftime('%d/%m %H:%M')
+                # Calculated date (skewed) for internal logic but also display if needed
+                remote_skewed_dt = datetime.fromtimestamp(remote_stat['mtime'] + clock_skew).strftime('%d/%m %H:%M')
+                
+                if rel_path_low.endswith('.exe'):
+                    logging.warning(f"[SYNC] [DEBUG EXE] Local: {local_dt}, Remote: {remote_real_dt}, Skewed: {remote_skewed_dt}, Drift: {drift}s")
+
                 if 'hash' in remote_stat and 'hash' in local_stat:
                     if remote_stat['hash'] != local_stat['hash']:
-                        if drift > 0: to_push.append({"path": local_p_real, "reason": "content_change"})
-                        else: to_pull.append({"path": rel_path, "reason": "content_change"})
+                        if drift > 0: to_push.append({"path": local_p_real, "reason": f"content_change ({local_dt} > Cloud: {remote_real_dt})"})
+                        else: to_pull.append({"path": rel_path, "reason": f"content_change ({local_dt} < Cloud: {remote_real_dt})"})
                 elif abs(drift) > TOLERANCE:
                     if remote_stat['size'] == local_stat['size'] and remote_stat['size'] > 0:
                         continue
-                    if drift > 0: to_push.append({"path": local_p_real, "reason": "newer_locally"})
-                    else: to_pull.append({"path": rel_path, "reason": "newer_remotely"})
+                    if drift > 0: to_push.append({"path": local_p_real, "reason": f"newer_locally ({local_dt} > Cloud: {remote_real_dt})"})
+                    else: to_pull.append({"path": rel_path, "reason": f"newer_remotely ({local_dt} < Cloud: {remote_real_dt})"})
 
         # 2.2 Scan Local for Push or Local-Delete
         for rel_path, local_stat in local_files.items():
             rel_path_low = rel_path.lower()
             if self._is_absolute_ignore(rel_path): continue
+            if rel_path_low in exceptions_lower: continue # V9.6.7: Ignorer complètement
             if not self._is_in_selected_categories(rel_path, selected_categories): continue
 
             if rel_path_low not in remote_files_lower:
@@ -810,12 +844,16 @@ class SyncManager:
             logging.error(f"Failed to write sync_debug.json: {e}")
 
         self._notify_progress(100, 100, "", "analyzed")
+        self._current_remote_files = None
+        self._current_local_files = None
+        
         return {
             "pull": to_pull, 
             "push": to_push,
             "delete_remote": to_delete_remote,
             "delete_local": to_delete_local
         }
+
     
     def _list_local_files(self) -> Dict[str, dict]:
         """Scans the local application directory for files."""
@@ -828,7 +866,9 @@ class SyncManager:
         p = rel_path.replace('\\', '/').lower()
         
         # Temporary & Cache files
-        if p.startswith(".update_buffer/"): return True
+        if ".update_buffer" in p: return True
+        if ".gemini" in p: return True
+        if ".git" in p: return True
         if "backup/" in p: return True
         if "peaks/" in p: return True
         if p.endswith(".log") or "debug" in p or p == "midikbd_debug.log": return True
@@ -845,110 +885,129 @@ class SyncManager:
 
     def _is_in_selected_categories(self, rel_path: str, categories: Optional[List[str]]) -> bool:
         """Returns True if the file belongs to one of the selected categories."""
-        if categories is None: return True # All categories by default
+        if categories is None: return True
         
         p = rel_path.replace('\\', '/').lower()
         
-        if 'exe' in categories:
-            if p.endswith('.exe'): return True
-            
-        if 'medias' in categories:
+        # V9.6.23: Normalize categories to be case/accent insensitive (handles Médias vs medias)
+        norm_cats = []
+        for c in categories:
+            c_norm = c.lower().replace('é', 'e').replace('è', 'e')
+            norm_cats.append(c_norm)
+
+        if 'medias' in norm_cats:
             if p.startswith('medias/'): return True
             
-        if 'data' in categories:
-            # Main JSON files and data folder (V6.1: prefer prefixed paths for consistency)
-            DATA_FILES = [
-                "data/library.json", "data/local_lib.json", "data/apps.json", 
-                "data/setlist.json", "data/web_links.json",
-                "library.json", "local_lib.json", "apps.json", "setlist.json", "web_links.json"
-            ]
-            if any(p == d for d in DATA_FILES): return True
+        if 'data' in norm_cats:
             if p.startswith('data/'): return True
+            if p == 'config.json': return True
             
-        if 'profiles' in categories:
+        if 'profiles' in norm_cats:
             if p.startswith('profiles/'): return True
+            if p.startswith('profiles - copie/'): return True
             
-        if 'devices' in categories:
+        if 'devices' in norm_cats:
             if p.startswith('devices/'): return True
             
-        if 'system' in categories:
-            if p.startswith('assets/') or p.startswith('locales/'): return True
+        if 'system' in norm_cats:
+            if p.startswith('assets/'): return True
+            if p.startswith('locales/'): return True
+            if p.endswith('.exe'): return True
+            
+        # Diagnostic check removed in V9.6.39
+
             
         return False
 
     def _is_shared_file(self, rel_path: str, is_remote: bool = False, categories: Optional[List[str]] = None) -> bool:
         """Returns True if the file should be shared with the group."""
         p = rel_path.replace('\\', '/').lower()
+        base_name = os.path.basename(rel_path)
         
         # 1. Validate against categories first
         if not self._is_in_selected_categories(rel_path, categories):
             return False
 
         # 2. Specific logic for Medias (requires sidecar flag check if local)
+        # V9.6.32: Use more robust check for media root (case insensitive)
         if p.startswith("medias/"):
-            if p.endswith('.json'):
-                full_path = os.path.join(self.local_dir, rel_path)
+            if any(p.endswith(ext) for ext in ['.json', '.jpg', '.jpeg', '.png', '.gif', '.vtt', '.srt']):
+                # JSON/Sidecars in Medias: Check if they contain 'shared_with_group': true
+                if is_remote: 
+                    return True # Remote sidecars are always shared if they exist on SFTP
+                
+                # V9.6.33: Use more robust absolute path for local check
+                full_path = os.path.normpath(os.path.join(self.local_dir, rel_path))
                 if os.path.exists(full_path):
                     try:
-                        with open(full_path, 'r', encoding='utf-8') as f:
-                            data = json.load(f)
+                        if p.endswith('.json'):
+                            data = utils.load_json(full_path)
                             shared = isinstance(data, dict) and data.get('shared_with_group', False)
+                            
+                            # V9.6.37: If local flag is missing but file is ALREADY on Cloud, trust the Cloud
+                            if not shared and not is_remote:
+                                if p in getattr(self, '_current_remote_files', {}):
+                                    shared = True
                             return shared
-                    except: return False
-                else:
-                    return is_remote # If remote, we assume we want it
-            
-            # For media content files, check if their sidecar is shared
-            json_path = rel_path + '.json'
-            if not is_remote:
-                # V9.5: Hardened logic. If no sidecar exists locally, it cannot be "Shared with group"
-                # because the flag is stored in the sidecar. Returning False prevents leaking
-                # the entire library to the sync list.
-                local_json = os.path.join(self.local_dir, json_path)
-                if not os.path.exists(local_json):
-                    return False
-                    
-            shared = self._is_shared_file(json_path, is_remote=is_remote, categories=categories)
-            return shared
-                
-            # Satellite files (chapters, loops etc)
-            MEDIA_EXTS = ('.mp4', '.mp3', '.wav', '.mkv', '.webm', '.flv', '.avi')
-            base_name = os.path.basename(rel_path)
-            dir_name = os.path.dirname(rel_path)
-            
-            # V6.2: Special case for Multipistes folders (one meta file for all tracks)
-            if "multipistes/" in p and base_name != "airstep_meta.json":
-                # Check root of the specific multipiste folder
-                # p is medias/multipistes/folder_name/track.mp3
-                parts = p.split('/')
-                try:
-                    idx = parts.index("multipistes")
-                    if len(parts) > idx + 1:
-                        folder_name = parts[idx+1]
-                        # V6.6: Search for the TRUE case-sensitive path in local_files_lower
-                        meta_key = f"medias/multipistes/{folder_name}/airstep_meta.json".lower()
-                        # Use self._remote_files_cache if listing remote, otherwise wait...
-                        # Actually _is_shared_file handles existence check internally.
-                        # We just need to give it a path that it can find in its categories.
-                        meta_rel = f"Medias/Multipistes/{folder_name}/airstep_meta.json"
                         
-                        # Find actual case if exists in local_files
-                        potential_real = None
-                        # We can access the parent SyncManager internal maps if needed
-                        # But simpler: if it's medias, it's shared if the meta says so.
-                        if self._is_shared_file(meta_rel, is_remote=is_remote, categories=categories):
-                            return True
-                except: pass
+                        # V9.6.34: Sidecars (Images/Subs) should check their master JSON
+                        # instead of returning False immediately.
+                        # We let them fall through to the Multipiste/Standard logic below.
+                        pass 
+                    except Exception:
+                        pass
+                # If file doesn't exist locally or error, it's not shared locally unless remote check
+                if not is_remote:
+                    # Fall through to master check below
+                    pass
+                else:
+                    return False
 
-            if '.' in base_name:
-                parent_candidate = base_name.rsplit('.', 1)[0]
-                if parent_candidate.lower().endswith(MEDIA_EXTS):
-                    if self._is_shared_file(os.path.join(dir_name, parent_candidate + '.json').replace('\\', '/'), is_remote=is_remote, categories=categories):
-                        return True
+
+            # 2. Multipistes logic (check parent folder meta)
+            dir_path = os.path.dirname(rel_path)
+            meta_rel = os.path.join(dir_path, "airstep_meta.json").replace('\\', '/')
             
-            return False
+            if base_name != "airstep_meta.json":
+                is_master_shared = self._is_shared_file(meta_rel, is_remote=is_remote, categories=categories)
+                
+                # V9.6.36: Cross-validate with Remote cache
+                if not is_master_shared and not is_remote:
+                    if meta_rel.lower() in getattr(self, '_current_remote_files', {}):
+                        is_master_shared = True
+                
+                if is_master_shared:
+                    return True
 
-        # 3. Everything else that passed category check is shared
+
+            # 3. Standard Media logic (Smart Master Search)
+            # V9.6.38: Only seek master if NOT already a JSON or sidecar to prevent recursion
+            if not any(p.endswith(ext) for ext in ['.json', '.jpg', '.jpeg', '.png', '.gif', '.vtt', '.srt']):
+                if self._is_shared_file(rel_path + ".json", is_remote=is_remote, categories=categories):
+                    return True
+                    
+                temp_path = rel_path
+                for _ in range(2):
+                    if '.' not in os.path.basename(temp_path): break
+                    temp_path, _ = os.path.splitext(temp_path)
+                    for m_ext in ['', '.mp4', '.mp3', '.wav', '.mkv', '.mov', '.webm', '.aac', '.m4a', '.flac']:
+                        master_json = temp_path + m_ext + ".json"
+                        if master_json != rel_path + ".json":
+                            is_m_shared = self._is_shared_file(master_json, is_remote=is_remote, categories=categories)
+                            
+                            # V9.6.36: Cross-validate with Remote cache
+                            if not is_m_shared and not is_remote:
+                                if master_json.lower() in getattr(self, '_current_remote_files', {}):
+                                    is_m_shared = True
+                                    
+                            if is_m_shared:
+                                return True
+
+
+            # Reject media file (no master found)
+
+            return False
+            
         return True
 
     def sync(self, analysis_result: Dict[str, list], selected_categories: Optional[List[str]] = None):

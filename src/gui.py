@@ -1400,14 +1400,77 @@ class MidiKbdApp(ctk.CTk):
             ("system", _("sync.cat_system"))
         ]
         
+        def open_exceptions_modal(category_key, category_label):
+            import traceback
+            import logging
+            
+            try:
+                from sync_manager import SyncManager, LocalProvider
+                
+                exc_dialog = ctk.CTkToplevel(dialog)
+                exc_dialog.title(f"Exceptions : {category_label}")
+                exc_dialog.geometry("500x600")
+                exc_dialog.grab_set()
+                
+                lbl_info = ctk.CTkLabel(exc_dialog, text=f"Cochez les fichiers locaux que vous souhaitez IGNORER\nlors de la synchronisation (catégorie : {category_label}).", justify="left", font=ctk.CTkFont(weight="bold"))
+                lbl_info.pack(pady=10, padx=10, fill="x")
+                
+                scroll_frame = ctk.CTkScrollableFrame(exc_dialog)
+                scroll_frame.pack(fill="both", expand=True, padx=10, pady=5)
+                
+                # Charger les fichiers locaux
+                app_dir = get_app_dir()
+                mgr = SyncManager(app_dir, LocalProvider(app_dir))
+                local_files = mgr._list_local_files()
+                
+                # Filtrer par catégorie
+                cat_files = [p for p in local_files.keys() if mgr._is_in_selected_categories(p, [category_key])]
+                cat_files.sort(key=str.lower)
+                
+                current_exceptions = sync_conf.get("exceptions", [])
+                checkboxes = {}
+                
+                for file_path in cat_files:
+                    var = ctk.BooleanVar(value=file_path in current_exceptions)
+                    cb = ctk.CTkCheckBox(scroll_frame, text=file_path, variable=var, font=ctk.CTkFont(size=11))
+                    cb.pack(fill="x", pady=2, padx=5)
+                    checkboxes[file_path] = var
+                    
+                def save_exceptions():
+                    # Nettoyer les anciennes exceptions de cette catégorie
+                    new_exceptions = [e for e in current_exceptions if e not in cat_files]
+                    # Ajouter les nouvelles
+                    for file_path, var in checkboxes.items():
+                        if var.get():
+                            new_exceptions.append(file_path)
+                    sync_conf["exceptions"] = new_exceptions
+                    self.config_manager.set("sync", sync_conf)
+                    exc_dialog.destroy()
+                    
+                btn_save_exc = ctk.CTkButton(exc_dialog, text=_("gui.btn_save"), command=save_exceptions)
+                btn_save_exc.pack(pady=10)
+            except Exception as e:
+                logging.error(f"[EXCEPTIONS MODAL CRASH] {e}\n{traceback.format_exc()}")
+
+
         # Create grid for checkboxes
         cb_container = ctk.CTkFrame(cat_frame, fg_color="transparent")
         cb_container.pack(pady=5)
         for i, (key, label) in enumerate(categories):
             var = ctk.BooleanVar(value=key in stored_cats)
             cat_vars[key] = var
-            cb = ctk.CTkCheckBox(cb_container, text=label, variable=var, font=ctk.CTkFont(size=11))
-            cb.grid(row=i//2, column=i%2, padx=15, pady=3, sticky="w")
+            
+            cell = ctk.CTkFrame(cb_container, fg_color="transparent")
+            cell.grid(row=i//2, column=i%2, padx=10, pady=3, sticky="w")
+            
+            cb = ctk.CTkCheckBox(cell, text=label, variable=var, font=ctk.CTkFont(size=11))
+            cb.pack(side="left")
+            
+            btn_cfg = ctk.CTkButton(cell, text="⚙️", width=24, height=24, fg_color="transparent", 
+                                  hover_color=("gray70", "gray30"), text_color=("black", "white"),
+                                  command=lambda k=key, l=label: open_exceptions_modal(k, l))
+            btn_cfg.pack(side="left", padx=5)
+
 
         # Progress status (minimal)
         lbl_status = ctk.CTkLabel(tab_sync, text=_("gui.status_wait"), text_color="gray")
@@ -1438,7 +1501,12 @@ class MidiKbdApp(ctk.CTk):
         ctk.CTkLabel(tab_conf, text="Dossier Distant:", anchor="w").pack(fill="x", padx=10)
         e_dir = ctk.CTkEntry(tab_conf)
         e_dir.insert(0, str(sync_conf.get("remote_dir", "")))
-        e_dir.pack(fill="x", padx=10, pady=(0, 10))
+        e_dir.pack(fill="x", padx=10, pady=(0, 5))
+        
+        ctk.CTkLabel(tab_conf, text=_("sync.manual_skew_hours"), anchor="w").pack(fill="x", padx=10)
+        e_skew = ctk.CTkEntry(tab_conf)
+        e_skew.insert(0, str(sync_conf.get("manual_skew_hours", "0")))
+        e_skew.pack(fill="x", padx=10, pady=(0, 10))
 
         # --- TAB CONF WEBDAV ---
         ctk.CTkLabel(tab_webdav, text="URL WebDAV (ex: https://cloud.com/dav):", anchor="w").pack(fill="x", padx=10)
@@ -1454,13 +1522,23 @@ class MidiKbdApp(ctk.CTk):
         ctk.CTkLabel(tab_webdav, text="Mot de passe:", anchor="w").pack(fill="x", padx=10)
         e_wd_pass = ctk.CTkEntry(tab_webdav, show="*")
         e_wd_pass.insert(0, str(sync_conf.get("webdav_pass", "")))
-        e_wd_pass.pack(fill="x", padx=10, pady=(0, 10))
+        e_wd_pass.pack(fill="x", padx=10, pady=(0, 5))
+        
+        ctk.CTkLabel(tab_webdav, text=_("sync.manual_skew_hours"), anchor="w").pack(fill="x", padx=10)
+        e_wd_skew = ctk.CTkEntry(tab_webdav)
+        e_wd_skew.insert(0, str(sync_conf.get("manual_skew_hours", "0")))
+        e_wd_skew.pack(fill="x", padx=10, pady=(0, 10))
 
         # --- TAB LOCAL ---
         ctk.CTkLabel(tab_local, text="Chemin du dossier (ex: Dropbox/AirstepSync):", anchor="w").pack(fill="x", padx=10, pady=(10,0))
         e_local_dir = ctk.CTkEntry(tab_local)
         e_local_dir.insert(0, str(sync_conf.get("target_dir", "")))
-        e_local_dir.pack(fill="x", padx=10, pady=(0, 10))
+        e_local_dir.pack(fill="x", padx=10, pady=(0, 5))
+        
+        ctk.CTkLabel(tab_local, text=_("sync.manual_skew_hours"), anchor="w").pack(fill="x", padx=10)
+        e_local_skew = ctk.CTkEntry(tab_local)
+        e_local_skew.insert(0, str(sync_conf.get("manual_skew_hours", "0")))
+        e_local_skew.pack(fill="x", padx=10, pady=(0, 10))
         
         def pick_local():
             import tkinter.filedialog
@@ -1483,6 +1561,15 @@ class MidiKbdApp(ctk.CTk):
                 sync_conf["webdav_pass"] = e_wd_pass.get()
                 sync_conf["type"] = type_var.get()
                 sync_conf["mode"] = mode_var.get()
+                
+                # Save manual skew (read from the correct tab)
+                try:
+                    if sync_conf["type"] == "sftp": skew_val = e_skew.get()
+                    elif sync_conf["type"] == "webdav": skew_val = e_wd_skew.get()
+                    else: skew_val = e_local_skew.get()
+                    sync_conf["manual_skew_hours"] = float(skew_val or 0)
+                except:
+                    sync_conf["manual_skew_hours"] = 0
                 
                 # Save categories
                 active_cats = [k for k, v in cat_vars.items() if v.get()]
@@ -1563,9 +1650,12 @@ class MidiKbdApp(ctk.CTk):
                     mgr.set_progress_callback(on_progress)
                     
                     sync_mode = current_sync_conf.get("mode", "Bidirectionnel (Auto)")
+                    exceptions = current_sync_conf.get("exceptions", [])
+                    manual_skew_h = current_sync_conf.get("manual_skew_hours", 0)
+                    manual_skew_s = manual_skew_h * 3600
                     
                     try:
-                        res = mgr.analyze(selected_categories=selected_cats, mode=sync_mode)
+                        res = mgr.analyze(selected_categories=selected_cats, mode=sync_mode, exceptions=exceptions, manual_skew=manual_skew_s)
                     except Exception as e:
                         err_msg = str(e)
                         def show_err():
@@ -1593,10 +1683,16 @@ class MidiKbdApp(ctk.CTk):
                     
                     if not any(res.values()):
                         def nothing_ui():
-                            lbl_status.configure(text=_("sync.status_finished"), text_color="green")
+                            lbl_status.configure(text=_("sync.status_uptodate"), text_color="green")
                             btn_sync.configure(state="normal")
                         dialog.after(0, nothing_ui)
                         return
+                    
+                    # V9.6.22: Translated summary message
+                    summary_text = _("sync.msg_analysis_res", pull=len(res['pull']), push=len(res['push']))
+                    def info_ui():
+                        lbl_status.configure(text=summary_text, text_color="green")
+                    dialog.after(0, info_ui)
 
                     # Show dialog on main thread
                     def show_dialog():
