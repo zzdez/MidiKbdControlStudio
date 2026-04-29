@@ -1505,8 +1505,10 @@ class MidiKbdApp(ctk.CTk):
         
         ctk.CTkLabel(tab_conf, text=_("sync.manual_skew_hours"), anchor="w").pack(fill="x", padx=10)
         e_skew = ctk.CTkEntry(tab_conf)
-        e_skew.insert(0, str(sync_conf.get("manual_skew_hours", "0")))
+        e_skew.insert(0, str(sync_conf.get("manual_skew_hours_sftp", sync_conf.get("manual_skew_hours", "0"))))
         e_skew.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkButton(tab_conf, text=_("gui.btn_save"), command=lambda: save_conf() and lbl_status.configure(text="Config SFTP Sauvée.", text_color="green"), fg_color="green", hover_color="darkgreen").pack(pady=5)
 
         # --- TAB CONF WEBDAV ---
         ctk.CTkLabel(tab_webdav, text="URL WebDAV (ex: https://cloud.com/dav):", anchor="w").pack(fill="x", padx=10)
@@ -1526,8 +1528,10 @@ class MidiKbdApp(ctk.CTk):
         
         ctk.CTkLabel(tab_webdav, text=_("sync.manual_skew_hours"), anchor="w").pack(fill="x", padx=10)
         e_wd_skew = ctk.CTkEntry(tab_webdav)
-        e_wd_skew.insert(0, str(sync_conf.get("manual_skew_hours", "0")))
+        e_wd_skew.insert(0, str(sync_conf.get("manual_skew_hours_webdav", sync_conf.get("manual_skew_hours", "0"))))
         e_wd_skew.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkButton(tab_webdav, text=_("gui.btn_save"), command=lambda: save_conf() and lbl_status.configure(text="Config WebDAV Sauvée.", text_color="green"), fg_color="green", hover_color="darkgreen").pack(pady=5)
 
         # --- TAB LOCAL ---
         ctk.CTkLabel(tab_local, text="Chemin du dossier (ex: Dropbox/AirstepSync):", anchor="w").pack(fill="x", padx=10, pady=(10,0))
@@ -1537,8 +1541,10 @@ class MidiKbdApp(ctk.CTk):
         
         ctk.CTkLabel(tab_local, text=_("sync.manual_skew_hours"), anchor="w").pack(fill="x", padx=10)
         e_local_skew = ctk.CTkEntry(tab_local)
-        e_local_skew.insert(0, str(sync_conf.get("manual_skew_hours", "0")))
+        e_local_skew.insert(0, str(sync_conf.get("manual_skew_hours_local", sync_conf.get("manual_skew_hours", "0"))))
         e_local_skew.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkButton(tab_local, text=_("gui.btn_save"), command=lambda: save_conf() and lbl_status.configure(text="Config Locale Sauvée.", text_color="green"), fg_color="green", hover_color="darkgreen").pack(pady=5)
         
         def pick_local():
             import tkinter.filedialog
@@ -1562,14 +1568,18 @@ class MidiKbdApp(ctk.CTk):
                 sync_conf["type"] = type_var.get()
                 sync_conf["mode"] = mode_var.get()
                 
-                # Save manual skew (read from the correct tab)
+                # Save manual skew (Partitioned V9.6.50)
                 try:
-                    if sync_conf["type"] == "sftp": skew_val = e_skew.get()
-                    elif sync_conf["type"] == "webdav": skew_val = e_wd_skew.get()
-                    else: skew_val = e_local_skew.get()
-                    sync_conf["manual_skew_hours"] = float(skew_val or 0)
+                    sync_conf["manual_skew_hours_sftp"] = float(e_skew.get() or 0)
+                    sync_conf["manual_skew_hours_webdav"] = float(e_wd_skew.get() or 0)
+                    sync_conf["manual_skew_hours_local"] = float(e_local_skew.get() or 0)
+                    
+                    # Set current based on active type for backward compatibility
+                    if sync_conf["type"] == "sftp": sync_conf["manual_skew_hours"] = sync_conf["manual_skew_hours_sftp"]
+                    elif sync_conf["type"] == "webdav": sync_conf["manual_skew_hours"] = sync_conf["manual_skew_hours_webdav"]
+                    else: sync_conf["manual_skew_hours"] = sync_conf["manual_skew_hours_local"]
                 except:
-                    sync_conf["manual_skew_hours"] = 0
+                    pass
                 
                 # Save categories
                 active_cats = [k for k, v in cat_vars.items() if v.get()]
@@ -1584,9 +1594,6 @@ class MidiKbdApp(ctk.CTk):
                 tabs.set("Synchronisation")
                 return False
 
-        ctk.CTkButton(tab_conf, text=_("gui.btn_save"), command=lambda: save_conf() and lbl_status.configure(text="Config SFTP Sauvée.", text_color="green") or tabs.set("Synchronisation"), fg_color="green", hover_color="darkgreen").pack(pady=10)
-        ctk.CTkButton(tab_webdav, text=_("gui.btn_save"), command=lambda: save_conf() and lbl_status.configure(text="Config WebDAV Sauvée.", text_color="green") or tabs.set("Synchronisation"), fg_color="green", hover_color="darkgreen").pack(pady=10)
-        ctk.CTkButton(tab_local, text=_("gui.btn_save"), command=lambda: save_conf() and lbl_status.configure(text="Config Locale Sauvée.", text_color="green") or tabs.set("Synchronisation"), fg_color="green", hover_color="darkgreen").pack(pady=10)
 
         # --- RUN logic ---
         def run_sync():

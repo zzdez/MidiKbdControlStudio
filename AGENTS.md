@@ -737,3 +737,4 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     - **Auto-Cleanup Parents** : Implémentation d'une logique de nettoyage récursif après suppression de fichier. Si un dossier devient vide suite à une synchronisation (ex: déplacement d'un média multipiste), le moteur tente de supprimer les dossiers parents orphelins jusqu'à la racine du partage.
     - Support natif sur **SFTP**, **WebDAV** et **Local**.
     - **Protected Dirs (V9.6.46)** : Liste de dossiers structurels sanctuarisés (`Medias`, `data`, `profiles`, etc.) qui ne sont jamais supprimés par le moteur, garantissant l'intégrité de l'arborescence.
+    - **Partitioned State (V9.6.48)** : L'état de synchronisation est désormais séparé par type de fournisseur (`sync_state_sftp.json`, etc.), permettant de gérer plusieurs destinations cloud sans interférence.

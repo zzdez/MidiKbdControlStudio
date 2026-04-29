@@ -11,10 +11,13 @@ Le système de synchronisation d'Airstep Studio repose sur une architecture **hy
 ### Architecture Sidecar
 Contrairement à d'autres systèmes, Airstep Studio utilise des fichiers **sidecars** (`.json`) pour chaque média. Le moteur de synchronisation analyse ces fichiers pour détecter les changements de métadonnées (BPM, Tonalité, Boucles) sans avoir à analyser l'intégralité des fichiers binaires massifs, optimisant ainsi les transferts.
 
-### Suivi d'État (`sync_state.json`)
-Pour garantir une sécurité maximale, le système mémorise l'état de votre bibliothèque locale après chaque synchronisation réussie. Cela permet de distinguer :
-*   Un **nouveau fichier** sur le cloud (à télécharger).
-*   Un **fichier supprimé localement** (à supprimer sur le cloud lors de la prochaine synchro).
+### Suivi d'État Partitionné (V9.6.48) ✨
+Pour garantir une sécurité maximale et permettre la synchronisation avec plusieurs destinations différentes, le système mémorise l'état de votre bibliothèque localement. Cet état est désormais **partitionné par type de fournisseur** :
+*   `sync_state_sftp.json` pour vos serveurs NAS.
+*   `sync_state_webdav.json` pour vos clouds Nextcloud/OwnCloud.
+*   `sync_state_local.json` pour vos dossiers locaux (Dropbox/Drive).
+
+Cela vous permet de passer d'un type de cloud à un autre sans que le moteur ne confonde les fichiers présents sur l'un ou sur l'autre.
 
 ### Intelligence de Partage (V9.6.40) ✨
 La version 9.6.40 introduit une intelligence accrue pour protéger vos données :

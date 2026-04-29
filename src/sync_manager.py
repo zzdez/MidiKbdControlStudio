@@ -56,6 +56,10 @@ class LocalProvider(SyncProvider):
         HASH_SIZE_LIMIT = 200 * 1024 * 1024 
         
         for root, dirs, files in os.walk(target_dir):
+            # V9.6.47: Ignore technical folders
+            if ".update_buffer" in root or ".git" in root:
+                continue
+                
             for file in files:
                 full_path = os.path.join(root, file)
                 rel_path = os.path.relpath(full_path, self.root_dir).replace('\\', '/')
@@ -623,8 +627,15 @@ class SyncManager:
             'autoplay', 'autoreplay'
         ]
 
-        self.state_file = os.path.join(local_app_dir, "data", "sync_state.json")
+        # V9.6.48: Partitioned Sync State by Provider Type
+        provider_type = "unknown"
+        if isinstance(provider, SftpProvider): provider_type = "sftp"
+        elif isinstance(provider, WebdavProvider): provider_type = "webdav"
+        elif isinstance(provider, LocalProvider): provider_type = "local"
+        
+        self.state_file = os.path.join(local_app_dir, "data", f"sync_state_{provider_type}.json")
         self.state = self._load_state()
+        logging.warning(f"[SYNC] Using partitioned state: {os.path.basename(self.state_file)}")
 
         # V9.6.46: Protected structural folders (Never cleanup even if empty)
         self.protected_dirs = [
@@ -865,26 +876,24 @@ class SyncManager:
                             continue
                     except: pass
 
-                from datetime import datetime
-                drift = (local_stat['mtime'] - remote_stat['mtime']) - clock_skew
+                # V9.6.47: Explicit skewed comparison
+                skewed_local = local_stat['mtime'] + clock_skew
+                drift = skewed_local - remote_stat['mtime']
                 
                 local_dt = datetime.fromtimestamp(local_stat['mtime']).strftime('%d/%m %H:%M')
-                # Real server date (unskewed) for display
                 remote_real_dt = datetime.fromtimestamp(remote_stat['mtime']).strftime('%d/%m %H:%M')
-                # Calculated date (skewed) for internal logic but also display if needed
-                remote_skewed_dt = datetime.fromtimestamp(remote_stat['mtime'] + clock_skew).strftime('%d/%m %H:%M')
                 
                 if rel_path_low.endswith('.exe'):
-                    logging.warning(f"[SYNC] [DEBUG EXE] Local: {local_dt}, Remote: {remote_real_dt}, Skewed: {remote_skewed_dt}, Drift: {drift}s")
+                    logging.warning(f"[SYNC] [DEBUG EXE] Local: {local_dt}, Remote: {remote_real_dt}, Skew: {clock_skew}s, Drift: {drift}s")
 
                 if 'hash' in remote_stat and 'hash' in local_stat:
                     if remote_stat['hash'] != local_stat['hash']:
-                        if drift > 0: to_push.append({"path": local_p_real, "reason": f"content_change ({local_dt} > Cloud: {remote_real_dt})"})
-                        else: to_pull.append({"path": rel_path, "reason": f"content_change ({local_dt} < Cloud: {remote_real_dt})"})
+                        if drift > 2: to_push.append({"path": local_p_real, "reason": f"content_change ({local_dt} > Cloud: {remote_real_dt})"})
+                        elif drift < -2: to_pull.append({"path": rel_path, "reason": f"content_change ({local_dt} < Cloud: {remote_real_dt})"})
                 elif abs(drift) > TOLERANCE:
                     if remote_stat['size'] == local_stat['size'] and remote_stat['size'] > 0:
                         continue
-                    if drift > 0: to_push.append({"path": local_p_real, "reason": f"newer_locally ({local_dt} > Cloud: {remote_real_dt})"})
+                    if drift > TOLERANCE: to_push.append({"path": local_p_real, "reason": f"newer_locally ({local_dt} > Cloud: {remote_real_dt})"})
                     else: to_pull.append({"path": rel_path, "reason": f"newer_remotely ({local_dt} < Cloud: {remote_real_dt})"})
 
         # 2.2 Scan Local for Push or Local-Delete
@@ -952,7 +961,11 @@ class SyncManager:
         if "backup/" in p: return True
         if "peaks/" in p: return True
         if p.endswith(".log") or "debug" in p or p == "midikbd_debug.log": return True
-            
+        
+        # V9.6.49: Ignore partitioned sync states (machine-specific)
+        if p.startswith("data/sync_state_") and p.endswith(".json"): return True
+        if p == "data/sync_state.json": return True
+        
         # Development files
         if p in [".env", ".gitignore", "requirements.txt", "build.bat", "ag_state.json"]: return True
         if p.startswith("venv/") or p.startswith(".git/"): return True
