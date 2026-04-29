@@ -2073,14 +2073,18 @@ function toggleEditShared() {
     updateFamilySyncIcon();
 }
 
-function setEditSharedStatus(isShared) {
-    currentEditSharedStatus = isShared === true || isShared === "true"; 
-    updateFamilySyncIcon(); // V6.4: Unified state update
+function setEditSharedStatus(status) {
+    currentEditSharedStatus = status;
+    updateFamilySyncIcon();
 }
 
 function updateFamilySyncIcon() {
-    const btn = document.getElementById("btn-edit-shared");
-    if (!btn) return;
+    const btns = [
+        document.getElementById("btn-edit-shared-main"),
+        document.getElementById("btn-edit-shared-mt")
+    ].filter(b => b !== null);
+    
+    if (btns.length === 0) return;
     
     let isPartial = false;
     let anyShared = currentEditSharedStatus;
@@ -2099,19 +2103,27 @@ function updateFamilySyncIcon() {
     }
 
     // Determine color and icon
+    let color, html, title;
     if (anyShared && allShared) {
-        btn.style.color = "#03DAC6"; // Cyan: Full
-        btn.innerHTML = '<i class="ph-fill ph-cloud-arrow-up"></i>';
-        btn.title = (currentLang === 'fr') ? "Partage complet" : "Full share";
+        color = "#03DAC6"; // Cyan: Full
+        html = '<i class="ph-fill ph-cloud-arrow-up"></i>';
+        title = (currentLang === 'fr') ? "Partage complet" : "Full share";
     } else if (anyShared) {
-        btn.style.color = "#FFB74D"; // Orange: Partial
-        btn.innerHTML = '<i class="ph ph-cloud-arrow-up"></i>';
-        btn.title = (currentLang === 'fr') ? "Partage partiel" : "Partial share";
+        color = "#FFB74D"; // Orange: Partial
+        html = '<i class="ph ph-cloud-arrow-up"></i>';
+        title = (currentLang === 'fr') ? "Partage partiel" : "Partial share";
     } else {
-        btn.style.color = "#666"; // Gray: None
-        btn.innerHTML = '<i class="ph ph-cloud-slash"></i>';
-        btn.title = (currentLang === 'fr') ? "Non partagé" : "Not shared";
+        color = "#666"; // Gray: None
+        html = '<i class="ph ph-cloud-slash"></i>';
+        title = (currentLang === 'fr') ? "Non partagé" : "Not shared";
     }
+
+    // Apply to all found buttons
+    btns.forEach(btn => {
+        btn.style.color = color;
+        btn.innerHTML = html;
+        btn.title = title;
+    });
 }
 
 async function showSyncFamilyModal() {
@@ -2312,6 +2324,11 @@ function openAddModal() {
 
     // Reset View: Show Search
     resetSearchMode();
+
+    // V61: Reset Shared Status for Addition
+    setEditSharedStatus(false);
+    currentEditingLinkedIds = [];
+    renderModalLinkedItems();
 
     // Check API Key
     const searchInput = document.getElementById("yt-search-input");
@@ -4372,21 +4389,6 @@ async function loadMultitrackSettings(file) {
     }
 }
 
-function openEditLocalModal(index) {
-    editingIndex = index;
-    const file = localFiles[index];
-    if (!file) return;
-
-    // Reveal sidebar if in theater mode to give context to editing
-    if (isTheaterMode && typeof toggleTheaterMode === 'function') {
-        toggleTheaterMode(false);
-    }
-
-    document.getElementById("media-modal").showModal();
-    
-    // Auto-scroll in background
-    setTimeout(scrollToActiveTrack, 200);
-}
 
 async function playLocal(index) {
     const file = localFiles[index];

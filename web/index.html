@@ -1188,10 +1188,12 @@
                     <button class="btn-secondary" onclick="autoTagMultitrack()"
                         title="Rechercher sur MusicBrainz/YouTube" data-i18n-title="web.hint_autotag">🔍
                         Auto-Tag</button>
-                    <button id="btn-edit-shared" class="btn-secondary" onclick="toggleEditShared()" title="Partager avec le Groupe" style="color: #666;" data-i18n-title="web.hint_share_group">
+                    <button id="btn-edit-shared-mt" class="btn-secondary" onclick="toggleEditShared()" title="Partager avec le Groupe" style="color: #666;" data-i18n-title="web.hint_share_group">
                         <i class="ph ph-cloud-arrow-up"></i>
                     </button>
                 </div>
+                <!-- V61: Display linked items in Multitrack modal -->
+                <div id="mt-linked-items-display" style="display:flex; flex-wrap:wrap; gap:8px; margin-top: 5px;"></div>
 
                 <div class="row-inputs">
                     <div class="col">
@@ -1410,7 +1412,7 @@
                         <button class="btn-secondary" onclick="openUniversalTagModal('edit')"
                             title="Rechercher des métadonnées" data-i18n-title="web.hint_autotag">🔍
                             Auto-Tag</button>
-                        <button id="btn-edit-shared" class="btn-secondary" onclick="toggleEditShared()" title="Partager avec le Groupe" style="color: #666;" data-i18n-title="web.hint_share_group">
+                        <button id="btn-edit-shared-main" class="btn-secondary" onclick="toggleEditShared()" title="Partager avec le Groupe" style="color: #666;" data-i18n-title="web.hint_share_group">
                             <i class="ph ph-cloud-arrow-up"></i>
                         </button>
                     </div>
