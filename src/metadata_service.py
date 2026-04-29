@@ -425,7 +425,6 @@ class MetadataService:
 
     def write_file_metadata(self, path, data, local_items=None):
         """Writes metadata to a file's id3 tags or a sidecar .json file."""
-        from utils import resolve_portable_path
         path = resolve_portable_path(path)
         
         logging.info(f"Attempting to write metadata for: {path}")
@@ -818,7 +817,6 @@ class MetadataService:
                     cover_field = meta.get("cover")
                     if cover_field:
                         # Try to resolve cover (could be absolute, portable or relative to media)
-                        from utils import resolve_portable_path
                         resolved_cover = resolve_portable_path(cover_field)
                         if os.path.exists(resolved_cover):
                             return self.get_file_cover(resolved_cover)

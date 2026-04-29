@@ -1,4 +1,4 @@
-# Guide Complet de Synchronisation Cloud (V9.6.40)
+# Guide Complet de Synchronisation Cloud (V9.6.46)
 
 Ce document détaille le fonctionnement, la configuration et l'utilisation du système de synchronisation multi-cloud d'**Airstep Studio**.
 
@@ -77,3 +77,15 @@ Une modale interactive s'ouvre. Elle affiche la liste exacte avec des indicateur
 *   **Fichiers non détectés** : Assurez-vous d'avoir sélectionné les bonnes **Catégories** (Médias, Profils, etc.) avant de lancer l'analyse.
 *   **Conflit de Casse (Casing)** : Le système normalise les noms de fichiers pour éviter les doublons causés par les différences entre Windows et Linux (ex: `image.JPG` vs `image.jpg`).
 *   **Précision Temporelle** : Le système tolère un décalage allant jusqu'à 2 secondes pour compenser les arrondis de certains serveurs SFTP/WebDAV.
+
+---
+
+## 6. Protection de la Structure (V9.6.46) ✨
+
+Le moteur de synchronisation inclut une protection contre la suppression accidentelle des dossiers structurels critiques de l'application. Même s'ils sont vides, les dossiers suivants ne seront **jamais** supprimés par le nettoyage automatique :
+
+*   **Médias** : `Medias`, `Medias/Audios`, `Medias/Videos`, `Medias/Multipistes`, `Medias/Midi`.
+*   **Données & Configuration** : `data`, `profiles`, `devices`.
+*   **Système** : `locales`, `assets`, `peaks`.
+
+Cette sécurité garantit que l'architecture de votre bibliothèque reste intacte, peu importe les opérations de nettoyage effectuées sur les fichiers individuels.

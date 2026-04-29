@@ -732,3 +732,8 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     - Support natif étendu pour les formats : **Images** (PNG, JPEG, GIF), **Audio** (AAC, M4A, FLAC) et **Vidéo** (WebM, MKV, MOV).
 *   **Fiabilisation des Logs** :
     - Nettoyage des logs de diagnostic `[SYNC-DEBUG]` au profit d'un flux de production clair et précis dans `midikbd_debug.log`.
+### 51. Évolution V9.6.41 : Nettoyage Récursif des Répertoires
+*   **Hygiène du Cloud (`sync_manager.py`)** :
+    - **Auto-Cleanup Parents** : Implémentation d'une logique de nettoyage récursif après suppression de fichier. Si un dossier devient vide suite à une synchronisation (ex: déplacement d'un média multipiste), le moteur tente de supprimer les dossiers parents orphelins jusqu'à la racine du partage.
+    - Support natif sur **SFTP**, **WebDAV** et **Local**.
+    - **Protected Dirs (V9.6.46)** : Liste de dossiers structurels sanctuarisés (`Medias`, `data`, `profiles`, etc.) qui ne sont jamais supprimés par le moteur, garantissant l'intégrité de l'arborescence.

@@ -108,12 +108,32 @@ class LocalProvider(SyncProvider):
             
         return True
 
-    def delete_file(self, relative_path: str) -> bool:
+    def delete_file(self, relative_path: str, protected_dirs: Optional[List[str]] = None) -> bool:
         path = os.path.join(self.root_dir, relative_path)
-        if os.path.exists(path):
-            os.remove(path)
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+                logging.warning(f"[LOCAL] File deleted successfully: {path}")
+                # V9.6.41: Cleanup empty parents
+                parent = os.path.dirname(path)
+                while parent and parent != self.root_dir:
+                    # V9.6.46: Protection check
+                    rel_parent = os.path.relpath(parent, self.root_dir).lower().replace('\\', '/')
+                    if protected_dirs and rel_parent in protected_dirs:
+                        logging.debug(f"[LOCAL] Cleanup stopped: parent '{rel_parent}' is protected.")
+                        break
+                        
+                    try:
+                        if not os.listdir(parent):
+                            os.rmdir(parent)
+                            logging.warning(f"[LOCAL] Empty directory cleaned: {parent}")
+                            parent = os.path.dirname(parent)
+                        else: break
+                    except: break
             return True
-        return False
+        except Exception as e:
+            logging.error(f"[LOCAL] Delete FAILED for {path}: {e}")
+            return False
 
     def get_file_content(self, relative_path: str) -> Optional[str]:
         """V7.6: Helper for diagnostic diffs."""
@@ -265,13 +285,37 @@ class SftpProvider(SyncProvider):
             return True
         except Exception as e:
             logging.warning(f"[SFTP] Echec de l'upload pour {dst} : {e}")
-    def delete_file(self, relative_path: str) -> bool:
+    def delete_file(self, relative_path: str, protected_dirs: Optional[List[str]] = None) -> bool:
         self.connect()
-        path = f"{self.remote_root}/{relative_path}".replace('//', '/')
+        # V9.6.44: Strict normalization
+        root = self.remote_root.rstrip('/')
+        path = f"{root}/{relative_path}".replace('\\', '/').replace('//', '/')
         try:
             self.sftp.remove(path)
+            logging.warning(f"[SFTP] File deleted successfully: {path}")
+            
+            # V9.6.41: Cleanup empty parents
+            parent = os.path.dirname(path).replace('\\', '/')
+            while parent and parent != root and parent != '.':
+                # V9.6.46: Protection check
+                rel_parent = parent
+                if rel_parent.startswith(root):
+                    rel_parent = rel_parent[len(root):].lstrip('/')
+                
+                if protected_dirs and rel_parent.lower() in protected_dirs:
+                    logging.debug(f"[SFTP] Cleanup stopped: parent '{rel_parent}' is protected.")
+                    break
+                    
+                try:
+                    self.sftp.rmdir(parent)
+                    logging.warning(f"[SFTP] Empty directory cleaned: {parent}")
+                    parent = os.path.dirname(parent).replace('\\', '/')
+                except:
+                    break
             return True
-        except: return False
+        except Exception as e:
+            logging.error(f"[SFTP] Delete FAILED for {path}: {e}")
+            return False
 
 class WebdavProvider(SyncProvider):
     def __init__(self, url: str, username: str, password: str):
@@ -504,12 +548,38 @@ class WebdavProvider(SyncProvider):
             logging.warning(f"[WebDAV] Upload EXCEPTION for {dst}: {e}")
             return False
 
-    def delete_file(self, relative_path: str) -> bool:
+    def delete_file(self, relative_path: str, protected_dirs: Optional[List[str]] = None) -> bool:
         dst = f"{self.url}/{relative_path}"
         try:
             resp = self.session.delete(dst)
-            return resp.status_code in [200, 204]
-        except: return False
+            if resp.status_code in [200, 204]:
+                logging.warning(f"[WebDAV] File deleted successfully: {dst}")
+                # V9.6.41: Try cleanup empty parents
+                parts = relative_path.rstrip('/').split('/')
+                while len(parts) > 1:
+                    parts.pop()
+                    parent_path = "/".join(parts)
+                    if not parent_path: break
+                    
+                    # V9.6.46: Protection check
+                    if protected_dirs and parent_path.lower() in protected_dirs:
+                        break
+                        
+                    parent_url = f"{self.url}/{parent_path}"
+                    # Check if empty (Depth 1 should only return the folder itself if empty)
+                    check = self.session.request('PROPFIND', parent_url, headers={'Depth': '1'})
+                    if check.status_code == 207:
+                        # Simple heuristic: if only one <d:response> (itself), it's empty
+                        if check.text.count('<d:response') <= 1 and check.text.count('<response') <= 1:
+                            self.session.delete(parent_url)
+                            logging.warning(f"[WebDAV] Empty directory cleaned: {parent_url}")
+                        else: break
+                    else: break
+                return True
+            return False
+        except Exception as e:
+            logging.error(f"[WebDAV] Delete FAILED for {dst}: {e}")
+            return False
 
     def _mkdir_p_dav(self, remote_directory: str):
         if not remote_directory or remote_directory in ['.', '/']:
@@ -553,9 +623,19 @@ class SyncManager:
             'autoplay', 'autoreplay'
         ]
 
-        # V9.1: Sync State (Memory)
         self.state_file = os.path.join(local_app_dir, "data", "sync_state.json")
         self.state = self._load_state()
+
+        # V9.6.46: Protected structural folders (Never cleanup even if empty)
+        self.protected_dirs = [
+            "medias", "medias/audios", "medias/videos", "medias/multipistes", "medias/midi",
+            "data", "profiles", "devices", "locales", "assets", "peaks"
+        ]
+
+    def _is_protected_path(self, rel_path: str) -> bool:
+        """Checks if a relative path (portable) is in the protected list."""
+        p = rel_path.lower().replace('\\', '/').strip('/')
+        return p in self.protected_dirs
 
     def _load_state(self) -> dict:
         if os.path.exists(self.state_file):
@@ -1057,13 +1137,16 @@ class SyncManager:
             if self._is_media_sidecar(rel_path):
                 try:
                     temp_remote_path = os.path.join(self.update_buffer_dir, rel_path + ".remote")
+                    filtered_path = os.path.join(self.update_buffer_dir, rel_path + ".upload")
+                    
+                    # V9.6.45: Ensure buffer subdirectories exist
+                    os.makedirs(os.path.dirname(temp_remote_path), exist_ok=True)
+                    
                     if rel_path in remote_files:
                         self.provider.download_file(rel_path, temp_remote_path)
-                        filtered_path = os.path.join(self.update_buffer_dir, rel_path + ".upload")
                         self._prepare_filtered_json_for_upload(local_path, temp_remote_path, filtered_path)
                         upload_source = filtered_path
                     else:
-                        filtered_path = os.path.join(self.update_buffer_dir, rel_path + ".upload")
                         self._prepare_filtered_json_for_upload(local_path, None, filtered_path)
                         upload_source = filtered_path
                 except Exception as e:
@@ -1077,7 +1160,7 @@ class SyncManager:
             current_action += 1
             self._notify_progress(current_action, total_actions, rel_path, "delete_remote")
             logging.warning(f"[SYNC] Deleting remote file: {rel_path}")
-            self.provider.delete_file(rel_path)
+            self.provider.delete_file(rel_path, protected_dirs=self.protected_dirs)
 
         # 4. Delete Local
         for item in del_local:
@@ -1087,7 +1170,7 @@ class SyncManager:
             local_path = os.path.join(self.local_dir, rel_path)
             if os.path.exists(local_path):
                 logging.warning(f"[SYNC] Deleting local file: {rel_path}")
-                os.remove(local_path)
+                self.provider.delete_file(rel_path, protected_dirs=self.protected_dirs)
         
         # FINAL: Save current state to memory
         # V9.2.1: We only save what is CURRENTLY on the remote and that is SHARED.
