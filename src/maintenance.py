@@ -56,6 +56,27 @@ def consolidate_data_folders():
                     logging.warning(f"[MAINTENANCE] Conflit détecté pour {filename}. Racine renommé en .bak")
                 except: pass
 
+def cleanup_temp_files():
+    """
+    V9.6.54 : Nettoie les fichiers temporaires de mise à jour (.old) 
+    et les backups (.bak) une fois qu'ils ne sont plus nécessaires.
+    """
+    app_dir = get_app_dir()
+    for root, dirs, files in os.walk(app_dir):
+        for file in files:
+            if file.lower().endswith('.old') or file.lower().endswith('.bak'):
+                # Protection : ne pas scanner récursivement trop loin si structure complexe
+                # Mais ici on veut surtout la racine et medias.
+                path = os.path.join(root, file)
+                try:
+                    os.remove(path)
+                    logging.warning(f"[MAINTENANCE] Cleanup: suppression de {file}")
+                except:
+                    # Probablement encore verrouillé
+                    pass
+        # On ne descend que d'un niveau pour la performance et sécurité
+        break
+
 def generate_uid(prefix, item):
     """Génère un UID stable basé sur le contenu."""
     seed = item.get("path") or item.get("url") or (item.get("title", "") + item.get("artist", ""))
@@ -70,6 +91,7 @@ def heal_all_meshes():
     # Migration structurelle d'abord
     try:
         consolidate_data_folders()
+        cleanup_temp_files()
     except Exception as e:
         logging.error(f"[MAINTENANCE] Erreur lors de la consolidation: {e}")
 

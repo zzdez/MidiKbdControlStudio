@@ -514,6 +514,7 @@ class WebdavProvider(SyncProvider):
                 raise ConnectionError(f"Erreur de réseau : {str(e)}")
         return result
 
+
     def download_file(self, remote_relative_path: str, local_absolute_path: str) -> bool:
         src = f"{self.url}/{remote_relative_path}"
         os.makedirs(os.path.dirname(local_absolute_path), exist_ok=True)
@@ -637,11 +638,13 @@ class SyncManager:
         self.state = self._load_state()
         logging.warning(f"[SYNC] Using partitioned state: {os.path.basename(self.state_file)}")
 
-        # V9.6.46: Protected structural folders (Never cleanup even if empty)
         self.protected_dirs = [
             "medias", "medias/audios", "medias/videos", "medias/multipistes", "medias/midi",
             "data", "profiles", "devices", "locales", "assets", "peaks"
         ]
+        
+        # V9.6.53: Sharing Propagation Map
+        self._sharing_map = {} 
 
     def _is_protected_path(self, rel_path: str) -> bool:
         """Checks if a relative path (portable) is in the protected list."""
@@ -652,9 +655,93 @@ class SyncManager:
         if os.path.exists(self.state_file):
             try:
                 with open(self.state_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    state = json.load(f)
+                    if "shared_uids" not in state: state["shared_uids"] = {}
+                    return state
             except: pass
-        return {"files": {}, "last_sync": 0}
+        return {"files": {}, "last_sync": 0, "shared_uids": {}}
+
+    def _build_sharing_map(self, local_files: Dict[str, dict]) -> Dict[str, bool]:
+        """
+        V9.6.53: Builds a map of UIDs to sharing status, propagating through links.
+        Ensures that if a master is shared, all linked media are also pushed to cloud.
+        """
+        uid_to_shared = {} # UID -> bool
+        uid_to_links = {}  # UID -> List[UID]
+        
+        logging.warning("[SYNC] Building sharing propagation map...")
+        
+        # 1. Collect initial status from all library and sidecar JSONs
+        for rel_path in local_files:
+            if not rel_path.lower().endswith('.json'): continue
+            
+            # V9.6.53: Only scan Medias sidecars and Data library files
+            p_low = rel_path.lower()
+            if not (p_low.startswith('medias/') or p_low.startswith('data/')): continue
+            
+            full_path = os.path.join(self.local_dir, rel_path)
+            try:
+                # Use standard json load for safety
+                with open(full_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                
+                items = []
+                if isinstance(data, list): items = data
+                elif isinstance(data, dict): items = [data]
+                
+                for item in items:
+                    if not isinstance(item, dict): continue
+                    uid = item.get('uid')
+                    if not uid: continue
+                    
+                    shared = item.get('shared_with_group', False)
+                    # Support both boolean and string "true"
+                    is_shared = shared is True or shared == "true"
+                    
+                    if uid not in uid_to_shared or is_shared:
+                        uid_to_shared[uid] = is_shared
+                        
+                    links = item.get('linked_ids', [])
+                    if isinstance(links, list):
+                        if uid not in uid_to_links: uid_to_links[uid] = set()
+                        for l_uid in links:
+                            if l_uid: uid_to_links[uid].add(l_uid)
+            except:
+                continue
+
+        # 2. Iterative propagation (Transitive closure of sharing)
+        # If A is shared and A links to B, then B is shared.
+        # If B links to A and A is shared, then B is shared.
+        changed = True
+        iterations = 0
+        while changed and iterations < 10: # Limit iterations for safety
+            changed = False
+            iterations += 1
+            for uid, links in uid_to_links.items():
+                current_shared = uid_to_shared.get(uid, False)
+                
+                # Check if I am shared or any of my links is shared
+                new_shared = current_shared
+                if not new_shared:
+                    for l_uid in links:
+                        if uid_to_shared.get(l_uid, False):
+                            new_shared = True
+                            break
+                
+                if new_shared and not current_shared:
+                    uid_to_shared[uid] = True
+                    changed = True
+                    
+                # Propagate my sharing status to my links
+                if new_shared:
+                    for l_uid in links:
+                        if not uid_to_shared.get(l_uid, False):
+                            uid_to_shared[l_uid] = True
+                            changed = True
+                            
+        shared_count = sum(1 for s in uid_to_shared.values() if s)
+        logging.warning(f"[SYNC] Sharing map ready: {len(uid_to_shared)} items tracked, {shared_count} shared (including propagation).")
+        return uid_to_shared
 
 
     def _get_canonical_hash_from_dict(self, data: dict) -> str:
@@ -734,11 +821,15 @@ class SyncManager:
         except:
             return False
 
-    def _is_media_sidecar(self, rel_path: str) -> bool:
-        """Returns True if the file is a metadata sidecar for a media file."""
+    def _is_filterable_json(self, rel_path: str) -> bool:
+        """Returns True if the file is a metadata sidecar OR a main library file."""
         p = rel_path.replace('\\', '/').lower()
-        # Media sidecars are .json files located inside Medias/
-        return p.startswith('medias/') and p.endswith('.json')
+        # 1. Media sidecars
+        if p.startswith('medias/') and p.endswith('.json'): return True
+        # 2. Main libraries (V9.6.56)
+        filterable_libs = ['data/local_lib.json', 'data/setlist.json', 'data/web_links.json']
+        if p in filterable_libs: return True
+        return False
 
     def set_progress_callback(self, callback):
         self.progress_callback = callback
@@ -761,6 +852,10 @@ class SyncManager:
         self._notify_progress(0, 100, "", "analyzing")
         
         local_files = self._list_local_files()
+        
+        # V9.6.53: Build sharing propagation map BEFORE analysis
+        self._sharing_map = self._build_sharing_map(local_files)
+        
         remote_files = self.provider.list_files()
         
         # V9.6.33: Aggressive normalization of all paths (slashes and casing)
@@ -1035,7 +1130,11 @@ class SyncManager:
                     try:
                         if p.endswith('.json'):
                             data = utils.load_json(full_path)
-                            shared = isinstance(data, dict) and data.get('shared_with_group', False)
+                            if not isinstance(data, dict): return False
+                            uid = data.get('uid')
+                            
+                            # V9.6.53: Use propagation map
+                            shared = self._sharing_map.get(uid, False)
                             
                             # V9.6.37: If local flag is missing but file is ALREADY on Cloud, trust the Cloud
                             if not shared and not is_remote:
@@ -1127,14 +1226,30 @@ class SyncManager:
             buffer_path = os.path.join(self.update_buffer_dir, rel_path)
             self.provider.download_file(rel_path, buffer_path)
             
-            if self._is_media_sidecar(rel_path):
+            if self._is_filterable_json(rel_path):
                 local_path = os.path.join(self.local_dir, rel_path)
                 if os.path.exists(local_path):
                     self._perform_deep_merge(buffer_path, local_path)
             
-            if not rel_path.lower().endswith('.exe'):
-                local_path = os.path.join(self.local_dir, rel_path)
-                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            local_path = os.path.join(self.local_dir, rel_path)
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            
+            if rel_path.lower().endswith('.exe'):
+                # V9.6.54: "Windows Rename" Trick for in-use executables
+                # We can rename a running EXE to unlock its path, then put the new one in place.
+                try:
+                    if os.path.exists(local_path):
+                        old_path = local_path + ".old"
+                        if os.path.exists(old_path): 
+                            try: os.remove(old_path)
+                            except: pass
+                        os.rename(local_path, old_path)
+                        logging.warning(f"[SYNC] EXE in use: renamed to {os.path.basename(old_path)} to allow replacement.")
+                    
+                    shutil.copy2(buffer_path, local_path)
+                except Exception as e:
+                    logging.error(f"[SYNC] Failed to update EXE: {e}")
+            else:
                 shutil.copy2(buffer_path, local_path)
                     
         # 2. Push
@@ -1147,7 +1262,7 @@ class SyncManager:
             local_path = os.path.join(self.local_dir, rel_path)
             upload_source = local_path
             
-            if self._is_media_sidecar(rel_path):
+            if self._is_filterable_json(rel_path):
                 try:
                     temp_remote_path = os.path.join(self.update_buffer_dir, rel_path + ".remote")
                     filtered_path = os.path.join(self.update_buffer_dir, rel_path + ".upload")
@@ -1190,15 +1305,32 @@ class SyncManager:
         # This prevents new local files (not yet pushed) from being seen as "deleted remotely".
         final_remote_files = self.provider.list_files()
         shared_state = {}
+        shared_uids = {} # V9.6.57: Track shared UIDs per filterable JSON
+        
         for p, s in final_remote_files.items():
-            if self._is_shared_file(p, is_remote=True, categories=selected_categories):
+            if self._is_filterable_json(p) or self._is_shared_file(p, is_remote=True, categories=selected_categories):
                 shared_state[p] = {"mtime": s.get("mtime", 0), "size": s.get("size", 0)}
+                
+                # V9.6.57: If it's a filterable JSON, we also track its shared UIDs from the remote content
+                if self._is_filterable_json(p):
+                    try:
+                        content = self.provider.get_file_content(p)
+                        if content:
+                            data = json.loads(content)
+                            if isinstance(data, list):
+                                uids = [it['uid'] for it in data if isinstance(it, dict) and 'uid' in it]
+                                shared_uids[p] = uids
+                            elif isinstance(data, dict) and 'uid' in data:
+                                shared_uids[p] = [data['uid']]
+                    except Exception as e:
+                        logging.debug(f"[STATE] Could not track UIDs for {p}: {e}")
         
         # Save to sync_state.json
         try:
             os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
             self.state = {
                 "files": shared_state,
+                "shared_uids": shared_uids,
                 "last_sync": time.time()
             }
             with open(self.state_file, "w", encoding="utf-8") as f:
@@ -1210,74 +1342,121 @@ class SyncManager:
 
             
     def _prepare_filtered_json_for_upload(self, local_json_path: str, remote_json_path: Optional[str], output_path: str):
-        """Creates a filtered version of the JSON for the Master (removes private fields)."""
+        """Creates a filtered version of the JSON for the Cloud (removes private items and private fields)."""
         with open(local_json_path, 'r', encoding='utf-8') as f:
             local_data = json.load(f)
             
+        if isinstance(local_data, list):
+            # V9.6.55: Selective List Filter (Only upload SHARED items)
+            filtered_list = []
+            for item in local_data:
+                if not isinstance(item, dict): continue
+                shared = item.get('shared_with_group', False)
+                if shared is True or shared == "true":
+                    # Remove absolute private fields from the shared item
+                    clean_item = {k: v for k, v in item.items() if k not in self.private_fields}
+                    filtered_list.append(clean_item)
+            
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(filtered_list, f, sort_keys=True, separators=(',', ':'))
+            return
+
         if not isinstance(local_data, dict):
             with open(output_path, 'w', encoding='utf-8') as f:
-                # V7.7: Canonical minification
                 json.dump(local_data, f, sort_keys=True, separators=(',', ':'))
             return
 
         # 1. Create a copy with only shared fields (Whitelist)
         filtered_data = {k: local_data[k] for k in self.shared_fields if k in local_data}
         
-        # 2. Force remove absolute private fields just in case they were in the shared list
+        # 2. Force remove absolute private fields
         for fld in self.private_fields:
             if fld in filtered_data:
                 del filtered_data[fld]
         
-        # 3. If there is a remote version, prioritize IT for global shared data (Master Wins)
+        # 3. Master Wins on specific fields if remote exists
         if remote_json_path and os.path.exists(remote_json_path):
-            with open(remote_json_path, 'r', encoding='utf-8') as f:
-                remote_data = json.load(f)
-            # Master wins on global metadata to avoid overwriting with stale local data
-            # (We only override if the master actually HAS data for these fields)
-            MASTER_WINS_FIELDS = ['bpm', 'key', 'media_key', 'scale', 'title', 'artist', 'genre', 'year', 'original_pitch']
-            for k in MASTER_WINS_FIELDS:
-                if k in remote_data and remote_data[k]:
-                    filtered_data[k] = remote_data[k]
+            try:
+                with open(remote_json_path, 'r', encoding='utf-8') as f:
+                    remote_data = json.load(f)
+                MASTER_WINS_FIELDS = ['bpm', 'key', 'media_key', 'scale', 'title', 'artist', 'genre', 'year', 'original_pitch']
+                for k in MASTER_WINS_FIELDS:
+                    if k in remote_data and remote_data[k]:
+                        filtered_data[k] = remote_data[k]
+            except: pass
 
         with open(output_path, 'w', encoding='utf-8') as f:
-            # V7.7: Atomic Unification (Ensures Local Hash == Remote Hash)
             json.dump(filtered_data, f, sort_keys=True, separators=(',', ':'))
 
     def _perform_deep_merge(self, downloaded_json_path: str, local_json_path: str):
+        """Merges remote shared data into local library without destroying private items."""
         with open(local_json_path, 'r', encoding='utf-8') as f:
             local_data = json.load(f)
         with open(downloaded_json_path, 'r', encoding='utf-8') as f:
             remote_data = json.load(f)
             
+        if isinstance(local_data, list) and isinstance(remote_data, list):
+            # V9.6.57: Smart List Merge with Deletion Tracking
+            local_by_uid = {it['uid']: it for it in local_data if isinstance(it, dict) and 'uid' in it}
+            remote_by_uid = {it['uid']: it for it in remote_data if isinstance(it, dict) and 'uid' in it}
+            
+            # Identify deletions: UIDs that WERE on Cloud (in state) but are NO LONGER on Cloud
+            prev_shared_uids = set(self.state.get("shared_uids", {}).get(rel_path, []))
+            deleted_on_cloud = prev_shared_uids - set(remote_by_uid.keys())
+            
+            new_list = []
+            
+            # Phase 1: Keep local items, merging metadata or deleting
+            for item in local_data:
+                if not isinstance(item, dict) or 'uid' not in item:
+                    new_list.append(item)
+                    continue
+                
+                uid = item['uid']
+                shared = item.get('shared_with_group', False)
+                is_shared = shared is True or shared == "true"
+                
+                if not is_shared:
+                    # Private item: Always keep as is
+                    new_list.append(item)
+                else:
+                    # Shared item: 
+                    if uid in remote_by_uid:
+                        # Item exists on Cloud: Merge Cloud metadata into Local
+                        remote_item = remote_by_uid[uid]
+                        merged_item = item.copy()
+                        for k, v in remote_item.items():
+                            if k not in self.private_fields:
+                                merged_item[k] = v
+                        new_list.append(merged_item)
+                    elif uid in deleted_on_cloud:
+                        # V9.6.57: PROPAGATE DELETION
+                        # This item was shared and on Cloud before, but is gone from Cloud now.
+                        logging.warning(f"[SYNC] Propagating deletion of shared item: {item.get('title', uid)}")
+                        continue
+                    else:
+                        # Shared locally but NOT in state and NOT on cloud -> New local item
+                        new_list.append(item)
+            
+            # Phase 2: Add new shared items from Cloud
+            for uid, remote_item in remote_by_uid.items():
+                if uid not in local_by_uid:
+                    new_list.append(remote_item)
+            
+            with open(downloaded_json_path, 'w', encoding='utf-8') as f:
+                json.dump(new_list, f, sort_keys=True, separators=(',', ':'))
+            return
+
         if not isinstance(local_data, dict) or not isinstance(remote_data, dict):
-            # For lists, remote version (the one being downloaded) wins
             with open(downloaded_json_path, 'w', encoding='utf-8') as f:
                 json.dump(remote_data, f, sort_keys=True, separators=(',', ':'))
             return
 
-        # Priority: Remote values act as source for global metadata (BPM, chapters),
-        # but LOCAL overrides for volume, target_pitch, saved_loops, notes
-        
+        # Dict deep merge logic
         merged = deep_merge(local_data.copy(), remote_data)
-        
-        # Ensure PRIVATE local data is NEVER overwritten by Master
         for field in self.private_fields:
-            if field in local_data:
-                merged[field] = local_data[field]
-            elif field in merged:
-                del merged[field]
-        
-        # Also protect fields NOT in the current whitelist (they are considered local-only by the user)
-        # unless they are explicitly shared and we want them.
-        # (This handles the case where someone adds a field to their MASTER that we don't want)
-        for field in list(merged.keys()):
-            if field not in self.shared_fields and field not in self.private_fields:
-                 # If it was in local_data, keep it (local preference)
-                 if field in local_data:
-                     merged[field] = local_data[field]
-                 else:
-                     # It's extra data from master that we don't share/recognize
-                     pass 
+            if field in local_data: merged[field] = local_data[field]
+            elif field in merged: del merged[field]
             
         with open(downloaded_json_path, 'w', encoding='utf-8') as f:
             json.dump(merged, f, sort_keys=True, separators=(',', ':'))
