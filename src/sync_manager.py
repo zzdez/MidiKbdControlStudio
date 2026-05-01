@@ -684,6 +684,9 @@ class SyncManager:
         uid_to_shared = {} # UID -> bool
         uid_to_links = {}  # UID -> List[UID]
         
+        self._path_to_shared_map = {} # V9.6.58: Path based map
+        path_to_uid = {} # Path -> UID mapping
+        
         logging.warning("[SYNC] Building sharing propagation map...")
         
         # 1. Collect initial status from all library and sidecar JSONs
@@ -712,6 +715,19 @@ class SyncManager:
                     shared = item.get('shared_with_group', False)
                     # Support both boolean and string "true"
                     is_shared = shared is True or shared == "true"
+                    
+                    # V9.6.58: Populate Path map
+                    item_path = item.get('path')
+                    if item_path:
+                        p_norm = item_path.replace('${APP_DIR}/', '').replace('\\', '/').lower()
+                        if uid:
+                            path_to_uid[p_norm] = uid
+                        else:
+                            # Direct mapping for missing UIDs
+                            if p_norm not in self._path_to_shared_map or is_shared:
+                                self._path_to_shared_map[p_norm] = is_shared
+                    
+                    if not uid: continue
                     
                     if uid not in uid_to_shared or is_shared:
                         uid_to_shared[uid] = is_shared
@@ -753,6 +769,11 @@ class SyncManager:
                         if not uid_to_shared.get(l_uid, False):
                             uid_to_shared[l_uid] = True
                             changed = True
+                            
+                            
+        # V9.6.58: Finalize Path Map after propagation
+        for p_norm, uid in path_to_uid.items():
+            self._path_to_shared_map[p_norm] = uid_to_shared.get(uid, False)
                             
         shared_count = sum(1 for s in uid_to_shared.values() if s)
         logging.warning(f"[SYNC] Sharing map ready: {len(uid_to_shared)} items tracked, {shared_count} shared (including propagation).")
@@ -1130,6 +1151,17 @@ class SyncManager:
         # 1. Validate against categories first
         if not self._is_in_selected_categories(rel_path, categories):
             return False
+
+        # V9.6.58: Fast path resolution fallback (solves missing UIDs in sidecars after a move)
+        if hasattr(self, '_path_to_shared_map'):
+            if self._path_to_shared_map.get(p): return True
+            for ext in ['.json', '.jpg', '.jpeg', '.png', '.gif', '.vtt', '.srt', '.peaks.json']:
+                if p.endswith(ext):
+                    if self._path_to_shared_map.get(p[:-len(ext)]): return True
+                    break
+            # Multitrack folder fallback
+            parent_dir = os.path.dirname(p)
+            if self._path_to_shared_map.get(parent_dir): return True
 
         # 2. Specific logic for Medias (requires sidecar flag check if local)
         # V9.6.32: Use more robust check for media root (case insensitive)
