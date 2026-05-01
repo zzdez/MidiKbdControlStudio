@@ -679,3 +679,62 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
 ### 45. Évolution V66 : Harmonisation de l'Applet Web Links
 *   **Parité Fonctionnelle** : Ajout de la colonne **Catégorie** dans la table des liens Web pour correspondre aux bibliothèques locales.
 *   **Alignement "Pixel-Perfect"** : Utilisation de `justify-content: space-between` dans les en-têtes pour forcer l'alignement des icônes de tri sur le bord droit de chaque colonne, créant une symétrie visuelle sur tout le Dashboard.
+### 46. Évolution V67 : Système de Synchronisation Multi-Cloud & Hardening WebDAV
+*   **Moteur de Synchronisation Unifié (`sync_manager.py`)** :
+    - **Architecture Multi-Provider** : Support natif du stockage Local, SFTP et WebDAV via une interface fournisseur unique.
+    - **Smart Sidecar Matching** : Logique de décision basée sur le flag `shared_with_group` des fichiers sidecars pour éviter la synchronisation accidentelle de la bibliothèque privée.
+    - **Listing Récurrent IIS** : Implémentation de `_list_manual` pour WebDAV, simulant un scan récursif profond sur les serveurs IIS qui rejettent l'en-tête `Depth: Infinity`.
+*   **Robustesse des Transferts & Casing** :
+    - **Comparaison Case-Insensitive** : Analyse de la bibliothèque basée sur des index en minuscules pour prévenir les boucles d'upload/download infinies causées par des différences de casse entre l'OS local et le serveur (ex: `FFMPEG.exe`).
+    - **Gestion des Gros Fichiers (HTTP 413)** : Documentation et hardening pour supporter les transferts jusqu'à 4 Go sur IIS WebDAV.
+*   **Monitoring de Précision** :
+    - Instrumentation complète des flux réseau avec logs explicites (`[SYNC]`, `[WEBDAV]`, `[SFTP]`) permettant un diagnostic instantané des échecs de permission ou de quota.
+    - Correction de la signature `is_remote` pour garantir la stabilité du maillage lors des scans de fichiers manquants.
+### 47. Évolution V68 : Synchronisation Robuste des Pochettes & Support Sidecar Universel
+*   **Moteur d'Extraction Hybride (`metadata_service.py`) ✨** :
+    - **Support Sidecar pour Fichiers Simples** : Le moteur de résolution d'images (`get_file_cover`) a été étendu pour supporter les fichiers `.json` sidecars même pour les fichiers média uniques (MP4, MP3). S'il ne trouve pas d'image embarquée, il cherche `nom_fichier.json` et utilise le champ `cover`. Idéal pour les vidéos YouTube téléchargées.
+    - **Nettoyage Automatique** : Lors de toute écriture en base, le service purge les données binaires (Base64) du JSON pour forcer le stockage dans un fichier physique `folder.jpg` (pour les dossiers) ou référencé (pour les fichiers), garantissant des performances optimales.
+*   **Endpoint de Résolution Directe (`server.py`) ✨** :
+    - **`/api/cover`** : Nouvel endpoint permettant de récupérer une pochette directement via un chemin de fichier (portable ou absolu). Inclus une gestion d'erreurs "Safe" (retour 404 propre au lieu de 500) pour une stabilité totale du Dashboard.
+*   **Intégrité Physiques des Données** :
+    - Implémentation systématique de `f.flush()` et `os.fsync()` lors de la sauvegarde des métadonnées et des images, prévenant les corruptions de fichiers lors de déplacements ou de rafraîchissements rapides.
+*   **Expansion WAV** : Support natif de l'extraction et de l'injection d'images dans les fichiers WAV via le moteur Mutagen Wave.
+
+### 48. Évolution V69 : Persistance Absolue & MIDI Smart Matching
+*   **Path Persistence (`utils.py`) :**
+    - **Dossier Agnostique** : Centralisation via `get_app_dir()` pour garantir que le dossier de données (`config.json`, `profiles/`, `devices/`, `library.json`, etc.) réside **toujours** à côté de l'exécutable PyInstaller (`sys.executable`), même si l'application est lancée depuis un raccourci bureau qui modifie le CWD (Current Working Directory).
+    - **Sécurité des Données** : Suppression stricte des accès par chemins relatifs dans tous les managers (`config_manager.py`, `profile_manager.py`, `device_manager.py`, `library_manager.py`, `server.py`).
+*   **Smart Matching MIDI Output (`midi_engine.py`) :**
+    - **Résolution Dynamique** : Le moteur est désormais capable de se reconnecter automatiquement à un port de sortie renommé par Windows MM. Si "Midi 1" est déconnecté puis redétecté comme "Midi 2", le moteur retire le suffixe numérique, matche la racine "Midi", se connecte, et **met à jour la configuration silencieusement** pour préserver la case cochée dans GUI.
+    - **Ghost Config Fix** : La mémoire tampon de l'interface `self.settings` ne subit plus de dérive (drift) lors des appels `save_all`. Les ports d'E/S actifs sont strictement synchronisés dynamiquement avant chaque sauvegarde, évitant l'écrasement intempestif par un `config.json` vide.
+*   **Mode "Light" Agnostique (`main.py`) :**
+    - Le système de `.flag` (Désactivation Web/Moniteur de Focus) est désormais robuste et fonctionne n'importe où grâce à l'implémentation de `get_app_dir()`. De plus, le `.env` de sécurité YouTube obsolète a été banni de l'UI.
+
+### 49. Évolution V70 (V9.1 - V9.2) : Moteur de Synchronisation Interactive & Sécurité
+*   **Analyse de Différentiel Avancée (`sync_manager.py`) :**
+    - **Sync State Tracker** : Création de `data/sync_state.json` pour mémoriser l'état de la bibliothèque après chaque succès. Permet de distinguer mathématiquement une suppression d'un nouvel ajout.
+    - **Détection des Suppressions** : Le moteur identifie désormais 4 types d'actions : `pull`, `push`, `delete_remote` (suppression cloud) et `delete_local` (suppression physique locale).
+*   **Interface de Validation "Safety-First" (`gui.py`) :**
+    - **SyncConfirmationDialog** : Nouvelle modale interactive présentant le récapitulatif complet de l'analyse (avec icônes 📥, 📤, 🗑️). L'utilisateur peut cocher/décocher individuellement chaque fichier avant l'exécution.
+    - **Console Intégrée** : Déplacement de la barre de progression et de la console de logs du Dashboard principal vers la modale pour une meilleure concentration sur l'opération en cours.
+*   **Bridage de Flux (Sync Modes) :**
+    - Implémentation de 3 modes opératoires : **Bidirectionnel**, **Réception seule (Pull Only)** et **Envoi seul (Push Only)**. Le système filtre les listes d'actions avant de les présenter à l'utilisateur selon le mode choisi.
+*   **Hardening des Providers :**
+    - Ajout de la méthode `delete_file` dans `LocalProvider`, `SftpProvider` et `WebdavProvider`. Support du forçage de l'horloge (`utime`) sur SFTP pour garantir une précision < 1s.
+
+### 50. Évolution V9.6.40 : Stabilisation Critique & Intelligence de Synchronisation
+*   **Moteur de Synchronisation 2.0 (`sync_manager.py`)** :
+    - **Validation Croisée Cloud (Trust-the-Cloud)** : Implémentation d'un mécanisme de sauvegarde où, en cas d'absence du flag local `shared_with_group` dans un sidecar, le système vérifie la présence du fichier sur le serveur distant. S'il existe sur le Cloud, il est considéré comme partagé, éliminant les suppressions accidentelles de médias légitimes lors d'une analyse bidirectionnelle.
+    - **Héritage Dynamique des Sidecars** : Les fichiers annexes (`folder.jpg`, `.srt`, `.vtt`, `.json`) ne sont plus rejetés d'office en mode local. Ils "traversent" désormais la logique pour vérifier récursivement le statut de leur fichier maître (JSON du média ou dossier multipiste).
+    - **Shield Anti-Récursion** : Ajout d'une protection stricte empêchant les fichiers `.json` ou les sidecars identifiés de chercher leur propre maître, prévenant les erreurs de type "Maximum recursion depth exceeded".
+    - **Cache d'Analyse Éphémère** : Stockage temporaire des index de fichiers (`local_files` / `remote_files`) dans l'instance pendant l'analyse pour permettre des validations croisées sans surcharge mémoire ni latence réseau.
+*   **Expansion des Formats Supportés** :
+    - Support natif étendu pour les formats : **Images** (PNG, JPEG, GIF), **Audio** (AAC, M4A, FLAC) et **Vidéo** (WebM, MKV, MOV).
+*   **Fiabilisation des Logs** :
+    - Nettoyage des logs de diagnostic `[SYNC-DEBUG]` au profit d'un flux de production clair et précis dans `midikbd_debug.log`.
+### 51. Évolution V9.6.41 : Nettoyage Récursif des Répertoires
+*   **Hygiène du Cloud (`sync_manager.py`)** :
+    - **Auto-Cleanup Parents** : Implémentation d'une logique de nettoyage récursif après suppression de fichier. Si un dossier devient vide suite à une synchronisation (ex: déplacement d'un média multipiste), le moteur tente de supprimer les dossiers parents orphelins jusqu'à la racine du partage.
+    - Support natif sur **SFTP**, **WebDAV** et **Local**.
+    - **Protected Dirs (V9.6.46)** : Liste de dossiers structurels sanctuarisés (`Medias`, `data`, `profiles`, etc.) qui ne sont jamais supprimés par le moteur, garantissant l'intégrité de l'arborescence.
+    - **Partitioned State (V9.6.48)** : L'état de synchronisation est désormais séparé par type de fournisseur (`sync_state_sftp.json`, etc.), permettant de gérer plusieurs destinations cloud sans interférence.

@@ -22,7 +22,8 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     *   **Modale de recherche YouTube intégrée :** trouvez, prévisualisez et ajoutez vos backing tracks sans quitter l'appli.
     *   **Support des fichiers locaux (MP3/WAV) via streaming natif.**
     *   **Auto-Tag Intelligent :** Recherche automatique des métadonnées et pochettes HD via iTunes API.
-    *   **Éditeur de Métadonnées :** Modifiez physiquement vos fichiers (Titres, Artistes...) et gérez vos pochettes d'album directement depuis l'application.
+    *   **Synchronisation Universelle (Align) ✨ :** Harmonisez instantanément vos différents médias (YouTube, MP3, Multipistes). Le système propage les titres, artistes, BPM, tonalités et pochettes entre vos fichiers tout en créant un maillage intelligent.
+    *   **Éditeur de Métadonnées Robuste :** Modifiez physiquement vos fichiers (WAV, MP3, M4A) et gérez vos pochettes directement depuis l'application. Support avancé des fichiers **sidecars JSON** pour garantir que vos images s'affichent partout, même pour les vidéos locales sans tags embarqués.
     *   **UI Premium :** Interface modernisée avec **Phosphor Icons** pour une lisibilité parfaite. Surlignage intelligent et défilement automatique vers le morceau actif.
     *   Organisez par Artiste, Genre, et ajoutez vos notes personnelles distinctes de la description YouTube.
     *   **Profils Web Universels :** Ajoutez n'importe quel site (Dailymotion, Vimeo...) et associez-lui un profil dédié. L'application détecte automatiquement le contexte grâce au titre de la fenêtre dynamique.
@@ -121,6 +122,16 @@ Elle permet de contrôler des médias (YouTube, MP3, Vidéos Locales) et d'autre
     - **Vue Groupée & Sticky Headers (V60)** : Système de regroupement intelligent par "famille" de médias pour désencombrer l'interface, couplé à des en-têtes de liste (Onglets, Titres, Filtres) qui restent fixés en haut lors du défilement.
     - **Moteur de Tri Unifié (V65) ✨** : Standardisation du tri bidirectionnel (ASC/DESC) sur tous les onglets. Le système se souvient de l'état de chaque colonne et réinitialise l'ordre lors d'un changement de champ.
     - **Harmonisation Web Links (V66)** : Intégration de la colonne Catégorie et alignement "Pixel-Perfect" des contrôles de tri pour une expérience cockpit symétrique.
+*   **Synchronisation Multi-Cloud Interactive (V9.6.40) ✨ :**
+    - **Système Hybride & Multi-Provider** : Synchronisez votre bibliothèque entre plusieurs ordinateurs via **SFTP**, **WebDAV** (compatible IIS) ou un dossier **Local** partagé (Dropbox, Drive).
+    - **Intelligence "Trust-the-Cloud" ✨** : Le moteur de synchronisation auto-répare les métadonnées manquantes en se basant sur l'état du serveur distant, évitant ainsi les suppressions accidentelles de médias.
+    - **Nettoyage Récursif (V9.6.41) ✨** : Les dossiers devenus vides suite à une suppression ou un déplacement sont désormais automatiquement nettoyés sur le Cloud.
+    - **Modale de Confirmation "Safety-First"** : Visualisez précisément chaque ajout (📥), envoi (📤) ou suppression (🗑️) avant de valider. Sélectionnez individuellement les fichiers à synchroniser pour éviter toute erreur.
+    - **Maillage Intelligent & Sidecars** : Synchronisation automatique des fichiers de métadonnées `.json` et des médias. Le système détecte intelligemment les suppressions bidirectionnelles grâce au suivi d'état (`sync_state.json`).
+    - **Support Formats Étendu** : Gestion complète de tous vos formats (MP3, MP4, WAV, AAC, M4A, FLAC, JPG, PNG...).
+    - **Modes de Flux** : Choisissez entre **Bidirectionnel**, **Réception seule** (Pull) ou **Envoi seul** (Push) pour un contrôle total de vos données.
+    - **Console de Log Intégrée** : Suivez la progression et les détails techniques en temps réel directement dans la modale de validation.
+    - [Consulter le Guide Complet de Synchronisation](./SYNC_GUIDE.md) pour plus de détails.
 
 
 ## 🎹 Configuration MIDI (Universel & Multi-Output)

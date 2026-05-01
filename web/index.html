@@ -61,7 +61,17 @@
             <button id="btn-global-cue-add" class="btn-icon" onclick="openCueModal()" title="Repère" style="color:#888;"><i class="ph ph-flag"></i></button>
             
             <div class="header-separator" style="width:1px; height:18px; background:#444; margin:0 5px;"></div>
-            
+
+            <button id="btn-sidebar-hover-trigger" class="btn-icon btn-sidebar-opt active" onclick="toggleSidebarOption('sidebar_hover_trigger')" data-i18n-title="web.lbl_sidebar_hover_trigger" title="Show on hover">
+                <i class="ph ph-hand-pointing"></i>
+            </button>
+            <button id="btn-sidebar-default-hidden" class="btn-icon btn-sidebar-opt" onclick="toggleSidebarOption('sidebar_default_hidden')" data-i18n-title="web.lbl_sidebar_default_hidden" title="Hide by default">
+                <i class="ph ph-sidebar-simple"></i>
+            </button>
+            <button id="btn-sidebar-autohide" class="btn-icon btn-sidebar-opt active" onclick="toggleSidebarOption('sidebar_autohide')" data-i18n-title="web.lbl_sidebar_autohide" title="Auto-hide (Media)">
+                <i class="ph ph-monitor-play"></i>
+            </button>
+
             <button id="btn-toggle-theater" class="btn-icon" onclick="toggleTheaterMode()" title="Théâtre"><i class="ph ph-corners-out"></i></button>
             <span id="active-profile" style="white-space: nowrap; font-size: 0.8em; color: #ccc;">Profil : Global</span>
             <button id="btn-settings" class="btn-icon" onclick="openSettingsModal()" title="Paramètres"><i class="ph ph-gear"></i></button>
@@ -1178,7 +1188,12 @@
                     <button class="btn-secondary" onclick="autoTagMultitrack()"
                         title="Rechercher sur MusicBrainz/YouTube" data-i18n-title="web.hint_autotag">🔍
                         Auto-Tag</button>
+                    <button id="btn-edit-shared-mt" class="btn-secondary" onclick="toggleEditShared()" title="Partager avec le Groupe" style="color: #666;" data-i18n-title="web.hint_share_group">
+                        <i class="ph ph-cloud-arrow-up"></i>
+                    </button>
                 </div>
+                <!-- V61: Display linked items in Multitrack modal -->
+                <div id="mt-linked-items-display" style="display:flex; flex-wrap:wrap; gap:8px; margin-top: 5px;"></div>
 
                 <div class="row-inputs">
                     <div class="col">
@@ -1397,6 +1412,9 @@
                         <button class="btn-secondary" onclick="openUniversalTagModal('edit')"
                             title="Rechercher des métadonnées" data-i18n-title="web.hint_autotag">🔍
                             Auto-Tag</button>
+                        <button id="btn-edit-shared-main" class="btn-secondary" onclick="toggleEditShared()" title="Partager avec le Groupe" style="color: #666;" data-i18n-title="web.hint_share_group">
+                            <i class="ph ph-cloud-arrow-up"></i>
+                        </button>
                     </div>
                 </div>
                 <button class="btn-secondary" onclick="openNotesDescModal()" style="flex-shrink:0;"
@@ -3033,6 +3051,27 @@
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px;">
                 <button class="btn-secondary" onclick="document.getElementById('modal-delete-confirm').close()" data-i18n="web.btn_cancel">Annuler</button>
                 <button id="btn-do-delete" class="btn-primary" style="background: #cf6679; color: white;" data-i18n="web.btn_confirm_delete">Supprimer</button>
+            </div>
+        </div>
+    </dialog>
+    
+    <!-- Modal: Sync Family Selection (V6.4) -->
+    <dialog id="modal-sync-family" class="modal-modern" style="width: 450px; max-width: 95vw;">
+        <div class="modal-header">
+            <h2 style="font-size: 1.1em;"><i class="ph ph-cloud-arrow-up"></i> <span data-i18n="web.modal_sync_family_title">Gestion du partage (Famille)</span></h2>
+            <button class="btn-close-modal" onclick="document.getElementById('modal-sync-family').close()">×</button>
+        </div>
+        <div class="modal-body" style="padding: 20px;">
+            <p style="font-size: 0.85em; color: #888; margin-bottom: 15px;" data-i18n="web.modal_sync_family_desc">Sélectionnez les médias à synchroniser avec le groupe :</p>
+            
+            <div id="sync-family-list" style="display:flex; flex-direction:column; gap:10px; max-height: 350px; overflow-y: auto; padding: 5px;">
+                <!-- Master and Linked items checkboxes here -->
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:20px; padding-top:15px; border-top:1px solid #333;">
+                <button class="btn-secondary" style="flex:1; font-size:0.8em;" onclick="toggleAllFamilySync(true)" data-i18n="web.btn_select_all">Tout inclure</button>
+                <button class="btn-secondary" style="flex:1; font-size:0.8em;" onclick="toggleAllFamilySync(false)" data-i18n="web.btn_select_none">Tout retirer</button>
+                <button class="btn-primary" style="flex:1;" onclick="document.getElementById('modal-sync-family').close()" data-i18n="web.btn_done">Terminer</button>
             </div>
         </div>
     </dialog>

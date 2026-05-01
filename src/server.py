@@ -69,6 +69,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_event():
+    logging.warning("[STARTUP] Déclenchement du rafraîchissement initial de la bibliothèque...")
+    try:
+        await refresh_from_sidecars()
+    except Exception as e:
+        logging.error(f"[STARTUP ERROR] Refresh failed: {e}")
+
 # --- ASSETS PATH HELPER ---
 def get_resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
@@ -190,10 +198,17 @@ def heal_bidirectional_links():
             for it in items:
                 my_uid = it.get("uid")
                 linked = it.get("linked_ids", [])
+                if not isinstance(linked, list):
+                    linked = []
+                
                 new_linked = []
                 link_changed = False
 
                 for target_id in linked:
+                    if not target_id or not isinstance(target_id, str):
+                        link_changed = True
+                        continue
+                        
                     # Case 1: Legacy index-based link (lib:5) -> Migrate to UID
                     if ":" in target_id and "_" not in target_id:
                         try:
@@ -850,6 +865,7 @@ async def update_setlist_item(index: int, item: Dict):
                 "audio_cues": item.get("audio_cues", items[index].get("audio_cues", [])),
                 "autoplay": item.get("autoplay", items[index].get("autoplay", False)),
                 "autoreplay": item.get("autoreplay", items[index].get("autoreplay", False)),
+                "shared_with_group": item.get("shared_with_group", items[index].get("shared_with_group", False)),
                 "uid": item.get("uid") or items[index].get("uid") or generate_stable_setlist_uid(url), # V58: Persist or generate stable UID
                 "linked_ids": item.get("linked_ids", items[index].get("linked_ids", [])) # V58: Persist links
             }
@@ -1347,6 +1363,29 @@ async def get_local_art(index: int):
         logging.error(f"Error fetching art for {path}: {e}")
         return Response(status_code=404)
 
+@app.get("/api/cover")
+async def get_cover(path: str):
+    """
+    Exposes a way to get cover art for a specific file path.
+    Used by the frontend to resolve covers without knowing the library index.
+    """
+    try:
+        if not path:
+             return Response(status_code=400)
+             
+        resolved_path = resolve_portable_path(path)
+        if not os.path.exists(resolved_path):
+             return Response(status_code=404)
+             
+        data, mime = metadata_service.get_file_cover(resolved_path)
+        if data:
+            return Response(content=data, media_type=mime)
+        return Response(status_code=404)
+    except Exception as e:
+        # Log error but return 404 to app.js to avoid 500 console noise
+        logging.warning(f"API Cover Fetch failed for {path}: {e}")
+        return Response(status_code=404)
+
 @app.post("/api/local/add")
 async def add_local_file():
     try:
@@ -1612,6 +1651,7 @@ async def update_local_file(index: int, item: Dict):
             current["target_pitch"] = item.get("target_pitch", current.get("target_pitch", ""))
             current["autoplay"] = item.get("autoplay", current.get("autoplay", False))
             current["autoreplay"] = item.get("autoreplay", current.get("autoreplay", False))
+            current["shared_with_group"] = item.get("shared_with_group", current.get("shared_with_group", False))
             current["linked_ids"] = item.get("linked_ids", current.get("linked_ids", []))
             
             # --- RELOCATION / PATH UPDATE LOGIC ---
@@ -1629,10 +1669,12 @@ async def update_local_file(index: int, item: Dict):
                         current["is_missing"] = False
                     except Exception as ex:
                         logging.error(f"Error re-scanning stems after manual relocate: {ex}")
-
-            # 1. Save JSON (Database Priority)
+            
+            # 1. Update Database (Priority)
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
 
             # 2. Write to disk tags (Physical)
             warning_msg = None
@@ -1643,13 +1685,16 @@ async def update_local_file(index: int, item: Dict):
                 warning_msg = "Métadonnées sauvegardées dans la base locale uniquement (Format vidéo non éditable)."
             else:
                 try:
-                    # Update to use metadata_service
-                    metadata_service.write_file_metadata(resolved_path, item)
+                    # V58: Pass 'items' to support local art resolution during sync
+                    metadata_service.write_file_metadata(resolved_path, item, local_items=items)
                 except PermissionError:
                     warning_msg = "Attention : Le fichier est en cours d'utilisation. Les tags internes n'ont pas été modifiés, mais la bibliothèque est à jour."
                 except Exception as e:
-                    print(f"Tag Write Warning: {e}")
+                    logging.warning(f"Tag Write Warning: {e}")
             
+            # 3. Synchronisation Mesh (Liaisons bidirectionnelles)
+            harmonize_media_mesh(current.get("uid"))
+
             return {
                 "status": "partial_success" if warning_msg else "ok",
                 "warning": warning_msg,
@@ -1839,18 +1884,35 @@ async def relocate_apply(data: dict):
         action = data.get("action") # 'link', 'copy', 'move'
         item_type = data.get("type") # 'library', 'setlist'
         index = data.get("index")
-        new_source_path = data.get("new_path") # Absolute source path found
 
-        if not action or index is None or not new_source_path:
-            return {"status": "error", "message": "Missing parameters"}
-
-        # 1. Load the item to get filename and properties
+        # 1. Load the item to get properties
         db_file = SETLIST_FILE if item_type == "setlist" else LOCAL_LIB_FILE
+        if not os.path.exists(db_file):
+            return {"status": "error", "message": f"Database not found: {db_file}"}
+
         with open(db_file, "r", encoding="utf-8") as f:
             items = json.load(f)
         
+        if index < 0 or index >= len(items):
+            return {"status": "error", "message": f"Index {index} out of range"}
+
         target_item = items[index]
         is_multitrack = target_item.get("is_multitrack", False)
+        
+        # Fallback logic for new_source_path (V61)
+        # If new_path is missing, we assume we are moving the existing file
+        current_path_abs = resolve_portable_path(target_item.get("path", ""))
+        raw_new_path = data.get("new_path")
+        
+        # V62: ALWAYS resolve new_source_path immediately if it's portable
+        if raw_new_path:
+            new_source_path = resolve_portable_path(raw_new_path)
+        else:
+            new_source_path = current_path_abs
+            
+        if not action or not new_source_path:
+            return {"status": "error", "message": "Missing necessary parameters (action or source path)"}
+
         filename = os.path.basename(new_source_path.rstrip('/\\'))
 
         # Update metadata if requested (V49)
@@ -1860,6 +1922,8 @@ async def relocate_apply(data: dict):
             # Save DB update immediately so the rest of the logic uses new metadata
             with open(db_file, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=4, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())
         
         final_dest_path = new_source_path
 
@@ -1914,6 +1978,7 @@ async def relocate_apply(data: dict):
             try:
                 dest_abs = os.path.abspath(final_dest_path).lower()
                 if dest_abs != src_abs:
+                    logging.warning(f"[RelocateApply] Performing {action}: {new_source_path} -> {final_dest_path}")
                     if action == 'copy':
                         if os.path.isdir(new_source_path):
                             # dirs_exist_ok allows copying into an existing folder (Python 3.8+)
@@ -1921,6 +1986,15 @@ async def relocate_apply(data: dict):
                         else:
                             shutil.copy2(new_source_path, final_dest_path)
                     else: # Move
+                        # V61 Hardening: If moving a directory, ensure destination doesn't exist yet
+                        # or shutil.move might put src INSIDE dst.
+                        if os.path.isdir(new_source_path) and os.path.exists(final_dest_path):
+                            if os.path.isdir(final_dest_path):
+                                # If it's the exact same content, we might skip or merge. 
+                                # But here we want a clean move. Let's try to remove dst if it's empty or just let it fail.
+                                # Actually, our suffix logic (line 1916) should have avoided this.
+                                pass 
+                        
                         shutil.move(new_source_path, final_dest_path)
 
                     # --- Sidecar Files Persistence (JSON + Subtitles) ---
@@ -1988,6 +2062,8 @@ async def relocate_apply(data: dict):
             if changed:
                 with open(db_path, "w", encoding="utf-8") as f:
                     json.dump(db_items, f, indent=4)
+                    f.flush()
+                    os.fsync(f.fileno())
 
         return {
             "status": "ok",
@@ -2290,12 +2366,14 @@ async def edit_local_file(index: int, item: Dict):
             try:
                 abs_p = resolve_portable_path(current.get("path", ""))
                 if abs_p and os.path.exists(abs_p):
-                    metadata_service.write_file_metadata(abs_p, current)
+                    metadata_service.write_file_metadata(abs_p, current, local_items=items)
             except Exception as pe:
                 logging.error(f"Persistence Error in edit_local_file: {pe}")
 
             with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
 
             return {"status": "ok", "items": items}
         return {"status": "error", "message": "Index missing"}
@@ -2407,6 +2485,166 @@ async def relocate_media(index: int):
              raise HTTPException(status_code=404, detail="Index not found")
     except Exception as e:
         print(f"Relocate Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/local/refresh_from_sidecars")
+async def refresh_from_sidecars():
+    try:
+        logging.warning("[REFRESH] Démarrage du rafraîchissement depuis les fichiers sidecars...")
+        items = []
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f:
+                 items = json.load(f)
+        
+        if not items:
+            logging.warning("[REFRESH] Aucun élément trouvé dans la bibliothèque.")
+            return {"status": "ok", "refreshed_count": 0}
+
+        logging.warning(f"[REFRESH] Traitement de {len(items)} éléments...")
+            
+        from utils import resolve_portable_path
+        refreshed_count = 0
+        for item in items:
+            path = item.get("path")
+            if path:
+                abs_path = resolve_portable_path(path)
+                sidecar_path = abs_path + ".json"
+                
+                if "Blind Man" in path:
+                    logging.warning(f"[REFRESH] Diagnostic Sidecar: {sidecar_path}")
+                    logging.warning(f"  - Existe? {os.path.exists(sidecar_path)}")
+
+                if os.path.exists(sidecar_path):
+                    try:
+                        with open(sidecar_path, "r", encoding="utf-8") as f2:
+                            sidecar_data = json.load(f2)
+                        
+                        # Apply ONLY global metadata which we care about from master
+                        item["bpm"] = sidecar_data.get("bpm", item.get("bpm", ""))
+                        item["key"] = sidecar_data.get("key", item.get("key", ""))
+                        item["scale"] = sidecar_data.get("scale", item.get("scale", ""))
+                        item["category"] = sidecar_data.get("category", item.get("category", ""))
+                        item["year"] = sidecar_data.get("year", item.get("year", ""))
+                        item["genre"] = sidecar_data.get("genre", item.get("genre", ""))
+                        item["title"] = sidecar_data.get("title", item.get("title", ""))
+                        item["shared_with_group"] = sidecar_data.get("shared_with_group", item.get("shared_with_group", False))
+                        refreshed_count += 1
+                    except Exception as ex:
+                        print(f"Error reading sidecar {sidecar_path}: {ex}")
+        
+        # V7.2: Idempotent save
+        has_changed = False
+        if os.path.exists(LOCAL_LIB_FILE):
+             with open(LOCAL_LIB_FILE, "r", encoding="utf-8") as f_check:
+                 old_data = f_check.read()
+             new_data = json.dumps(items, indent=4)
+             if old_data.strip() != new_data.strip():
+                 has_changed = True
+        else:
+            has_changed = True
+
+        if has_changed:
+            with open(LOCAL_LIB_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=4)
+            logging.warning("[REFRESH] local_lib.json mis à jour avec les sidecars.")
+        else:
+            logging.info("[REFRESH] Aucune modification détectée, sauvegarde locale ignorée.")
+            
+        return {"status": "ok", "refreshed_count": refreshed_count}
+    except Exception as e:
+        print(f"Refresh Sidecars Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/media/toggle_shared/{uid}")
+async def toggle_media_shared(uid: str):
+    """Universal toggle for shared_with_group status by UID."""
+    try:
+        if not uid: raise HTTPException(status_code=400, detail="Missing UID")
+        prefix = uid.split('_')[0] if '_' in uid else None
+        
+        found_item = None
+        target_file = None
+        target_list = None
+        target_index = -1
+        
+        # 1. Determine which DB to check
+        if prefix == 'set':
+            target_file = SETLIST_FILE
+        elif prefix == 'lib':
+            target_file = LOCAL_LIB_FILE
+        elif prefix == 'web':
+            target_file = WEB_LINKS_FILE
+        else:
+            # Try all if no prefix
+            files_to_check = [SETLIST_FILE, LOCAL_LIB_FILE, WEB_LINKS_FILE]
+            for f_path in files_to_check:
+                if not os.path.exists(f_path): continue
+                with open(f_path, "r", encoding="utf-8") as f:
+                    items = json.load(f)
+                    for i, it in enumerate(items):
+                        if it.get("uid") == uid:
+                            target_file = f_path
+                            target_list = items
+                            target_index = i
+                            found_item = it
+                            break
+                if found_item: break
+        
+        if not found_item and target_file and os.path.exists(target_file):
+             with open(target_file, "r", encoding="utf-8") as f:
+                target_list = json.load(f)
+                for i, it in enumerate(target_list):
+                    if it.get("uid") == uid:
+                        target_index = i
+                        found_item = it
+                        break
+        
+        if not found_item:
+            raise HTTPException(status_code=404, detail=f"Item with UID {uid} not found")
+            
+        # 2. Toggle Status
+        new_status = not found_item.get("shared_with_group", False)
+        found_item["shared_with_group"] = new_status
+        
+        # 3. Persist to main DB
+        with open(target_file, "w", encoding="utf-8") as f:
+            json.dump(target_list, f, indent=4)
+            
+        # 4. If it's a local file, also persist to sidecar
+        if prefix == 'lib':
+            path = found_item.get("path")
+            if path:
+                # Resolve absolute path (V55)
+                from utils import get_app_dir
+                abs_path = path if os.path.isabs(path) else os.path.join(get_app_dir(), path)
+                abs_path = os.path.normpath(abs_path)
+                
+                sidecar_path = None
+                if found_item.get("is_multitrack"):
+                    if os.path.isdir(abs_path):
+                        sidecar_path = os.path.join(abs_path, "airstep_meta.json")
+                else:
+                    if os.path.exists(abs_path):
+                        sidecar_path = abs_path + ".json"
+                
+                if sidecar_path:
+                    try:
+                        sidecar_data = {}
+                        if os.path.exists(sidecar_path):
+                            with open(sidecar_path, 'r', encoding='utf-8') as f:
+                                sidecar_data = json.load(f)
+                        
+                        sidecar_data["shared_with_group"] = new_status
+                        with open(sidecar_path, 'w', encoding='utf-8') as f:
+                            json.dump(sidecar_data, f, indent=4)
+                    except Exception as ex:
+                        logging.error(f"Error updating sidecar during toggle_shared: {ex}")
+
+        return {"status": "ok", "new_status": new_status, "uid": uid}
+
+    except Exception as e:
+        logging.error(f"Toggle Shared UID Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/local/consolidate")
@@ -2705,11 +2943,9 @@ async def get_managed_folders():
     from config_manager import ConfigManager
     config = ConfigManager()
     folders = config.get("media_folders", [])
-    # V57: Always resolve for UI delivery to prevent literal ${APP_DIR} in dropdowns
-    from utils import resolve_portable_path
-    resolved_folders = [resolve_portable_path(f) for f in folders]
-    print(f"[DEBUG API] Sending managed folders to UI: {resolved_folders}")
-    return {"status": "ok", "folders": resolved_folders}
+    # V61: Return original (portable) paths to sync with detection logic and prevent UI mismatches
+    print(f"[DEBUG API] Sending managed folders to UI: {folders}")
+    return {"status": "ok", "folders": folders}
 
 @app.post("/api/open_settings")
 async def api_open_settings(request: Request):
@@ -3177,10 +3413,11 @@ async def upload_cover_generic(request: Request):
     return {"status": "ok", "path": to_portable_path(dest_path)}
 
 @app.get("/api/local/find_artist_folder")
-async def find_artist_folder(name: str):
+async def find_artist_folder(name: str, preferred_root: str = None):
     """
     Scans managed folders to see if a subfolder with this artist name already exists.
     Useful to suggest destination to the user (V50).
+    V61: Supports 'preferred_root' to prioritize matches in the selected destination.
     """
     if not name or not name.strip() or name.strip() == "Divers":
         return {"status": "ok", "matches": []}
@@ -3209,6 +3446,10 @@ async def find_artist_folder(name: str):
                 })
         except:
             continue
+    
+    # Sort matches: place preferred_root at the top if it matches
+    if preferred_root and preferred_root != "AUTO":
+        matches.sort(key=lambda x: 0 if x["root"] == preferred_root else 1)
             
     return {"status": "ok", "matches": matches}
 

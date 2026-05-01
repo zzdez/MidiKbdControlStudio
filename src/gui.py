@@ -1,4 +1,5 @@
 import customtkinter as ctk
+import logging
 import json
 import os
 import sys
@@ -11,6 +12,7 @@ import mido
 import pystray
 import webbrowser
 from PIL import Image
+from utils import get_app_dir, get_data_dir
 def get_resource_path(relative_path):
     """Trouve les fichiers aussi bien en Dev qu'en EXE PyInstaller"""
     if hasattr(sys, '_MEIPASS'):
@@ -127,6 +129,115 @@ class ShortcutsDialog(ctk.CTkToplevel):
         text = self.textbox.get("0.0", "end").strip()
         self.callback(text)
         self.destroy()
+
+class SyncConfirmationDialog(ctk.CTkToplevel):
+    def __init__(self, parent, analysis_result, callback):
+        super().__init__(parent)
+        self.title("Récapitulatif de Synchronisation")
+        self.geometry("950x850")
+        self.attributes("-topmost", True)
+        self.callback = callback
+        self.vars = {"pull": [], "push": [], "delete_remote": [], "delete_local": []}
+        self.section_cbs = {} # Global checkboxes
+        
+        # Handle close window (X button)
+        self.protocol("WM_DELETE_WINDOW", self.on_cancel)
+        self.grab_set()
+
+        self.scroll = ctk.CTkScrollableFrame(self)
+        self.scroll.pack(fill="both", expand=True, padx=20, pady=20)
+
+        ctk.CTkLabel(self.scroll, text="Vérifiez les actions avant de lancer la synchronisation :", 
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
+
+        # Build sections
+        self._add_section("📥 Téléchargements (Cloud ➔ PC)", analysis_result.get("pull", []), "pull", "#2ecc71", default=True)
+        self._add_section("📤 Envois (PC ➔ Cloud)", analysis_result.get("push", []), "push", "#3498db", default=True)
+        self._add_section("🗑️ Suppressions sur le Cloud (Cloud ❌)", analysis_result.get("delete_remote", []), "delete_remote", "#e74c3c", default=False)
+        self._add_section("🗑️ Suppressions sur ce PC (PC ❌)", analysis_result.get("delete_local", []), "delete_local", "#e67e22", default=False)
+
+        # Execution Section
+        ctk.CTkLabel(self, text="Progression & Logs", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(10, 5))
+        self.progress_bar = ctk.CTkProgressBar(self, width=800)
+        self.progress_bar.set(0)
+        self.progress_bar.pack(pady=10)
+        
+        self.log_box = ctk.CTkTextbox(self, height=180, font=ctk.CTkFont(family="Consolas", size=11))
+        self.log_box.pack(fill="both", expand=True, padx=20, pady=5)
+        self.log_box.configure(state="disabled")
+
+        self.btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.btn_frame.pack(fill="x", side="bottom", pady=20, padx=20)
+        
+        self.btn_sync = ctk.CTkButton(self.btn_frame, text="Lancer la Synchronisation", fg_color="green", hover_color="darkgreen", command=self.on_sync)
+        self.btn_sync.pack(side="right", padx=10)
+        
+        self.btn_cancel = ctk.CTkButton(self.btn_frame, text="Fermer / Annuler", fg_color="#555", command=self.on_cancel)
+        self.btn_cancel.pack(side="right", padx=10)
+
+    def on_cancel(self):
+        self.callback(None)
+        self.destroy()
+
+    def log_msg(self, msg):
+        self.log_box.configure(state="normal")
+        self.log_box.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}\n")
+        self.log_box.see("end")
+        self.log_box.configure(state="disabled")
+
+    def _add_section(self, title, items, key, color, default=True):
+        if not items: return
+        
+        header_frame = ctk.CTkFrame(self.scroll, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(15, 5))
+        
+        ctk.CTkLabel(header_frame, text=title, font=ctk.CTkFont(weight="bold", size=13), text_color=color).pack(side="left")
+        
+        # Select All checkbox
+        toggle_var = ctk.BooleanVar(value=default)
+        cb_all = ctk.CTkCheckBox(header_frame, text="Tout sélectionner", font=ctk.CTkFont(size=11), 
+                                 variable=toggle_var, command=lambda k=key, v=toggle_var: self._toggle_all(k, v))
+        cb_all.pack(side="right", padx=10)
+        self.section_cbs[key] = (cb_all, toggle_var)
+        
+        # Direction mapping
+        dir_map = {
+            "pull": "Cloud ➔ PC",
+            "push": "PC ➔ Cloud",
+            "delete_remote": "Cloud ❌",
+            "delete_local": "PC ❌"
+        }
+        direction = dir_map.get(key, "")
+        
+        for item in items:
+            path = item["path"] if isinstance(item, dict) else item
+            reason = item.get("reason", "") if isinstance(item, dict) else ""
+            
+            display_text = f"{direction} : {path}"
+            if reason: display_text += f" ({reason})"
+            
+            var = ctk.BooleanVar(value=default)
+            cb = ctk.CTkCheckBox(self.scroll, text=display_text, variable=var, font=ctk.CTkFont(size=11))
+            cb.pack(anchor="w", padx=20, pady=2)
+            self.vars[key].append((item, var))
+
+    def _toggle_all(self, key, master_var):
+        val = master_var.get()
+        for item, var in self.vars[key]:
+            var.set(val)
+
+    def on_sync(self):
+        self.btn_sync.configure(state="disabled")
+        self.btn_cancel.configure(state="disabled")
+        final_res = {
+            "pull": [i for i, v in self.vars["pull"] if v.get()],
+            "push": [i for i, v in self.vars["push"] if v.get()],
+            "delete_remote": [i for i, v in self.vars["delete_remote"] if v.get()],
+            "delete_local": [i for i, v in self.vars["delete_local"] if v.get()]
+        }
+        self.callback(final_res)
+        # We DON'T destroy yet, as we want to see logs. 
+        # run_sync will re-enable the cancel button at the end.
 
 class SettingsDialog(ctk.CTkToplevel):
     def __init__(self, parent, profile_manager, action_handler, env_manager, midi_manager):
@@ -834,7 +945,9 @@ class MidiKbdApp(ctk.CTk):
         self.profile_manager.migrate_legacy_config()
 
         self.env_manager = EnvManager()
-        self.library_manager = LibraryManager()
+        # V6.1: Force use of DATA_DIR for library stability
+        lib_path = os.path.join(get_data_dir(), "library.json")
+        self.library_manager = LibraryManager(lib_path)
 
         self.device_manager = DeviceManager()
         self.current_device_def = None
@@ -1031,10 +1144,13 @@ class MidiKbdApp(ctk.CTk):
 
         # 6. Global Actions
         self.btn_remote = ctk.CTkButton(self.sidebar_frame, text=_("gui.btn_detach_remote"), command=self.open_remote_control, fg_color="#444", hover_color="#666", height=28)
-        self.btn_remote.grid(row=10, column=0, padx=20, pady=(10, 5))
+        self.btn_remote.grid(row=10, column=0, padx=20, pady=(10, 2))
+
+        self.btn_sync = ctk.CTkButton(self.sidebar_frame, text="☁ Sync", command=self.open_sync_dialog, fg_color="#0066cc", hover_color="#004499", height=28)
+        self.btn_sync.grid(row=11, column=0, padx=20, pady=(2, 5))
 
         self.save_button = ctk.CTkButton(self.sidebar_frame, text=_("gui.btn_save_all"), command=lambda: self.save_all(silent=False), fg_color="green", hover_color="darkgreen", height=28)
-        self.save_button.grid(row=11, column=0, padx=20, pady=(5, 20))
+        self.save_button.grid(row=12, column=0, padx=20, pady=(5, 20))
 
     def create_main_area(self):
         # Configuration de la grille principale
@@ -1221,6 +1337,444 @@ class MidiKbdApp(ctk.CTk):
 
     def open_settings(self):
         SettingsDialog(self, self.profile_manager, self.action_handler, self.env_manager, self.midi_manager)
+
+    def open_sync_dialog(self):
+        from utils import get_app_dir
+        import threading
+        import json
+        import os
+        
+        config_path = os.path.join(get_app_dir(), "config.json")
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                conf = json.load(f)
+        except:
+            conf = {}
+        sync_conf = conf.get("sync", {"type": "sftp", "host": "", "port": 22, "username": "", "password": "", "remote_dir": "", "target_dir": ""})
+
+        # Load saved categories or defaults
+        stored_cats = sync_conf.get("categories", ["exe", "medias", "data", "system", "profiles", "devices"])
+
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(_("sync.title"))
+        dialog.geometry("520x450")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        tabs = ctk.CTkTabview(dialog)
+        tabs.pack(fill="both", expand=True, padx=10, pady=5)
+        tab_sync = tabs.add("Synchronisation")
+        tab_conf = tabs.add("SFTP")
+        tab_webdav = tabs.add("WebDAV")
+        tab_local = tabs.add("Local")
+
+        # --- TAB SYNC ---
+        ctk.CTkLabel(tab_sync, text=_("sync.title"), font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10, 5))
+        
+        type_var = ctk.StringVar(value=sync_conf.get("type", "sftp"))
+        radio_frame = ctk.CTkFrame(tab_sync, fg_color="transparent")
+        radio_frame.pack(pady=5)
+        ctk.CTkRadioButton(radio_frame, text="SFTP", variable=type_var, value="sftp").pack(side="left", padx=10)
+        ctk.CTkRadioButton(radio_frame, text="WebDAV", variable=type_var, value="webdav").pack(side="left", padx=10)
+        ctk.CTkRadioButton(radio_frame, text="Local", variable=type_var, value="local").pack(side="left", padx=10)
+        
+        # Sync Mode selection
+        ctk.CTkLabel(tab_sync, text="Mode de Synchronisation:", font=ctk.CTkFont(size=12, weight="bold")).pack(pady=(10, 0))
+        mode_var = ctk.StringVar(value=sync_conf.get("mode", "Bidirectionnel (Auto)"))
+        mode_menu = ctk.CTkOptionMenu(tab_sync, values=["Bidirectionnel (Auto)", "Réception (Pull Only)", "Envoi (Push Only)"], variable=mode_var)
+        mode_menu.pack(pady=5)
+        
+        # Categories Frame
+        cat_frame = ctk.CTkFrame(tab_sync)
+        cat_frame.pack(fill="x", padx=20, pady=10)
+        ctk.CTkLabel(cat_frame, text=_("sync.lbl_categories"), font=ctk.CTkFont(size=12, weight="bold")).pack(pady=5)
+        
+        cat_vars = {}
+        categories = [
+            ("exe", _("sync.cat_exe")),
+            ("medias", _("sync.cat_medias")),
+            ("data", _("sync.cat_data")),
+            ("profiles", _("sync.cat_profiles")),
+            ("devices", _("sync.cat_devices")),
+            ("system", _("sync.cat_system"))
+        ]
+        
+        def open_exceptions_modal(category_key, category_label):
+            import traceback
+            import logging
+            
+            try:
+                from sync_manager import SyncManager, LocalProvider
+                
+                exc_dialog = ctk.CTkToplevel(dialog)
+                exc_dialog.title(f"Exceptions : {category_label}")
+                exc_dialog.geometry("500x600")
+                exc_dialog.grab_set()
+                
+                lbl_info = ctk.CTkLabel(exc_dialog, text=f"Cochez les fichiers locaux que vous souhaitez IGNORER\nlors de la synchronisation (catégorie : {category_label}).", justify="left", font=ctk.CTkFont(weight="bold"))
+                lbl_info.pack(pady=10, padx=10, fill="x")
+                
+                scroll_frame = ctk.CTkScrollableFrame(exc_dialog)
+                scroll_frame.pack(fill="both", expand=True, padx=10, pady=5)
+                
+                # Charger les fichiers locaux
+                app_dir = get_app_dir()
+                mgr = SyncManager(app_dir, LocalProvider(app_dir))
+                local_files = mgr._list_local_files()
+                
+                # Filtrer par catégorie
+                cat_files = [p for p in local_files.keys() if mgr._is_in_selected_categories(p, [category_key])]
+                cat_files.sort(key=str.lower)
+                
+                current_exceptions = sync_conf.get("exceptions", [])
+                checkboxes = {}
+                
+                for file_path in cat_files:
+                    var = ctk.BooleanVar(value=file_path in current_exceptions)
+                    cb = ctk.CTkCheckBox(scroll_frame, text=file_path, variable=var, font=ctk.CTkFont(size=11))
+                    cb.pack(fill="x", pady=2, padx=5)
+                    checkboxes[file_path] = var
+                    
+                def save_exceptions():
+                    # Nettoyer les anciennes exceptions de cette catégorie
+                    new_exceptions = [e for e in current_exceptions if e not in cat_files]
+                    # Ajouter les nouvelles
+                    for file_path, var in checkboxes.items():
+                        if var.get():
+                            new_exceptions.append(file_path)
+                    sync_conf["exceptions"] = new_exceptions
+                    self.config_manager.set("sync", sync_conf)
+                    exc_dialog.destroy()
+                    
+                btn_save_exc = ctk.CTkButton(exc_dialog, text=_("gui.btn_save"), command=save_exceptions)
+                btn_save_exc.pack(pady=10)
+            except Exception as e:
+                logging.error(f"[EXCEPTIONS MODAL CRASH] {e}\n{traceback.format_exc()}")
+
+
+        # Create grid for checkboxes
+        cb_container = ctk.CTkFrame(cat_frame, fg_color="transparent")
+        cb_container.pack(pady=5)
+        for i, (key, label) in enumerate(categories):
+            var = ctk.BooleanVar(value=key in stored_cats)
+            cat_vars[key] = var
+            
+            cell = ctk.CTkFrame(cb_container, fg_color="transparent")
+            cell.grid(row=i//2, column=i%2, padx=10, pady=3, sticky="w")
+            
+            cb = ctk.CTkCheckBox(cell, text=label, variable=var, font=ctk.CTkFont(size=11))
+            cb.pack(side="left")
+            
+            btn_cfg = ctk.CTkButton(cell, text="⚙️", width=24, height=24, fg_color="transparent", 
+                                  hover_color=("gray70", "gray30"), text_color=("black", "white"),
+                                  command=lambda k=key, l=label: open_exceptions_modal(k, l))
+            btn_cfg.pack(side="left", padx=5)
+
+
+        # Progress status (minimal)
+        lbl_status = ctk.CTkLabel(tab_sync, text=_("gui.status_wait"), text_color="gray")
+        lbl_status.pack(pady=10)
+
+        # --- TAB CONF SFTP ---
+        # (Same as before but with better labels)
+        ctk.CTkLabel(tab_conf, text="Serveur / Host:", anchor="w").pack(fill="x", padx=10)
+        e_host = ctk.CTkEntry(tab_conf)
+        e_host.insert(0, str(sync_conf.get("host", "")))
+        e_host.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(tab_conf, text="Port:", anchor="w").pack(fill="x", padx=10)
+        e_port = ctk.CTkEntry(tab_conf)
+        e_port.insert(0, str(sync_conf.get("port", "22")))
+        e_port.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(tab_conf, text="Utilisateur:", anchor="w").pack(fill="x", padx=10)
+        e_user = ctk.CTkEntry(tab_conf)
+        e_user.insert(0, str(sync_conf.get("username", "")))
+        e_user.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(tab_conf, text="Mot de passe:", anchor="w").pack(fill="x", padx=10)
+        e_pass = ctk.CTkEntry(tab_conf, show="*")
+        e_pass.insert(0, str(sync_conf.get("password", "")))
+        e_pass.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(tab_conf, text="Dossier Distant:", anchor="w").pack(fill="x", padx=10)
+        e_dir = ctk.CTkEntry(tab_conf)
+        e_dir.insert(0, str(sync_conf.get("remote_dir", "")))
+        e_dir.pack(fill="x", padx=10, pady=(0, 5))
+        
+        ctk.CTkLabel(tab_conf, text=_("sync.manual_skew_hours"), anchor="w").pack(fill="x", padx=10)
+        e_skew = ctk.CTkEntry(tab_conf)
+        e_skew.insert(0, str(sync_conf.get("manual_skew_hours_sftp", sync_conf.get("manual_skew_hours", "0"))))
+        e_skew.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkButton(tab_conf, text=_("gui.btn_save"), command=lambda: save_conf() and lbl_status.configure(text="Config SFTP Sauvée.", text_color="green"), fg_color="green", hover_color="darkgreen").pack(pady=5)
+
+        # --- TAB CONF WEBDAV ---
+        ctk.CTkLabel(tab_webdav, text="URL WebDAV (ex: https://cloud.com/dav):", anchor="w").pack(fill="x", padx=10)
+        e_wd_url = ctk.CTkEntry(tab_webdav)
+        e_wd_url.insert(0, str(sync_conf.get("webdav_url", "")))
+        e_wd_url.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(tab_webdav, text="Utilisateur:", anchor="w").pack(fill="x", padx=10)
+        e_wd_user = ctk.CTkEntry(tab_webdav)
+        e_wd_user.insert(0, str(sync_conf.get("webdav_user", "")))
+        e_wd_user.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(tab_webdav, text="Mot de passe:", anchor="w").pack(fill="x", padx=10)
+        e_wd_pass = ctk.CTkEntry(tab_webdav, show="*")
+        e_wd_pass.insert(0, str(sync_conf.get("webdav_pass", "")))
+        e_wd_pass.pack(fill="x", padx=10, pady=(0, 5))
+        
+        ctk.CTkLabel(tab_webdav, text=_("sync.manual_skew_hours"), anchor="w").pack(fill="x", padx=10)
+        e_wd_skew = ctk.CTkEntry(tab_webdav)
+        e_wd_skew.insert(0, str(sync_conf.get("manual_skew_hours_webdav", sync_conf.get("manual_skew_hours", "0"))))
+        e_wd_skew.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkButton(tab_webdav, text=_("gui.btn_save"), command=lambda: save_conf() and lbl_status.configure(text="Config WebDAV Sauvée.", text_color="green"), fg_color="green", hover_color="darkgreen").pack(pady=5)
+
+        # --- TAB LOCAL ---
+        ctk.CTkLabel(tab_local, text="Chemin du dossier (ex: Dropbox/AirstepSync):", anchor="w").pack(fill="x", padx=10, pady=(10,0))
+        e_local_dir = ctk.CTkEntry(tab_local)
+        e_local_dir.insert(0, str(sync_conf.get("target_dir", "")))
+        e_local_dir.pack(fill="x", padx=10, pady=(0, 5))
+        
+        ctk.CTkLabel(tab_local, text=_("sync.manual_skew_hours"), anchor="w").pack(fill="x", padx=10)
+        e_local_skew = ctk.CTkEntry(tab_local)
+        e_local_skew.insert(0, str(sync_conf.get("manual_skew_hours_local", sync_conf.get("manual_skew_hours", "0"))))
+        e_local_skew.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkButton(tab_local, text=_("gui.btn_save"), command=lambda: save_conf() and lbl_status.configure(text="Config Locale Sauvée.", text_color="green"), fg_color="green", hover_color="darkgreen").pack(pady=5)
+        
+        def pick_local():
+            import tkinter.filedialog
+            folder = tkinter.filedialog.askdirectory(parent=dialog)
+            if folder:
+                e_local_dir.delete(0, "end")
+                e_local_dir.insert(0, folder)
+        ctk.CTkButton(tab_local, text="Parcourir", command=pick_local, fg_color="#555").pack(pady=5)
+
+        def save_conf():
+            try:
+                sync_conf["host"] = e_host.get()
+                sync_conf["port"] = int(e_port.get() or 22)
+                sync_conf["username"] = e_user.get()
+                sync_conf["password"] = e_pass.get()
+                sync_conf["remote_dir"] = e_dir.get()
+                sync_conf["target_dir"] = e_local_dir.get()
+                sync_conf["webdav_url"] = e_wd_url.get()
+                sync_conf["webdav_user"] = e_wd_user.get()
+                sync_conf["webdav_pass"] = e_wd_pass.get()
+                sync_conf["type"] = type_var.get()
+                sync_conf["mode"] = mode_var.get()
+                
+                # Save manual skew (Partitioned V9.6.50)
+                try:
+                    sync_conf["manual_skew_hours_sftp"] = float(e_skew.get() or 0)
+                    sync_conf["manual_skew_hours_webdav"] = float(e_wd_skew.get() or 0)
+                    sync_conf["manual_skew_hours_local"] = float(e_local_skew.get() or 0)
+                    
+                    # Set current based on active type for backward compatibility
+                    if sync_conf["type"] == "sftp": sync_conf["manual_skew_hours"] = sync_conf["manual_skew_hours_sftp"]
+                    elif sync_conf["type"] == "webdav": sync_conf["manual_skew_hours"] = sync_conf["manual_skew_hours_webdav"]
+                    else: sync_conf["manual_skew_hours"] = sync_conf["manual_skew_hours_local"]
+                except:
+                    pass
+                
+                # Save categories
+                active_cats = [k for k, v in cat_vars.items() if v.get()]
+                sync_conf["categories"] = active_cats
+                
+                conf["sync"] = sync_conf
+                with open(config_path, "w", encoding="utf-8") as f:
+                    json.dump(conf, f, indent=4)
+                return True
+            except Exception as e:
+                lbl_status.configure(text=f"Erreur config: {e}", text_color="red")
+                tabs.set("Synchronisation")
+                return False
+
+
+        # --- RUN logic ---
+        def run_sync():
+            if not save_conf(): return
+            
+            btn_sync.configure(state="disabled")
+            lbl_status.configure(text=_("sync.status_analyzing"), text_color="orange")
+            
+            modal_container = [None] # To store modal reference
+            
+            def _thread():
+                try:
+                    from sync_manager import SyncManager, LocalProvider, SftpProvider, WebdavProvider
+                    
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        fresh_conf = json.load(f)
+                    current_sync_conf = fresh_conf.get("sync", {})
+                    shared_fields = current_sync_conf.get("shared_fields", None)
+                    selected_cats = current_sync_conf.get("categories", None)
+                    
+                    if current_sync_conf.get("type", "sftp") == "sftp":
+                        provider = SftpProvider(
+                            current_sync_conf.get("host"), current_sync_conf.get("port", 22),
+                            current_sync_conf.get("username"), current_sync_conf.get("password", ""),
+                            current_sync_conf.get("remote_dir", "/var/www/airstep")
+                        )
+                    elif current_sync_conf.get("type") == "webdav":
+                        provider = WebdavProvider(
+                            current_sync_conf.get("webdav_url"),
+                            current_sync_conf.get("webdav_user"),
+                            current_sync_conf.get("webdav_pass")
+                        )
+                    else:
+                        local_target = current_sync_conf.get("target_dir", "")
+                        if not local_target:
+                            raise ValueError("Le dossier Cloud local n'est pas configuré.")
+                        provider = LocalProvider(local_target)
+                        
+                    mgr = SyncManager(get_app_dir(), provider, shared_fields=shared_fields)
+                    
+                    # Progress Callback setup
+                    def on_progress(current, total, filename, stage, reason=None):
+                        pct = current / total if total > 0 else 1
+                        
+                        # Use modal widgets if available
+                        if modal_container[0]:
+                            modal_container[0].progress_bar.set(pct)
+                            r_text = f" ({reason})" if reason else ""
+                            if stage == "pull":
+                                modal_container[0].log_msg(_("sync.stage_pull", file=filename) + r_text)
+                            elif stage == "push":
+                                modal_container[0].log_msg(_("sync.stage_push", file=filename) + r_text)
+                            elif stage == "delete_remote":
+                                modal_container[0].log_msg(f"🗑️ [DEL REMOTE] {filename}")
+                            elif stage == "delete_local":
+                                modal_container[0].log_msg(f"🗑️ [DEL LOCAL] {filename}")
+                        else:
+                            if stage == "analyzing":
+                                lbl_status.configure(text=_("sync.status_analyzing"))
+                    
+                    mgr.set_progress_callback(on_progress)
+                    
+                    sync_mode = current_sync_conf.get("mode", "Bidirectionnel (Auto)")
+                    exceptions = current_sync_conf.get("exceptions", [])
+                    manual_skew_h = current_sync_conf.get("manual_skew_hours", 0)
+                    manual_skew_s = manual_skew_h * 3600
+                    
+                    try:
+                        res = mgr.analyze(selected_categories=selected_cats, mode=sync_mode, exceptions=exceptions, manual_skew=manual_skew_s)
+                    except Exception as e:
+                        err_msg = str(e)
+                        def show_err():
+                            lbl_status.configure(text=f"Erreur réseau: {err_msg}", text_color="red")
+                            btn_sync.configure(state="normal")
+                        dialog.after(0, show_err)
+                        return
+                    
+                    # V9.1: Apply Sync Mode filtering
+                    sync_mode = current_sync_conf.get("mode", "Bidirectionnel (Auto)")
+                    if "Réception" in sync_mode:
+                        res["push"] = []
+                        res["delete_remote"] = []
+                    elif "Envoi" in sync_mode:
+                        res["pull"] = []
+                        res["delete_local"] = []
+                    
+                    # V9.1: Sync Confirmation Logic
+                    sync_event = threading.Event()
+                    final_choice = {"res": None}
+                    
+                    def on_user_choice(choice):
+                        final_choice["res"] = choice
+                        sync_event.set()
+                    
+                    if not any(res.values()):
+                        def nothing_ui():
+                            lbl_status.configure(text=_("sync.status_uptodate"), text_color="green")
+                            btn_sync.configure(state="normal")
+                        dialog.after(0, nothing_ui)
+                        return
+                    
+                    # V9.6.22: Translated summary message
+                    summary_text = _("sync.msg_analysis_res", pull=len(res['pull']), push=len(res['push']))
+                    def info_ui():
+                        lbl_status.configure(text=summary_text, text_color="green")
+                    dialog.after(0, info_ui)
+
+                    # Show dialog on main thread
+                    def show_dialog():
+                        modal_container[0] = SyncConfirmationDialog(dialog, res, on_user_choice)
+                    
+                    dialog.after(0, show_dialog)
+                    
+                    # Wait for user
+                    def wait_ui():
+                        lbl_status.configure(text="En attente du récapitulatif...", text_color="orange")
+                    dialog.after(0, wait_ui)
+                    
+                    sync_event.wait()
+                    
+                    res = final_choice["res"]
+                    if res is None: # Window closed via X
+                        def cancel_ui():
+                            lbl_status.configure(text=_("gui.status_wait"), text_color="gray")
+                            btn_sync.configure(state="normal")
+                        dialog.after(0, cancel_ui)
+                        return
+                        
+                    if not any(res.values()):
+                        def empty_ui():
+                            lbl_status.configure(text="Aucune action sélectionnée.", text_color="orange")
+                            btn_sync.configure(state="normal")
+                        dialog.after(0, empty_ui)
+                        return
+
+                    def work_ui():
+                        lbl_status.configure(text="Synchronisation en cours...", text_color="blue")
+                    dialog.after(0, work_ui)
+                    
+                    mgr.sync(res, selected_categories=selected_cats)
+                    
+                    def done_ui():
+                        lbl_status.configure(text=_("sync.status_finished"), text_color="green")
+                        if modal_container[0]:
+                            modal_container[0].log_msg("✅ " + _("sync.status_finished"))
+                            modal_container[0].btn_cancel.configure(state="normal", text=_("web.btn_close"), fg_color="green")
+                    dialog.after(0, done_ui)
+                    
+                    # Refresh library logic
+                    if res['pull']:
+                        try:
+                            import urllib.request
+                            req = urllib.request.Request("http://127.0.0.1:8000/api/local/refresh_from_sidecars", method="POST")
+                            with urllib.request.urlopen(req, timeout=5) as response:
+                                pass
+                        except: pass
+                    
+                    # Restart logic for EXE update
+                    if res['pull'] and any("MidiKbdControlStudio.exe" in p for p in res['pull']):
+                        script = mgr.generate_bootstrapper_script()
+                        import tkinter.messagebox
+                        if tkinter.messagebox.askyesno("Mise à jour disponible", "Une nouvelle version de l'application a été téléchargée. Voulez-vous redémarrer pour l'installer ?"):
+                            lbl_status.configure(text="Redémarrage pour mise à jour...", text_color="red")
+                            import subprocess
+                            subprocess.Popen(script, shell=True)
+                            dialog.destroy()
+                            self.quit_app()
+
+                except Exception as e:
+                    import traceback
+                    logging.warning(f"[SYNC] Erreur critique durant la synchronisation : {e}")
+                    logging.warning(traceback.format_exc())
+                    lbl_status.configure(text=f"Erreur: {str(e)}", text_color="red")
+                finally:
+                    btn_sync.configure(state="normal")
+            
+            threading.Thread(target=_thread, daemon=True).start()
+
+        btn_sync = ctk.CTkButton(tab_sync, text=_("sync.btn_analyze"), command=run_sync, fg_color="#0066cc", hover_color="#004499", height=32)
+        btn_sync.pack(pady=(10, 5))
+        ctk.CTkButton(dialog, text=_("web.btn_close"), command=dialog.destroy, fg_color="transparent", border_width=1, text_color="gray").pack(pady=5)
 
     def on_device_saved(self):
         # Reload definitions

@@ -18,3 +18,5 @@ mutagen
 yt-dlp
 pycaw
 comtypes
+paramiko
+cryptography

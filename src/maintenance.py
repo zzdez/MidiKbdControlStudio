@@ -10,8 +10,72 @@ def get_data_filepaths():
     return {
         'lib': os.path.join(data_dir, "local_lib.json"),
         'set': os.path.join(data_dir, "setlist.json"),
-        'web': os.path.join(data_dir, "web_links.json")
+        'web': os.path.join(data_dir, "web_links.json"),
+        'main': os.path.join(data_dir, "library.json"),
+        'apps': os.path.join(data_dir, "apps.json")
     }
+
+def consolidate_data_folders():
+    """
+    Migration V6.1 : Déplace les fichiers JSON orphelins de la racine vers 'data/'.
+    Supprime les fichiers vides ou redondants.
+    """
+    app_dir = get_app_dir()
+    data_dir = get_data_dir()
+    
+    # Liste des fichiers à surveiller à la racine
+    targets = ["library.json", "setlist.json", "web_links.json", "apps.json", "local_lib.json"]
+    
+    for filename in targets:
+        root_path = os.path.join(app_dir, filename)
+        target_path = os.path.join(data_dir, filename)
+        
+        if os.path.exists(root_path):
+            # 1. Vérifier si le fichier est vide
+            if os.path.getsize(root_path) < 10: # Presque vide (ex: [] ou {})
+                try:
+                    os.remove(root_path)
+                    logging.warning(f"[MAINTENANCE] Suppression du fichier résiduel vide: {filename}")
+                except: pass
+                continue
+            
+            # 2. Si le fichier contient des données
+            if not os.path.exists(target_path):
+                # On le déplace simplement
+                try:
+                    import shutil
+                    shutil.move(root_path, target_path)
+                    logging.warning(f"[MAINTENANCE] Migration réussie de {filename} vers data/")
+                except Exception as e:
+                    logging.error(f"[MAINTENANCE] Erreur migration {filename}: {e}")
+            else:
+                # Conflit : Les deux existent. Sécurité : on renomme l'ancien en .bak
+                try:
+                    bak_path = root_path + ".bak"
+                    os.rename(root_path, bak_path)
+                    logging.warning(f"[MAINTENANCE] Conflit détecté pour {filename}. Racine renommé en .bak")
+                except: pass
+
+def cleanup_temp_files():
+    """
+    V9.6.54 : Nettoie les fichiers temporaires de mise à jour (.old) 
+    et les backups (.bak) une fois qu'ils ne sont plus nécessaires.
+    """
+    app_dir = get_app_dir()
+    for root, dirs, files in os.walk(app_dir):
+        for file in files:
+            if file.lower().endswith('.old') or file.lower().endswith('.bak'):
+                # Protection : ne pas scanner récursivement trop loin si structure complexe
+                # Mais ici on veut surtout la racine et medias.
+                path = os.path.join(root, file)
+                try:
+                    os.remove(path)
+                    logging.warning(f"[MAINTENANCE] Cleanup: suppression de {file}")
+                except:
+                    # Probablement encore verrouillé
+                    pass
+        # On ne descend que d'un niveau pour la performance et sécurité
+        break
 
 def generate_uid(prefix, item):
     """Génère un UID stable basé sur le contenu."""
@@ -24,6 +88,13 @@ def heal_all_meshes():
     V59: Point d'entrée de la maintenance au démarrage.
     Garantit que 100% des liens sont synchronisés et utilisent des UIDs stables.
     """
+    # Migration structurelle d'abord
+    try:
+        consolidate_data_folders()
+        cleanup_temp_files()
+    except Exception as e:
+        logging.error(f"[MAINTENANCE] Erreur lors de la consolidation: {e}")
+
     logging.warning("[MAINTENANCE] Démarrage de la consolidation globale du maillage...")
     
     file_map = get_data_filepaths()
@@ -125,15 +196,29 @@ def heal_all_meshes():
 
     # 5. Sauvegarde des changements
     if dirty_prefixes or migration_count > 0:
+        actual_change = False
         for prefix, db in databases.items():
             if prefix in dirty_prefixes:
                 path = file_map[prefix]
                 try:
+                    # Idempotency check: Load existing and compare
+                    if os.path.exists(path):
+                        with open(path, "r", encoding="utf-8") as f_check:
+                            old_raw = f_check.read()
+                        new_raw = json.dumps(db, indent=4)
+                        if old_raw.strip() == new_raw.strip():
+                            continue
+                            
                     with open(path, "w", encoding="utf-8") as f:
                         json.dump(db, f, indent=4)
                     logging.warning(f"[MAINTENANCE] {prefix.upper()} synchronisé et réparé.")
+                    actual_change = True
                 except Exception as e:
                     logging.error(f"[MAINTENANCE] Erreur sauvegarde {prefix}: {e}")
-        logging.warning(f"[MAINTENANCE] Consolidation terminée. {len(groups)} groupes harmonisés, {migration_count} liens migrés.")
+        
+        if actual_change:
+            logging.warning(f"[MAINTENANCE] Consolidation terminée. {len(groups)} groupes harmonisés, {migration_count} liens migrés.")
+        else:
+            logging.info("[MAINTENANCE] Les données étaient déjà harmonisées sur disque.")
     else:
         logging.info("[MAINTENANCE] Les données sont déjà saines et synchronisées.")
