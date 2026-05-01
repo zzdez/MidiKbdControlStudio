@@ -347,7 +347,9 @@ class WebdavProvider(SyncProvider):
             if response.status_code == 401:
                 raise ConnectionError(f"WebDAV Non Autorisé (401). Vérifiez l'utilisateur et le mot de passe.")
             elif response.status_code == 403:
-                raise ConnectionError(f"WebDAV Accès Interdit (403). Le serveur refuse l'accès au dossier (Droits/Permissions).")
+                # V9.6.58: Fallback to manual listing if Depth: infinity is forbidden (common on IIS)
+                logging.warning(f"[WebDAV] PROPFIND (Depth: infinity) forbidden (403). Falling back to manual recursive scan.")
+                return self._list_manual(relative_dir)
             elif response.status_code == 404:
                 raise ConnectionError(f"WebDAV Introuvable (404). Vérifiez l'URL et le dossier distant.")
             elif response.status_code not in [200, 207]:
@@ -458,19 +460,28 @@ class WebdavProvider(SyncProvider):
                 responses = root.findall('d:response', namespace)
                 if not responses:
                     responses = root.findall('.//{DAV:}response')
-                    if not responses:
-                        responses = root.findall('.//response')
+                if not responses:
+                    responses = root.findall('.//response')
+                
+                logging.warning(f"[WebDAV Manual] Found {len(responses)} response nodes for {target_url}")
                         
                 for resp in responses:
-                    href_node = resp.find('d:href', namespace) or resp.find('.//{DAV:}href') or resp.find('.//href')
-                    if href_node is None: continue
+                    # Robust tag finding
+                    href_node = None
+                    for tag in ['{DAV:}href', 'href', './/{DAV:}href', './/href']:
+                        href_node = resp.find(tag, namespace) if ':' in tag else resp.find(tag)
+                        if href_node is not None: break
+                        
+                    if href_node is None or not href_node.text:
+                        continue
+                        
                     href_raw = href_node.text
                     href_path = urlparse(href_raw).path
                     href_path = unquote(href_path)
                     
                     # Normalize href to relative path
                     rel_p = href_path
-                    if base_path != "/" and rel_p.startswith(base_path):
+                    if base_path != "/" and rel_p.lower().startswith(base_path.lower()):
                         rel_p = rel_p[len(base_path):].lstrip('/')
                     elif base_path == "/" and rel_p.startswith('/'):
                         rel_p = rel_p.lstrip('/')
@@ -478,17 +489,23 @@ class WebdavProvider(SyncProvider):
                     rel_p = rel_p.rstrip('/')
                     if not rel_p or rel_p == current_rel: continue
                     
-                    propstat = resp.find('d:propstat', namespace) or resp.find('.//{DAV:}propstat') or resp.find('.//propstat')
+                    propstat = resp.find('{DAV:}propstat') or resp.find('propstat') or resp.find('.//{DAV:}propstat')
                     if propstat is None: continue
-                    prop = propstat.find('d:prop', namespace) or propstat.find('.//{DAV:}prop') or propstat.find('.//prop')
+                    
+                    prop = propstat.find('{DAV:}prop') or propstat.find('prop') or propstat.find('.//{DAV:}prop')
                     if prop is None: continue
                     
-                    resourcetype = prop.find('d:resourcetype', namespace) or prop.find('.//{DAV:}resourcetype') or prop.find('.//resourcetype')
-                    if resourcetype is not None and (resourcetype.find('d:collection', namespace) is not None or resourcetype.find('.//{DAV:}collection') is not None or resourcetype.find('.//collection') is not None):
+                    resourcetype = prop.find('{DAV:}resourcetype') or prop.find('resourcetype') or prop.find('.//{DAV:}resourcetype')
+                    is_dir = False
+                    if resourcetype is not None:
+                        if resourcetype.find('{DAV:}collection') is not None or resourcetype.find('.//{DAV:}collection') is not None:
+                            is_dir = True
+                    
+                    if is_dir:
                         folders_to_scan.append(rel_p)
                     else:
-                        getlastmod = prop.find('d:getlastmodified', namespace) or prop.find('.//{DAV:}getlastmodified') or prop.find('.//getlastmodified')
-                        getsize = prop.find('d:getcontentlength', namespace) or prop.find('.//{DAV:}getcontentlength') or prop.find('.//getcontentlength')
+                        getlastmod = prop.find('{DAV:}getlastmodified') or prop.find('getlastmodified') or prop.find('.//{DAV:}getlastmodified')
+                        getsize = prop.find('{DAV:}getcontentlength') or prop.find('getcontentlength') or prop.find('.//{DAV:}getcontentlength')
                         mtime = 0
                         if getlastmod is not None and getlastmod.text:
                             try:
@@ -499,11 +516,9 @@ class WebdavProvider(SyncProvider):
                                     import datetime
                                     clean_str = getlastmod.text.replace('Z', '+00:00')
                                     mtime = datetime.datetime.fromisoformat(clean_str).timestamp()
-                                except Exception as e:
-                                    logging.error(f"[WebDAV] Manual unparseable date: {getlastmod.text}")
-                                    pass
+                                except: pass
                         size = 0
-                        if getsize is not None:
+                        if getsize is not None and getsize.text:
                             try: size = int(getsize.text)
                             except: pass
                         result[rel_p] = {'mtime': mtime, 'size': size}
@@ -1441,7 +1456,12 @@ class SyncManager:
             # Phase 2: Add new shared items from Cloud
             for uid, remote_item in remote_by_uid.items():
                 if uid not in local_by_uid:
-                    new_list.append(remote_item)
+                    # V9.6.58: Only pull items that are actually shared on Cloud
+                    # This prevents "Ghost" private items from old syncs from polluting other machines.
+                    shared = remote_item.get('shared_with_group', False)
+                    if shared is True or shared == "true":
+                        logging.warning(f"[SYNC] Pulling new shared item from Cloud: {remote_item.get('title', uid)}")
+                        new_list.append(remote_item)
             
             with open(downloaded_json_path, 'w', encoding='utf-8') as f:
                 json.dump(new_list, f, sort_keys=True, separators=(',', ':'))
