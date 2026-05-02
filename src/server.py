@@ -44,10 +44,11 @@ from download_service import DownloadService
 from music_api import MusicAPI
 
 app = FastAPI()
-SETLIST_FILE = os.path.join(get_data_dir(), "setlist.json")
+WEB_LINKS_FILE = os.path.join(get_data_dir(), "web_links.json")
+SETLIST_FILE = WEB_LINKS_FILE # V60: Backward compatibility, YouTube/Web links now unified
+SETLIST_V2_FILE = os.path.join(get_data_dir(), "setlists.json") # New real setlists
 APPS_FILE = os.path.join(get_data_dir(), "apps.json")
 LOCAL_LIB_FILE = os.path.join(get_data_dir(), "local_lib.json")
-WEB_LINKS_FILE = os.path.join(get_data_dir(), "web_links.json")
 
 library_manager = LibraryManager(LOCAL_LIB_FILE) # V55: Force same file as server
 metadata_service = MetadataService()
@@ -3541,6 +3542,73 @@ async def link_bidirectional(data: Dict):
         return {"status": "ok"}
 
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- SETLISTS V2 ENGINE ---
+@app.get("/api/setlists")
+async def get_setlists():
+    """V11: Charge toutes les setlists de concert."""
+    if not os.path.exists(SETLIST_V2_FILE):
+        return []
+    try:
+        with open(SETLIST_V2_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logging.error(f"[SETLIST_V2] Erreur lecture: {e}")
+        return []
+
+@app.post("/api/setlists")
+async def save_setlist(payload: dict):
+    """V11: Crée ou met à jour une setlist."""
+    try:
+        data = []
+        if os.path.exists(SETLIST_V2_FILE):
+            with open(SETLIST_V2_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        
+        # Identification par ID
+        sl_id = payload.get("id")
+        if not sl_id:
+             import uuid
+             sl_id = f"sl_{uuid.uuid4().hex[:8]}"
+             payload["id"] = sl_id
+        
+        found = False
+        for i, it in enumerate(data):
+            if it.get("id") == sl_id:
+                data[i] = payload
+                found = True
+                break
+        
+        if not found:
+            data.append(payload)
+            
+        with open(SETLIST_V2_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+        
+        return {"status": "ok", "id": sl_id}
+    except Exception as e:
+        logging.error(f"[SETLIST_V2] Erreur sauvegarde: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/setlists/{sl_id}")
+async def delete_setlist(sl_id: str):
+    """V11: Supprime une setlist."""
+    try:
+        if not os.path.exists(SETLIST_V2_FILE):
+             return {"status": "ok"}
+             
+        with open(SETLIST_V2_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        new_data = [it for it in data if it.get("id") != sl_id]
+        
+        with open(SETLIST_V2_FILE, "w", encoding="utf-8") as f:
+            json.dump(new_data, f, indent=4, ensure_ascii=False)
+            
+        return {"status": "ok"}
+    except Exception as e:
+        logging.error(f"[SETLIST_V2] Erreur suppression: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Static Files Logic

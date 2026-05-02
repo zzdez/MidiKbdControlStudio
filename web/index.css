@@ -1,0 +1,30 @@
+
+
+/* SETLIST V2 STYLES */
+.setlist-card:hover {
+    background: #252525 !important;
+    border-color: var(--accent) !important;
+    transform: translateY(-2px);
+}
+
+.lib-item-mini:hover {
+    background: rgba(255,255,255,0.08) !important;
+}
+
+.btn-icon-mini {
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    padding: 2px 5px;
+    font-size: 1.1em;
+    transition: color 0.2s;
+}
+.btn-icon-mini:hover {
+    color: white;
+}
+
+.title-input-ghost:focus {
+    outline: none;
+    border-bottom: 1px solid var(--accent) !important;
+}

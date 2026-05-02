@@ -552,7 +552,21 @@
         "lbl_interconnect_multitrack": "Multipiste",
         "lbl_grouped_view": "Vue Groupée",
         "lbl_is_primary": "Prioritaire (Groupe)",
-        "hint_grouped_view": "Grouper les versions liées (Audio/Vidéo/YouTube)"
+        "hint_grouped_view": "Grouper les versions liées (Audio/Vidéo/YouTube)",
+        "tab_setlists": "Setlists Live",
+        "title_setlists": "Setlists Live",
+        "btn_add_setlist": "Créer une Setlist",
+        "lbl_setlist_name": "Nom de la Setlist",
+        "msg_no_setlist": "Aucune setlist créée.",
+        "btn_create_first": "Créer la première",
+        "lbl_add_from_lib": "AJOUTER DEPUIS LA BIBLIOTHÈQUE",
+        "lbl_setlist_content": "CONTENU DE LA SETLIST",
+        "lbl_items_count": "morceau(x)",
+        "btn_delete_setlist": "Supprimer la Setlist",
+        "btn_save_changes": "Enregistrer les changements",
+        "btn_close_no_save": "Fermer sans enregistrer",
+        "msg_no_item_setlist": "La setlist est vide. Ajoutez des morceaux depuis la gauche.",
+        "msg_confirm_delete_setlist": "Voulez-vous vraiment supprimer cette setlist ?"
     },
     "sync": {
         "title": "Synchronisation Cloud",

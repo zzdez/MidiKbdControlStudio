@@ -9,10 +9,10 @@ def get_data_filepaths():
     data_dir = get_data_dir()
     return {
         'lib': os.path.join(data_dir, "local_lib.json"),
-        'set': os.path.join(data_dir, "setlist.json"),
         'web': os.path.join(data_dir, "web_links.json"),
         'main': os.path.join(data_dir, "library.json"),
-        'apps': os.path.join(data_dir, "apps.json")
+        'apps': os.path.join(data_dir, "apps.json"),
+        'setlists': os.path.join(data_dir, "setlists.json")
     }
 
 def consolidate_data_folders():
@@ -24,7 +24,7 @@ def consolidate_data_folders():
     data_dir = get_data_dir()
     
     # Liste des fichiers à surveiller à la racine
-    targets = ["library.json", "setlist.json", "web_links.json", "apps.json", "local_lib.json"]
+    targets = ["library.json", "web_links.json", "apps.json", "local_lib.json", "setlists.json"]
     
     for filename in targets:
         root_path = os.path.join(app_dir, filename)
@@ -182,6 +182,7 @@ def heal_all_meshes():
     dirty_prefixes = set()
     for group in groups:
         for uid in group:
+            if uid not in uid_to_item: continue
             prefix, item = uid_to_item[uid]
             # Le maillage complet = tout le groupe sauf soi-même
             new_links = list(group - {uid})
