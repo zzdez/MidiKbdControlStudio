@@ -33,7 +33,15 @@
             
             <!-- Row 1: Title | BPM | Scale -->
             <div id="global-video-info" style="display: none; align-items: center; justify-content: center; gap: 15px; width: 100%; min-width: 0;">
-                <span id="global-video-title" style="font-weight: bold; font-size: 1.05em; color: white; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; max-width: 35vw;">Titre de la vidéo</span>
+                                <div style="display:flex; align-items:center; gap:5px; max-width:40vw;">
+                    <span id="global-video-title" style="font-weight: bold; font-size: 1.05em; color: white; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">Titre de la vidéo</span>
+                    <button id="btn-edit-active-media" onclick="openActiveMediaModal()" class="btn-icon-small" title="Éditer le média" style="color:#666; font-size:1.1em; background:transparent; border:none; cursor:pointer;">
+                        <i class="ph ph-note-pencil"></i>
+                    </button>
+                    <button id="btn-refresh-active-media" onclick="refreshActiveMediaMetadata()" class="btn-icon-small" title="Rafraîchir l'affichage" style="color:#666; font-size:1.1em; background:transparent; border:none; cursor:pointer;">
+                        <i class="ph ph-arrows-clockwise"></i>
+                    </button>
+                </div>
                 <div style="display: flex; gap: 8px; font-size: 0.85em; color: var(--accent); align-items: center; white-space: nowrap;">
                     <span id="global-video-bpm" class="metadata-badge" style="display: none;">🎵 <span class="val"></span> BPM</span>
                     <div id="header-smart-scale-pill" onclick="toggleFretboard()" title="Ouvrir le Manche" style="cursor:pointer; display:flex; align-items:center; gap:5px;">

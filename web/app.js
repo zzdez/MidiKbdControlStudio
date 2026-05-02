@@ -1155,6 +1155,10 @@ async function saveWebLink() {
             const modalEl = document.getElementById("modal-web-link");
             if (modalEl && modalEl.close) modalEl.close();
             refreshAllMediaData();
+            // V60: Auto-refresh header if current media was edited
+            if (currentActivePlayer === 'web' && currentWebLinkIndex === data.index) {
+                refreshActiveMediaMetadata();
+            }
         } else {
             const errBody = await res.text();
             console.error("[SAVE_WEB] SERVER ERROR:", res.status, errBody);
@@ -6237,6 +6241,81 @@ async function confirmImport(action) {
     }
 }
 
+function openActiveMediaModal() {
+    console.log("[QUICK_EDIT] Opening modal for active player:", currentActivePlayer);
+    
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform' || currentActivePlayer === 'multitrack') {
+        if (window.currentPlayingIndex !== -1) {
+            const item = localFiles[window.currentPlayingIndex];
+            if (item) {
+                if (item.is_multitrack) {
+                    openMultitrackModal(window.currentPlayingIndex);
+                } else {
+                    openEditLocalModal(window.currentPlayingIndex);
+                }
+            }
+        } else {
+            showToast(t("web.msg_no_active_media", "Aucun média local actif"), "warning");
+        }
+    } else if (currentActivePlayer === 'web') {
+        if (typeof currentWebLinkIndex !== 'undefined' && currentWebLinkIndex !== -1) {
+            openWebLinkModal(currentWebLinkIndex);
+        } else {
+            showToast(t("web.msg_no_active_web", "Aucun lien web actif"), "warning");
+        }
+    } else if (currentActivePlayer === 'youtube') {
+        if (typeof currentTrackIndex !== 'undefined' && currentTrackIndex !== -1) {
+            openEditModal(currentTrackIndex);
+        } else {
+            showToast(t("web.msg_no_active_youtube", "Aucun morceau YouTube actif"), "warning");
+        }
+    }
+}
+
+function refreshActiveMediaMetadata() {
+    let item = null;
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform' || currentActivePlayer === 'multitrack') {
+        if (window.currentPlayingIndex !== -1) item = localFiles[window.currentPlayingIndex];
+    } else if (currentActivePlayer === 'web') {
+        if (typeof currentWebLinkIndex !== 'undefined' && currentWebLinkIndex !== -1) item = webLinks[currentWebLinkIndex];
+    } else if (currentActivePlayer === 'youtube') {
+        if (typeof currentTrackIndex !== 'undefined' && currentTrackIndex !== -1) item = (currentTrackList && currentTrackList[currentTrackIndex]) ? currentTrackList[currentTrackIndex] : null;
+    }
+
+    if (!item) {
+        showToast(t("web.msg_no_active_media", "Aucun média actif"), "warning");
+        return;
+    }
+
+    console.log("[REFRESH] Refreshing header UI for:", item.title);
+    
+    // Update Header UI
+    const globalTitle = document.getElementById("global-video-title");
+    const globalBpm = document.getElementById("global-video-bpm");
+    const infoContainer = document.getElementById("global-video-info");
+
+    if (globalTitle) globalTitle.innerText = item.title || "";
+    
+    if (globalBpm) {
+        if (item.bpm) {
+            const valSpan = globalBpm.querySelector(".val");
+            if (valSpan) valSpan.innerText = item.bpm;
+            globalBpm.style.display = "flex";
+        } else {
+            globalBpm.style.display = "none";
+        }
+    }
+    
+    if (infoContainer) infoContainer.style.display = "flex";
+
+    // Update Fretboard/Scale if applicable
+    if (typeof updateHeaderScaleDisplay === "function") {
+        updateHeaderScaleDisplay(item);
+    }
+    
+    showToast(t("web.msg_metadata_refreshed", "Métadonnées rafraîchies"), "success");
+}
+
 function openEditLocalModal(index) {
     resetMediaModalUI();
     editingLocalIndex = index;
@@ -6504,6 +6583,13 @@ async function saveMultitrackItem() {
         if (localFiles[editingLocalIndex]) {
             Object.assign(localFiles[editingLocalIndex], payload);
         }
+        
+        // V60: Auto-refresh header if current media was edited (BEFORE closing modal so index is valid)
+        console.log("[DEBUG_SAVE] MT Check:", window.currentPlayingIndex, "==", editingLocalIndex, "Player:", currentActivePlayer);
+        if (window.currentPlayingIndex == editingLocalIndex && (currentActivePlayer === 'multitrack' || currentActivePlayer === 'waveform' || currentActivePlayer === 'local')) {
+            refreshActiveMediaMetadata();
+        }
+
         closeMultitrackModal();
         loadLocalFiles();
     }
@@ -6596,6 +6682,12 @@ async function saveLocalItem() {
     const isOffline = document.getElementById("chk-action-offline").checked;
     if (isOffline) {
         startDownload(); // Logic will handle its own closing/progress
+    }
+
+    // V60: Auto-refresh header if current media was edited (BEFORE closing modal)
+    console.log("[DEBUG_SAVE] Local Check:", window.currentPlayingIndex, "==", editingLocalIndex, "Player:", currentActivePlayer);
+    if (window.currentPlayingIndex == editingLocalIndex && (currentActivePlayer === 'local' || currentActivePlayer === 'multitrack' || currentActivePlayer === 'waveform')) {
+        refreshActiveMediaMetadata();
     }
 
     // Only close immediately if NOT downloading, otherwise keep open for progress

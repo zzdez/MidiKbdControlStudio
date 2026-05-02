@@ -738,3 +738,12 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     - Support natif sur **SFTP**, **WebDAV** et **Local**.
     - **Protected Dirs (V9.6.46)** : Liste de dossiers structurels sanctuarisés (`Medias`, `data`, `profiles`, etc.) qui ne sont jamais supprimés par le moteur, garantissant l'intégrité de l'arborescence.
     - **Partitioned State (V9.6.48)** : L'état de synchronisation est désormais séparé par type de fournisseur (`sync_state_sftp.json`, etc.), permettant de gérer plusieurs destinations cloud sans interférence.
+
+### 52. Évolution V10.1 : Édition Rapide & Refresh Dynamique (Header UI)
+*   **Moteur d'Édition Rapide (`app.js`)** :
+    - **Quick-Edit Trigger** : Ajout d'un bouton icône (Crayon) dans le header central permettant d'ouvrir instantanément la modale d'édition correspondant au média actif (Local, Multipiste, YouTube ou Web), sans recherche manuelle dans les listes.
+    - **Logic `openActiveMediaModal`** : Détection intelligente du type de lecteur (`currentActivePlayer`) et de l'index associé (`currentPlayingIndex`, `currentWebLinkIndex`, etc.) pour un routage sans erreur.
+*   **Système de Rafraîchissement Dynamique** :
+    - **Manual Refresh** : Nouveau bouton (Flèche circulaire) pour forcer la mise à jour des métadonnées affichées (Titre, BPM, Gamme) sans rechargement de page (F5).
+    - **Auto-Sync Post-Save** : Les fonctions de sauvegarde (`saveLocalItem`, `saveMultitrackItem`, `saveWebLink`) déclenchent désormais un rafraîchissement automatique du Header si le média édité est celui en cours de lecture.
+    - **Fiabilisation de l'Ordre d'Exécution** : Le rafraîchissement est exécuté **avant** la fermeture des modales pour garantir que l'index d'édition est toujours valide en mémoire vive lors de la mise à jour.
