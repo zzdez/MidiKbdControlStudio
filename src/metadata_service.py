@@ -172,6 +172,7 @@ class MetadataService:
                 "autoreplay": sidecar_data.get("autoreplay", False),
                 "subtitle_pos_y": sidecar_data.get("subtitle_pos_y", 80),
                 "linked_ids": sidecar_data.get("linked_ids", []),
+                "is_primary": sidecar_data.get("is_primary", False),
                 "duration": max_duration,
                 "is_multitrack": True,
                 "stems": stems
@@ -291,6 +292,7 @@ class MetadataService:
                         res["volume"] = sidecar_data.get("volume", 100)
                         res["autoplay"] = sidecar_data.get("autoplay", False)
                         res["autoreplay"] = sidecar_data.get("autoreplay", False)
+                        res["is_primary"] = sidecar_data.get("is_primary", False)
                         res["subtitle_pos_y"] = sidecar_data.get("subtitle_pos_y", 80)
                 except Exception as e:
                     logging.error(f"Error reading single file sidecar JSON: {e}")

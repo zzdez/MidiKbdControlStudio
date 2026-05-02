@@ -897,6 +897,7 @@ async def edit_setlist_item(index: int, item: Dict):
             current["artist"] = item.get("artist", current.get("artist", ""))
             current["category"] = item.get("category", current.get("category", "Général"))
             current["user_notes"] = item.get("user_notes", current.get("user_notes", ""))
+            current["is_primary"] = item.get("is_primary", current.get("is_primary", False))
             current["volume"] = item.get("volume", current.get("volume", 100))
             current["loops"] = item.get("loops", current.get("loops", []))
             current["audio_cues"] = item.get("audio_cues", current.get("audio_cues", []))
@@ -1653,6 +1654,7 @@ async def update_local_file(index: int, item: Dict):
             current["autoreplay"] = item.get("autoreplay", current.get("autoreplay", False))
             current["shared_with_group"] = item.get("shared_with_group", current.get("shared_with_group", False))
             current["linked_ids"] = item.get("linked_ids", current.get("linked_ids", []))
+            current["is_primary"] = item.get("is_primary", current.get("is_primary", False))
             
             # --- RELOCATION / PATH UPDATE LOGIC ---
             new_path = item.get("path")
@@ -2354,7 +2356,7 @@ async def edit_local_file(index: int, item: Dict):
                     current["is_missing"] = False
 
             # Update other fields...
-            for key in ["title", "artist", "genre", "category", "bpm", "key", "scale", "instrument", "tuning", "user_notes", "linked_ids"]:
+            for key in ["title", "artist", "genre", "category", "bpm", "key", "scale", "instrument", "tuning", "user_notes", "linked_ids", "is_primary"]:
                 if key in item: 
                     current[key] = item[key]
             

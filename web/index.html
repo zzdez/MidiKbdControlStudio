@@ -1158,6 +1158,11 @@
                             <span class="switch-slider"></span>
                             <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
                         </label>
+                        <label class="modern-switch">
+                            <input type="checkbox" id="mt-is-primary">
+                            <span class="switch-slider"></span>
+                            <span class="switch-label" data-i18n="web.lbl_is_primary">Priorit\u00e9 Groupe</span>
+                        </label>
                     </div>
                 </div>
 
@@ -1376,6 +1381,11 @@
                             <input type="checkbox" id="edit-autoreplay" onchange="liveUpdatePlaybackOption('autoreplay', this.checked)">
                             <span class="switch-slider"></span>
                             <span class="switch-label" data-i18n="web.lbl_autoreplay">Boucle</span>
+                        </label>
+                        <label class="modern-switch">
+                            <input type="checkbox" id="edit-is-primary">
+                            <span class="switch-slider"></span>
+                            <span class="switch-label" data-i18n="web.lbl_is_primary">Priorit\u00e9 Groupe</span>
                         </label>
                     </div>
                 </div>
@@ -1667,6 +1677,18 @@
                     </div>
                     <div id="btn-web-link-delete-cover" class="btn-delete-cover" style="display:none;"
                         onclick="event.stopPropagation(); removeWebLinkCover();">×</div>
+                </div>
+
+                <!-- Controls Group (Right) -->
+                <div style="display:flex; align-items:center; gap:12px; min-width:140px; justify-content: flex-start;">
+                    <!-- Switches -->
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                        <label class="modern-switch">
+                            <input type="checkbox" id="web-link-is-primary">
+                            <span class="switch-slider"></span>
+                            <span class="switch-label" data-i18n="web.lbl_is_primary">Priorité Groupe</span>
+                        </label>
+                    </div>
                 </div>
 
                 <input type="file" id="web-link-cover-upload" accept="image/*" style="display:none"
