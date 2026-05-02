@@ -6237,6 +6237,37 @@ async function confirmImport(action) {
     }
 }
 
+function openActiveMediaModal() {
+    console.log("[QUICK_EDIT] Opening modal for active player:", currentActivePlayer);
+    
+    if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform' || currentActivePlayer === 'multitrack') {
+        if (window.currentPlayingIndex !== -1) {
+            const item = localFiles[window.currentPlayingIndex];
+            if (item) {
+                if (item.is_multitrack) {
+                    openMultitrackModal(window.currentPlayingIndex);
+                } else {
+                    openEditLocalModal(window.currentPlayingIndex);
+                }
+            }
+        } else {
+            showToast(t("web.msg_no_active_media", "Aucun média local actif"), "warning");
+        }
+    } else if (currentActivePlayer === 'web') {
+        if (typeof currentWebLinkIndex !== 'undefined' && currentWebLinkIndex !== -1) {
+            openWebLinkModal(currentWebLinkIndex);
+        } else {
+            showToast(t("web.msg_no_active_web", "Aucun lien web actif"), "warning");
+        }
+    } else if (currentActivePlayer === 'youtube') {
+        if (typeof currentTrackIndex !== 'undefined' && currentTrackIndex !== -1) {
+            openEditModal(currentTrackIndex);
+        } else {
+            showToast(t("web.msg_no_active_youtube", "Aucun morceau YouTube actif"), "warning");
+        }
+    }
+}
+
 function openEditLocalModal(index) {
     resetMediaModalUI();
     editingLocalIndex = index;
