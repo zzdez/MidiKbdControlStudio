@@ -790,6 +790,7 @@ function updateGroupTogglesUI() {
 }
 
 function getItemPriority(item) {
+    if (item.is_primary === true || item.is_primary === "true") return 10;
     if (item.is_multitrack) return 5;
     const type = getLocalType(item);
     if (type === 'video') return 4;
@@ -1002,6 +1003,7 @@ function openWebLinkModal(index = -1) {
         document.getElementById("web-link-key").value = "";
         document.getElementById("web-link-scale").value = "";
         document.getElementById("web-link-tuning").value = "standard";
+        document.getElementById("web-link-is-primary").checked = false;
         currentEditingLinkedIds = []; // V58: Initialize for new link
     } else {
         const link = webLinks[index];
@@ -1018,6 +1020,10 @@ function openWebLinkModal(index = -1) {
         // New fields
         document.getElementById("web-link-vol").value = link.volume !== undefined ? link.volume * 100 : 100;
         document.getElementById("web-link-volume-percent").innerText = (link.volume !== undefined ? Math.round(link.volume * 100) : 100) + "%";
+        const isPrimaryVal = (link.is_primary === true || link.is_primary === "true");
+        document.getElementById("web-link-is-primary").checked = isPrimaryVal;
+        console.log("[DEBUG] Opening WebLink Modal - is_primary:", isPrimaryVal, "raw:", link.is_primary);
+        
         document.getElementById("web-link-bpm").value = link.bpm || "";
         document.getElementById("web-link-key").value = link.key || "";
         document.getElementById("web-link-scale").value = link.scale || "";
@@ -1107,6 +1113,7 @@ async function saveWebLink() {
         category: document.getElementById("web-link-category").value,
         genre: document.getElementById("web-link-genre").value,
         notes: document.getElementById("web-link-notes").value,
+        is_primary: document.getElementById("web-link-is-primary").checked,
         volume: document.getElementById("web-link-vol") ? parseInt(document.getElementById("web-link-vol").value) : 100,
         bpm: document.getElementById("web-link-bpm")?.value || null,
         metadata: {
@@ -1137,6 +1144,11 @@ async function saveWebLink() {
             const data = await res.json();
             console.log("[SAVE_WEB] SUCCESS", data);
             
+            // V60: Immediate cache update
+            if (currentWebLinkIndex !== -1 && webLinks[currentWebLinkIndex]) {
+                Object.assign(webLinks[currentWebLinkIndex], payload);
+            }
+
             // i18n Fix: The key is flat, not nested under 'web'
             showToast(t("msg_save_success"), "success");
             
@@ -2394,6 +2406,7 @@ function openEditModal(index) {
     document.getElementById("edit-tuning").value = track.tuning || "standard";
     document.getElementById("edit-original-pitch").value = track.original_pitch || "";
     document.getElementById("edit-target-pitch").value = track.target_pitch || "";
+    document.getElementById("edit-is-primary").checked = track.is_primary || false;
 
     // V58: Dynamic button text
     const saveBtn = document.querySelector(".btn-primary[onclick='saveItem()']");
@@ -2956,6 +2969,7 @@ async function saveItem() {
         subtitle_pos_y: 100 - parseInt(document.getElementById("edit-sub-pos").value || 20, 10),
         autoplay: document.getElementById("edit-autoplay").checked,
         autoreplay: document.getElementById("edit-autoreplay").checked,
+        is_primary: document.getElementById("edit-is-primary").checked,
         linked_ids: currentEditingLinkedIds // V58: Use active modal state instead of old track list data
     };
 
@@ -3985,17 +3999,30 @@ function renderLocalFiles() {
         const families = new Map(); // Map<MasterUID, Array<Items>>
         const itemToMaster = new Map(); // Map<UID, MasterUID>
 
-        // 1. Identify Families (Linked UIDs cluster)
+                // 1. Identify Families (Linked UIDs cluster)
         filtered.forEach(item => {
-            if (itemToMaster.has(item.uid)) return;
-
             const familyUIDs = [item.uid, ...(item.linked_ids || [])];
-            let masterUID = familyUIDs.find(uid => itemToMaster.has(uid));
+            let masterUID = null;
+            
+            // Find if any member already belongs to a family
+            for (const uid of familyUIDs) {
+                if (itemToMaster.has(uid)) {
+                    masterUID = itemToMaster.get(uid);
+                    break;
+                }
+            }
+
             if (!masterUID) masterUID = item.uid;
 
+            // Mark all potential members as belonging to this family master
             familyUIDs.forEach(uid => itemToMaster.set(uid, masterUID));
+            
             if (!families.has(masterUID)) families.set(masterUID, []);
-            families.get(masterUID).push(item);
+            
+            // Add the item to its family (avoid duplicates)
+            if (!families.get(masterUID).some(it => it.uid === item.uid)) {
+                families.get(masterUID).push(item);
+            }
         });
 
         // 2. Pick the Best Representative for each family
@@ -6250,6 +6277,10 @@ function openEditLocalModal(index) {
     document.getElementById("edit-tuning").value = item.tuning || "standard";
     document.getElementById("edit-original-pitch").value = item.original_pitch || "";
     document.getElementById("edit-target-pitch").value = item.target_pitch || "";
+    
+    const isPrimaryVal = (item.is_primary === true || item.is_primary === "true");
+    document.getElementById("edit-is-primary").checked = isPrimaryVal;
+    console.log("[DEBUG] Opening EditLocal Modal - is_primary:", isPrimaryVal, "raw:", item.is_primary);
 
     // V58: Hide Action Selector for local files
     const actionSel = document.querySelector(".actions-selector");
@@ -6387,6 +6418,10 @@ function openMultitrackModal(index) {
     if (mvp) mvp.innerText = volVal + "%";
 
     document.getElementById("mt-notes").value = item.user_notes || "";
+    
+    const isPrimaryVal = (item.is_primary === true || item.is_primary === "true");
+    document.getElementById("mt-is-primary").checked = isPrimaryVal;
+    console.log("[DEBUG] Opening Multitrack Modal - is_primary:", isPrimaryVal, "raw:", item.is_primary);
 
     // Physical Management (V41)
     const physCont = document.getElementById("mt-physical-management-container");
@@ -6454,6 +6489,7 @@ async function saveMultitrackItem() {
         volume: parseInt(document.getElementById("mt-modal-volume").value, 10) || 100,
         autoplay: document.getElementById("mt-autoplay").checked,
         autoreplay: document.getElementById("mt-autoreplay").checked,
+        is_primary: document.getElementById("mt-is-primary").checked,
         linked_ids: currentEditingLinkedIds
     };
 
@@ -6464,6 +6500,10 @@ async function saveMultitrackItem() {
     });
 
     if (res.ok) {
+        // V60: Immediate cache update to prevent modal refresh lag
+        if (localFiles[editingLocalIndex]) {
+            Object.assign(localFiles[editingLocalIndex], payload);
+        }
         closeMultitrackModal();
         loadLocalFiles();
     }
@@ -6524,6 +6564,7 @@ async function saveLocalItem() {
         volume: parseInt(document.getElementById("edit-volume").value, 10) || 100,
         autoplay: document.getElementById("edit-autoplay").checked,
         autoreplay: document.getElementById("edit-autoreplay").checked,
+        is_primary: document.getElementById("edit-is-primary").checked,
         url: document.getElementById("edit-url").value, // V58: Preserve URL
         linked_ids: currentEditingLinkedIds
     };
@@ -6536,6 +6577,10 @@ async function saveLocalItem() {
 
     if (res.ok) {
         const data = await res.json();
+        // V60: Immediate cache update
+        if (localFiles[editingLocalIndex]) {
+            Object.assign(localFiles[editingLocalIndex], payload);
+        }
         if (data.warning) {
             alert(data.warning);
         }
@@ -10701,31 +10746,42 @@ function renderModalLinkedItems() {
 }
 
 function openLinkedMedia(uid) {
+    console.log("[LINK_NAV] Navigation vers UID:", uid);
     // Close current modals first to avoid stacking issues or confusion
-    if (document.getElementById("modal-media-edit").open) {
-        document.getElementById("modal-media-edit").close();
+    if (document.getElementById("media-modal")?.hasAttribute("open")) {
+        document.getElementById("media-modal").close();
     }
-    if (document.getElementById("modal-multitrack").open) {
+    if (document.getElementById("modal-multitrack")?.hasAttribute("open")) {
         document.getElementById("modal-multitrack").close();
     }
-    
-    // Find item
-    if (uid.startsWith('set:')) {
-        const index = parseInt(uid.split(':')[1]);
-        if (!isNaN(index)) openEditModal(index);
-    } else if (uid.startsWith('lib:')) {
-        const index = parseInt(uid.split(':')[1]);
-        if (!isNaN(index)) {
-            const item = localFiles[index];
-            if (item) {
-                if (item.is_multitrack) openMultitrackModal(index);
-                else openEditLocalModal(index);
-            }
-        }
-    } else if (uid.startsWith('web:')) {
-        const index = parseInt(uid.split(':')[1]);
-        if (!isNaN(index)) openWebLinkModal(index);
+    if (document.getElementById("modal-web-link")?.hasAttribute("open")) {
+        document.getElementById("modal-web-link").close();
     }
+
+    // Delay the opening to let the browser resolve the DOM close state
+    setTimeout(() => {
+        // Find item by UUID
+        if (uid.startsWith('set:') || uid.startsWith('set_')) {
+            const track = currentTrackList.find(t => t.uid === uid);
+            if (track) openEditModal(track.originalIndex);
+            else console.error("Track not found for UID:", uid);
+        } else if (uid.startsWith('lib:') || uid.startsWith('lib_')) {
+            const index = localFiles.findIndex(t => t.uid === uid);
+            if (index !== -1) {
+                const item = localFiles[index];
+                if (item) {
+                    if (item.is_multitrack) openMultitrackModal(index);
+                    else openEditLocalModal(index);
+                }
+            } else {
+                console.error("Local file not found for UID:", uid);
+            }
+        } else if (uid.startsWith('web:') || uid.startsWith('web_')) {
+            const index = webLinks.findIndex(t => t.uid === uid);
+            if (index !== -1) openWebLinkModal(index);
+            else console.error("Web link not found for UID:", uid);
+        }
+    }, 50);
 }
 
 async function toggleMediaLink(targetType, targetIndex) {

@@ -551,6 +551,7 @@
         "lbl_interconnect_video": "Vidéo",
         "lbl_interconnect_multitrack": "Multipiste",
         "lbl_grouped_view": "Vue Groupée",
+        "lbl_is_primary": "Prioritaire (Groupe)",
         "hint_grouped_view": "Grouper les versions liées (Audio/Vidéo/YouTube)"
     },
     "sync": {
