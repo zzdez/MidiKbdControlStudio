@@ -921,6 +921,20 @@ function renderSetlistEditorItems() {
                             </div>
                         </div>
 
+                        <!-- Speed Override -->
+                        <div style="flex:1; min-width:120px;">
+                            <label style="display:flex; justify-content:space-between; color:#666; font-size:0.8em; margin-bottom:4px;">
+                                Speed Override <span>${slot.speed_override !== undefined ? slot.speed_override + 'x' : '1.0x'}</span>
+                            </label>
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <input type="range" min="0.5" max="1.5" step="0.01" value="${slot.speed_override !== undefined ? slot.speed_override : 1.0}" 
+                                    style="flex:1;" 
+                                    oninput="this.parentElement.previousElementSibling.querySelector('span').innerText = parseFloat(this.value).toFixed(2) + 'x'"
+                                    onchange="updateSetlistItemParam(${idx}, 'speed_override', parseFloat(this.value))">
+                                <button class="btn-icon-mini" onclick="updateSetlistItemParam(${idx}, 'speed_override', undefined); renderSetlistEditorItems();" title="Reset"><i class="ph ph-arrows-counter-clockwise"></i></button>
+                            </div>
+                        </div>
+
                     </div>
 
                     <!-- Multipiste Overrides (Stems) -->
@@ -928,17 +942,22 @@ function renderSetlistEditorItems() {
                         <div style="margin-top:15px; padding-top:15px; border-top:1px solid #333;">
                             <label style="display:block; color:#666; font-size:0.8em; margin-bottom:10px;">Mute Stems (Live Mix)</label>
                             <div id="stems-override-${idx}" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:8px;">
-                                <!-- Will be populated by JS if needed, or static if item has file_list -->
-                                ${item.file_list ? item.file_list.map(f => {
-                                    const fileName = typeof f === 'string' ? f : f.name;
-                                    const isMuted = slot.muted_stems && slot.muted_stems.includes(fileName);
-                                    return `
-                                        <label style="display:flex; align-items:center; gap:5px; background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.9em; ${isMuted ? 'color:var(--danger);' : ''}">
-                                            <input type="checkbox" ${isMuted ? 'checked' : ''} onchange="toggleStemMuteOverride(${idx}, '${fileName.replace(/'/g, "\\'")}', this.checked)">
-                                            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${fileName.split('.').shift()}</span>
-                                        </label>
-                                    `;
-                                }).join("") : '<div style="color:#555; font-style:italic; font-size:0.8em;">Scanner le dossier pour voir les pistes</div>'}
+                                ${(() => {
+                                    // V63: Robust stem detection
+                                    const stems = item.stems || item.file_list || [];
+                                    if (stems.length === 0) return '<div style="color:#555; font-style:italic; font-size:0.8em;">Aucun stem détecté. Jouez le morceau une fois pour scanner le dossier.</div>';
+                                    
+                                    return stems.map(f => {
+                                        const fileName = typeof f === 'string' ? f : f.name;
+                                        const isMuted = slot.muted_stems && slot.muted_stems.includes(fileName);
+                                        return `
+                                            <label style="display:flex; align-items:center; gap:5px; background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.9em; ${isMuted ? 'color:var(--danger); border-color:var(--danger);' : ''} border:1px solid transparent;">
+                                                <input type="checkbox" ${isMuted ? 'checked' : ''} onchange="toggleStemMuteOverride(${idx}, '${fileName.replace(/'/g, "\\'")}', this.checked)">
+                                                <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${fileName}">${fileName.split('.').shift()}</span>
+                                            </label>
+                                        `;
+                                    }).join("");
+                                })()}
                             </div>
                         </div>
                     ` : ''}
@@ -990,10 +1009,13 @@ function filterLibForSetlist() {
         ...webLinks.map(w => ({ ...w, type: 'web' }))
     ];
 
-    const filtered = allAvailable.filter(it => 
-        it.title.toLowerCase().includes(query) || 
-        (it.artist && it.artist.toLowerCase().includes(query))
-    ).slice(0, 100); // Increased limit for better visibility
+    const filtered = allAvailable.filter(it => {
+        // V63: Exclude external web links (only keep integrated YouTube/Local)
+        if (it.type === 'web' && it.open_mode !== 'iframe') return false;
+
+        return it.title.toLowerCase().includes(query) || 
+               (it.artist && it.artist.toLowerCase().includes(query));
+    }).slice(0, 100);
 
     container.innerHTML = filtered.map(it => {
         // Icon logic
@@ -1141,6 +1163,30 @@ function playSetlistItem(index) {
     // 2. Mute Stems (Multipiste)
     // On enregistre les mutes dans une variable globale temporaire pour que renderMultitrack puisse les lire
     window.setlistMutedStems = slot.muted_stems || [];
+
+    // 3. Speed Override
+    if (slot.speed_override !== undefined) {
+        console.log(`[ORCHESTRATOR] Applying Speed Override: ${slot.speed_override}x`);
+        setTimeout(() => {
+            const rate = slot.speed_override;
+            // WaveSurfer
+            if (wavesurfer && wavesurfer.setPlaybackRate) wavesurfer.setPlaybackRate(rate);
+            
+            // HTML5 Video/Audio
+            const v = document.getElementById("html5-player");
+            if (v) v.playbackRate = rate;
+            
+            // YouTube
+            if (player && player.setPlaybackRate) player.setPlaybackRate(rate);
+            
+            // Sync UI Buttons (Update labels)
+            const ids = ["btn-audio-speed", "btn-video-speed", "btn-multitrack-speed"];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerText = rate.toFixed(2) + "x";
+            });
+        }, 1000); // 1s delay to be sure player is loaded and rate-capable
+    }
 
     console.log(`[ORCHESTRATOR] Playing item ${index + 1}/${activeSetlist.items.length}: ${slot.media_uid}`);
 }
