@@ -3157,10 +3157,27 @@
         <div class="modal-body" style="display: flex; gap: 20px; height: calc(100% - 120px); padding: 20px; overflow: hidden;">
             
             <!-- Colonne GAUCHE: Bibliothèque -->
-            <div style="flex: 1; display: flex; flex-direction: column; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid #333;">
+            <div style="flex: 1; display: flex; flex-direction: column; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid #333; overflow: hidden;">
                 <div style="padding: 10px; border-bottom: 1px solid #333;">
                     <div style="font-weight:bold; margin-bottom:10px; font-size:0.9em; color:#888;" data-i18n="web.lbl_add_from_lib">AJOUTER DEPUIS LA BIBLIOTHÈQUE</div>
+                    
+                    <!-- Barre de Filtres de Type -->
+                    <div style="display:flex; gap:5px; margin-bottom:10px;">
+                        <button class="btn-filter-mini active" onclick="setLibFilterType('all', this)" title="Tous"><i class="ph ph-squares-four"></i></button>
+                        <button class="btn-filter-mini" onclick="setLibFilterType('audio', this)" title="Audio"><i class="ph ph-music-note"></i></button>
+                        <button class="btn-filter-mini" onclick="setLibFilterType('video', this)" title="Vidéo"><i class="ph ph-video-camera"></i></button>
+                        <button class="btn-filter-mini" onclick="setLibFilterType('multitrack', this)" title="Multipiste"><i class="ph ph-layers"></i></button>
+                        <button class="btn-filter-mini" onclick="setLibFilterType('youtube', this)" title="YouTube"><i class="ph ph-youtube-logo"></i></button>
+                    </div>
+
                     <input type="text" id="setlist-search-lib" placeholder="..." onkeyup="filterLibForSetlist()" style="width:100%;">
+
+                    <!-- Header de Tri -->
+                    <div style="display:flex; padding:8px 10px; margin-top:10px; font-size:0.75em; font-weight:bold; color:#666; border-bottom:1px solid #222;">
+                        <div style="width:30px;"></div> <!-- Icon placeholder -->
+                        <div style="flex:1; cursor:pointer;" onclick="setLibSort('title')">TITRE <i class="ph ph-caret-up-down"></i></div>
+                        <div style="width:120px; cursor:pointer;" onclick="setLibSort('artist')">ARTISTE <i class="ph ph-caret-up-down"></i></div>
+                    </div>
                 </div>
                 <div id="setlist-lib-results" style="flex:1; overflow-y:auto; padding: 10px;">
                     <!-- JS Generated -->

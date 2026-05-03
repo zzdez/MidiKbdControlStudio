@@ -999,6 +999,27 @@ function updateSetlistItemParam(idx, key, value) {
     }
 }
 
+let setlistLibFilterType = 'all';
+let setlistLibSortKey = 'title';
+let setlistLibSortDir = 1;
+
+function setLibFilterType(type, btn) {
+    setlistLibFilterType = type;
+    document.querySelectorAll('.btn-filter-mini').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    filterLibForSetlist();
+}
+
+function setLibSort(key) {
+    if (setlistLibSortKey === key) {
+        setlistLibSortDir *= -1;
+    } else {
+        setlistLibSortKey = key;
+        setlistLibSortDir = 1;
+    }
+    filterLibForSetlist();
+}
+
 function filterLibForSetlist() {
     const query = document.getElementById("setlist-search-lib").value.toLowerCase();
     const container = document.getElementById("setlist-lib-results");
@@ -1013,16 +1034,53 @@ function filterLibForSetlist() {
         // V63: Exclude external web links (only keep integrated YouTube/Local)
         if (it.type === 'web' && it.open_mode !== 'iframe') return false;
 
-        return it.title.toLowerCase().includes(query) || 
-               (it.artist && it.artist.toLowerCase().includes(query));
-    }).slice(0, 100);
+        // V63: Robust Multitrack detection (Metadata or Path)
+        const isMT = it.is_multitrack === true || (it.path && (it.path.includes('Multipistes') || it.path.includes('.multitrack')));
 
-    container.innerHTML = filtered.map(it => {
-        // Icon logic
+        // V63: Filter by type
+        if (setlistLibFilterType !== 'all') {
+            const isYT = it.open_mode === 'iframe';
+            const isVideo = it.path && it.path.toLowerCase().match(/\.(mp4|mkv|avi|mov)$/);
+            const isAudio = !isMT && !isVideo && it.type === 'local';
+
+            if (setlistLibFilterType === 'youtube' && !isYT) return false;
+            if (setlistLibFilterType === 'multitrack' && !isMT) return false;
+            if (setlistLibFilterType === 'video' && !isVideo) return false;
+            if (setlistLibFilterType === 'audio' && !isAudio) return false;
+        }
+
+        return (it.title || "").toString().trim().toLowerCase().includes(query) || 
+               (it.artist && it.artist.toLowerCase().includes(query));
+    });
+
+    // V63: Sorting logic (Stable Two-Level Sort)
+    filtered.sort((a, b) => {
+        const primary = setlistLibSortKey;
+        const secondary = (primary === 'title' ? 'artist' : 'title');
+        
+        const valA1 = (a[primary] || "").toString().trim().toLowerCase();
+        const valB1 = (b[primary] || "").toString().trim().toLowerCase();
+        
+        if (valA1 !== valB1) {
+            return valA1.localeCompare(valB1) * setlistLibSortDir;
+        }
+        
+        // Secondary sort (always ascending for consistency)
+        const valA2 = (a[secondary] || "").toString().trim().toLowerCase();
+        const valB2 = (b[secondary] || "").toString().trim().toLowerCase();
+        return valA2.localeCompare(valB2);
+    });
+
+    const displayLimit = filtered.slice(0, 100);
+
+    container.innerHTML = displayLimit.map(it => {
+        // Icon logic - V63: Robust Detection Priority
+        const isMT = it.is_multitrack === true || (it.path && (it.path.includes('Multipistes') || it.path.includes('.multitrack')));
+        
         let iconClass = "ph ph-file";
-        if (it.open_mode === 'iframe') iconClass = "ph ph-youtube-logo";
+        if (isMT) iconClass = "ph ph-stack"; // Harmonized with main lib
+        else if (it.open_mode === 'iframe') iconClass = "ph ph-youtube-logo";
         else if (it.type === 'web') iconClass = "ph ph-globe";
-        else if (it.is_multitrack) iconClass = "ph ph-layers";
         else if (it.path && it.path.toLowerCase().match(/\.(mp3|wav|flac|m4a)$/)) iconClass = "ph ph-music-note";
         else if (it.path && it.path.toLowerCase().match(/\.(mp4|mkv|avi|mov)$/)) iconClass = "ph ph-video-camera";
 
