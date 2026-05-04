@@ -487,6 +487,7 @@ function onPlayerStateChange(event) {
                 player.seekTo(0);
                 player.pauseVideo();
                 updatePlayPauseIcon('video', false);
+            } else {
                 handleMediaEnd();
             }
         } else if (event.data === YT.PlayerState.PLAYING) {
@@ -934,6 +935,22 @@ function renderSetlistEditorItems() {
                                 <button class="btn-icon-mini" onclick="updateSetlistItemParam(${idx}, 'speed_override', undefined); renderSetlistEditorItems();" title="Reset"><i class="ph ph-arrows-counter-clockwise"></i></button>
                             </div>
                         </div>
+                        
+                        <!-- MIDI ONLOAD -->
+                        <div style="flex:1; min-width:200px;">
+                            <label style="display:block; color:var(--accent); font-size:0.8em; margin-bottom:4px; font-weight:bold;">
+                                <i class="ph ph-command"></i> MIDI On-Load (V70)
+                            </label>
+                            <div style="display:flex; gap:6px;">
+                                <input type="text" id="setlist-midi-input-${idx}" value="${slot.midi_onload || ''}" 
+                                       onchange="updateSetlistItemParam(${idx}, 'midi_onload', this.value)"
+                                       placeholder="ex: CH:1,PC:12"
+                                       style="flex:1; background:#111; color:#eee; border:1px solid #444; padding:5px 8px; border-radius:4px; box-sizing:border-box;">
+                                <button class="btn-icon-mini" onclick="testSetlistMidi(${idx})" title="Tester l'envoi" style="height:31px; width:35px; background:rgba(var(--accent-rgb), 0.2); border:1px solid var(--accent);">
+                                    <i class="ph ph-play" style="font-size:10px;"></i>
+                                </button>
+                            </div>
+                        </div>
 
                         <!-- Repères Config -->
                         <div style="flex:1; min-width:140px; display:flex; flex-direction:column; justify-content:flex-end;">
@@ -1174,7 +1191,9 @@ async function deleteSetlistAction() {
 // --- SETLISTS V2 PLAYBACK ENGINE (Live Orchestrator) ---
 let activeSetlist = null;
 let currentSetlistIndex = -1;
+let lastMediaEndTime = 0; // V71: Debounce for ghost end signals
 let isSetlistMode = false;
+window.isLiveMode = false; // V72: Global Performance Override
 let setlistNextTimeout = null;
 
 function startSetlist(id, startIndex = 0) {
@@ -1204,6 +1223,12 @@ function playSetlistItem(index) {
     
     // Lancer le média
     playMediaByUid(slot.media_uid);
+    
+    // V70: MIDI On-Load from Setlist Slot
+    if (slot.midi_onload) {
+        console.log(`[ORCHESTRATOR] Sending MIDI On-Load: ${slot.midi_onload}`);
+        sendMidiCommand(slot.midi_onload);
+    }
     
     // --- APPLICATION DES OVERRIDES ---
     
@@ -1258,6 +1283,15 @@ function playSetlistItem(index) {
 }
 
 function handleMediaEnd() {
+    const now = Date.now();
+    // V71: Ignore signals arriving too fast (less than 2s after previous)
+    if (now - lastMediaEndTime < 2000) {
+        console.log("[ORCHESTRATOR] Ignoring duplicate end signal.");
+        return;
+    }
+    lastMediaEndTime = now;
+
+    console.log("[ORCHESTRATOR] Media Ended. isSetlistMode:", isSetlistMode);
     if (!isSetlistMode || !activeSetlist) return;
 
     const currentSlot = activeSetlist.items[currentSetlistIndex];
@@ -1278,7 +1312,9 @@ function handleMediaEnd() {
         const waitSec = currentSlot.wait_time || 5;
         let timeLeft = waitSec;
 
-        // Cockpit Countdown Logic
+        if (setlistNextTimeout) clearInterval(setlistNextTimeout);
+        
+        console.log(`[ORCHESTRATOR] Décompte AUTO : ${waitSec}s`);
         const overlay = document.getElementById("cockpit-countdown-overlay");
         const countVal = document.getElementById("cockpit-countdown-val");
         const titleEl = document.getElementById("cockpit-title");
@@ -1307,6 +1343,16 @@ function handleMediaEnd() {
         // MANUAL
         console.log("[ORCHESTRATOR] Mode Manuel. En attente.");
     }
+}
+
+function toggleLiveMode() {
+    window.isLiveMode = !window.isLiveMode;
+    const btn = document.getElementById("btn-live-mode");
+    if (btn) {
+        btn.style.color = window.isLiveMode ? "#ff5252" : "#888";
+        btn.classList.toggle("active", window.isLiveMode);
+    }
+    console.log("[LIVE MODE] Toggled:", window.isLiveMode);
 }
 
 // Helper pour lancer n'importe quel média par son UID
@@ -3870,7 +3916,20 @@ function playTrack(track) {
     if (track.autoplay === undefined) track.autoplay = (currentSettings.autoplay || false);
     if (track.autoreplay === undefined) track.autoreplay = (currentSettings.autoreplay || false);
 
-    const isAutoplay = track.autoplay;
+    let isAutoplay = track.autoplay;
+    // V72: LIVE MODE OVERRIDE (Forced Autoplay)
+    if (window.isLiveMode) {
+        console.log("[LIVE MODE] Forcing Autoplay for performance.");
+        isAutoplay = true;
+    }
+    // Fallback Setlist Override
+    else if (isSetlistMode && activeSetlist && activeSetlist.items[currentSetlistIndex]) {
+        const transition = activeSetlist.items[currentSetlistIndex].transition || "MANUAL";
+        if (transition !== "MANUAL") {
+            console.log("[ORCHESTRATOR] Forcing Autoplay for setlist transition.");
+            isAutoplay = true;
+        }
+    }
     const isAutoreplay = track.autoreplay;
     window.currentAutoreplay = isAutoreplay; // Global state for end-of-track logic
     updatePlaybackOptionsUI(isAutoreplay, isAutoplay);
@@ -4012,9 +4071,11 @@ function playTrack(track) {
     // V67: Explicitly Inject Overrides from the Setlist Slot
     if (window.currentSource === 'setlist' && typeof activeSetlist !== 'undefined' && activeSetlist) {
         const slot = activeSetlist.items[currentSetlistIndex];
-        if (slot && slot.cue_overrides) {
-            track.cue_overrides = slot.cue_overrides;
-            console.log("[PLAY] Injecting overrides into track object:", slot.cue_overrides.length);
+        if (slot) {
+            if (slot.cue_overrides) {
+                track.cue_overrides = slot.cue_overrides;
+                console.log("[PLAY] Injecting overrides into track object:", slot.cue_overrides.length);
+            }
         }
     }
 
@@ -4023,6 +4084,21 @@ function playTrack(track) {
 
     // Update Interconnection UI
     updateInterconnectionUI(track);
+
+    // V72.2: TERMINAL LIVE OVERRIDE
+    if (window.isLiveMode) {
+        console.log("[LIVE MODE] Terminal Force Play Execution.");
+        setTimeout(() => {
+            if (currentActivePlayer === 'youtube' && player && player.playVideo) player.playVideo();
+            if (currentActivePlayer === 'local') {
+                const v = document.getElementById("html5-player");
+                if (v) v.play().catch(e => console.warn("Live Force Play Local fail:", e));
+            }
+            if (currentActivePlayer === 'multitrack' && window.multitrack) {
+                window.multitrack.play();
+            }
+        }, 800); // 800ms delay to ensure player is ready to receive play command
+    }
 }
 
 // --- HELPERS ---
@@ -5677,7 +5753,11 @@ async function playLocal(index) {
             loadMultitrackSettings(file).then(() => {
                 if (window.syncAllMultitrackStates) window.syncAllMultitrackStates();
 
-                const isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+                let isAutoplay = (file.autoplay !== undefined) ? file.autoplay : (currentSettings.autoplay || false);
+                if (window.isLiveMode) {
+                    console.log("[LIVE MODE] Forcing Multitrack Autoplay.");
+                    isAutoplay = true;
+                }
                 if (isAutoplay) {
                     window.multitrack.play();
                 }
@@ -5709,9 +5789,11 @@ async function playLocal(index) {
             saveMultitrackSettings(file); // Save exact stop time
         });
 
-        // Removed multitrack.on('finish'): Using fail-safe check in the main loop instead for reliability.
+        window.multitrack.on('finish', () => {
+            console.log("[ORCHESTRATOR] Multitrack Finished.");
+            handleMediaEnd();
+        });
 
-        // Removed mtInterval: loop monitoring handled by the global interval in app.js
         currentActivePlayer = 'multitrack';
         loadLoopsForTrack(file);
 
@@ -5789,8 +5871,14 @@ async function playLocal(index) {
             if (file.autoplay === undefined) file.autoplay = (currentSettings.autoplay || false);
             if (file.autoreplay === undefined) file.autoreplay = (currentSettings.autoreplay || false);
 
-            const isAutoplay = file.autoplay;
+            let isAutoplay = file.autoplay;
             const isAutoreplay = file.autoreplay;
+
+            // V72.3: LIVE MODE OVERRIDE
+            if (window.isLiveMode) {
+                console.log("[LIVE MODE] Forcing Audio Autoplay.");
+                isAutoplay = true;
+            }
 
             // Set state directly on the wavesurfer instance *before* loading
             // to guarantee the `ready` event reads the correct boolean for this song
@@ -5872,7 +5960,13 @@ async function playLocal(index) {
 
         const startPlay = () => {
             if (file.autoplay === undefined) file.autoplay = (currentSettings.autoplay || false);
-            const isAutoplay = file.autoplay;
+            let isAutoplay = file.autoplay;
+
+            // V72.3: LIVE MODE OVERRIDE
+            if (window.isLiveMode) {
+                console.log("[LIVE MODE] Forcing Video Autoplay.");
+                isAutoplay = true;
+            }
 
             if (isAutoplay) {
                 v.play().catch(e => console.warn("Auto-play aborted", e));
@@ -8544,6 +8638,9 @@ setInterval(() => {
                         window.MediaTrainingManager.onCycleEnd('multitrack');
                     }
                 }
+            } else {
+                console.log("[ORCHESTRATOR] Multitrack End Reached (Fail-safe). Transitioning...");
+                handleMediaEnd();
             }
             updatePlayPauseUI();
         }
@@ -9099,6 +9196,7 @@ function editCue(id) {
     document.getElementById("cue-modal-offset").value = cue.offset || 0;
     document.getElementById("cue-modal-visual").checked = cue.visual !== false;
     document.getElementById("cue-modal-visual-only").checked = cue.visual_only === true;
+    document.getElementById("cue-modal-midi").value = cue.midi_cmd || "";
     
     document.getElementById("btn-cue-save").innerText = t("web.btn_cue_update", "Mettre à jour");
     renderCueList();
@@ -9135,6 +9233,7 @@ function openCueModal() {
     document.getElementById("cue-modal-name").value = "";
     document.getElementById("cue-modal-offset").value = 0;
     document.getElementById("cue-modal-visual-only").checked = false;
+    document.getElementById("cue-modal-midi").value = "";
     
     renderCueList();
     modal.showModal();
@@ -9201,6 +9300,7 @@ function confirmSaveCue() {
     const offset = parseFloat(document.getElementById("cue-modal-offset").value) || 0;
     const visual = document.getElementById("cue-modal-visual").checked;
     const visualOnly = document.getElementById("cue-modal-visual-only").checked;
+    const midiCmd = document.getElementById("cue-modal-midi").value.trim();
     
     if (activeEditCueId) {
         const idx = currentCues.findIndex(c => c.id === activeEditCueId);
@@ -9213,6 +9313,7 @@ function confirmSaveCue() {
             currentCues[idx].offset = offset;
             currentCues[idx].visual = visual;
             currentCues[idx].visual_only = visualOnly;
+            currentCues[idx].midi_cmd = midiCmd;
         }
     } else {
         if (window.isCueOverrideMode) {
@@ -9229,7 +9330,8 @@ function confirmSaveCue() {
             volume: vol,
             offset: offset,
             visual: visual,
-            visual_only: visualOnly
+            visual_only: visualOnly,
+            midi_cmd: midiCmd
         };
         currentCues.push(newCue);
         currentCues.sort((a,b) => a.time - b.time);
@@ -9260,6 +9362,11 @@ function playCueSequence(cue) {
     if (!cueAudioCtx) return;
     if (cueAudioCtx.state === 'suspended') cueAudioCtx.resume();
     
+    // V70: Trigger MIDI command at the exact start of the sequence
+    if (cue.midi_cmd) {
+        sendMidiCommand(cue.midi_cmd);
+    }
+
     // Total beats to schedule
     const totalBeats = Math.floor(cue.measures * 4);
     if (totalBeats <= 0) return;
@@ -9349,9 +9456,46 @@ function triggerCueHud(number) {
     }
 }
 
+function sendMidiCommand(cmdStr) {
+    if (!cmdStr) return;
+    console.log("[MIDI] Sending command string:", cmdStr);
+    fetch('/api/midi/send_string', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: cmdStr })
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.status === "success") console.log("[MIDI] Success:", d.count, "messages sent.");
+        else if (d.status === "empty") console.log("[MIDI] String empty, nothing sent.");
+        else console.warn("[MIDI] Error:", d.message);
+    })
+    .catch(e => console.error("[MIDI] Send Error:", e));
+}
+
+function testMidiCommand() {
+    const cmdInput = document.getElementById("cue-modal-midi");
+    const cmd = cmdInput ? cmdInput.value.trim() : "";
+    if (!cmd) {
+        alert("Veuillez saisir une commande MIDI à tester (ex: CH:1,PC:1).");
+        return;
+    }
+    console.log("[MIDI TEST] Testing manual command:", cmd);
+    sendMidiCommand(cmd);
+}
+
+function testSetlistMidi(idx) {
+    const input = document.getElementById(`setlist-midi-input-${idx}`);
+    const cmd = input ? input.value.trim() : "";
+    if (!cmd) {
+        alert("Veuillez saisir une commande MIDI à tester.");
+        return;
+    }
+    console.log("[MIDI TEST SETLIST] Testing item", idx, ":", cmd);
+    sendMidiCommand(cmd);
+}
+
 function checkCues(time) {
-    if (!globalCueAudioEnabled && !globalCueVisualEnabled) return;
-    if (!currentCues || currentCues.length === 0) return;
     
     const isPlaying = (currentActivePlayer === 'local' && !document.getElementById('html5-player').paused) || 
                       (currentActivePlayer === 'waveform' && wavesurfer && typeof wavesurfer.isPlaying === 'function' && wavesurfer.isPlaying()) || 

@@ -80,6 +80,9 @@
                 <i class="ph ph-monitor-play"></i>
             </button>
 
+            <button id="btn-live-mode" class="btn-icon" onclick="toggleLiveMode()" title="Live Performance Mode (Override)" style="color: #888;">
+                <i class="ph ph-broadcast"></i>
+            </button>
             <button id="btn-cockpit" class="btn-icon" onclick="toggleCockpitMode(true)" title="Mode Live (Cockpit)" style="color:var(--accent); font-weight:bold;"><i class="ph ph-gauge"></i></button>
             <button id="btn-toggle-theater" class="btn-icon" onclick="toggleTheaterMode()" title="Théâtre"><i class="ph ph-corners-out"></i></button>
             <span id="active-profile" style="white-space: nowrap; font-size: 0.8em; color: #ccc;">Profil : Global</span>
@@ -1931,6 +1934,20 @@
                         <span class="switch-slider"></span>
                         <span class="switch-label" data-i18n="web.lbl_visual_only">Visuel uniquement (Muet)</span>
                     </label>
+                </div>
+
+                <div class="form-group" style="margin-top:15px; background:rgba(var(--accent-rgb), 0.05); padding:10px; border-radius:4px; border:1px solid rgba(var(--accent-rgb), 0.2);">
+                    <label style="display:block; margin-bottom:5px; font-weight:bold; color:var(--accent);">
+                        <i class="ph ph-command"></i> MIDI Action (V70)
+                    </label>
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="cue-modal-midi" placeholder="ex: CH:1,PC:12 ; CH:1,CC:50,127" 
+                               style="flex:1; padding:8px; background:#111; border:1px solid #333; border-radius:4px; color:white; box-sizing:border-box;">
+                        <button class="btn-primary" onclick="testMidiCommand()" style="padding: 0 15px; height: 35px; font-size: 0.8em;" title="Tester l'envoi immédiat">
+                            <i class="ph ph-play"></i> Test
+                        </button>
+                    </div>
+                    <small style="color:#666; font-size:0.75em; display:block; margin-top:3px;">CH:canal,PC:prog ; CH:canal,CC:num,VAL:val</small>
                 </div>
 
                 <div id="cue-list-container" style="margin-top:10px; border-top:1px solid #333; padding-top:8px;">

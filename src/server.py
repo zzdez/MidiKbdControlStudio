@@ -121,6 +121,75 @@ async def debug_log(data: Dict):
     logging.warning(f"[BROWSER] {msg}")
     return {"status": "ok"}
 
+@app.post("/api/midi/send_string")
+async def api_midi_send_string(data: Dict):
+    """
+    Parses a MIDI command string and sends it to all active outputs.
+    Format: "CH:1,PC:12; CH:1,CC:50,127"
+    """
+    cmd_str = data.get("command", "")
+    if not cmd_str: return {"status": "empty"}
+    
+    if not hasattr(app.state, "midi_manager") or not app.state.midi_manager:
+        raise HTTPException(status_code=500, detail="MidiManager not available")
+
+    mgr = app.state.midi_manager
+    messages = []
+    
+    try:
+        # Split by semicolon for multiple messages
+        parts = cmd_str.split(';')
+        for part in parts:
+            part = part.strip()
+            if not part: continue
+            
+            # Default values
+            channel = 0
+            msg_type = None
+            params = {}
+            
+            # Parse key:value pairs
+            kv_pairs = part.split(',')
+            for kv in kv_pairs:
+                if ':' not in kv: continue
+                key, val = kv.split(':', 1)
+                key = key.strip().upper()
+                val = val.strip()
+                
+                if key == 'CH': channel = max(0, min(15, int(val) - 1))
+                elif key == 'PC': 
+                    msg_type = 'program_change'
+                    params['program'] = max(0, min(127, int(val)))
+                elif key == 'CC':
+                    msg_type = 'control_change'
+                    params['control'] = max(0, min(127, int(val)))
+                elif key == 'VAL':
+                    params['value'] = max(0, min(127, int(val)))
+
+            if msg_type:
+                # Clean up params based on message type
+                if msg_type == 'program_change':
+                    # PC only takes 'program'
+                    final_params = {'program': params.get('program', 0)}
+                elif msg_type == 'control_change':
+                    # CC takes 'control' and 'value'
+                    final_params = {
+                        'control': params.get('control', 0),
+                        'value': params.get('value', 127)
+                    }
+                else:
+                    final_params = params
+
+                msg = mido.Message(msg_type, channel=channel, **final_params)
+                messages.append(msg)
+                print(f"[API MIDI] Broadcasting: {msg}")
+                mgr.send_raw(msg)
+                
+        return {"status": "success", "count": len(messages)}
+    except Exception as e:
+        print(f"[MIDI PARSE ERROR] {e} on '{cmd_str}'")
+        return {"status": "error", "message": str(e)}
+
 @app.on_event("startup")
 async def startup_event():
     global server_loop

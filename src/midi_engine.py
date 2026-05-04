@@ -503,21 +503,20 @@ class MidiManager:
                 
         return resolved_ports
 
-    def send_message(self, channel, cc, value):
+    def send_raw(self, msg):
+        """Broadcasts any mido.Message to all active output ports."""
         if not self._active_output_ports: return
-        
-        ch = max(0, min(15, int(channel) - 1))
-        cc_val = max(0, min(127, int(cc)))
-        val = max(0, min(127, int(value)))
-        
-        msg = mido.Message('control_change', channel=ch, control=cc_val, value=val)
-        
         for name, port in self._active_output_ports:
             try:
                 port.send(msg)
-                print(f"[MIDI OUT] Sent to '{name}': CC {cc_val} Val {val}")
+                print(f"[MIDI OUT] Sent to '{name}': {msg}")
             except Exception as e:
                 print(f"[MIDI OUT] Failed '{name}': {e}")
+
+    def send_message(self, channel, cc, value):
+        ch = max(0, min(15, int(channel) - 1))
+        msg = mido.Message('control_change', channel=ch, control=int(cc), value=int(value))
+        self.send_raw(msg)
     
     def get_ports_status(self):
         available = self.get_available_outputs()
