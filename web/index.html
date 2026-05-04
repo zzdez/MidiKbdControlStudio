@@ -80,6 +80,7 @@
                 <i class="ph ph-monitor-play"></i>
             </button>
 
+            <button id="btn-cockpit" class="btn-icon" onclick="toggleCockpitMode(true)" title="Mode Live (Cockpit)" style="color:var(--accent); font-weight:bold;"><i class="ph ph-gauge"></i></button>
             <button id="btn-toggle-theater" class="btn-icon" onclick="toggleTheaterMode()" title="Théâtre"><i class="ph ph-corners-out"></i></button>
             <span id="active-profile" style="white-space: nowrap; font-size: 0.8em; color: #ccc;">Profil : Global</span>
             <button id="btn-settings" class="btn-icon" onclick="openSettingsModal()" title="Paramètres"><i class="ph ph-gear"></i></button>
@@ -3205,6 +3206,69 @@
              </div>
         </div>
     </dialog>
+    <!-- --- COCKPIT VIEW (LIVE PERFORMANCE) --- -->
+    <div id="cockpit-view" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#000; z-index:9999; color:white; font-family: 'Outfit', sans-serif; flex-direction:column; padding:40px; box-sizing:border-box; overflow:hidden;">
+        
+        <!-- Header: Track Info & Status -->
+        <div style="width:100%; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:15px; margin-bottom:20px;">
+            <div style="display:flex; align-items:center; gap:20px;">
+                <div id="cockpit-midi-led" style="width:20px; height:20px; border-radius:50%; background:#444; box-shadow:none; transition:all 0.3s;"></div>
+                <div style="font-size:1.8em; font-weight:bold; letter-spacing:2px; color:var(--accent);">AIRSTEP STUDIO <span style="font-size:0.5em; vertical-align:middle; opacity:0.5;">LIVE V3</span></div>
+            </div>
+            <div style="display:flex; gap:40px; align-items:center;">
+                <div style="text-align:right;">
+                    <div style="font-size:0.8em; color:#666; text-transform:uppercase; font-weight:bold; letter-spacing:1px;" data-i18n="web.lbl_setlist">SETLIST</div>
+                    <div id="cockpit-setlist-name" style="font-size:1.2em; color:#eee;">---</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:0.8em; color:#666; text-transform:uppercase; font-weight:bold; letter-spacing:1px;" data-i18n="web.lbl_position">POSITION</div>
+                    <div id="cockpit-setlist-pos" style="font-size:1.2em; color:#eee;">-- / --</div>
+                </div>
+                <button onclick="toggleCockpitMode(false)" style="background:rgba(255,255,255,0.05); color:#888; border:1px solid #444; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold; transition:all 0.2s;" data-i18n="web.btn_exit_cockpit">QUITTER</button>
+            </div>
+        </div>
+
+        <!-- Center: Main Title & Big Progress -->
+        <div id="cockpit-main-area" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; cursor:pointer; position:relative;" onclick="togglePlayCockpit()">
+            <div id="cockpit-title" style="font-size:7vw; font-weight:900; line-height:1.1; margin-bottom:20px; text-shadow: 0 0 40px rgba(var(--accent-rgb), 0.4); pointer-events:none;">Morceau</div>
+            <div id="cockpit-artist" style="font-size:2.5vw; color:#888; text-transform:uppercase; letter-spacing:8px; font-weight:bold; pointer-events:none;">Artiste</div>
+            
+            <!-- Play/Pause Overlay Icon (Briefly visible on toggle) -->
+            <div id="cockpit-transport-overlay" style="position:absolute; font-size:15vw; color:white; opacity:0; pointer-events:none; transition:all 0.3s; z-index:200; text-shadow: 0 0 50px rgba(0,0,0,0.8);">
+                <i class="ph ph-play"></i>
+            </div>
+
+            <!-- Giant Countdown Overlay (Repères) -->
+            <div id="cockpit-countdown-overlay" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); display:none; flex-direction:column; align-items:center; gap:20px; pointer-events:none; z-index:100;">
+                <div style="font-size:2em; color:#888; text-transform:uppercase; letter-spacing:4px; pointer-events:none;" data-i18n="web.lbl_next_part_in">PROCHAIN REPERE DANS</div>
+                <div id="cockpit-countdown-val" style="font-size:20vw; font-weight:900; color:var(--accent); text-shadow: 0 0 80px var(--accent); line-height:1; pointer-events:none;">5</div>
+            </div>
+        </div>
+
+        <!-- Footer: Next Track & Progress Bar -->
+        <div style="width:100%; padding-top:20px; border-top:1px solid #222;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:25px;">
+                <div id="cockpit-time" style="font-size:3.5em; font-family: 'JetBrains Mono', monospace; color:#eee; font-weight:bold;">00:00 / 00:00</div>
+                <div style="display:flex; gap:40px; align-items:center;">
+                    <div id="cockpit-next-track" style="text-align:right;">
+                        <div style="font-size:0.8em; color:#666; text-transform:uppercase; font-weight:bold; letter-spacing:1px;" data-i18n="web.lbl_next_track">PROCHAIN TITRE</div>
+                        <div id="cockpit-next-title" style="font-size:2em; color:white; font-weight:bold;">---</div>
+                    </div>
+                    <button onclick="nextSetlistTrack()" style="background:var(--accent); color:white; width:90px; height:90px; border-radius:50%; border:none; cursor:pointer; font-size:3em; display:flex; align-items:center; justify-content:center; box-shadow: 0 0 30px rgba(var(--accent-rgb), 0.5); transition:transform 0.2s;" onmousedown="this.style.transform='scale(0.9)'" onmouseup="this.style.transform='scale(1)'">
+                        <i class="ph ph-skip-forward"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Giant Progress Bar -->
+            <div id="cockpit-progress-container" style="width:100%; height:60px; background:#111; border-radius:30px; overflow:visible; border:2px solid #333; cursor:pointer; position:relative;" onclick="seekCockpit(event)">
+                <div id="cockpit-progress-fill" style="width:0%; height:100%; background:linear-gradient(90deg, var(--accent), #7c4dff); border-radius:30px; box-shadow: 0 0 30px rgba(var(--accent-rgb), 0.6); transition:width 0.1s linear;"></div>
+                <!-- Time Markers for Cues in Cockpit -->
+                <div id="cockpit-loop-container" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></div>
+            </div>
+        </div>
+
+    </div>
 </body>
 
 </html>

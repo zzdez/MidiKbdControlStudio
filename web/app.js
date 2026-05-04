@@ -935,6 +935,14 @@ function renderSetlistEditorItems() {
                             </div>
                         </div>
 
+                        <!-- Repères Config -->
+                        <div style="flex:1; min-width:140px; display:flex; flex-direction:column; justify-content:flex-end;">
+                            <label style="display:block; color:#666; font-size:0.8em; margin-bottom:4px;">Repères & Décomptes</label>
+                            <button onclick="openSetlistItemCues(${idx})" style="width:100%; background:var(--accent); color:white; border:none; padding:6px; border-radius:4px; cursor:pointer; font-weight:bold; display:flex; align-items:center; justify-content:center; gap:8px;">
+                                <i class="ph ph-bell-ringing"></i> Configurer
+                            </button>
+                        </div>
+
                     </div>
 
                     <!-- Multipiste Overrides (Stems) -->
@@ -1267,18 +1275,37 @@ function handleMediaEnd() {
     if (transition === "IMMEDIATE") {
         playSetlistItem(nextIndex);
     } else if (transition === "AUTO") {
-        const wait = (currentSlot.wait_time || 5) * 1000;
-        console.log(`[ORCHESTRATOR] Attente de ${wait}ms...`);
+        const waitSec = currentSlot.wait_time || 5;
+        let timeLeft = waitSec;
+
+        // Cockpit Countdown Logic
+        const overlay = document.getElementById("cockpit-countdown-overlay");
+        const countVal = document.getElementById("cockpit-countdown-val");
+        const titleEl = document.getElementById("cockpit-title");
+
+        if (isCockpitMode && overlay && countVal) {
+            overlay.style.display = "flex";
+            if (titleEl) titleEl.style.display = "none";
+            countVal.innerText = timeLeft;
+        }
+
+        console.log(`[ORCHESTRATOR] Décompte AUTO : ${waitSec}s`);
         
-        // Optionnel: Afficher un décompte visuel ici
-        if (setlistNextTimeout) clearTimeout(setlistNextTimeout);
-        setlistNextTimeout = setTimeout(() => {
-            playSetlistItem(nextIndex);
-        }, wait);
+        if (setlistNextTimeout) clearInterval(setlistNextTimeout);
+        setlistNextTimeout = setInterval(() => {
+            timeLeft--;
+            if (isCockpitMode && countVal) countVal.innerText = timeLeft;
+            
+            if (timeLeft <= 0) {
+                clearInterval(setlistNextTimeout);
+                if (overlay) overlay.style.display = "none";
+                if (titleEl) titleEl.style.display = "block";
+                playSetlistItem(nextIndex);
+            }
+        }, 1000);
     } else {
-        // MANUAL: On charge le suivant mais on ne lance pas (ou on reste sur l'actuel fini)
-        console.log("[ORCHESTRATOR] Mode Manuel. En attente du déclenchement utilisateur.");
-        // Pour le mode Manuel, on pourrait pré-charger le suivant
+        // MANUAL
+        console.log("[ORCHESTRATOR] Mode Manuel. En attente.");
     }
 }
 
@@ -3982,6 +4009,15 @@ function playTrack(track) {
         genFrame.src = smartUrl;
     }
 
+    // V67: Explicitly Inject Overrides from the Setlist Slot
+    if (window.currentSource === 'setlist' && typeof activeSetlist !== 'undefined' && activeSetlist) {
+        const slot = activeSetlist.items[currentSetlistIndex];
+        if (slot && slot.cue_overrides) {
+            track.cue_overrides = slot.cue_overrides;
+            console.log("[PLAY] Injecting overrides into track object:", slot.cue_overrides.length);
+        }
+    }
+
     // Load loops AFTER player state is established
     loadLoopsForTrack(track);
 
@@ -4265,8 +4301,20 @@ function handleMidi(jsonData) {
     }
 }
 
+let lastActionTime = 0;
+let lastActionCmd = "";
+
 function executeWebAction(command) {
-    logToBackend("[ROUTER] Execute: " + command + " | Mode: " + currentWebMode);
+    const now = Date.now();
+    // Throttle identical commands to prevent AbortError (300ms)
+    if (command === lastActionCmd && (now - lastActionTime < 300)) {
+        console.warn("[ROUTER] Command throttled:", command);
+        return;
+    }
+    lastActionTime = now;
+    lastActionCmd = command;
+
+    logToBackend("[ROUTER] Execute: " + command + " | Mode: " + (typeof currentWebMode !== 'undefined' ? currentWebMode : 'NONE'));
 
     // ROUTING LOGIC based on currentWebMode
     // Modes: "AUDIO" (Local WaveSurfer), "VIDEO" (Local HTML5), "GENERIC" (YouTube/Iframe)
@@ -7943,7 +7991,9 @@ function updateTimelineUI(currentTime) {
     const lblTot = document.getElementById("video-time-total");
 
     // We only update if we have a valid player context
-    if (currentActivePlayer !== 'local' && currentActivePlayer !== 'waveform' && currentActivePlayer !== 'youtube') return;
+    if (currentActivePlayer !== 'local' && currentActivePlayer !== 'waveform' && currentActivePlayer !== 'youtube' && currentActivePlayer !== 'multitrack') return;
+
+    if (window.isCockpitMode) window.updateCockpitUI();
 
     let dur = 0;
     if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
@@ -9090,6 +9140,58 @@ function openCueModal() {
     modal.showModal();
 }
 
+// --- SETLIST CUE OVERRIDES ---
+window.isCueOverrideMode = false;
+window.currentSetlistSlotIdx = -1;
+
+async function openSetlistItemCues(idx) {
+    const slot = currentEditingSetlist.items[idx];
+    const item = getLinkedItem(slot.media_uid);
+    if (!item) {
+        console.error("Setlist item media not found for UID:", slot.media_uid);
+        return;
+    }
+
+    window.isCueOverrideMode = true;
+    window.currentSetlistSlotIdx = idx;
+
+    // Reset list and status
+    currentCues = [];
+    activeEditCueId = null;
+
+    // 1. Resolve ORIGINAL cues from global memory (localFiles or webLinks)
+    let sourceItem = null;
+    if (item.open_mode === 'iframe' || item.url.startsWith('http')) {
+        if (typeof webLinks !== 'undefined') sourceItem = webLinks.find(w => w.uid === item.uid);
+    } else {
+        if (typeof localFiles !== 'undefined') sourceItem = localFiles.find(f => f.uid === item.uid);
+    }
+
+    if (sourceItem && sourceItem.audio_cues) {
+        currentCues = JSON.parse(JSON.stringify(sourceItem.audio_cues)); // Deep copy
+    } else if (item.audio_cues) {
+        currentCues = JSON.parse(JSON.stringify(item.audio_cues));
+    }
+    
+    // 2. APPLY Overrides from the setlist slot if any
+    if (slot.cue_overrides && slot.cue_overrides.length > 0) {
+        slot.cue_overrides.forEach(ov => {
+            const cue = currentCues.find(c => c.id === ov.id);
+            if (cue) {
+                Object.assign(cue, ov);
+            }
+        });
+    }
+
+    // 3. Open the modal
+    const modal = document.getElementById("modal-edit-cue");
+    if (modal) {
+        document.getElementById("cue-modal-timing").innerText = "MODE OVERRIDE (Setlist)";
+        renderCueList();
+        modal.showModal();
+    }
+}
+
 function confirmSaveCue() {
     const name = document.getElementById("cue-modal-name").value.trim() || t("web.lbl_no_name", "Sans nom");
     const sound = document.getElementById("cue-modal-sound").value;
@@ -9113,6 +9215,10 @@ function confirmSaveCue() {
             currentCues[idx].visual_only = visualOnly;
         }
     } else {
+        if (window.isCueOverrideMode) {
+            alert("En mode Setlist, vous ne pouvez qu'éditer les repères existants.");
+            return;
+        }
         const newCue = {
             id: Date.now(),
             name: name,
@@ -9126,12 +9232,27 @@ function confirmSaveCue() {
             visual_only: visualOnly
         };
         currentCues.push(newCue);
+        currentCues.sort((a,b) => a.time - b.time);
+    }
+    
+    if (window.isCueOverrideMode) {
+        // Update the setlist slot
+        const slot = currentEditingSetlist.items[window.currentSetlistSlotIdx];
+        slot.cue_overrides = [...currentCues];
+        renderSetlistEditorItems(); 
+    } else {
+        // Global save
+        saveLoopsToBackend(); 
     }
     
     renderCuesUI();
-    saveLoopsToBackend(); 
     document.getElementById("modal-edit-cue").close();
 }
+
+// Ensure override mode is cleared when closing the modal
+document.getElementById('modal-edit-cue').addEventListener('close', () => {
+    window.isCueOverrideMode = false;
+});
 
 const cueAudioCtx = window.AudioContext ? new AudioContext() : (window.webkitAudioContext ? new webkitAudioContext() : null);
 
@@ -9155,7 +9276,9 @@ function playCueSequence(cue) {
 function scheduleCueTick(time, cue, beatIndex, totalBeats) {
     if (!cueAudioCtx) return;
     
-    const shouldPlayAudio = globalCueAudioEnabled && (!cue.visual_only || userForceAudio);
+    // V66: Clean Logic
+    // Audio plays if global is ON AND cue is NOT visual_only
+    const shouldPlayAudio = (typeof globalCueAudioEnabled !== 'undefined' ? globalCueAudioEnabled : true) && (cue.visual_only !== true);
     
     if (shouldPlayAudio) {
         const osc = cueAudioCtx.createOscillator();
@@ -9172,7 +9295,7 @@ function scheduleCueTick(time, cue, beatIndex, totalBeats) {
             osc.type = 'square';
         }
         
-        const vol = cue.volume !== undefined ? cue.volume : 0.8;
+        const vol = cue.volume !== undefined ? parseFloat(cue.volume) : 0.8;
         gain.gain.setValueAtTime(0, time);
         gain.gain.linearRampToValueAtTime(vol, time + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
@@ -9181,7 +9304,8 @@ function scheduleCueTick(time, cue, beatIndex, totalBeats) {
         osc.stop(time + 0.1);
     }
     
-    const shouldShowVisual = globalCueVisualEnabled && (cue.visual || userForceVisual);
+    // Visual plays if global is ON AND (cue.visual is ON OR cue.visual_only is ON)
+    const shouldShowVisual = (typeof globalCueVisualEnabled !== 'undefined' ? globalCueVisualEnabled : true) && (cue.visual === true || cue.visual_only === true);
     
     if (shouldShowVisual) {
         const delayMs = Math.max(0, (time - cueAudioCtx.currentTime) * 1000);
@@ -9192,17 +9316,37 @@ function scheduleCueTick(time, cue, beatIndex, totalBeats) {
 }
 
 function triggerCueHud(number) {
-    const hud = document.getElementById("cue-hud-overlay");
-    if (!hud) return;
-    hud.innerText = number;
-    hud.style.display = "block";
-    hud.style.opacity = "1";
-    hud.style.transform = "translate(-50%, -50%) scale(1.5)";
-    
-    setTimeout(() => {
-        hud.style.transform = "translate(-50%, -50%) scale(1)";
-        hud.style.opacity = "0";
-    }, 150);
+    // 1. Update Cockpit HUD (Big Overlay)
+    const cockpitHud = document.getElementById("cockpit-countdown-overlay");
+    const cockpitVal = document.getElementById("cockpit-countdown-val");
+    if (cockpitHud && cockpitVal) {
+        cockpitVal.innerText = number;
+        cockpitHud.style.display = "flex";
+        cockpitHud.style.opacity = "1";
+        
+        // Auto-hide after last beat or if zero
+        if (number <= 1) {
+            setTimeout(() => {
+                cockpitHud.style.opacity = "0";
+                setTimeout(() => { if (cockpitHud.style.opacity === "0") cockpitHud.style.display = "none"; }, 300);
+            }, 800);
+        }
+    }
+
+    // 2. Update Standard HUD (Floating)
+    const stdHud = document.getElementById("cue-hud-overlay");
+    if (stdHud) {
+        stdHud.innerText = number;
+        stdHud.style.display = "block";
+        stdHud.style.opacity = "1";
+        stdHud.style.transform = "translate(-50%, -50%) scale(1.5)";
+        
+        setTimeout(() => {
+            stdHud.style.transform = "translate(-50%, -50%) scale(1)";
+            stdHud.style.opacity = "0";
+            setTimeout(() => { if (stdHud.style.opacity === "0") stdHud.style.display = "none"; }, 150);
+        }, 150);
+    }
 }
 
 function checkCues(time) {
@@ -9496,12 +9640,48 @@ function deleteLoop(id) {
 }
 
 function loadLoopsForTrack(trackOrItem) {
-    clearLoop(); // Reset active loops when loading a new track
+    clearLoop(); 
+    
     currentLoops = trackOrItem.loops || [];
-    currentCues = trackOrItem.audio_cues || [];
+    
+    // V65: Critical Fix - Load base cues from media library first
+    let baseCues = [];
+    if (trackOrItem.media_uid) {
+        const media = getLinkedItem(trackOrItem.media_uid);
+        if (media && media.audio_cues) baseCues = media.audio_cues;
+        else if (trackOrItem.audio_cues) baseCues = trackOrItem.audio_cues;
+    } else {
+        baseCues = trackOrItem.audio_cues || [];
+    }
+
+    // Deep copy to avoid mutating the original library objects
+    currentCues = JSON.parse(JSON.stringify(baseCues)); 
+
+    // APPLY Setlist Overrides
+    const overrides = trackOrItem.cue_overrides || [];
+    if (overrides.length > 0) {
+        console.log(`[CUES] Applying ${overrides.length} overrides for:`, trackOrItem.title);
+        overrides.forEach(ov => {
+            const cue = currentCues.find(c => c.id === ov.id);
+            if (cue) {
+                // Atomic merge with type casting to be safe
+                if (ov.bpm !== undefined) cue.bpm = parseFloat(ov.bpm);
+                if (ov.measures !== undefined) cue.measures = parseFloat(ov.measures);
+                if (ov.volume !== undefined) cue.volume = parseFloat(ov.volume);
+                if (ov.offset !== undefined) cue.offset = parseFloat(ov.offset);
+                if (ov.visual !== undefined) cue.visual = Boolean(ov.visual);
+                if (ov.visual_only !== undefined) cue.visual_only = Boolean(ov.visual_only);
+                if (ov.name !== undefined) cue.name = ov.name;
+                if (ov.sound !== undefined) cue.sound = ov.sound;
+                
+                console.log(`[CUES] Cue "${cue.name}" Overridden:`, cue);
+            }
+        });
+    }
+
     renderLoopsUI();
     renderCuesUI(); 
-    updateLoopUI(); // Refresh Toolbar Buttons visibility
+    updateLoopUI();
 }
 
 // --- PLAYBACK TOGGLE UTILITIES ---
@@ -11765,12 +11945,263 @@ function initLayoutEngine() {
     // 4. Restoration
     const savedSidebar = localStorage.getItem('sidebar_width');
     if (savedSidebar) document.documentElement.style.setProperty('--sidebar-width', savedSidebar);
-    
     ['artist', 'title', 'cat', 'type', 'actions'].forEach(col => {
         const saved = localStorage.getItem(`col_${col}_width`);
         if (saved) document.documentElement.style.setProperty(`--col-${col}-width`, saved);
     });
-}
+
+    // --- COCKPIT MODE (LIVE PERFORMANCE) ---
+    window.isCockpitMode = false;
+    let cockpitInterval = null;
+
+    window.toggleCockpitMode = function(enable) {
+        window.isCockpitMode = enable;
+        const cockpit = document.getElementById("cockpit-view");
+        if (!cockpit) return;
+
+        if (enable) {
+            cockpit.style.display = "flex";
+            
+            // V68: FORCE SYNC Cues with Setlist Overrides when entering Cockpit
+            if (typeof activeSetlist !== 'undefined' && activeSetlist && currentSetlistIndex >= 0) {
+                const slot = activeSetlist.items[currentSetlistIndex];
+                if (slot) {
+                    console.log("[COCKPIT] Re-syncing cues with overrides from slot:", currentSetlistIndex);
+                    loadLoopsForTrack(slot); 
+                }
+            }
+            
+            updateCockpitUI();
+            
+            // Start robust monitoring interval
+            if (cockpitInterval) clearInterval(cockpitInterval);
+            cockpitInterval = setInterval(updateCockpitUI, 100);
+
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            }
+        } else {
+            cockpit.style.display = "none";
+            if (cockpitInterval) clearInterval(cockpitInterval);
+            cockpitInterval = null;
+
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+            }
+        }
+    };
+
+    let lastCockpitClick = 0;
+    window.togglePlayCockpit = function(e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Anti-double click (300ms cooldown)
+        const now = Date.now();
+        if (now - lastCockpitClick < 300) return;
+        lastCockpitClick = now;
+
+        // V69: Use the GLOBAL ACTION ROUTER
+        // Detect state BEFORE action to determine target icon
+        let wasPlaying = false;
+        if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+            wasPlaying = (typeof wavesurfer !== 'undefined' && wavesurfer && wavesurfer.isPlaying) ? wavesurfer.isPlaying() : false;
+        } else if (currentActivePlayer === 'youtube') {
+            wasPlaying = (player && typeof player.getPlayerState === "function" && player.getPlayerState() === 1);
+        } else if (currentActivePlayer === 'multitrack') {
+            wasPlaying = (window.multitrack && window.multitrack.isPlaying());
+        }
+
+        if (typeof executeWebAction === "function") {
+            executeWebAction("media_play_pause");
+        } 
+
+        const overlay = document.getElementById("cockpit-transport-overlay");
+        if (overlay) {
+            // If it WAS playing, we are now (theoretically) PAUSING -> show Pause icon
+            // Actually, usually users want to see the icon of the state they JUST TRIGGERED.
+            // Let's show Play icon if we just started, Pause icon if we just stopped.
+            const targetIsPlaying = !wasPlaying; 
+            overlay.innerHTML = targetIsPlaying ? '<i class="ph ph-play"></i>' : '<i class="ph ph-pause"></i>';
+            
+            overlay.style.display = "block";
+            overlay.style.opacity = "1";
+            overlay.style.transform = "scale(1.5)";
+            
+            setTimeout(() => {
+                overlay.style.opacity = "0";
+                overlay.style.transform = "scale(1)";
+                setTimeout(() => { if (overlay.style.opacity === "0") overlay.style.display = "none"; }, 300);
+            }, 500);
+        }
+    };
+
+    window.nextSetlistTrack = function() {
+        if (isSetlistMode && currentSetlistIndex < activeSetlist.items.length - 1) {
+            playSetlistItem(currentSetlistIndex + 1);
+        }
+    };
+
+    window.updateCockpitUI = function() {
+        if (!window.isCockpitMode) return;
+
+        const cockpit = document.getElementById("cockpit-view");
+        if (!cockpit || cockpit.style.display === "none") return;
+
+        // 1. Current track & Setlist Status
+        let track = null;
+        if (typeof activeSetlist !== 'undefined' && activeSetlist && activeSetlist.items && currentSetlistIndex >= 0) {
+            const slot = activeSetlist.items[currentSetlistIndex];
+            
+            // Manual resolution to avoid getMediaByUid issues
+            const uid = slot.media_uid;
+            if (typeof localFiles !== "undefined") track = localFiles.find(f => f.uid === uid);
+            if (!track && typeof webLinks !== "undefined") track = webLinks.find(w => w.uid === uid);
+            
+            // Setlist Info
+            const nameEl = document.getElementById("cockpit-setlist-name");
+            const posEl = document.getElementById("cockpit-setlist-pos");
+            if (nameEl) nameEl.innerText = activeSetlist.name || "---";
+            if (posEl) posEl.innerText = `${currentSetlistIndex + 1} / ${activeSetlist.items.length}`;
+        }
+
+        const titleEl = document.getElementById("cockpit-title");
+        const artistEl = document.getElementById("cockpit-artist");
+        if (titleEl) titleEl.innerText = track ? track.title : "---";
+        if (artistEl) artistEl.innerText = track ? (track.artist || "---") : "---";
+
+        // 2. Progress & Time
+        let current = 0;
+        let duration = 0;
+
+        try {
+            if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+                const v = document.getElementById("html5-player");
+                if (v && !isNaN(v.duration) && v.duration > 0) {
+                    current = v.currentTime;
+                    duration = v.duration;
+                } else if (typeof wavesurfer !== "undefined" && wavesurfer && !isNaN(wavesurfer.getDuration())) {
+                    current = wavesurfer.getCurrentTime();
+                    duration = wavesurfer.getDuration();
+                }
+            } else if (currentActivePlayer === 'youtube') {
+                if (player && typeof player.getCurrentTime === "function") {
+                    current = player.getCurrentTime();
+                    duration = player.getDuration();
+                }
+            } else if (currentActivePlayer === 'multitrack' && window.multitrack && window.multitrack.wavesurfers && window.multitrack.wavesurfers[0]) {
+                current = window.multitrack.wavesurfers[0].getCurrentTime();
+                duration = window.multitrack.wavesurfers[0].getDuration();
+            }
+        } catch(e) { console.warn("[COCKPIT] Time update error:", e); }
+
+        const timeEl = document.getElementById("cockpit-time");
+        const fillEl = document.getElementById("cockpit-progress-fill");
+        if (timeEl) {
+            const fmtCur = (typeof formatTimeCustom === "function") ? formatTimeCustom(current) : Math.floor(current);
+            const fmtDur = (typeof formatTimeCustom === "function") ? formatTimeCustom(duration) : Math.floor(duration);
+            timeEl.innerText = `${fmtCur} / ${fmtDur}`;
+        }
+        if (fillEl && duration > 0) {
+            fillEl.style.width = (current / duration * 100) + "%";
+        }
+
+        // 3. Next Track
+        if (typeof activeSetlist !== 'undefined' && activeSetlist) {
+            const nextTitleEl = document.getElementById("cockpit-next-title");
+            const nextTrackArea = document.getElementById("cockpit-next-track");
+            if (currentSetlistIndex < activeSetlist.items.length - 1) {
+                const nextSlot = activeSetlist.items[currentSetlistIndex + 1];
+                let nextItem = null;
+                if (typeof localFiles !== "undefined") nextItem = localFiles.find(f => f.uid === nextSlot.media_uid);
+                if (!nextItem && typeof webLinks !== "undefined") nextItem = webLinks.find(w => w.uid === nextSlot.media_uid);
+
+                if (nextTitleEl) nextTitleEl.innerText = nextItem ? nextItem.title : "---";
+                if (nextTrackArea) nextTrackArea.style.opacity = "1";
+            } else {
+                if (nextTitleEl) nextTitleEl.innerText = (typeof t !== "undefined") ? t("web.lbl_end_of_setlist") : "END OF SETLIST";
+                if (nextTrackArea) nextTrackArea.style.opacity = "0.3";
+            }
+        }
+
+        // 4. MIDI Status
+        const led = document.getElementById("cockpit-midi-led");
+        const headerStatus = document.getElementById("header-device-status");
+        if (led && headerStatus) {
+            const txt = headerStatus.innerText.toLowerCase();
+            const isConnected = !txt.includes("attente") && !txt.includes("waiting");
+            led.style.background = isConnected ? "var(--accent)" : "#333";
+            led.style.boxShadow = isConnected ? "0 0 15px var(--accent)" : "none";
+        }
+
+        // 5. Cues Markers
+        const loopContainer = document.getElementById("cockpit-loop-container");
+        if (loopContainer && duration > 0) {
+            const cuesToRender = (typeof currentCues !== 'undefined') ? currentCues : [];
+            const trackId = track ? track.uid : 'none';
+            
+            if (loopContainer.dataset.lastTrack !== trackId || loopContainer.dataset.lastCount != cuesToRender.length) {
+                loopContainer.innerHTML = '';
+                loopContainer.dataset.lastTrack = trackId;
+                loopContainer.dataset.lastCount = cuesToRender.length;
+
+                cuesToRender.forEach((cue, idx) => {
+                    const pct = (cue.time / duration) * 100;
+                    const marker = document.createElement("div");
+                    marker.style.position = "absolute";
+                    marker.style.left = pct + "%";
+                    marker.style.width = "4px";
+                    marker.style.height = "100%";
+                    marker.style.background = "#f1c40f";
+                    marker.style.boxShadow = "0 0 15px #f1c40f";
+                    marker.style.zIndex = "5";
+
+                    const label = document.createElement("div");
+                    label.innerText = cue.name || `Cue ${idx+1}`;
+                    label.style.position = "absolute";
+                    label.style.bottom = "100%";
+                    label.style.left = "4px";
+                    label.style.marginBottom = "5px";
+                    label.style.transform = "rotate(-45deg)";
+                    label.style.transformOrigin = "bottom left";
+                    label.style.fontSize = "14px";
+                    label.style.fontWeight = "bold";
+                    label.style.color = "#f1c40f";
+                    label.style.textTransform = "uppercase";
+                    label.style.whiteSpace = "nowrap";
+                    label.style.textShadow = "2px 2px 4px black";
+                    label.style.pointerEvents = "none";
+                    label.style.zIndex = "10";
+
+                    marker.appendChild(label);
+                    loopContainer.appendChild(marker);
+                });
+            }
+        }
+    };
+
+    window.seekCockpit = function(e) {
+        const rect = document.getElementById("cockpit-progress-container").getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const pct = x / rect.width;
+        
+        let duration = 0;
+        if (currentActivePlayer === 'local' || currentActivePlayer === 'waveform') {
+            const v = document.getElementById("html5-player");
+            if (v && !isNaN(v.duration)) duration = v.duration;
+        } else if (currentActivePlayer === 'youtube') {
+            if (player && typeof player.getDuration === "function") duration = player.getDuration();
+        } else if (currentActivePlayer === 'multitrack') {
+            if (typeof multitrack !== "undefined" && multitrack) duration = multitrack.getDuration();
+        }
+
+        if (duration > 0) {
+            seekPlayerTo(duration * pct);
+        }
+    };
+};
 
 /**
  * Scans the active table body to calculate the optimal width for a column based on actual content (Excel-style)
