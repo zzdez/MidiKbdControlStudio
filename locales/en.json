@@ -569,6 +569,7 @@
         "msg_confirm_delete_setlist": "Are you sure you want to delete this setlist?",
         "btn_edit_media": "Edit Media",
         "btn_refresh": "Refresh Display",
+        "lbl_end_of_setlist": "End of Setlist",
         "btn_cue_add": "Add Cue (Flag)"
     },
     "sync": {

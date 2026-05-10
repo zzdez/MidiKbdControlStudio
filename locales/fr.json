@@ -569,6 +569,7 @@
         "msg_confirm_delete_setlist": "Voulez-vous vraiment supprimer cette setlist ?",
         "btn_edit_media": "Éditer le média",
         "btn_refresh": "Rafraîchir l'affichage",
+        "lbl_end_of_setlist": "Fin de la setlist",
         "btn_cue_add": "Ajouter un repère (Flag)"
     },
     "sync": {
