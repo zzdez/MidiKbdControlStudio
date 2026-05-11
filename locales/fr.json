@@ -569,8 +569,11 @@
         "msg_confirm_delete_setlist": "Voulez-vous vraiment supprimer cette setlist ?",
         "btn_edit_media": "Éditer le média",
         "btn_refresh": "Rafraîchir l'affichage",
+        "btn_cue_add": "Ajouter un repère (Flag)",
         "lbl_end_of_setlist": "Fin de la setlist",
-        "btn_cue_add": "Ajouter un repère (Flag)"
+        "lbl_setlist": "Setlist",
+        "lbl_position": "Position",
+        "lbl_next_part_in": "Prochain repère dans"
     },
     "sync": {
         "title": "Synchronisation Cloud",

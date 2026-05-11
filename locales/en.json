@@ -569,8 +569,11 @@
         "msg_confirm_delete_setlist": "Are you sure you want to delete this setlist?",
         "btn_edit_media": "Edit Media",
         "btn_refresh": "Refresh Display",
+        "btn_cue_add": "Add Cue (Flag)",
         "lbl_end_of_setlist": "End of Setlist",
-        "btn_cue_add": "Add Cue (Flag)"
+        "lbl_setlist": "Setlist",
+        "lbl_position": "Position",
+        "lbl_next_part_in": "Next part in"
     },
     "sync": {
         "title": "Cloud Sync",
