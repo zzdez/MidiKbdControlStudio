@@ -868,11 +868,14 @@ function renderSetlistEditorItems() {
         const artist = item ? (item.artist || "") : "";
         
         // Icon logic
+        const isMT = item && (item.is_multitrack === true || (item.path && (item.path.includes('Multipistes') || item.path.includes('.multitrack'))));
+        
         let iconClass = "ph ph-file";
+        let iconColor = "var(--accent)"; // Harmonized with left side (All icons colored)
         if (item) {
-            if (item.open_mode === 'iframe') iconClass = "ph ph-youtube-logo";
+            if (isMT) iconClass = "ph ph-stack-simple";
+            else if (item.open_mode === 'iframe') iconClass = "ph ph-youtube-logo";
             else if (item.url && !item.path) iconClass = "ph ph-globe";
-            else if (item.is_multitrack) iconClass = "ph ph-layers";
             else if (item.path && item.path.toLowerCase().match(/\.(mp3|wav|flac|m4a)$/)) iconClass = "ph ph-music-note";
             else if (item.path && item.path.toLowerCase().match(/\.(mp4|mkv|avi|mov)$/)) iconClass = "ph ph-video-camera";
         }
@@ -880,8 +883,8 @@ function renderSetlistEditorItems() {
         return `
             <div class="setlist-item-container" style="margin-bottom:6px;">
                 <div class="setlist-item-slot" style="display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.05); padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); transition: transform 0.2s;">
-                    <div style="color:var(--accent); font-size:0.8em; font-weight:bold; width:22px; background:rgba(0,0,0,0.3); height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;">${idx + 1}</div>
-                    <i class="${iconClass}" style="color:#888; font-size:1.15em;"></i>
+                    <div style="color:var(--accent); font-size:0.8em; font-weight:bold; width:22px; background:rgba(0,0,0,0.3); height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${idx + 1}</div>
+                    <i class="${iconClass}" style="color:${iconColor}; font-size:1.15em; min-width:20px; text-align:center;"></i>
                     <div style="flex:1; overflow:hidden;">
                         <div style="font-weight:bold; font-size:0.9em; color:#fff; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${title}</div>
                         <div style="font-size:0.75em; color:#888; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${artist}</div>
@@ -898,9 +901,6 @@ function renderSetlistEditorItems() {
                 <div id="setlist-item-options-${idx}" style="display:none; background:rgba(0,0,0,0.2); margin: 0 10px; padding:15px; border:1px solid #333; border-top:none; border-bottom-left-radius:8px; border-bottom-right-radius:8px; font-size:0.85em;">
                     <div style="display:flex; flex-wrap:wrap; gap:20px; align-items:flex-end;">
                         
-                        <!-- ROW 1: Transition & MIDI On-Load -->
-                        <div style="display:flex; flex-wrap:wrap; gap:20px; width:100%; align-items:flex-start;">
-                            <!-- Transition Group -->
                         <!-- ROW 1: Transition & MIDI On-Load -->
                         <div style="display:flex; flex-wrap:wrap; gap:20px; width:100%; align-items:flex-start;">
                             <!-- Transition Group -->
@@ -1192,7 +1192,7 @@ function filterLibForSetlist() {
         const isMT = it.is_multitrack === true || (it.path && (it.path.includes('Multipistes') || it.path.includes('.multitrack')));
         
         let iconClass = "ph ph-file";
-        if (isMT) iconClass = "ph ph-stack"; // Harmonized with main lib
+        if (isMT) iconClass = "ph ph-stack-simple"; // Harmonized with main lib
         else if (it.open_mode === 'iframe') iconClass = "ph ph-youtube-logo";
         else if (it.type === 'web') iconClass = "ph ph-globe";
         else if (it.path && it.path.toLowerCase().match(/\.(mp3|wav|flac|m4a)$/)) iconClass = "ph ph-music-note";
@@ -2896,7 +2896,7 @@ async function showSyncFamilyModal() {
                 typeLabel = " (YouTube)";
             } else if (uid.startsWith('lib')) {
                 if (item.is_multitrack || (item.path && item.path.includes('Multipistes'))) {
-                    icon = "ph ph-stack";
+                    icon = "ph ph-stack-simple";
                     typeLabel = " (Multipiste)";
                 } else {
                     // Detect if video by extension if is_video not set
@@ -4838,7 +4838,7 @@ function renderLocalFiles() {
             iconHtml = `<i class="ph ph-warning-circle" style="color:#ff4444; font-size:1.2em; vertical-align:middle; margin-right:5px;" title="Fichier introuvable"></i>`;
         } else if (file.is_multitrack) {
             // Multitrack / Stems
-            iconHtml = `<i class="ph ph-stack" style="color:#ffb74d; font-size:1.2em; vertical-align:middle; margin-right:5px;"></i>`;
+            iconHtml = `<i class="ph ph-stack-simple" style="color:#ffb74d; font-size:1.2em; vertical-align:middle; margin-right:5px;"></i>`;
         } else if (isAudio) {
             iconHtml = `<i class="ph ph-music-notes" style="color:#bb86fc; font-size:1.2em; vertical-align:middle; margin-right:5px;"></i>`;
         } else {
