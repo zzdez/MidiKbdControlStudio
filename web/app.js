@@ -1305,6 +1305,36 @@ let isSetlistMode = false;
 window.isLiveMode = false; // V72: Global Performance Override
 let setlistNextTimeout = null;
 
+function clearSetlistOrchestrator() {
+    console.log("[ORCHESTRATOR] Cleanup: clearing all setlist states.");
+    if (setlistNextTimeout) {
+        clearInterval(setlistNextTimeout);
+        setlistNextTimeout = null;
+    }
+    isSetlistMode = false;
+    activeSetlist = null;
+    currentSetlistIndex = -1;
+    window.setlistMutedStems = []; // Clear multitrack mutes
+    
+    // Hide countdown UI
+    const overlay = document.getElementById("cockpit-countdown-overlay");
+    const titleEl = document.getElementById("cockpit-title");
+    if (overlay) overlay.style.display = "none";
+    if (titleEl) titleEl.style.display = "block";
+
+    // V85: Always force Live Mode OFF when clearing orchestrator
+    window.isLiveMode = false;
+    updateLiveModeUI();
+}
+
+function updateLiveModeUI() {
+    const btn = document.getElementById("btn-live-mode");
+    if (btn) {
+        btn.style.color = window.isLiveMode ? "#ff5252" : "#888";
+        btn.classList.toggle("active", window.isLiveMode);
+    }
+}
+
 function startSetlist(id, startIndex = 0) {
     const sl = allSetlists.find(s => s.id === id);
     if (!sl) return;
@@ -1320,8 +1350,7 @@ function startSetlist(id, startIndex = 0) {
 function playSetlistItem(index) {
     if (!activeSetlist || !activeSetlist.items[index]) {
         console.log("Fin de la setlist.");
-        isSetlistMode = false;
-        toggleLiveMode(false); // V80: Auto-deactivate Live Mode
+        clearSetlistOrchestrator();
         return;
     }
 
@@ -1333,7 +1362,7 @@ function playSetlistItem(index) {
     if (editor && editor.open) editor.close();
     
     // Lancer le média
-    playMediaByUid(slot.media_uid);
+    playMediaByUid(slot.media_uid, true);
     
     // V70: MIDI On-Load from Setlist Slot
     if (slot.midi_onload) {
@@ -1402,16 +1431,20 @@ function handleMediaEnd() {
     }
     lastMediaEndTime = now;
 
-    console.log("[ORCHESTRATOR] Media Ended. isSetlistMode:", isSetlistMode);
-    if (!isSetlistMode || !activeSetlist) return;
+    console.log("[ORCHESTRATOR] Media Ended. isSetlistMode:", isSetlistMode, "isLiveMode:", window.isLiveMode);
+    
+    // V85: If NOT in Live Mode, we stop here (Practice behavior)
+    if (!window.isLiveMode || !isSetlistMode || !activeSetlist) {
+        console.log("[ORCHESTRATOR] Stop or Practice mode active. No transition.");
+        return;
+    }
 
     const currentSlot = activeSetlist.items[currentSetlistIndex];
     const nextIndex = currentSetlistIndex + 1;
     
     if (nextIndex >= activeSetlist.items.length) {
         console.log("[ORCHESTRATOR] Setlist terminée.");
-        isSetlistMode = false;
-        toggleLiveMode(false); // V80: Auto-deactivate Live Mode
+        clearSetlistOrchestrator();
         return;
     }
 
@@ -1461,26 +1494,14 @@ function toggleLiveMode(forceState = null) {
     if (forceState !== null) window.isLiveMode = forceState;
     else window.isLiveMode = !window.isLiveMode;
 
-    const btn = document.getElementById("btn-live-mode");
-    if (btn) {
-        btn.style.color = window.isLiveMode ? "#ff5252" : "#888";
-        btn.classList.toggle("active", window.isLiveMode);
+    if (!window.isLiveMode) {
+        // V85: If we turn OFF live mode, we also kill the setlist sequence
+        clearSetlistOrchestrator();
+    } else {
+        // Turning ON: just update UI
+        updateLiveModeUI();
     }
     console.log("[LIVE MODE] State:", window.isLiveMode);
-}
-
-// Helper pour lancer n'importe quel média par son UID
-function playMediaByUid(uid) {
-    const item = getLinkedItem(uid);
-    if (!item) return;
-
-    if (item.type === 'local') {
-        const idx = localFiles.findIndex(f => f.uid === uid);
-        if (idx !== -1) playLocalTrack(idx);
-    } else if (item.type === 'web') {
-        const idx = webLinks.findIndex(w => w.uid === uid);
-        if (idx !== -1) playWebTrack(idx);
-    }
 }
 
 // --- ANCIENNE LOGIQUE YOUTUBE (Gardée pour compatibilité) ---
@@ -3899,6 +3920,11 @@ function closePreviewModal() {
 // --- PLAYER CONTROL ---
 function stopAllMedia() {
     console.log("Stopping all media players...");
+    
+    // V85: Cleanup orchestrator when stopping all
+    if (isSetlistMode && !window.isLiveMode) {
+        clearSetlistOrchestrator();
+    }
     currentActivePlayer = null; // Important to prevent clearLoop from restarting old media during transition
 
     if (window.currentMultitrackAbortController) {
@@ -3960,13 +3986,19 @@ function playTrackAt(index) {
 }
 
 // V63: New Universal Addressing by UID
-function playMediaByUid(uid) {
+function playMediaByUid(uid, isOrchestrated = false) {
     const item = getLinkedItem(uid);
     if (!item) {
         console.error("[V63] Could not resolve UID:", uid);
         return;
     }
     
+    // V85: Detect manual interruption to practice mode
+    if (!isOrchestrated && isSetlistMode) {
+        console.log("[ORCHESTRATOR] Manual Interruption: clearing setlist mode.");
+        clearSetlistOrchestrator();
+    }
+
     // Determine source and call appropriate player
     if (uid.startsWith('set')) {
         playTrack(item);
@@ -4333,7 +4365,11 @@ function toggleTheaterMode(forceState = null) {
 
                         // Tell the underlying wavesurfer to draw at the new scale
                         if (window.multitrack.wavesurfers && window.multitrack.wavesurfers[idx]) {
-                            window.multitrack.wavesurfers[idx].zoom(pxPerSec);
+                            const ws = window.multitrack.wavesurfers[idx];
+                            // V85: Only zoom if audio is loaded to avoid Wavesurfer error
+                            if (ws.decodedData || (ws.backend && ws.backend.buffer)) {
+                                ws.zoom(pxPerSec);
+                            }
                         }
                     });
 
