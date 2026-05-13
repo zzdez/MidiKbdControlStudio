@@ -643,6 +643,8 @@
         "lbl_setlist_name_placeholder": "Nom de la Setlist",
         "col_title": "TITRE",
         "col_artist": "ARTISTE",
-        "btn_cockpit_mode": "Interface Cockpit"
+        "btn_cockpit_mode": "Interface Cockpit",
+        "btn_skip_prev": "Morceau Précédent",
+        "btn_skip_next": "Morceau Suivant"
     }
 }

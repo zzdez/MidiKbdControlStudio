@@ -643,6 +643,8 @@
         "lbl_setlist_name_placeholder": "Setlist Name",
         "col_title": "TITLE",
         "col_artist": "ARTIST",
-        "btn_cockpit_mode": "Cockpit Interface"
+        "btn_cockpit_mode": "Cockpit Interface",
+        "btn_skip_prev": "Previous Track",
+        "btn_skip_next": "Next Track"
     }
 }

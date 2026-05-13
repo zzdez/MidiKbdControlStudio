@@ -243,6 +243,8 @@
                     <div id="audio-time-display-integrated" class="time-display-integrated">00:00 / -00:00</div>
 
                     <div class="controls-center-group">
+                        <button class="control-btn setlist-only" onclick="skipTrack(-1)" title="Morceau Précédent"
+                            data-i18n-title="setlist.btn_skip_prev"><i class="ph ph-skip-back"></i></button>
                         <button class="control-btn" onclick="audioControl('restart')" title="Restart"
                             data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
                         <button class="control-btn" onclick="audioControl('prev')" title="-5s"
@@ -255,6 +257,8 @@
 
                         <button class="control-btn" onclick="audioControl('next')" title="+5s"
                             data-i18n-title="web.btn_next"><i class="ph ph-fast-forward"></i></button>
+                        <button class="control-btn setlist-only" onclick="skipTrack(1)" title="Morceau Suivant"
+                            data-i18n-title="setlist.btn_skip_next"><i class="ph ph-skip-forward"></i></button>
 
                         <button class="control-btn" id="btn-audio-autoplay-toggle"
                             onclick="togglePlaybackOption('autoplay')" title="Lancer automatiquement"
@@ -389,6 +393,8 @@
                     <div id="mt-time-display-integrated" class="time-display-integrated">00:00 / -00:00</div>
 
                     <div class="controls-center-group">
+                        <button class="control-btn setlist-only" onclick="skipTrack(-1)" title="Morceau Précédent"
+                            data-i18n-title="setlist.btn_skip_prev"><i class="ph ph-skip-back"></i></button>
                         <button class="control-btn" onclick="multitrackControl('restart')" title="Restart"
                             data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
                         <button class="control-btn" onclick="multitrackControl('prev')" title="-5s"
@@ -401,6 +407,8 @@
 
                         <button class="control-btn" onclick="multitrackControl('next')" title="+5s"
                             data-i18n-title="web.btn_next"><i class="ph ph-fast-forward"></i></button>
+                        <button class="control-btn setlist-only" onclick="skipTrack(1)" title="Morceau Suivant"
+                            data-i18n-title="setlist.btn_skip_next"><i class="ph ph-skip-forward"></i></button>
 
                         <button class="control-btn" id="btn-multitrack-autoplay-toggle"
                             onclick="togglePlaybackOption('autoplay')" title="Lancer automatiquement"
@@ -556,9 +564,11 @@
                 <div id="video-time-display-integrated" class="time-display-integrated">00:00 / -00:00</div>
 
                 <div class="controls-center-group">
+                    <button class="control-btn setlist-only" onclick="skipTrack(-1)" title="Morceau Précédent"
+                        data-i18n-title="setlist.btn_skip_prev"><i class="ph ph-skip-back"></i></button>
                     <button class="control-btn" onclick="videoControl('restart')" title="Restart"
                         data-i18n-title="web.btn_restart"><i class="ph ph-arrow-counter-clockwise"></i></button>
-
+                    
                     <!-- Chapter Prev -->
                     <button class="control-btn" onclick="videoControl('chapter_prev')" title="Chapitre Préc."
                         data-i18n-title="web.btn_chapter_prev"><i class="ph ph-skip-back"></i></button>
@@ -575,6 +585,9 @@
                     <!-- Standard Next (+5s) -->
                     <button class="control-btn" onclick="videoControl('next')" title="+5s"
                         data-i18n-title="web.btn_next"><i class="ph ph-fast-forward"></i></button>
+                    
+                    <button class="control-btn setlist-only" onclick="skipTrack(1)" title="Morceau Suivant"
+                        data-i18n-title="setlist.btn_skip_next"><i class="ph ph-skip-forward"></i></button>
 
                     <button class="control-btn" id="btn-video-autoplay-toggle"
                         onclick="togglePlaybackOption('autoplay')" title="Lancer automatiquement"
@@ -3266,12 +3279,19 @@
         <div style="width:100%; padding-top:20px; border-top:1px solid #222;">
             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:25px;">
                 <div id="cockpit-time" style="font-size:3.5em; font-family: 'JetBrains Mono', monospace; color:#eee; font-weight:bold;">00:00 / 00:00</div>
-                <div style="display:flex; gap:40px; align-items:center;">
+                <div style="display:flex; gap:20px; align-items:center;">
+                    <div id="cockpit-next-track" style="text-align:right;">
+                        <div style="font-size:0.8em; color:#666; text-transform:uppercase; font-weight:bold; letter-spacing:1px;" data-i18n-title="setlist.btn_skip_prev">PRÉCÉDENT</div>
+                    </div>
+                    <button onclick="skipTrack(-1)" style="background:rgba(255,255,255,0.1); color:#888; width:60px; height:60px; border-radius:50%; border:1px solid #444; cursor:pointer; font-size:1.5em; display:flex; align-items:center; justify-content:center; transition:transform 0.2s;" onmousedown="this.style.transform='scale(0.9)'" onmouseup="this.style.transform='scale(1)'">
+                        <i class="ph ph-skip-back"></i>
+                    </button>
+
                     <div id="cockpit-next-track" style="text-align:right;">
                         <div style="font-size:0.8em; color:#666; text-transform:uppercase; font-weight:bold; letter-spacing:1px;" data-i18n="setlist.cockpit_next_title">PROCHAIN TITRE</div>
                         <div id="cockpit-next-title" style="font-size:2em; color:white; font-weight:bold;">---</div>
                     </div>
-                    <button onclick="nextSetlistTrack()" style="background:var(--accent); color:white; width:90px; height:90px; border-radius:50%; border:none; cursor:pointer; font-size:3em; display:flex; align-items:center; justify-content:center; box-shadow: 0 0 30px rgba(var(--accent-rgb), 0.5); transition:transform 0.2s;" onmousedown="this.style.transform='scale(0.9)'" onmouseup="this.style.transform='scale(1)'">
+                    <button onclick="skipTrack(1)" style="background:var(--accent); color:white; width:90px; height:90px; border-radius:50%; border:none; cursor:pointer; font-size:3em; display:flex; align-items:center; justify-content:center; box-shadow: 0 0 30px rgba(var(--accent-rgb), 0.5); transition:transform 0.2s;" onmousedown="this.style.transform='scale(0.9)'" onmouseup="this.style.transform='scale(1)'">
                         <i class="ph ph-skip-forward"></i>
                     </button>
                 </div>

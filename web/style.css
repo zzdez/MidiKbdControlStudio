@@ -17,6 +17,14 @@ body {
     flex-direction: column;
 }
 
+/* SETLIST ONLY ELEMENTS */
+.setlist-only {
+    display: none !important;
+}
+body.setlist-active .setlist-only {
+    display: flex !important;
+}
+
 #main-logo {
     height: 35px;
     width: auto;

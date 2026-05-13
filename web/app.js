@@ -1325,6 +1325,9 @@ function clearSetlistOrchestrator() {
     // V85: Always force Live Mode OFF when clearing orchestrator
     window.isLiveMode = false;
     updateLiveModeUI();
+
+    // V85: Clear setlist-active class for UI buttons
+    document.body.classList.remove("setlist-active");
 }
 
 function updateLiveModeUI() {
@@ -1342,9 +1345,25 @@ function startSetlist(id, startIndex = 0) {
     activeSetlist = sl;
     currentSetlistIndex = startIndex;
     isSetlistMode = true;
+    
+    // V85: Add setlist-active class for UI buttons
+    document.body.classList.add("setlist-active");
+
     toggleLiveMode(true); // V80: Auto-activate Live Mode
     
     playSetlistItem(startIndex);
+}
+
+function skipTrack(direction) {
+    if (!activeSetlist || !isSetlistMode) return;
+    
+    let newIndex = currentSetlistIndex + direction;
+    if (newIndex >= 0 && newIndex < activeSetlist.items.length) {
+        console.log("[ORCHESTRATOR] Skipping to index:", newIndex);
+        playSetlistItem(newIndex);
+    } else {
+        console.log("[ORCHESTRATOR] Skip boundary reached.");
+    }
 }
 
 function playSetlistItem(index) {
@@ -12662,11 +12681,8 @@ function initLayoutEngine() {
         }
     };
 
-    window.nextSetlistTrack = function() {
-        if (isSetlistMode && currentSetlistIndex < activeSetlist.items.length - 1) {
-            playSetlistItem(currentSetlistIndex + 1);
-        }
-    };
+    window.nextSetlistTrack = () => skipTrack(1);
+    window.prevSetlistTrack = () => skipTrack(-1);
 
     window.updateCockpitUI = function() {
         if (!window.isCockpitMode) return;
