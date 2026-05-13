@@ -958,7 +958,7 @@ class MidiKbdApp(ctk.CTk):
         self.mapping_indicators = {}
         self.mapping_indicators = {}
         # New Stateful MidiManager (Radical Stabilization)
-        self.midi_manager = MidiManager(self.midi_callback)
+        self.midi_manager = MidiManager(self.midi_callback, on_config_change=self.on_midi_config_change)
         
         self.action_handler = ActionHandler()
         self.action_handler.set_profile_manager(self.profile_manager)
@@ -1038,6 +1038,12 @@ class MidiKbdApp(ctk.CTk):
                 self.log_debug(f"Remote window not open or invalid.")
 
         self.after(0, _update)
+
+    def on_midi_config_change(self, new_ports):
+        """Callback from MidiManager when ports are auto-healed (fuzzy match)"""
+        self.settings["midi_output_names"] = new_ports
+        # Trigger silent save
+        self.after(0, lambda: self.save_all(silent=True))
 
     def log_debug(self, message):
         # logging is now disabled to save disk space

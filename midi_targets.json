@@ -1,0 +1,26 @@
+{
+    "Tone Master Pro": {
+        "bank_size": 128,
+        "start_offset": 1,
+        "actions": [
+            {"name": "Change Preset", "type": "calc", "cc": 0, "bank_val": 1},
+            {"name": "Tuner Toggle", "type": "fixed", "cmd": "PC:122"},
+            {"name": "Tap Tempo", "type": "fixed", "cmd": "CC:64,VAL:127"}
+        ]
+    },
+    "Line 6 Helix": {
+        "bank_size": 128,
+        "start_offset": 0,
+        "actions": [
+            {"name": "Change Preset", "type": "calc", "cc": 0, "bank_val": 0},
+            {"name": "Bypass/Enable FX", "type": "cc_range", "cc": 1, "min": 0, "max": 127}
+        ]
+    },
+    "Custom Device": {
+        "bank_size": 128,
+        "start_offset": 0,
+        "actions": [
+            {"name": "Custom Command", "type": "manual"}
+        ]
+    }
+}

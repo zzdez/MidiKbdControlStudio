@@ -17,6 +17,14 @@ body {
     flex-direction: column;
 }
 
+/* SETLIST ONLY ELEMENTS */
+.setlist-only {
+    display: none !important;
+}
+body.setlist-active .setlist-only {
+    display: flex !important;
+}
+
 #main-logo {
     height: 35px;
     width: auto;
@@ -2649,6 +2657,98 @@ dialog::backdrop {
     min-height: 35px !important;
 }
 
+/* === SETLIST EDITOR RESTORATION (V78.3) === */
+#modal-setlist-editor {
+    height: 800px !important;
+    width: 950px !important;
+    background: #111 !important;
+    border: 1px solid #444 !important;
+    border-radius: 8px !important;
+    padding: 0 !important;
+    margin: auto !important;
+    color: white !important;
+    overflow: hidden !important;
+    z-index: 100000 !important;
+    box-shadow: 0 0 50px rgba(0,0,0,0.8) !important;
+}
+
+/* On n'applique le layout flex que SI la modale est ouverte par le navigateur */
+#modal-setlist-editor[open] {
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#modal-setlist-editor .modal-header {
+    height: 50px !important;
+    background: #1a1a1a !important;
+    border-bottom: 1px solid #333 !important;
+    padding: 0 15px !important;
+    display: flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+}
+
+#modal-setlist-editor .modal-body {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    padding: 15px !important;
+    background: #111 !important;
+    min-height: 0 !important; /* IMPORTANT for flex scrolling */
+}
+
+#modal-setlist-editor .modal-footer {
+    height: 60px !important;
+    background: #1a1a1a !important;
+    border-top: 1px solid #333 !important;
+    padding: 0 15px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex-shrink: 0 !important;
+}
+
+#modal-setlist-editor h2 {
+    font-size: 1.2rem !important;
+}
+
+.setlist-item {
+    padding: 10px !important;
+    margin-bottom: 8px !important;
+    border-radius: 6px !important;
+    background: rgba(255,255,255,0.03) !important;
+}
+
+.setlist-item h4 {
+    font-size: 14px !important;
+    margin-bottom: 8px !important;
+}
+
+.setlist-item .grid-controls {
+    gap: 10px !important;
+}
+
+/* MIDI Helper Compact (Styling now handled in app.js or harmonized) */
+[id^="midi-helper-"] {
+    margin-top: 5px !important;
+    padding: 6px 10px !important;
+}
+
+#midi-helper-result-display {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+}
+
+/* Setlist Footer */
+#modal-setlist-editor .modal-footer {
+    padding: 10px 15px !important;
+    margin-top: 5px !important;
+}
+
+#modal-setlist-editor .modal-footer button {
+    height: 32px !important;
+    padding: 0 15px !important;
+}
+
 /* Modal YouTube Refactor */
 .zone-title label {
     display: block !important;
@@ -3080,4 +3180,83 @@ input[type="color"].stem-color-input::-moz-color-swatch {
     z-index: 10;
     background: #181818;
     border-bottom: 2px solid #333;
+}
+
+/* MINI ICON BUTTONS (V77) - Harmonized to 31px */
+.btn-icon-mini {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #aaa;
+    cursor: pointer;
+    width: 35px;
+    height: 31px;
+    font-size: 1.1em;
+    transition: all 0.2s;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.btn-icon-mini:hover {
+    color: white;
+    background: rgba(255,255,255,0.1);
+    border-color: var(--accent);
+}
+
+/* FILTER MINI BUTTONS (V80) - Harmonized to 31px */
+.btn-filter-mini {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #666;
+    cursor: pointer;
+    flex: 1;
+    height: 31px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+    font-size: 1.1em;
+    box-sizing: border-box;
+}
+
+.btn-filter-mini.active {
+    background: rgba(187, 134, 252, 0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.btn-filter-mini:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.1);
+    color: #aaa;
+}
+
+/* HARMONIZED SEARCH INPUT */
+#setlist-search-lib {
+    height: 31px !important;
+    background: #111 !important;
+    border: 1px solid #444 !important;
+    padding: 0 10px !important;
+    border-radius: 4px !important;
+    font-size: 0.85em !important;
+    color: #eee !important;
+    box-sizing: border-box !important;
+}
+
+/* SETLIST V2 STYLES */
+.setlist-card:hover {
+    background: #252525 !important;
+    border-color: var(--accent) !important;
+    transform: translateY(-2px);
+}
+
+.lib-item-mini:hover {
+    background: rgba(255,255,255,0.08) !important;
+}
+
+.title-input-ghost:focus {
+    outline: none;
+    border-bottom: 1px solid var(--accent) !important;
 }

@@ -196,8 +196,23 @@ L'application ne se lance pas simplement. Le fichier `src/main.py` est un orches
 *   **Mémoire Sous-titres Globale (`localStorage`) :**
     *   **UX Drag & Drop :** L'événement `mouseup` du conteneur de sous-titres (`#subtitle-overlay`) enregistre désormais un pourcentage d'offset Y (`lastSubtitlePosY`) dans le navigateur.
     *   **Héritage Dynamique :** Lors du chargement d'une nouvelle vidéo locale, si aucune position n'est assignée dans le fichier JSON (`subtitle_pos_y`), le lecteur injecte par défaut la hauteur préférée globale à la place de la valeur statique de `80%`.
-*   **Isolation des Lecteurs :**
-    *   **Flush State :** La fonction `playTrack()` a été durcie. Le moteur natif iframe (YouTube CC) et le moteur de sous-titres Airstep.js sont strictement isolés (flush des tableaux `currentSubtitles` et masquage du bouton UI) pour prévenir les « fuites » de texte d'une vidéo locale vers un stream.
+
+### 18. Évolution V18 : Persistance Absolue & MIDI Smart Matching
+*   **Path Persistence (`utils.py`) :**
+    *   **Dossier Agnostique :** Centralisation via `get_app_dir()` pour garantir que le dossier de données (`config.json`, `profiles/`, `devices/`, `library.json`, etc.) réside **toujours** à côté de l'exécutable PyInstaller (`sys.executable`).
+*   **Smart Matching MIDI Output (`midi_engine.py`) :**
+    *   **Résolution Dynamique :** Le moteur est capable de se reconnecter automatiquement à un port renommé par Windows (ex: "Tone Master Pro 2" -> "Tone Master Pro 3").
+    *   **Auto-Healing Persistant :** Une fois le port "soigné" via fuzzy matching, le nouveau nom est sauvegardé dans `config.json` via un callback de config pour assurer la persistance au prochain redémarrage.
+
+### 19. Évolution V19 : Assistant MIDI & Éditeur de Périphériques
+*   **Device Profiles (JSON) :** Migration vers une architecture basée sur des fichiers JSON individuels dans `data/midi_devices/`.
+*   **Éditeur Intégré :** Ajout d'une modale de création/édition de profils MIDI (Canal, Bank Size, Actions CC) permettant d'ajouter n'importe quel matériel (Helix, Quad Cortex, etc.) sans toucher au code.
+*   **Assistant Setlist :** Intégration d'un calculateur MIDI dynamique directement dans chaque ligne de la setlist, permettant de tester et d'assigner des presets/actions en un clic.
+
+### 20. Évolution V20 : Architecture Modale "Sticky Footer"
+*   **Layout Flexbox :** Refonte de la modale setlist (950x800px) utilisant une structure `display: flex; flex-direction: column`.
+*   **Isolation du Défilement :** Le Header et le Footer sont fixés (`flex-shrink: 0`), garantissant que les boutons de sauvegarde sont **toujours visibles**. Seul le corps (`modal-body`) possède un défilement interne.
+*   **Design Compact :** Réduction de 25% de la taille des polices et des contrôles pour une esthétique "Dashboard Pro" haute densité.
 
 ### 18. Évolution V12 : Persistance Absolue & MIDI Smart Matching
 *   **Path Persistence (`utils.py`) :**

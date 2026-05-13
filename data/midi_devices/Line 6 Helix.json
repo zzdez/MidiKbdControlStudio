@@ -1,0 +1,30 @@
+{
+    "name": "Line 6 Helix",
+    "channel": 1,
+    "bank_size": 128,
+    "start_offset": 0,
+    "actions": [
+        {
+            "name": "Change Preset",
+            "type": "calc",
+            "cc": 0,
+            "bank_val_offset": 0,
+            "description": "Calculates Bank (CC0) and PC for presets 0-127+"
+        },
+        {
+            "name": "Snapshot 1",
+            "type": "fixed",
+            "cmd": "CH:1,CC:69,VAL:0"
+        },
+        {
+            "name": "Snapshot 2",
+            "type": "fixed",
+            "cmd": "CH:1,CC:69,VAL:1"
+        },
+        {
+            "name": "Snapshot 3",
+            "type": "fixed",
+            "cmd": "CH:1,CC:69,VAL:2"
+        }
+    ]
+}

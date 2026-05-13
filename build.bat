@@ -41,6 +41,10 @@ if exist locales (
     mkdir _BUILD_TEMP\locales
     xcopy locales _BUILD_TEMP\locales /s /e /y >nul
 )
+if exist data\midi_devices (
+    mkdir _BUILD_TEMP\midi_devices
+    xcopy data\midi_devices _BUILD_TEMP\midi_devices /s /e /y >nul
+)
 
 :: 4. COMPILATION
 cd _BUILD_TEMP
@@ -52,6 +56,7 @@ pyinstaller --noconfirm --onefile --windowed ^
  --add-data "web;web" ^
  --add-data "assets;assets" ^
  --add-data "locales;locales" ^
+ --add-data "midi_devices;midi_devices" ^
  --hidden-import "uvicorn" ^
  --hidden-import "uvicorn.logging" ^
  --hidden-import "uvicorn.loops" ^

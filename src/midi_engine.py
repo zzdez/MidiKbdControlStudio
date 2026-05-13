@@ -385,18 +385,53 @@ class BleakProvider(MidiProvider):
         except: pass
 
 class MidiManager:
-    def __init__(self, callback):
+    def __init__(self, callback, on_config_change=None):
         self.callback = callback
+        self.on_config_change = on_config_change
         self.current_provider = None
         self.current_mode = None
         
         # Output ports state
         self._active_output_ports = []
         self._target_output_names = []
+        
+        # V73: Watchdog for auto-reconnection
+        self._stop_event = threading.Event()
+        self._watchdog_thread = threading.Thread(target=self._output_watchdog, daemon=True)
+        self._watchdog_thread.start()
     
     def log(self, msg):
         # logging disabled to save disk space
         pass
+
+    def _output_watchdog(self):
+        """Periodically checks if target output ports are connected."""
+        while not self._stop_event.is_set():
+            if self._target_output_names:
+                # Check if any target is missing from active ports
+                active_names = [p[0] for p in self._active_output_ports]
+                
+                # Check targets that are NOT currently active
+                need_refresh = False
+                for target in self._target_output_names:
+                    if target not in active_names:
+                        need_refresh = True
+                        break
+                
+                if need_refresh:
+                    available = self.get_available_outputs()
+                    self.log(f"[WATCHDOG] Connection drift detected. Scanning...")
+                    
+                    old_targets = list(self._target_output_names)
+                    new_resolved = self.set_output_ports(self._target_output_names)
+                    
+                    # V75: CRITICAL - Check if targets were updated due to fuzzy matching
+                    if self._target_output_names != old_targets:
+                        print(f"[WATCHDOG] Persistent Auto-Healing: Targets updated to {self._target_output_names}")
+                        if self.on_config_change:
+                            self.on_config_change(self._target_output_names)
+            
+            time.sleep(5.0)
 
     def switch_mode(self, mode, device_name):
         """
@@ -464,28 +499,56 @@ class MidiManager:
             port_names = [port_names] if port_names else []
 
         available = self.get_available_outputs()
+        self._target_output_names = list(port_names) # Work on a copy
         resolved_ports = []
         
         import re
-        for name in port_names:
+        def clean_name(n):
+            # Remove parenthesis, MIDIOUT prefixes, and trailing digits/spaces
+            return re.sub(r'\(.*?\)|MIDIOUT\d*|\d+', '', n).strip().lower()
+
+        new_targets = []
+        for name in self._target_output_names:
             if not name: continue
             
             actual_name = name
-            if name not in available:
-                # Try smart match (ignore trailing digits)
-                base_target = re.sub(r'\s*\d+$', '', name).strip()
-                if base_target:
+            found = False
+            
+            # 1. Exact Match
+            if name in available:
+                actual_name = name
+                found = True
+            
+            # 2. Extreme Fuzzy Match (The "Soul" match)
+            if not found:
+                base_target = clean_name(name)
+                if base_target and len(base_target) > 3:
                     for p in available:
-                        base_p = re.sub(r'\s*\d+$', '', p).strip()
-                        if base_target.lower() == base_p.lower():
+                        if base_target in clean_name(p):
                             actual_name = p
-                            self.log(f"Smart Match Output: '{name}' resolved to '{p}'")
+                            found = True
+                            print(f"[MIDI OUT] Auto-healed '{name}' -> '{p}'")
                             break
             
-            if actual_name not in resolved_ports:
+            # 3. Index Match fallback
+            if not found:
+                base_target_simple = re.sub(r'\s*\d+$', '', name).strip()
+                if base_target_simple:
+                    for p in available:
+                        if base_target_simple.lower() in p.lower():
+                            actual_name = p
+                            found = True
+                            print(f"[MIDI OUT] Index-healed '{name}' -> '{p}'")
+                            break
+            
+            if actual_name not in new_targets:
+                new_targets.append(actual_name)
+            
+            if found and actual_name not in resolved_ports:
                 resolved_ports.append(actual_name)
 
-        self._target_output_names = resolved_ports
+        # Update the targets list with potentially new names
+        self._target_output_names = new_targets
 
         # Close existing
         for name, port in self._active_output_ports:
@@ -505,13 +568,25 @@ class MidiManager:
 
     def send_raw(self, msg):
         """Broadcasts any mido.Message to all active output ports."""
-        if not self._active_output_ports: return
+        if not self._active_output_ports: 
+            # V73: Zero-latency recovery. If no ports but targets exist, try connecting NOW.
+            if self._target_output_names:
+                print("[MIDI OUT] No ports active. Attempting emergency recovery...")
+                self.set_output_ports(self._target_output_names)
+            if not self._active_output_ports: return
+
+        dead_ports = []
         for name, port in self._active_output_ports:
             try:
                 port.send(msg)
                 print(f"[MIDI OUT] Sent to '{name}': {msg}")
             except Exception as e:
                 print(f"[MIDI OUT] Failed '{name}': {e}")
+                dead_ports.append(name)
+        
+        # Cleanup dead ports so watchdog can restart them
+        if dead_ports:
+            self._active_output_ports = [p for p in self._active_output_ports if p[0] not in dead_ports]
 
     def send_message(self, channel, cc, value):
         ch = max(0, min(15, int(channel) - 1))
@@ -521,10 +596,31 @@ class MidiManager:
     def get_ports_status(self):
         available = self.get_available_outputs()
         status_list = []
+        
+        # Helper to match "soul" of names
+        import re
+        def clean(n):
+            return re.sub(r'\(.*?\)|MIDIOUT\d*|\d+', '', n).strip().lower()
+
+        # Build list of all names to consider
         all_names = set(available) | set(self._target_output_names)
         
+        # Pre-clean target names for faster fuzzy matching
+        clean_targets = [clean(t) for t in self._target_output_names if clean(t)]
+
         for name in sorted(list(all_names)):
+            # 1. Direct match
             is_configured = name in self._target_output_names
+            
+            # 2. Fuzzy match (if not direct)
+            if not is_configured:
+                c_name = clean(name)
+                if c_name:
+                    for ct in clean_targets:
+                        if ct in c_name or c_name in ct:
+                            is_configured = True
+                            break
+
             is_connected = any(p[0] == name for p in self._active_output_ports)
             is_available = name in available
             

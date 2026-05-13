@@ -1,0 +1,27 @@
+{
+    "name": "Tone Master Pro",
+    "channel": 1,
+    "bank_size": 128,
+    "start_offset": 1,
+    "actions": [
+        {
+            "name": "Change Preset",
+            "type": "calc",
+            "cc": 0,
+            "bank_val_offset": 0,
+            "description": "Calculates Bank (CC0) and PC for presets 1-512"
+        },
+        {
+            "name": "Tuner Toggle",
+            "type": "fixed",
+            "cmd": "CH:1,PC:122",
+            "description": "Opens/Closes the on-screen tuner"
+        },
+        {
+            "name": "Tap Tempo",
+            "type": "fixed",
+            "cmd": "CH:1,CC:64,VAL:127",
+            "description": "Sends a Tap Tempo pulse"
+        }
+    ]
+}

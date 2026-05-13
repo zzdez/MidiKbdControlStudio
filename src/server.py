@@ -190,6 +190,67 @@ async def api_midi_send_string(data: Dict):
         print(f"[MIDI PARSE ERROR] {e} on '{cmd_str}'")
         return {"status": "error", "message": str(e)}
 
+MIDI_DEVICES_DIR = os.path.join(get_data_dir(), "midi_devices")
+if not os.path.exists(MIDI_DEVICES_DIR):
+    os.makedirs(MIDI_DEVICES_DIR, exist_ok=True)
+
+# V77.1: Auto-copy default profiles from resources to user data if empty
+try:
+    resource_midi_dir = get_resource_path("midi_devices")
+    if os.path.exists(resource_midi_dir):
+        import shutil
+        for filename in os.listdir(resource_midi_dir):
+            if filename.endswith(".json"):
+                target_path = os.path.join(MIDI_DEVICES_DIR, filename)
+                if not os.path.exists(target_path):
+                    shutil.copy2(os.path.join(resource_midi_dir, filename), target_path)
+                    logging.info(f"[MIDI] Migrated default profile: {filename}")
+except Exception as e:
+    logging.error(f"[MIDI] Error migrating default profiles: {e}")
+
+@app.get("/api/midi/targets")
+async def get_midi_targets():
+    """Scans the midi_devices folder and returns all profiles merged."""
+    profiles = {}
+    try:
+        if os.path.exists(MIDI_DEVICES_DIR):
+            for filename in os.listdir(MIDI_DEVICES_DIR):
+                if filename.endswith(".json"):
+                    path = os.path.join(MIDI_DEVICES_DIR, filename)
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        name = data.get("name", filename.replace(".json", ""))
+                        profiles[name] = data
+    except Exception as e:
+        logging.error(f"[MIDI] Error scanning devices: {e}")
+    
+    return profiles
+
+@app.post("/api/midi/targets/{name}")
+async def save_midi_target(name: str, data: Dict):
+    """Saves a specific MIDI target device profile."""
+    try:
+        # Secure filename
+        safe_name = "".join(x for x in name if x.isalnum() or x in " -_").strip()
+        path = os.path.join(MIDI_DEVICES_DIR, f"{safe_name}.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/midi/targets/{name}")
+async def delete_midi_target(name: str):
+    """Deletes a specific MIDI target device profile."""
+    try:
+        safe_name = "".join(x for x in name if x.isalnum() or x in " -_").strip()
+        path = os.path.join(MIDI_DEVICES_DIR, f"{safe_name}.json")
+        if os.path.exists(path):
+            os.remove(path)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.on_event("startup")
 async def startup_event():
     global server_loop
