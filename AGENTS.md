@@ -762,3 +762,12 @@ Le système d'entraînement du manche (`fretboard.js`) a subi une refonte mathé
     - **Manual Refresh** : Nouveau bouton (Flèche circulaire) pour forcer la mise à jour des métadonnées affichées (Titre, BPM, Gamme) sans rechargement de page (F5).
     - **Auto-Sync Post-Save** : Les fonctions de sauvegarde (`saveLocalItem`, `saveMultitrackItem`, `saveWebLink`) déclenchent désormais un rafraîchissement automatique du Header si le média édité est celui en cours de lecture.
     - **Fiabilisation de l'Ordre d'Exécution** : Le rafraîchissement est exécuté **avant** la fermeture des modales pour garantir que l'index d'édition est toujours valide en mémoire vive lors de la mise à jour.
+
+### 53. Évolution V10.2 : Navigation Setlist (Skip) & Hardening Orchestrateur
+*   **Navigation Séquentielle (`app.js`) :**
+    - **Skip Buttons** : Ajout de boutons "Précédent" / "Suivant" (`skipTrack`) dans toutes les barres de transport (Audio, Vidéo, Multipiste) et dans le Cockpit.
+    - **Affichage Contextuel** : Utilisation de la classe CSS `.setlist-only` et de la classe `body.setlist-active` pour masquer ces contrôles en mode "Practice" et les révéler uniquement lors de la lecture d'une setlist.
+*   **Hardening de l'Orchestrateur :**
+    - **Single Source of Truth** : Centralisation du nettoyage d'état dans `clearSetlistOrchestrator()`. Cette fonction garantit désormais le reset complet des timers, du mode Live, et de la synchronisation UI (boutons, classes CSS) pour éviter toute dérive d'état entre les modes.
+    - **Auto-Sync UI** : Mise à jour immédiate de l'état visuel du bouton "Live Mode" lors de l'activation/désactivation automatique ou manuelle de l'orchestrateur.
+*   **Traductions & UX** : Support bilingue intégral pour les nouveaux contrôles et harmonisation des icônes Phosphor (`ph-skip-back` / `ph-skip-forward`).
